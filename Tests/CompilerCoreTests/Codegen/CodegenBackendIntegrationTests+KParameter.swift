@@ -2,13 +2,8 @@
 import Foundation
 import XCTest
 
-/// STDLIB-REFLECT-TYPE-013: KParameter member access codegen integration tests.
-///
-/// Verifies that the full compiler pipeline (parse → sema → KIR lowering → codegen → link)
-/// handles `KParameter` property accesses: `index`, `name`, `type`, `isOptional`, `kind`.
 extension CodegenBackendIntegrationTests {
 
-    /// All five KParameter properties compile and link to a native binary without errors.
     func testKParameterPropertyAccessCompiles() throws {
         let source = """
         import kotlin.reflect.KParameter
@@ -48,7 +43,6 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    /// KParameter property accesses in conditional branches compile and link correctly.
     func testKParameterPropertyAccessInConditional() throws {
         let source = """
         import kotlin.reflect.KParameter
@@ -85,7 +79,6 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    /// KParameter.isOptional and KParameter.name accessed together compile correctly.
     func testKParameterNullableNameAndIsOptionalCompile() throws {
         let source = """
         import kotlin.reflect.KParameter
@@ -120,3 +113,4 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
+

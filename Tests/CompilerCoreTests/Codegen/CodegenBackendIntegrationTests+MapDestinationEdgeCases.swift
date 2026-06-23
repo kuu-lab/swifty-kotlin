@@ -15,20 +15,10 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MapKeysToDestination",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MapKeysToDestination",
+            expected:
                 """
                 zero
                 zero
@@ -36,8 +26,7 @@ extension CodegenBackendIntegrationTests {
                 two
                 3
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenMapValuesToUsesCanonicalDiffCase() throws {
@@ -52,20 +41,10 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MapValuesToDestination",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MapValuesToDestination",
+            expected:
                 """
                 5
                 5
@@ -73,7 +52,7 @@ extension CodegenBackendIntegrationTests {
                 21
                 3
                 """ + "\n"
-            )
-        }
+        )
     }
 }
+

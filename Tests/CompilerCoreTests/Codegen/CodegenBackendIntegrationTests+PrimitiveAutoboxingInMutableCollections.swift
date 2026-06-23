@@ -3,19 +3,6 @@ import Foundation
 import XCTest
 
 extension CodegenBackendIntegrationTests {
-    /// A primitive argument passed to a mutable-collection element-insertion helper
-    /// (`MutableList.add` / `add(index, _)` / `set` / `MutableSet.add`) must be
-    /// boxed before storage. The element parameter is the erased type parameter `E`,
-    /// so a raw primitive renders incorrectly via `toString()`:
-    ///   - `Char` prints its numeric code point (the reported bug: `'d'` -> `100`),
-    ///   - `Boolean` prints `0`/`1` and `false` collides with the null sentinel,
-    ///   - `Double`/`Float` print the bit pattern misread as an `Int`.
-    /// Elements created by `mutableListOf(...)` are already boxed, so the un-boxed
-    /// `add` path produced a list with mixed element representations.
-    ///
-    /// `Int` elements are also verified: a boxed `Int` still prints as its decimal
-    /// value, so the change does not regress the one primitive that happened to look
-    /// correct when stored raw.
     func testPrimitiveArgumentBoxedWhenAddedToMutableCollections() throws {
         let source = """
         fun main() {
@@ -62,20 +49,10 @@ extension CodegenBackendIntegrationTests {
             println(nums)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveAutoboxingInMutableCollections",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "PrimitiveAutoboxingInMutableCollections",
+            expected:
                 """
                 [a, b, c, d]
                 [x, y]
@@ -87,7 +64,7 @@ extension CodegenBackendIntegrationTests {
                 [100]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

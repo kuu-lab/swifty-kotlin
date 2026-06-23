@@ -11,20 +11,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayReduce",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "6\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayReduce", expected: "6\n")
     }
 
     func testCodegenArrayReduceOrNullReturnsValueForNonEmptyArray() throws {
@@ -35,20 +22,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayReduceOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "6\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayReduceOrNull", expected: "6\n")
     }
 
     func testCodegenArrayReduceIndexedAccumulatesWithIndex() throws {
@@ -61,20 +35,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayReduceIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "9\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayReduceIndexed", expected: "9\n")
     }
 
     func testCodegenArrayFoldComputesSumWithInitial() throws {
@@ -85,20 +46,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayFold",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "16\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayFold", expected: "16\n")
     }
 
     func testCodegenArrayFoldIndexedAccumulatesWithIndexAndInitial() throws {
@@ -112,20 +60,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayFoldIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayFoldIndexed", expected: "8\n")
     }
 
     func testCodegenArrayFlatMapExpandsElements() throws {
@@ -137,19 +72,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayFlatMap",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 10, 2, 20, 3, 30]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayFlatMap", expected: "[1, 10, 2, 20, 3, 30]\n")
     }
 }
+

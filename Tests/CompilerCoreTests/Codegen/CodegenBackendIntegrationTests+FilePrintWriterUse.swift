@@ -5,8 +5,6 @@ import XCTest
 // STDLIB-030: kotlin.io common - PrintWriter codegen tests
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - File.printWriter().use {}
-
     func testCodegenFilePrintWriterUse() throws {
         let source = """
         import java.io.File
@@ -32,23 +30,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FilePrintWriterUse",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                "3\nhello world\n\ndone\n"
-            )
-        }
+        try assertKotlinOutput(source, moduleName: "FilePrintWriterUse", expected: "3\nhello world\n\ndone\n")
     }
 
     func testCodegenFilePrintWriterExplicitFlushClose() throws {
@@ -71,19 +53,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FilePrintWriterExplicitFlushClose",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "explicit flush and close\n\n")
-        }
+        try assertKotlinOutput(source, moduleName: "FilePrintWriterExplicitFlushClose", expected: "explicit flush and close\n\n")
     }
 }
+

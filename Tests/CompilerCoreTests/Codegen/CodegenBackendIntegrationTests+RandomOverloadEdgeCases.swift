@@ -25,28 +25,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextBitsMember",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextBitsMember",
+            expected:
                 """
                 true
                 true
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomDefaultSingleton() throws {
@@ -60,20 +49,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomDefaultSingleton",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\n")
-        }
+        try assertKotlinOutput(source, moduleName: "RandomDefaultSingleton", expected: "true\n")
     }
 
     func testCodegenCompilesRandomNextBytesSize() throws {
@@ -94,26 +70,15 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextBytesSize",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextBytesSize",
+            expected:
                 """
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomNextULongOverloads() throws {
@@ -145,20 +110,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextULongOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextULongOverloads",
+            expected:
                 """
                 true
                 true
@@ -166,8 +121,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomNextBytesRange() throws {
@@ -189,27 +143,16 @@ extension CodegenBackendIntegrationTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextBytesRange",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextBytesRange",
+            expected:
                 """
                 true
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomNextUIntOverloads() throws {
@@ -241,20 +184,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextUIntOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextUIntOverloads",
+            expected:
                 """
                 true
                 true
@@ -262,8 +195,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomNextUBytesOverloads() throws {
@@ -293,20 +225,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextUBytesOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextUBytesOverloads",
+            expected:
                 """
                 true
                 true
@@ -314,8 +236,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomNextLongRange() throws {
@@ -335,26 +256,15 @@ extension CodegenBackendIntegrationTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextLongRange",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextLongRange",
+            expected:
                 """
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomNextIntRange() throws {
@@ -378,27 +288,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomNextIntRange",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomNextIntRange",
+            expected:
                 """
                 true
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomOverloadEdgeCases() throws {
@@ -420,28 +319,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomOverloadEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomOverloadEdgeCases",
+            expected:
                 """
                 true
                 true
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRandomLongSeedConstructor() throws {
@@ -466,3 +354,4 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
+

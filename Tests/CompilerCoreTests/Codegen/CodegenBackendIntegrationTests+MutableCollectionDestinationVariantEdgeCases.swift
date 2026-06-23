@@ -2,29 +2,7 @@
 import Foundation
 import XCTest
 
-// STDLIB-021: Mutable collection destination variant edge case coverage.
-// Covers: filterTo, mapTo, flatMapTo, associateTo, associateByTo, associateWithTo,
-// groupByTo, partition, toCollection, toMutableList, toMutableSet, toMutableMap.
-//
-// Key invariants under test:
-//  - destination variant appends to existing content (does not clear)
-//  - returns the same destination instance (identity)
-//  - preserves insertion order for MutableList / LinkedHashSet / LinkedHashMap
-//  - associate*To overwrites on duplicate key
-//  - groupByTo buckets append across calls
-//  - pre-populated destination content is retained then extended
-//  - works with empty source
-//
-// Unimplemented APIs (tracked as gaps in STDLIB-021):
-//  - distinctTo / distinctByTo — not present in Kotlin stdlib; standard is toMutableSet()
-//  - partitionTo — not a stdlib API; partition() returns Pair<List,List>
-//  - Custom MutableCollection impl as destination — needs full interface dispatch (not yet lowered)
-//  - filterTo, mapTo, flatMapTo, associateTo, associateByTo, associateWithTo, groupByTo,
-//    filterNotTo, mapNotNullTo, filterIsInstanceTo, mapIndexedTo, flatMapIndexedTo,
-//    toCollection — covered by runtime rewrite paths below
 extension CodegenBackendIntegrationTests {
-
-    // MARK: - STDLIB-021-01: filterTo appends matching elements to destination
 
     func testFilterToAppendsToDestination() throws {
         let source = """
@@ -39,8 +17,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_01")
     }
 
-    // MARK: - STDLIB-021-02: filterTo with empty source leaves destination unchanged
-
     func testFilterToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -53,8 +29,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_02")
     }
-
-    // MARK: - STDLIB-021-03: mapTo appends transformed elements to destination
 
     func testMapToAppendsToDestination() throws {
         let source = """
@@ -69,8 +43,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_03")
     }
 
-    // MARK: - STDLIB-021-04: mapTo with empty source leaves destination unchanged
-
     func testMapToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -83,8 +55,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_04")
     }
-
-    // MARK: - STDLIB-021-05: flatMapTo appends flattened elements to destination
 
     func testFlatMapToAppendsToDestination() throws {
         let source = """
@@ -99,8 +69,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_05")
     }
 
-    // MARK: - STDLIB-021-06: flatMapTo with empty source leaves destination unchanged
-
     func testFlatMapToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -113,8 +81,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_06")
     }
-
-    // MARK: - STDLIB-021-07: associateTo puts all pairs into destination map
 
     func testAssociateToPopulatesDestination() throws {
         let source = """
@@ -131,8 +97,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_07")
     }
 
-    // MARK: - STDLIB-021-08: associateTo overwrites on duplicate key
-
     func testAssociateToOverwritesDuplicateKey() throws {
         let source = """
         fun main() {
@@ -144,8 +108,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_08")
     }
-
-    // MARK: - STDLIB-021-09: associateByTo maps keys to original elements
 
     func testAssociateByToPopulatesDestination() throws {
         let source = """
@@ -161,8 +123,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_09")
     }
 
-    // MARK: - STDLIB-021-10: associateByTo with keySelector and valueTransform
-
     func testAssociateByToWithValueTransform() throws {
         let source = """
         fun main() {
@@ -176,8 +136,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_10")
     }
 
-    // MARK: - STDLIB-021-11: associateByTo overwrites on duplicate key
-
     func testAssociateByToOverwritesDuplicateKey() throws {
         let source = """
         fun main() {
@@ -189,8 +147,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_11")
     }
-
-    // MARK: - STDLIB-021-12: associateWithTo maps element to value
 
     func testAssociateWithToPopulatesDestination() throws {
         let source = """
@@ -207,8 +163,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_12")
     }
 
-    // MARK: - STDLIB-021-13: associateWithTo with pre-populated destination retains existing entries
-
     func testAssociateWithToRetainsExistingEntries() throws {
         let source = """
         fun main() {
@@ -222,8 +176,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_13")
     }
-
-    // MARK: - STDLIB-021-14: groupByTo groups elements into destination map buckets
 
     func testGroupByToPopulatesDestination() throws {
         let source = """
@@ -239,8 +191,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_14")
     }
 
-    // MARK: - STDLIB-021-15: groupByTo appends to existing buckets in destination
-
     func testGroupByToAppendsToBuckets() throws {
         let source = """
         fun main() {
@@ -255,8 +205,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_15")
     }
 
-    // MARK: - STDLIB-021-16: groupByTo with empty source leaves destination unchanged
-
     func testGroupByToEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -268,8 +216,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_16")
     }
-
-    // MARK: - STDLIB-021-17: groupByTo with keySelector and valueTransform
 
     func testGroupByToWithValueTransform() throws {
         let source = """
@@ -284,9 +230,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_17")
     }
 
-    // MARK: - STDLIB-021-18: partition returns two lists splitting elements
-    // NOTE: partition() is already in the stdlib surface but destructuring may not be lowered.
-
     func testPartitionSplitsElements() throws {
         let source = """
         fun main() {
@@ -298,8 +241,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_18")
     }
-
-    // MARK: - STDLIB-021-19: partition with empty source returns two empty lists
 
     func testPartitionEmptySource() throws {
         let source = """
@@ -313,8 +254,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_19")
     }
 
-    // MARK: - STDLIB-021-20: partition all-match puts everything in first list
-
     func testPartitionAllMatch() throws {
         let source = """
         fun main() {
@@ -326,8 +265,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_20")
     }
-
-    // MARK: - STDLIB-021-21: toCollection appends elements to destination collection
 
     func testToCollectionAppendsToDestination() throws {
         let source = """
@@ -342,8 +279,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_21")
     }
 
-    // MARK: - STDLIB-021-22: toCollection with empty source leaves destination unchanged
-
     func testToCollectionEmptySourceLeavesDestination() throws {
         let source = """
         fun main() {
@@ -356,8 +291,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_22")
     }
-
-    // MARK: - STDLIB-021-23: toCollection into MutableSet deduplicates
 
     func testToCollectionIntoMutableSet() throws {
         let source = """
@@ -374,8 +307,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_23")
     }
 
-    // MARK: - STDLIB-021-24: toMutableList returns a new independent copy
-
     func testToMutableListReturnsIndependentCopy() throws {
         let source = """
         fun main() {
@@ -388,8 +319,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_24")
     }
-
-    // MARK: - STDLIB-021-25: toMutableList from empty source returns empty mutable list
 
     func testToMutableListFromEmpty() throws {
         let source = """
@@ -404,8 +333,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_25")
     }
 
-    // MARK: - STDLIB-021-26: toMutableSet deduplicates elements
-
     func testToMutableSetDeduplicates() throws {
         let source = """
         fun main() {
@@ -419,8 +346,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_26")
     }
 
-    // MARK: - STDLIB-021-27: toMutableSet from empty source returns empty mutable set
-
     func testToMutableSetFromEmpty() throws {
         let source = """
         fun main() {
@@ -433,8 +358,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_27")
     }
-
-    // MARK: - STDLIB-021-28: toMutableMap returns independent mutable copy of map
 
     func testToMutableMapReturnsMutableCopy() throws {
         let source = """
@@ -450,8 +373,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_28")
     }
 
-    // MARK: - STDLIB-021-29: toMutableMap from empty map returns empty mutable map
-
     func testToMutableMapFromEmpty() throws {
         let source = """
         fun main() {
@@ -465,8 +386,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_29")
     }
 
-    // MARK: - STDLIB-021-30: filterTo preserves insertion order in MutableList
-
     func testFilterToPreservesInsertionOrder() throws {
         let source = """
         fun main() {
@@ -479,8 +398,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_30")
     }
 
-    // MARK: - STDLIB-021-31: mapTo preserves insertion order in MutableList
-
     func testMapToPreservesInsertionOrder() throws {
         let source = """
         fun main() {
@@ -492,8 +409,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_31")
     }
-
-    // MARK: - STDLIB-021-32: associateTo with empty source leaves destination unchanged
 
     func testAssociateToEmptySourceLeavesDestination() throws {
         let source = """
@@ -508,8 +423,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_32")
     }
 
-    // MARK: - STDLIB-021-33: filterTo into LinkedHashSet preserves insertion order and deduplicates
-
     func testFilterToLinkedHashSetPreservesOrder() throws {
         let source = """
         fun main() {
@@ -522,8 +435,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_33")
     }
 
-    // MARK: - STDLIB-021-34: mapNotNullTo filters nulls and appends non-null transformed values
-
     func testMapNotNullToFiltersNulls() throws {
         let source = """
         fun main() {
@@ -535,8 +446,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_34")
     }
-
-    // MARK: - STDLIB-021-34b: filterNotNullTo appends non-null values to destination
 
     func testFilterNotNullToAppendsNonNullValues() throws {
         let source = """
@@ -551,8 +460,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_34_FILTER_NOT_NULL_TO")
     }
 
-    // MARK: - STDLIB-021-35: filterNotTo appends non-matching elements to destination
-
     func testFilterNotToAppendsNonMatchingElements() throws {
         let source = """
         fun main() {
@@ -566,8 +473,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_35")
     }
 
-    // MARK: - STDLIB-021-36: filterIsInstanceTo collects elements of given type
-
     func testFilterIsInstanceToCollectsTypedElements() throws {
         let source = """
         fun main() {
@@ -579,8 +484,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_36")
     }
-
-    // MARK: - STDLIB-021-37: mapIndexedTo appends indexed transformed elements
 
     func testMapIndexedToAppendsIndexedElements() throws {
         let source = """
@@ -594,8 +497,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_37")
     }
 
-    // MARK: - STDLIB-021-38: flatMapIndexedTo appends flattened indexed elements
-
     func testFlatMapIndexedToAppendsElements() throws {
         let source = """
         fun main() {
@@ -607,8 +508,6 @@ extension CodegenBackendIntegrationTests {
         """
         try assertKotlinCompilesToKIR(source, moduleName: "STDLIB021_38")
     }
-
-    // MARK: - STDLIB-021-39: grouping reduceTo mutates the destination map
 
     func testGroupingReduceToCompiles() throws {
         let source = """

@@ -5,8 +5,6 @@ import XCTest
 // STDLIB-030: kotlin.io common - bufferedReader/bufferedWriter codegen tests
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - File.bufferedReader().use {}
-
     func testCodegenFileBufferedReaderUseReadText() throws {
         let source = """
         import java.io.File
@@ -26,20 +24,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FileBufferedReaderUseReadText",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "buffered reader text\n")
-        }
+        try assertKotlinOutput(source, moduleName: "FileBufferedReaderUseReadText", expected: "buffered reader text\n")
     }
 
     func testCodegenFileBufferedReaderReadLine() throws {
@@ -63,20 +48,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FileBufferedReaderReadLine",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "first\nsecond\nthird\nnull\n")
-        }
+        try assertKotlinOutput(source, moduleName: "FileBufferedReaderReadLine", expected: "first\nsecond\nthird\nnull\n")
     }
 
     func testCodegenFileBufferedReaderReadLines() throws {
@@ -99,20 +71,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FileBufferedReaderReadLines",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\nx\ny\nz\n")
-        }
+        try assertKotlinOutput(source, moduleName: "FileBufferedReaderReadLines", expected: "3\nx\ny\nz\n")
     }
 
     // STDLIB-IO-USE-001: bufferedReader().use { reader -> reader.readLines() }
@@ -134,26 +93,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FileBufferedReaderUseBlockReadLines",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                "3\nalpha\nbeta\ngamma\n"
-            )
-        }
+        try assertKotlinOutput(source, moduleName: "FileBufferedReaderUseBlockReadLines", expected: "3\nalpha\nbeta\ngamma\n")
     }
-
-    // MARK: - File.bufferedWriter().use {}
 
     func testCodegenFileBufferedWriterUseWrite() throws {
         let source = """
@@ -176,20 +117,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FileBufferedWriterUseWrite",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "written by bufferedWriter\n")
-        }
+        try assertKotlinOutput(source, moduleName: "FileBufferedWriterUseWrite", expected: "written by bufferedWriter\n")
     }
 
     func testCodegenFileBufferedWriterMultipleLines() throws {
@@ -217,23 +145,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "FileBufferedWriterMultipleLines",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2\nline A\nline B\n")
-        }
+        try assertKotlinOutput(source, moduleName: "FileBufferedWriterMultipleLines", expected: "2\nline A\nline B\n")
     }
-
-    // MARK: - Reader.readText() extension
 
     func testCodegenReaderReadTextExtension() throws {
         let source = """
@@ -254,19 +167,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ReaderReadTextExtension",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "reader readText result\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ReaderReadTextExtension", expected: "reader readText result\n")
     }
 }
+

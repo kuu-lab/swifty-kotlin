@@ -21,20 +21,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToByteExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToByteExecution",
+            expected:
                 """
                 42
                 -42
@@ -50,8 +40,7 @@ extension CodegenBackendIntegrationTests {
                 whitespace
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testStringToShortAndToShortOrNullExecution() throws {
@@ -72,20 +61,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToShortExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToShortExecution",
+            expected:
                 """
                 1000
                 -1000
@@ -101,8 +80,7 @@ extension CodegenBackendIntegrationTests {
                 whitespace
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testStringToLongAndToLongOrNullExecution() throws {
@@ -121,20 +99,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToLongExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToLongExecution",
+            expected:
                 """
                 9999999999
                 -9999999999
@@ -148,8 +116,7 @@ extension CodegenBackendIntegrationTests {
                 whitespace
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testStringToUnsignedAndToUnsignedOrNullExecution() throws {
@@ -168,20 +135,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToUnsignedExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToUnsignedExecution",
+            expected:
                 """
                 255
                 null
@@ -194,8 +151,7 @@ extension CodegenBackendIntegrationTests {
                 null
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testStringToFloatAndToFloatOrNullExecution() throws {
@@ -215,20 +171,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToFloatExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToFloatExecution",
+            expected:
                 """
                 0.5
                 -2.0
@@ -243,8 +189,7 @@ extension CodegenBackendIntegrationTests {
                 empty
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testStringToBooleanExecution() throws {
@@ -261,20 +206,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToBooleanExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToBooleanExecution",
+            expected:
                 """
                 true
                 true
@@ -286,8 +221,7 @@ extension CodegenBackendIntegrationTests {
                 false
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testStringToBooleanStrictExecution() throws {
@@ -301,20 +235,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToBooleanStrictExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToBooleanStrictExecution",
+            expected:
                 """
                 true
                 false
@@ -323,8 +247,7 @@ extension CodegenBackendIntegrationTests {
                 non-boolean
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testStringToBooleanStrictOrNullExecution() throws {
@@ -339,20 +262,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToBooleanStrictOrNullExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToBooleanStrictOrNullExecution",
+            expected:
                 """
                 true
                 false
@@ -362,7 +275,7 @@ extension CodegenBackendIntegrationTests {
                 null
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

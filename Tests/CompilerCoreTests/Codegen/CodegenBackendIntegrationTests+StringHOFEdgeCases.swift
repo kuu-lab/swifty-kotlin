@@ -18,20 +18,10 @@ extension CodegenBackendIntegrationTests {
             println("".filterIndexed { i, c -> true })
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFFilter",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFFilter",
+            expected:
                 """
                 ll
 
@@ -43,8 +33,7 @@ extension CodegenBackendIntegrationTests {
 
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: map / mapIndexed / mapNotNull
@@ -59,20 +48,10 @@ extension CodegenBackendIntegrationTests {
             println("".mapNotNull { it })
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFMap",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFMap",
+            expected:
                 """
                 [a, b, c]
                 []
@@ -82,8 +61,7 @@ extension CodegenBackendIntegrationTests {
                 []
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: all / any / none / count
@@ -104,20 +82,10 @@ extension CodegenBackendIntegrationTests {
             println("".count { it == 'a' })
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFAggregates",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFAggregates",
+            expected:
                 """
                 true
                 false
@@ -133,8 +101,7 @@ extension CodegenBackendIntegrationTests {
                 0
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: find / findLast
@@ -149,20 +116,10 @@ extension CodegenBackendIntegrationTests {
             println("".findLast { it == 'a' })
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFFindFindLast",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFFindFindLast",
+            expected:
                 """
                 l
                 null
@@ -172,8 +129,7 @@ extension CodegenBackendIntegrationTests {
                 null
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: first / last / single — happy path (non-empty strings)
@@ -188,28 +144,17 @@ extension CodegenBackendIntegrationTests {
             println("a".single())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFFirstLastSingle",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFFirstLastSingle",
+            expected:
                 """
                 a
                 c
                 a
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: firstOrNull / lastOrNull / singleOrNull — null on empty and multi-element
@@ -226,20 +171,10 @@ extension CodegenBackendIntegrationTests {
             println("abc".singleOrNull())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFNullable",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFNullable",
+            expected:
                 """
                 a
                 null
@@ -251,8 +186,7 @@ extension CodegenBackendIntegrationTests {
                 null
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: partition — verifies Pair<String,String> return via .first / .second
@@ -273,33 +207,20 @@ extension CodegenBackendIntegrationTests {
             println(p4.second)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFPartition",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFPartition",
+            expected:
                 """
                 ll
                 heo
 
-
                 aaa
-
 
                 bbb
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-TEXT-018: takeWhile / dropWhile
@@ -315,20 +236,10 @@ extension CodegenBackendIntegrationTests {
             println("aaaaa".dropWhile { it == 'a' })
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringHOFTakeDropWhile",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringHOFTakeDropWhile",
+            expected:
                 """
                 ab
 
@@ -339,7 +250,7 @@ extension CodegenBackendIntegrationTests {
 
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

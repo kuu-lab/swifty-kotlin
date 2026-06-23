@@ -7,8 +7,6 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - String.toList()
-
     func testCodegenStringToList() throws {
         let source = """
         fun main() {
@@ -24,29 +22,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToList",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToList",
+            expected:
                 """
                 [h, e, l, l, o]
                 []
                 [a, b, c]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenStringToListSupportsListOperations() throws {
@@ -63,28 +49,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToListOps",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringToListOps",
+            expected:
                 """
                 2
                 h
                 i
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

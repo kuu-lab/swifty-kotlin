@@ -2,16 +2,7 @@
 import Foundation
 import XCTest
 
-// STDLIB-SYSTEM-FN-006: measureTimeMicros end-to-end codegen tests.
-//
-// measureTimeMicros { block } returns the elapsed microseconds as Long.
-// The exact value is non-deterministic (depends on the host clock), so tests
-// verify invariants that hold regardless of timing: the result is >= 0 and
-// the block body actually executes.
-
 extension CodegenBackendIntegrationTests {
-
-    // MARK: - Basic usage: result is non-negative
 
     func testMeasureTimeMicrosReturnsNonNegativeLong() throws {
         let source = """
@@ -26,23 +17,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureTimeMicrosNonNegative",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureTimeMicrosNonNegative", expected: "true\n")
     }
-
-    // MARK: - Block body executes
 
     func testMeasureTimeMicrosBlockBodyExecutes() throws {
         let source = """
@@ -58,23 +34,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureTimeMicrosBlockExecutes",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureTimeMicrosBlockExecutes", expected: "true\ntrue\n")
     }
-
-    // MARK: - Side effects inside block are visible after call
 
     func testMeasureTimeMicrosSideEffectsAreVisible() throws {
         let source = """
@@ -91,23 +52,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureTimeMicrosSideEffects",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureTimeMicrosSideEffects", expected: "3\n")
     }
-
-    // MARK: - Nested measureTimeMicros calls
 
     func testMeasureTimeMicrosNestedCalls() throws {
         let source = """
@@ -125,19 +71,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureTimeMicrosNested",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureTimeMicrosNested", expected: "true\ntrue\n")
     }
 }
+

@@ -12,20 +12,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionFlatMapBasic",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 10, 2, 20, 3, 30]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CollectionFlatMapBasic", expected: "[1, 10, 2, 20, 3, 30]\n")
     }
 
     func testCodegenListFlatMapWithEmptyInput() throws {
@@ -38,20 +25,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionFlatMapEmptyInput",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[]\n0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CollectionFlatMapEmptyInput", expected: "[]\n0\n")
     }
 
     func testCodegenListFlatMapWithConditionalEmptySubList() throws {
@@ -63,20 +37,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionFlatMapConditionalEmpty",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[2, 4]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CollectionFlatMapConditionalEmpty", expected: "[2, 4]\n")
     }
 
     func testCodegenListFlatMapIndexed() throws {
@@ -88,19 +49,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionFlatMapIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[0, 10, 1, 20, 2, 30]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CollectionFlatMapIndexed", expected: "[0, 10, 1, 20, 2, 30]\n")
     }
 }
+

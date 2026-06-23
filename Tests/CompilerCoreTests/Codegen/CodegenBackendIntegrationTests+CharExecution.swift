@@ -7,8 +7,6 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - isISOControl
-
     func testCodegenCharIsISOControlBoundaries() throws {
         let source = """
         fun main() {
@@ -20,21 +18,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharIsISOControlExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharIsISOControlExecution",
+            expected:
                 """
                 true
                 false
@@ -43,11 +30,8 @@ extension CodegenBackendIntegrationTests {
                 false
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - Char + Int
 
     func testCodegenCharPlusInt() throws {
         // Char.plus(Int) lowers to kk_op_add; .code extracts the result as Int for safe printing
@@ -58,31 +42,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharPlusIntExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharPlusIntExecution",
+            expected:
                 """
                 98
                 90
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - Char - Int
 
     func testCodegenCharMinusInt() throws {
         // Char.minus(Int) lowers to kk_op_sub; result type is Char, printed via .code
@@ -93,31 +63,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharMinusIntExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharMinusIntExecution",
+            expected:
                 """
                 97
                 97
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - Char - Char
 
     func testCodegenCharMinusChar() throws {
         // Char.minus(Char) dispatches to kk_char_minus and returns Int
@@ -129,32 +85,18 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharMinusCharExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharMinusCharExecution",
+            expected:
                 """
                 1
                 -1
                 25
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - String[i]
 
     func testCodegenStringGetByIndex() throws {
         // String.get dispatches to kk_string_get; result is Char, printed via .code
@@ -165,31 +107,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringGetIndexExecution",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringGetIndexExecution",
+            expected:
                 """
                 101
                 119
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - CharRange.forEach
 
     func testCodegenCharRangeForEachAscending() throws {
         let source = """
@@ -198,21 +126,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharRangeForEachAscending",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharRangeForEachAscending",
+            expected:
                 """
                 97
                 98
@@ -221,8 +138,7 @@ extension CodegenBackendIntegrationTests {
                 101
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCharRangeForEachEmpty() throws {
@@ -234,21 +150,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharRangeForEachEmpty",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "done\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CharRangeForEachEmpty", expected: "done\n")
     }
 
     func testCodegenCharProgressionForEachDescending() throws {
@@ -259,21 +161,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharProgressionForEachDescending",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharProgressionForEachDescending",
+            expected:
                 """
                 101
                 100
@@ -282,11 +173,8 @@ extension CodegenBackendIntegrationTests {
                 97
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - STDLIB-TEXT-PROP-009: isJavaIdentifierPart
 
     func testCodegenCharIsJavaIdentifierPartTypicalValues() throws {
         // Covers letters, digits, connector punctuation (_), currency symbol ($),
@@ -302,21 +190,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharIsJavaIdentifierPartTypical",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharIsJavaIdentifierPartTypical",
+            expected:
                 """
                 true
                 true
@@ -326,8 +203,7 @@ extension CodegenBackendIntegrationTests {
                 false
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCharIsJavaIdentifierPartDigitAllowedButStartForbids() throws {
@@ -341,27 +217,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharIsJavaIdentifierPartVsStart",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharIsJavaIdentifierPartVsStart",
+            expected:
                 """
                 true
                 false
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

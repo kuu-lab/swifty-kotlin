@@ -2,15 +2,8 @@
 import Foundation
 import XCTest
 
-/// STDLIB-SYSTEM-FN-001: exitProcess codegen integration tests.
-///
-/// exitProcess calls POSIX exit() and therefore cannot be called directly in tests
-/// (it would terminate the test process). These tests verify the full codegen pipeline
-/// by placing exitProcess calls on branches that are never executed at runtime, while
-/// confirming the non-exit path produces the expected output.
 extension CodegenBackendIntegrationTests {
 
-    /// exitProcess reachable only through a dead conditional branch — normal output is produced.
     func testExitProcessCodegenInDeadBranch() throws {
         let source = """
         import kotlin.system.exitProcess
@@ -43,9 +36,6 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    /// exitProcess wrapped inside a helper function — the call site uses the helper but
-    /// never actually invokes the exit path.  Verifies that Nothing-typed helper functions
-    /// are correctly lowered through the ABI.
     func testExitProcessCodegenThroughHelperFunction() throws {
         let source = """
         import kotlin.system.exitProcess
@@ -83,7 +73,6 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    /// exitProcess used in a when expression — only the non-exit arm executes.
     func testExitProcessCodegenInWhenExpression() throws {
         let source = """
         import kotlin.system.exitProcess
@@ -116,3 +105,4 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
+

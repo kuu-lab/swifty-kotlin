@@ -3,7 +3,6 @@ import Foundation
 import XCTest
 
 extension CodegenBackendIntegrationTests {
-    // MARK: - Private Helpers
 
     func runCodegenPipeline(
         inputPath: String,
@@ -30,6 +29,30 @@ extension CodegenBackendIntegrationTests {
         try LoweringPhase().run(ctx)
         try CodegenPhase().run(ctx)
         return ctx
+    }
+
+    func assertKotlinOutput(
+        _ source: String,
+        moduleName: String,
+        expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: moduleName,
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, expected, file: file, line: line)
+        }
     }
 
     func assertDeterministicCodegenOutput(source: String, emit: EmitMode) throws {

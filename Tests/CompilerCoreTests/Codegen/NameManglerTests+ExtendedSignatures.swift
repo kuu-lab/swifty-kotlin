@@ -116,8 +116,6 @@ extension NameManglerTests {
         XCTAssertEqual(sig, "_")
     }
 
-    // MARK: - FQ Name Encoding
-
     func testMangleFQNameMultipleComponents() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -138,8 +136,6 @@ extension NameManglerTests {
         XCTAssertTrue(result.contains("7example"))
         XCTAssertTrue(result.contains("3baz"))
     }
-
-    // MARK: - Suspend Function Signature
 
     func testMangledSignatureForSuspendFunction() throws {
         let mangler = NameMangler()
@@ -168,8 +164,6 @@ extension NameManglerTests {
         )
         XCTAssertTrue(sig.hasPrefix("SF"))
     }
-
-    // MARK: - Nullable Type Encoding
 
     func testMangledSignatureNullableType() throws {
         let mangler = NameMangler()
@@ -219,8 +213,6 @@ extension NameManglerTests {
         XCTAssertEqual(sig, "Q<I>")
     }
 
-    // MARK: - All Primitive Encodings
-
     func testMangledSignatureAllPrimitives() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -252,8 +244,6 @@ extension NameManglerTests {
             XCTAssertEqual(sig, expected, "Primitive \(prim) should encode to \(expected)")
         }
     }
-
-    // MARK: - Special Type Encodings
 
     func testMangledSignatureUnitType() throws {
         let mangler = NameMangler()

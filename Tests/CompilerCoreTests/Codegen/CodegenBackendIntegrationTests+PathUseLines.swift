@@ -5,8 +5,6 @@ import XCTest
 // STDLIB-IO-PATH-FN-038: kotlin.io.path.Path.useLines codegen tests
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - Path.useLines {} — count
-
     func testCodegenPathUseLinesCount() throws {
         let source = """
         import kotlin.io.path.Path
@@ -28,23 +26,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PathUseLinesCount",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalized, "3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PathUseLinesCount", expected: "3\n")
     }
-
-    // MARK: - Path.useLines {} — forEach
 
     func testCodegenPathUseLinesForEach() throws {
         let source = """
@@ -66,23 +49,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PathUseLinesForEach",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalized, "one\ntwo\nthree\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PathUseLinesForEach", expected: "one\ntwo\nthree\n")
     }
-
-    // MARK: - Path.useLines {} — empty file
 
     func testCodegenPathUseLinesEmptyFile() throws {
         let source = """
@@ -105,23 +73,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PathUseLinesEmpty",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalized, "0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PathUseLinesEmpty", expected: "0\n")
     }
-
-    // MARK: - Path.useLines {} — block return value (toList)
 
     func testCodegenPathUseLinesReturnsList() throws {
         let source = """
@@ -143,19 +96,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PathUseLinesReturnsList",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalized, "3\nx\ny\nz\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PathUseLinesReturnsList", expected: "3\nx\ny\nz\n")
     }
 }
+

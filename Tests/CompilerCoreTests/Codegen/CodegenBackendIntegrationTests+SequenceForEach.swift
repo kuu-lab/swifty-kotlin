@@ -10,20 +10,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceForEachRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n2\n3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceForEachRuntime", expected: "1\n2\n3\n")
     }
 
     func testCodegenSequenceForEachOnEmptySequenceDoesNothing() throws {
@@ -34,20 +21,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceForEachEmpty",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "done\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceForEachEmpty", expected: "done\n")
     }
 
     func testCodegenSequenceForEachAfterFilterChain() throws {
@@ -59,20 +33,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceForEachChained",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2\n4\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceForEachChained", expected: "2\n4\n")
     }
 
     func testCodegenSequenceForEachUsesRuntimeHelper() throws {
@@ -93,3 +54,4 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
+

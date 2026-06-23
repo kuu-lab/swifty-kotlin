@@ -17,19 +17,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomAsKotlinRandom",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\n")
-        }
+        try assertKotlinOutput(source, moduleName: "RandomAsKotlinRandom", expected: "true\n")
     }
 
     func testCodegenRandomAsJavaRandom() throws {
@@ -43,19 +31,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomAsJavaRandom",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "RandomAsJavaRandom", expected: "ok\n")
     }
 
     func testCodegenCompilesRandomEdgeCases() throws {
@@ -78,20 +54,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RandomEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RandomEdgeCases",
+            expected:
                 """
                 true
                 true
@@ -100,7 +66,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

@@ -8,8 +8,6 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - TimeUnit.toDurationUnit() ordinals
-
     func testCodegenTimeUnitToDurationUnitOrdinals() throws {
         let source = """
         import java.util.concurrent.TimeUnit
@@ -26,21 +24,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "TimeUnitToDurationUnitOrdinals",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "TimeUnitToDurationUnitOrdinals",
+            expected:
                 """
                 0
                 1
@@ -50,13 +37,9 @@ extension CodegenBackendIntegrationTests {
                 5
                 6
                 """
-                + "\n",
-                "TimeUnit and DurationUnit share entry ordering, so each ordinal maps to itself"
-            )
-        }
+                + "\n"
+        )
     }
-
-    // MARK: - Returned DurationUnit feeds back into toDuration
 
     func testCodegenTimeUnitToDurationUnitFeedsToDuration() throws {
         let source = """
@@ -71,20 +54,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "TimeUnitToDurationUnitFeedsToDuration",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2\n500\n", "Converted DurationUnit must drive toDuration scaling")
-        }
+        try assertKotlinOutput(source, moduleName: "TimeUnitToDurationUnitFeedsToDuration", expected: "2\n500\n")
     }
 }
+

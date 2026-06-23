@@ -23,20 +23,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MathRuntimeEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MathRuntimeEdgeCases",
+            expected:
                 """
                 1024.0
                 10.0
@@ -49,13 +39,10 @@ extension CodegenBackendIntegrationTests {
                 1.0
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // TEST-MATH-022: End-to-end execution coverage for kotlin.math.pow IEEE 754 special cases.
-
-    // MARK: - pow(Double/Float, Double/Float) special cases
 
     func testCodegenCompilesMathPowFloatingSpecialCases() throws {
         let source = """
@@ -72,20 +59,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MathPowFloatingSpecialCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MathPowFloatingSpecialCases",
+            expected:
                 """
                 true
                 true
@@ -95,11 +72,8 @@ extension CodegenBackendIntegrationTests {
                 true
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - pow(Double/Float, Int) special cases
 
     func testCodegenCompilesMathPowIntSpecialCases() throws {
         let source = """
@@ -122,20 +96,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MathPowIntSpecialCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MathPowIntSpecialCases",
+            expected:
                 """
                 true
                 true
@@ -147,8 +111,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesNaNRelationalOperators() throws {
@@ -176,20 +139,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "NaNRelationalOperators",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "NaNRelationalOperators",
+            expected:
                 """
                 false
                 false
@@ -209,8 +162,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
 

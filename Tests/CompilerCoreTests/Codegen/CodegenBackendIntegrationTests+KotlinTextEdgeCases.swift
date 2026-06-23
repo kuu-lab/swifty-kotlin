@@ -2,22 +2,9 @@
 import Foundation
 import XCTest
 
-// MARK: - kotlin.text edge case coverage (STDLIB-005)
 //
-// Covers: split, splitToSequence, replace, replaceFirst, replaceRange,
-// substring, subSequence, trim/trimStart/trimEnd (char + predicate variants),
-// padStart/padEnd, indexOf/lastIndexOf (ignoreCase + startIndex),
-// chunked, windowed, lines, removePrefix/removeSuffix,
-// take/drop/takeLast/dropLast, case-conversion helpers.
-//
-// Edge cases tested: empty string, single char, single-char delimiter,
-// multi-char delimiter, trailing empty matches (limit arg), out-of-range
-// indices (StringIndexOutOfBoundsException), negative count
-// (IllegalArgumentException), CRLF in lines(), empty delimiter behavior.
 
 extension CodegenBackendIntegrationTests {
-
-    // MARK: - split / splitToSequence
 
     func testKotlinTextSplitEdgeCases() throws {
         let source = """
@@ -48,20 +35,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextSplitEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSplitEdgeCases",
+            expected:
                 """
                 []
                 [hello]
@@ -73,8 +50,7 @@ extension CodegenBackendIntegrationTests {
                 [abc]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextSplitWithLimitEdgeCases() throws {
@@ -86,28 +62,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextSplitWithLimitEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSplitWithLimitEdgeCases",
+            expected:
                 """
                 [a, b,c,d]
                 [a, b, c]
                 [a, b, c]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextSplitToSequenceEdgeCases() throws {
@@ -127,20 +92,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextSplitToSeqEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSplitToSeqEdgeCases",
+            expected:
                 """
                 []
                 [hello]
@@ -148,11 +103,8 @@ extension CodegenBackendIntegrationTests {
                 [abc]
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - toMutableList (STDLIB-TEXT-FN-104)
 
     func testKotlinTextToMutableListEdgeCases() throws {
         let source = """
@@ -186,20 +138,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextToMutableListEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextToMutableListEdgeCases",
+            expected:
                 """
                 []
                 [a]
@@ -213,8 +155,7 @@ extension CodegenBackendIntegrationTests {
                 [x, y]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextFirstNotNullOfEdgeCases() throws {
@@ -234,28 +175,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextFirstNotNullOfEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextFirstNotNullOfEdgeCases",
+            expected:
                 """
                 bee
                 tea
                 missing
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextFirstNotNullOfOrNullEdgeCases() throws {
@@ -271,28 +201,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextFirstNotNullOfOrNullEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextFirstNotNullOfOrNullEdgeCases",
+            expected:
                 """
                 bee
                 tea
                 missing
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReduceRightIndexedEdgeCases() throws {
@@ -312,28 +231,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReduceRightIndexedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReduceRightIndexedEdgeCases",
+            expected:
                 """
                 b
                 a
                 empty
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReduceRightIndexedOrNullEdgeCases() throws {
@@ -349,28 +257,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReduceRightIndexedOrNullEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReduceRightIndexedOrNullEdgeCases",
+            expected:
                 """
                 b
                 a
                 x
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReduceRightOrNullEdgeCases() throws {
@@ -386,28 +283,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReduceRightOrNullEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReduceRightOrNullEdgeCases",
+            expected:
                 """
                 b
                 a
                 x
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextSumByEdgeCases() throws {
@@ -423,28 +309,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextSumByEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSumByEdgeCases",
+            expected:
                 """
                 21
                 9
                 0
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextSumByDoubleEdgeCases() throws {
@@ -460,31 +335,18 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextSumByDoubleEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSumByDoubleEdgeCases",
+            expected:
                 """
                 3.25
                 6.0
                 0.0
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - replace / replaceFirst / replaceRange
 
     func testKotlinTextReplaceEdgeCases() throws {
         let source = """
@@ -515,20 +377,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReplaceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReplaceEdgeCases",
+            expected:
                 """
 
                 hello
@@ -540,8 +392,7 @@ extension CodegenBackendIntegrationTests {
 
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReplaceRangeEdgeCases() throws {
@@ -572,22 +423,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReplaceRangeEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                // "abcde".replaceRange(1..3, "XY"): range 1..3 is inclusive [1,2,3]={b,c,d}
-                // result: "a" + "XY" + "e" = "aXYe"
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReplaceRangeEdgeCases",
+            expected:
                 """
                 aXYe
                 abZcde
@@ -596,8 +435,7 @@ extension CodegenBackendIntegrationTests {
                 oob-replaceRange-end
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReplaceAfterEdgeCases() throws {
@@ -616,20 +454,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReplaceAfterEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReplaceAfterEdgeCases",
+            expected:
                 """
                 a:X
                 MISS
@@ -643,8 +471,7 @@ extension CodegenBackendIntegrationTests {
                 aX
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReplaceAfterLastEdgeCases() throws {
@@ -664,20 +491,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReplaceAfterLastEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReplaceAfterLastEdgeCases",
+            expected:
                 """
                 a:b:X
                 MISS
@@ -692,8 +509,7 @@ extension CodegenBackendIntegrationTests {
                 aX
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReplaceBeforeEdgeCases() throws {
@@ -713,20 +529,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReplaceBeforeEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReplaceBeforeEdgeCases",
+            expected:
                 """
                 X:b:c
                 MISS
@@ -741,8 +547,7 @@ extension CodegenBackendIntegrationTests {
                 Xc
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReplaceBeforeLastEdgeCases() throws {
@@ -763,20 +568,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReplaceBeforeLastEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReplaceBeforeLastEdgeCases",
+            expected:
                 """
                 X:c
                 MISS
@@ -792,8 +587,7 @@ extension CodegenBackendIntegrationTests {
                 Xabc
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextReplaceIndentByMarginEdgeCases() throws {
@@ -812,20 +606,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextReplaceIndentByMarginEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextReplaceIndentByMarginEdgeCases",
+            expected:
                 """
                 > alpha/>   beta/    gamma
                 --alpha/--/--beta
@@ -835,11 +619,8 @@ extension CodegenBackendIntegrationTests {
                 plain/++mark
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - substring / subSequence
 
     func testKotlinTextSubstringEdgeCases() throws {
         let source = """
@@ -883,20 +664,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextSubstringEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextSubstringEdgeCases",
+            expected:
                 """
                 world
                 hello
@@ -909,11 +680,8 @@ extension CodegenBackendIntegrationTests {
                 oob-substring-startgtend
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - codePointCount
 
     func testKotlinTextCodePointCountEdgeCases() throws {
         let source = """
@@ -951,20 +719,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextCodePointCountEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextCodePointCountEdgeCases",
+            expected:
                 """
                 3
                 1
@@ -979,11 +737,8 @@ extension CodegenBackendIntegrationTests {
                 oob-codepoint-order
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - trim / trimStart / trimEnd
 
     func testKotlinTextTrimEdgeCases() throws {
         let source = """
@@ -1017,21 +772,11 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextTrimEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                "\n" +
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextTrimEdgeCases",
+            expected:
+"\n" +
                 "\n" +
                 "hello\n" +
                 "hello\n" +
@@ -1040,8 +785,7 @@ extension CodegenBackendIntegrationTests {
                 "  hello\n" +
                 "\n" +
                 "a\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextTrimPredicateEdgeCases() throws {
@@ -1055,20 +799,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextTrimPredicateEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextTrimPredicateEdgeCases",
+            expected:
                 """
                 [hello]
                 [helloxy]
@@ -1077,11 +811,8 @@ extension CodegenBackendIntegrationTests {
                 [b]
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - padStart / padEnd
 
     func testKotlinTextPadEdgeCases() throws {
         let source = """
@@ -1115,22 +846,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextPadEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                // padEnd pads with trailing spaces; "hi".padEnd(5) → "hi   "
-                // "".padEnd(3) → "   " (3 spaces)
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextPadEdgeCases",
+            expected:
                 "hello\n" +
                 "   hi\n" +
                 "hello\n" +
@@ -1140,11 +859,8 @@ extension CodegenBackendIntegrationTests {
                 "hi***\n" +
                 "xxx\n" +
                 "   \n"
-            )
-        }
+        )
     }
-
-    // MARK: - indexOf / lastIndexOf
 
     func testKotlinTextIndexOfEdgeCases() throws {
         let source = """
@@ -1181,20 +897,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextIndexOfEdgeCases",
+            expected:
                 """
                 6
                 -1
@@ -1208,8 +914,7 @@ extension CodegenBackendIntegrationTests {
                 -1
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase (positional 3-arg API)
@@ -1222,31 +927,18 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfIgnoreCaseEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextIndexOfIgnoreCaseEdgeCases",
+            expected:
                 """
                 0
                 3
                 -1
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - indexOfFirst / indexOfLast (predicate) — STDLIB-TEXT-FN-022 / STDLIB-TEXT-FN-023
 
     func testKotlinTextIndexOfFirstPredicateEdgeCases() throws {
         let source = """
@@ -1275,20 +967,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfFirstPredicateEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextIndexOfFirstPredicateEdgeCases",
+            expected:
                 """
                 2
                 -1
@@ -1298,11 +980,8 @@ extension CodegenBackendIntegrationTests {
                 2
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - chunked / windowed
 
     func testKotlinTextChunkedEdgeCases() throws {
         let source = """
@@ -1339,20 +1018,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextChunkedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextChunkedEdgeCases",
+            expected:
                 """
                 [ab, cd, ef]
                 [abc]
@@ -1366,8 +1035,7 @@ extension CodegenBackendIntegrationTests {
                 [abc, cd]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextChunkedSequenceTransformEdgeCases() throws {
@@ -1385,20 +1053,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextChunkedSequenceTransformEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextChunkedSequenceTransformEdgeCases",
+            expected:
                 """
                 [2, 2, 2]
                 [chunk, chunk, chunk]
@@ -1406,8 +1064,7 @@ extension CodegenBackendIntegrationTests {
                 [single]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextChunkedSequenceEdgeCases() throws {
@@ -1432,20 +1089,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextChunkedSequenceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextChunkedSequenceEdgeCases",
+            expected:
                 """
                 [ab, cd, ef]
                 [ab, cd, e]
@@ -1453,8 +1100,7 @@ extension CodegenBackendIntegrationTests {
                 [abc]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextWindowedSequenceEdgeCases() throws {
@@ -1472,20 +1118,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextWindowedSequenceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextWindowedSequenceEdgeCases",
+            expected:
                 """
                 [abc, cde]
                 [abc, cde, ef]
@@ -1494,8 +1130,7 @@ extension CodegenBackendIntegrationTests {
                 [he, el, ll, lo]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextWindowedSequenceTransformEdgeCases() throws {
@@ -1515,28 +1150,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextWindowedSequenceTransformEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextWindowedSequenceTransformEdgeCases",
+            expected:
                 """
                 [3, 3, 2]
                 [2, 1]
                 [he!, el!, ll!, lo!]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextIndexOfAnyCharsEdgeCases() throws {
@@ -1554,20 +1178,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfAnyCharsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextIndexOfAnyCharsEdgeCases",
+            expected:
                 """
                 2
                 0
@@ -1576,8 +1190,7 @@ extension CodegenBackendIntegrationTests {
                 1
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextIndexOfAnyStringsEdgeCases() throws {
@@ -1595,20 +1208,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfAnyStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextIndexOfAnyStringsEdgeCases",
+            expected:
                 """
                 3
                 0
@@ -1617,8 +1220,7 @@ extension CodegenBackendIntegrationTests {
                 -1
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextLastIndexOfAnyCharsEdgeCases() throws {
@@ -1637,20 +1239,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextLastIndexOfAnyCharsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextLastIndexOfAnyCharsEdgeCases",
+            expected:
                 """
                 2
                 0
@@ -1660,8 +1252,7 @@ extension CodegenBackendIntegrationTests {
                 -1
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextLastIndexOfAnyStringsEdgeCases() throws {
@@ -1681,20 +1272,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextLastIndexOfAnyStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextLastIndexOfAnyStringsEdgeCases",
+            expected:
                 """
                 3
                 0
@@ -1705,8 +1286,7 @@ extension CodegenBackendIntegrationTests {
                 2
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextFindAnyOfStringsEdgeCases() throws {
@@ -1731,20 +1311,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextFindAnyOfStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextFindAnyOfStringsEdgeCases",
+            expected:
                 """
                 1:ot
                 0:KO
@@ -1755,8 +1325,7 @@ extension CodegenBackendIntegrationTests {
                 0:a
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextFindLastAnyOfStringsEdgeCases() throws {
@@ -1783,20 +1352,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextFindLastAnyOfStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextFindLastAnyOfStringsEdgeCases",
+            expected:
                 """
                 3:li
                 0:KO
@@ -1809,11 +1368,8 @@ extension CodegenBackendIntegrationTests {
                 0:a
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - lines
 
     func testKotlinTextLinesEdgeCases() throws {
         let source = """
@@ -1844,24 +1400,11 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextLinesEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            // Note: runtime includes trailing empty element for strings ending in newline,
-            // which differs from Kotlin/JVM (which discards the trailing empty element).
-            // These assertions document the current runtime behavior.
-            XCTAssertEqual(
-                out,
-                "[]\n" +
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextLinesEdgeCases",
+            expected:
+"[]\n" +
                 "[hello]\n" +
                 "[hello, ]\n" +
                 "[a, b, c]\n" +
@@ -1869,11 +1412,8 @@ extension CodegenBackendIntegrationTests {
                 "[, , ]\n" +
                 "[, ]\n" +
                 "[, ]\n"
-            )
-        }
+        )
     }
-
-    // MARK: - removePrefix / removeSuffix
 
     func testKotlinTextRemovePrefixSuffixEdgeCases() throws {
         let source = """
@@ -1908,20 +1448,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextRemovePrefixSuffixEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextRemovePrefixSuffixEdgeCases",
+            expected:
                 """
                 bar
                 hello
@@ -1931,12 +1461,9 @@ extension CodegenBackendIntegrationTests {
                 hello
                 hello
 
-
-
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextRemovePrefixSuffixCharSequenceEdgeCases() throws {
@@ -1972,20 +1499,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextRemovePrefixSuffixCharSequenceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextRemovePrefixSuffixCharSequenceEdgeCases",
+            expected:
                 """
                 foobarfoo
                 foofoobar
@@ -1995,8 +1512,7 @@ extension CodegenBackendIntegrationTests {
                 foobar
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextIfBlankEdgeCases() throws {
@@ -2015,20 +1531,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIfBlankEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextIfBlankEdgeCases",
+            expected:
                 """
                 [abc]
                 [fallback]
@@ -2036,8 +1542,7 @@ extension CodegenBackendIntegrationTests {
                 [fallback]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextIfEmptyEdgeCases() throws {
@@ -2056,20 +1561,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIfEmptyEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextIfEmptyEdgeCases",
+            expected:
                 """
                 [abc]
                 [   ]
@@ -2077,8 +1572,7 @@ extension CodegenBackendIntegrationTests {
                 [fallback]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextCharSequenceZipWithNextEdgeCases() throws {
@@ -2106,20 +1600,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextCharSequenceZipWithNextEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextCharSequenceZipWithNextEdgeCases",
+            expected:
                 """
                 3
                 3
@@ -2129,11 +1613,8 @@ extension CodegenBackendIntegrationTests {
                 xy
                 """
                 + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - take / drop / takeLast / dropLast
 
     func testKotlinTextTakeDropEdgeCases() throws {
         let source = """
@@ -2188,21 +1669,11 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextTakeDropEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                "hel\n" +
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextTakeDropEdgeCases",
+            expected:
+"hel\n" +
                 "hello\n" +
                 "hello\n" +
                 "\n" +
@@ -2218,11 +1689,8 @@ extension CodegenBackendIntegrationTests {
                 "\n" +
                 "\n" +
                 "hello\n"
-            )
-        }
+        )
     }
-
-    // MARK: - take / drop negative count throws IllegalArgumentException (STDLIB-005-BUG-01)
 
     func testKotlinTextTakeNegativeThrows() throws {
         // Kotlin spec: take(n) with n < 0 throws
@@ -2237,20 +1705,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextTakeNegativeThrows",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "iae-take\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KotlinTextTakeNegativeThrows", expected: "iae-take\n")
     }
 
     func testKotlinTextDropNegativeThrows() throws {
@@ -2266,20 +1721,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextDropNegativeThrows",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "iae-drop\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KotlinTextDropNegativeThrows", expected: "iae-drop\n")
     }
 
     func testKotlinTextTakeLastNegativeThrows() throws {
@@ -2295,20 +1737,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextTakeLastNegativeThrows",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "iae-takeLast\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KotlinTextTakeLastNegativeThrows", expected: "iae-takeLast\n")
     }
 
     func testKotlinTextDropLastNegativeThrows() throws {
@@ -2324,23 +1753,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextDropLastNegativeThrows",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "iae-dropLast\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KotlinTextDropLastNegativeThrows", expected: "iae-dropLast\n")
     }
-
-    // MARK: - Case conversion helpers
 
     func testKotlinTextCaseConversionEdgeCases() throws {
         let source = """
@@ -2366,20 +1780,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextCaseConversionEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextCaseConversionEdgeCases",
+            expected:
                 """
                 hello world
 
@@ -2392,8 +1796,7 @@ extension CodegenBackendIntegrationTests {
                 ABC123!
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextCaseInsensitiveOrderEdgeCases() throws {
@@ -2408,20 +1811,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextCaseInsensitiveOrderEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextCaseInsensitiveOrderEdgeCases",
+            expected:
                 """
                 0
                 true
@@ -2429,8 +1822,7 @@ extension CodegenBackendIntegrationTests {
                 [A, a, b, c]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testKotlinTextCharSequenceZipEdgeCases() throws {
@@ -2468,20 +1860,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextCharSequenceZipEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextCharSequenceZipEdgeCases",
+            expected:
                 """
                 3
                 2
@@ -2496,8 +1878,7 @@ extension CodegenBackendIntegrationTests {
                 b2
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
@@ -2521,20 +1902,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextToCollectionEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextToCollectionEdgeCases",
+            expected:
                 """
                 [x, a, b]
                 [x, a, b]
@@ -2544,8 +1915,7 @@ extension CodegenBackendIntegrationTests {
                 [q]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     // STDLIB-TEXT-FN-108: CharSequence.toSortedSet(): SortedSet<Char>
@@ -2584,20 +1954,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextToSortedSetEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextToSortedSetEdgeCases",
+            expected:
                 """
                 [e, h, l, o]
                 4
@@ -2611,7 +1971,7 @@ extension CodegenBackendIntegrationTests {
                 0
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

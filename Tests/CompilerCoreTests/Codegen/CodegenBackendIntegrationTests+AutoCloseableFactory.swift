@@ -21,20 +21,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "AutoCloseableFactory",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "closed:1\nafter-close:1\nuse-body\nuse-close\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AutoCloseableFactory", expected: "closed:1\nafter-close:1\nuse-body\nuse-close\n")
     }
 
     func testCodegenCompilesNullableAutoCloseableUse() throws {
@@ -60,19 +47,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "NullableAutoCloseableUse",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "missing\nclosed:0\nclosed:1\npresent\nafter:1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "NullableAutoCloseableUse", expected: "missing\nclosed:0\nclosed:1\npresent\nafter:1\n")
     }
 }
+

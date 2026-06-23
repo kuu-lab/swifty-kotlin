@@ -18,28 +18,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceEdgeCases",
+            expected:
                 """
                 [1, 2]
                 [4]
                 [4, 8]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSequencePartitionSplitsElements() throws {
@@ -55,20 +44,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequencePartition",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[2, 4]\n[1, 3, 5]\n0\n0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequencePartition", expected: "[2, 4]\n[1, 3, 5]\n0\n0\n")
     }
 
     func testCodegenSequenceNoneOverloads() throws {
@@ -81,20 +57,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceNoneOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceNoneOverloads", expected: "true\nfalse\ntrue\nfalse\n")
     }
 
     func testCodegenSequencePlusConcatenatesSequences() throws {
@@ -108,20 +71,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequencePlus",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 3, 4]\n[5, 6, 7, 8]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequencePlus", expected: "[1, 2, 3, 4]\n[5, 6, 7, 8]\n")
     }
 
     func testCodegenSequenceReduceIndexedOrNull() throws {
@@ -140,20 +90,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduceIndexedOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "21\nnull\n42\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduceIndexedOrNull", expected: "21\nnull\n42\n")
     }
 
     func testCodegenSequenceContainsUsesRuntime() throws {
@@ -165,20 +102,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceContains",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceContains", expected: "true\nfalse\n")
     }
 
     func testCodegenSequenceReduceRightIndexedReturnsRightFoldedValueOrThrowsOnEmpty() throws {
@@ -200,20 +124,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduceRightIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "364\n42\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexed", expected: "364\n42\nempty\n")
     }
 
     func testCodegenSequenceReduceRightIndexedOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
@@ -232,20 +143,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduceRightIndexedOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "364\n42\n-1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexedOrNull", expected: "364\n42\n-1\n")
     }
 
     func testCodegenSequenceReduceRightOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
@@ -264,20 +162,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduceRightOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "64\n42\n-1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRightOrNull", expected: "64\n42\n-1\n")
     }
 
     func testCodegenSequenceReduceOrNullReturnsAccumulatedValueOrNullOnEmpty() throws {
@@ -293,20 +178,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduceOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "10\nnull\n42\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduceOrNull", expected: "10\nnull\n42\n")
     }
 
     func testCodegenSequenceReduceRightReturnsRightFoldedValueOrThrowsOnEmpty() throws {
@@ -329,20 +201,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduceRight",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "64\n42\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduceRight", expected: "64\n42\nempty\n")
     }
 
     func testCodegenSequenceReduceReturnsAccumulatedValueOrThrowsOnEmpty() throws {
@@ -360,20 +219,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduce",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "10\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduce", expected: "10\nempty\n")
     }
 
     func testCodegenSequenceReduceIndexedReturnsAccumulatedValueOrThrowsOnEmpty() throws {
@@ -396,20 +242,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReduceIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "21\n42\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReduceIndexed", expected: "21\n42\nempty\n")
     }
 
     func testCodegenSequenceFlatMapIndexedUsesCanonicalDiffCase() throws {
@@ -424,20 +257,10 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFlatMapIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapIndexed",
+            expected:
                 """
                 [0, 10, 1, 20]
                 [1, 100, 3, 200]
@@ -445,8 +268,7 @@ extension CodegenBackendIntegrationTests {
                 []
                 """
                     + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSequenceFirstNotNullOfUsesCanonicalDiffCase() throws {
@@ -461,27 +283,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFirstNotNullOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstNotNullOf",
+            expected:
                 """
                 three
                 missing
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSequenceFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
@@ -496,27 +307,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFirstNotNullOfOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstNotNullOfOrNull",
+            expected:
                 """
                 three
                 missing
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSequenceMinusElementUsesCanonicalDiffCase() throws {
@@ -531,28 +331,17 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinusElement",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceMinusElement",
+            expected:
                 """
                 [1, 3, 2]
                 [1, 2, 3, 2]
                 []
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSequenceMinusRemovesSingleElement() throws {
@@ -563,20 +352,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinus",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 3, 2]\n[1, 2, 3]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinus", expected: "[1, 3, 2]\n[1, 2, 3]\n")
     }
 
     func testCodegenSequenceSumByUsesCanonicalDiffCase() throws {
@@ -591,27 +367,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceSumBy",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceSumBy",
+            expected:
                 """
                 14
                 0
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSequenceSumByDoubleUsesCanonicalDiffCase() throws {
@@ -626,27 +391,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceSumByDouble",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceSumByDouble",
+            expected:
                 """
                 2.0
                 0.0
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testSequenceRunningReduceIndexedAccumulatesWithIndex() throws {
@@ -662,20 +416,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceRunningReduceIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 3, 9, 21]\n[]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceRunningReduceIndexed", expected: "[1, 3, 9, 21]\n[]\n")
     }
 
     func testCodegenSequenceShuffledUsesCanonicalDiffCase() throws {
@@ -690,20 +431,10 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceShuffled",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceShuffled",
+            expected:
                 """
                 4
                 [1, 2, 3, 4]
@@ -713,8 +444,7 @@ extension CodegenBackendIntegrationTests {
                 [42]
                 """
                     + "\n"
-            )
-        }
+        )
     }
 
     func testSequenceToCollectionAppendsIntoDestination() throws {
@@ -734,27 +464,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceToCollectionEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceToCollectionEdgeCases",
+            expected:
                 """
                 [0, 1, 2, 2, 3, 4]
                 [10, 2, 1, 3, 4]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testSequenceFlatMapIndexedSupportsIterableAndSequenceTransforms() throws {
@@ -773,27 +492,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFlatMapIndexedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapIndexedEdgeCases",
+            expected:
                 """
                 [0:a, aa, 1:bc, bcbc]
                 [0, x, 1, yz]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesSequenceWindowedTransformOverload() throws {
@@ -811,27 +519,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceWindowedTransformEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceWindowedTransformEdgeCases",
+            expected:
                 """
                 [4, 6, 6]
                 [ab|cd, gh]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesSequenceChunked() throws {
@@ -842,27 +539,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceChunkedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceChunkedEdgeCases",
+            expected:
                 """
                 [[1, 2], [3, 4], [5]]
                 []
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesSequenceChunkedTransformOverload() throws {
@@ -880,27 +566,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceChunkedTransformEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceChunkedTransformEdgeCases",
+            expected:
                 """
                 [3, 5, 6]
                 [ab|cd, ef]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesSequenceOrEmpty() throws {
@@ -914,27 +589,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceOrEmptyEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceOrEmptyEdgeCases",
+            expected:
                 """
                 []
                 [1, 2, 3]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesSequenceShuffledOverloads() throws {
@@ -947,27 +611,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceShuffledEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceShuffledEdgeCases",
+            expected:
                 """
                 [1, 2, 3]
                 [4, 5, 6]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesSequenceRequireNoNulls() throws {
@@ -981,20 +634,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceRequireNoNullsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 3]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceRequireNoNullsEdgeCases", expected: "[1, 2, 3]\n")
     }
 
     func testCodegenSequenceReversedReturnsElementsInReverseOrder() throws {
@@ -1005,20 +645,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceReversedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[4, 3, 2, 1]\n[]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceReversedEdgeCases", expected: "[4, 3, 2, 1]\n[]\n")
     }
 
     func testCodegenSequenceRunningFoldIncludesInitialAccumulator() throws {
@@ -1036,20 +663,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceRunningFoldEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[10, 11, 13, 16]\n[7]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceRunningFoldEdgeCases", expected: "[10, 11, 13, 16]\n[7]\n")
     }
 
     func testCodegenSequenceRequireNoNullsThrowsOnNullElement() throws {
@@ -1064,20 +678,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceRequireNoNullsThrows",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "null\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceRequireNoNullsThrows", expected: "null\n")
     }
 
     func testCodegenCompilesSequenceFirstNotNullOfOrNull() throws {
@@ -1093,27 +694,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFirstNotNullOfOrNullEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstNotNullOfOrNullEdgeCases",
+            expected:
                 """
                 hit
                 null
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testSequenceFirstNotNullOfReturnsFirstValueOrThrows() throws {
@@ -1133,20 +723,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFirstNotNullOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "hit\nmissing\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceFirstNotNullOf", expected: "hit\nmissing\n")
     }
 
     func testSequenceRandomReturnsOnlyElementOrThrowsOnEmpty() throws {
@@ -1161,13 +738,7 @@ extension CodegenBackendIntegrationTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "SequenceRandom", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "42\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceRandom", expected: "42\nempty\n")
     }
 
     func testSequenceRandomOrNullReturnsOnlyElementOrNullOnEmpty() throws {
@@ -1178,20 +749,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceRandomOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "42\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceRandomOrNull", expected: "42\ntrue\n")
     }
 
     func testSequenceZipWithNextTransformReturnsAdjacentResults() throws {
@@ -1210,20 +768,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceZipWithNextTransform",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 4]\n[]\n[]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceZipWithNextTransform", expected: "[1, 2, 4]\n[]\n[]\n")
     }
 
     func testSequenceOnEachIndexedPreservesElementsAndLaziness() throws {
@@ -1240,27 +785,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceOnEachIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceOnEachIndexed",
+            expected:
                 """
                 [10, 20]
                 0:10;1:20;
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testSequenceOnEachPreservesElementsAndLaziness() throws {
@@ -1277,27 +811,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceOnEach",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceOnEach",
+            expected:
                 """
                 [10, 20]
                 10;20;
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSequenceRequireNoNullsUsesCanonicalDiffCase() throws {
@@ -1312,28 +835,17 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceRequireNoNulls",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceRequireNoNulls",
+            expected:
                 """
                 [1, 2, 3]
                 [1]
                 caught
                 """
                     + "\n"
-            )
-        }
+        )
     }
 
     func testSequencePlusOperatorAndPlusElementAppendElements() throws {
@@ -1348,20 +860,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequencePlusElement",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 3, 4]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequencePlusElement", expected: "[1, 2, 3, 4]\n")
     }
 
     func testCodegenSequenceMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() throws {
@@ -1377,20 +876,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "20\ncaught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinOf", expected: "20\ncaught\n")
     }
 
     func testCodegenSequenceMinReturnsSmallestElementAndThrowsOnEmpty() throws {
@@ -1406,20 +892,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMin",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\ncaught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMin", expected: "1\ncaught\n")
     }
 
     func testCodegenSequenceMaxOfReturnsLargestSelectorValueAndThrowsOnEmpty() throws {
@@ -1435,20 +908,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMaxOfRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "-1\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMaxOfRuntime", expected: "-1\nempty\n")
     }
 
     func testCodegenSequenceMinOfOrNullReturnsSmallestSelectedValueAndNullOnEmpty() throws {
@@ -1459,20 +919,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinOfOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "20\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinOfOrNull", expected: "20\ntrue\n")
     }
 
     func testCodegenSequenceMaxReturnsLargestValueAndThrowsOnEmpty() throws {
@@ -1488,20 +935,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMaxRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "4\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMaxRuntime", expected: "4\nempty\n")
     }
 
     func testCodegenSequenceMinByReturnsSmallestSelectedElementAndThrowsOnEmpty() throws {
@@ -1517,20 +951,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinBy",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\ncaught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinBy", expected: "3\ncaught\n")
     }
 
     func testCodegenSequenceMaxOfOrNullReturnsLargestSelectorValueOrNull() throws {
@@ -1541,20 +962,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMaxOfOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "-1\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMaxOfOrNull", expected: "-1\ntrue\n")
     }
 
     func testCodegenSequenceMinOrNullReturnsSmallestElementAndNullOnEmpty() throws {
@@ -1565,20 +973,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinOrNull", expected: "2\ntrue\n")
     }
 
     func testCodegenSequenceMaxWithReturnsLargestElementAndThrowsOnEmpty() throws {
@@ -1594,20 +989,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMaxWith",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "4\ncaught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMaxWith", expected: "4\ncaught\n")
     }
 
     func testCodegenSequenceMaxByOrNullReturnsLargestSelectorValueOrNull() throws {
@@ -1618,20 +1000,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMaxByOrNullRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMaxByOrNullRuntime", expected: "1\ntrue\n")
     }
 
     func testCodegenSequenceMinWithOrNullReturnsComparatorMinimumAndNullOnEmpty() throws {
@@ -1642,20 +1011,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinWithOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "5\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinWithOrNull", expected: "5\ntrue\n")
     }
 
     func testCodegenSequenceMaxByReturnsLargestSelectorValueAndThrowsOnEmpty() throws {
@@ -1671,20 +1027,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMaxByRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMaxByRuntime", expected: "1\nempty\n")
     }
 
     func testCodegenSequenceMinWithReturnsComparatorMinimumAndThrowsOnEmpty() throws {
@@ -1699,20 +1042,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinWith",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "5\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinWith", expected: "5\nempty\n")
     }
 
     func testCodegenSequenceMaxOrNullReturnsLargestElementOrNull() throws {
@@ -1723,20 +1053,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMaxOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "4\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMaxOrNull", expected: "4\ntrue\n")
     }
 
     func testCodegenSequenceMinByOrNullReturnsSmallestSelectedElementAndNullOnEmpty() throws {
@@ -1747,19 +1064,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceMinByOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceMinByOrNull", expected: "3\ntrue\n")
     }
 }
+

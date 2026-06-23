@@ -15,26 +15,15 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionFirstNotNullOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionFirstNotNullOf",
+            expected:
                 """
                 two
                 missing
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
@@ -49,26 +38,15 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionFirstNotNullOfOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionFirstNotNullOfOrNull",
+            expected:
                 """
                 two
                 missing
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionMinusElementUsesCanonicalDiffCase() throws {
@@ -83,27 +61,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionMinusElement",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionMinusElement",
+            expected:
                 """
                 [1, 2, 3]
                 [1, 2, 2, 3]
                 []
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionReduceRightIndexedUsesCanonicalDiffCase() throws {
@@ -118,27 +85,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionReduceRightIndexed",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionReduceRightIndexed",
+            expected:
                 """
                 133
                 7
                 empty
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionReduceRightIndexedOrNullUsesCanonicalDiffCase() throws {
@@ -153,27 +109,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionReduceRightIndexedOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionReduceRightIndexedOrNull",
+            expected:
                 """
                 133
                 7
                 -1
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionReduceRightOrNullUsesCanonicalDiffCase() throws {
@@ -188,27 +133,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionReduceRightOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionReduceRightOrNull",
+            expected:
                 """
                 33
                 7
                 -1
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionSumByUsesCanonicalDiffCase() throws {
@@ -223,27 +157,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionSumBy",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionSumBy",
+            expected:
                 """
                 14
                 21
                 0
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionSumByDoubleUsesCanonicalDiffCase() throws {
@@ -258,27 +181,16 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionSumByDouble",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionSumByDouble",
+            expected:
                 """
                 2.0
                 7.5
                 0.0
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesCollectionWindowedTransformEdgeCases() throws {
@@ -303,27 +215,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionWindowedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionWindowedEdgeCases",
+            expected:
                 """
                 [6, 9, 12]
                 [6, 12]
                 [6, 12, 5]
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionChunkedEdgeCases() throws {
@@ -338,26 +239,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionChunkedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionChunkedEdgeCases",
+            expected:
                 """
                 [[1, 2], [3, 4], [5]]
                 [6, 9]
                 []
                 """ + "\n"
-            )
-        }
+        )
     }
 }
+

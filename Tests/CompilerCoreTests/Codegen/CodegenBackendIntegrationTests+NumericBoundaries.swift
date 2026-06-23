@@ -2,35 +2,7 @@
 import Foundation
 import XCTest
 
-// TEST-NUM-017: End-to-end parity tests for numeric boundary behavior, derived from
-// kotlinc 2.3.10 diff cases (Scripts/diff_cases/*). These lock in the behaviors that
-// already match Kotlin: narrowing conversions, float->int boundaries, Char arithmetic,
-// and the unsigned companion constants added in this batch. The currently-divergent
-// behaviors (32/64-bit integer overflow, shift masking, Int.toChar truncation) are
-// tracked in TODO.md (TEST-NUM-017) and captured as KSWIFTK_DIFF_IGNORE diff cases.
 extension CodegenBackendIntegrationTests {
-    private func assertProgramStdout(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, expected)
-        }
-    }
-
     func testNumericBoundaryUnsignedCompanionConstants() throws {
         let source = """
         fun main() {
@@ -52,7 +24,7 @@ extension CodegenBackendIntegrationTests {
             println(UShort.SIZE_BYTES)
         }
         """
-        try assertProgramStdout(
+        try assertKotlinOutput(
             source,
             moduleName: "NumericBoundaryUnsignedConstants",
             expected: """
@@ -98,7 +70,7 @@ extension CodegenBackendIntegrationTests {
             println(s.toInt())
         }
         """
-        try assertProgramStdout(
+        try assertKotlinOutput(
             source,
             moduleName: "NumericBoundaryConversionTruncation",
             expected: """
@@ -141,7 +113,7 @@ extension CodegenBackendIntegrationTests {
             println(1e20f.toInt())
         }
         """
-        try assertProgramStdout(
+        try assertKotlinOutput(
             source,
             moduleName: "NumericBoundaryFloatToInt",
             expected: """
@@ -172,7 +144,7 @@ extension CodegenBackendIntegrationTests {
             println(UInt.MAX_VALUE * 2u)
         }
         """
-        try assertProgramStdout(
+        try assertKotlinOutput(
             source,
             moduleName: "NumericBoundaryUIntOverflow",
             expected: """
@@ -196,7 +168,7 @@ extension CodegenBackendIntegrationTests {
             println(UShort.MAX_VALUE.toShort())
         }
         """
-        try assertProgramStdout(
+        try assertKotlinOutput(
             source,
             moduleName: "NumericBoundaryUnsignedNarrowingConversions",
             expected: """
@@ -221,7 +193,7 @@ extension CodegenBackendIntegrationTests {
             println(131072.toChar().code)
         }
         """
-        try assertProgramStdout(
+        try assertKotlinOutput(
             source,
             moduleName: "NumericBoundaryIntToChar",
             expected: """
@@ -246,7 +218,7 @@ extension CodegenBackendIntegrationTests {
             println(65.toChar().code)
         }
         """
-        try assertProgramStdout(
+        try assertKotlinOutput(
             source,
             moduleName: "NumericBoundaryCharArithmeticBasics",
             expected: """
@@ -262,3 +234,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+

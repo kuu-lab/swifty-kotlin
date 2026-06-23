@@ -16,20 +16,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BuildListRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2\n1\n2\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BuildListRuntime", expected: "2\n1\n2\n")
     }
 
     func testCodegenBuildStringCapacityProducesCorrectly() throws {
@@ -52,20 +39,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BuildStringCapacityRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "hello world\ncap\ncaught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BuildStringCapacityRuntime", expected: "hello world\ncap\ncaught\n")
     }
 
     func testCodegenBuildStringAppendTypedValuesProducesCorrectly() throws {
@@ -91,20 +65,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BuildStringAppendTypedValuesRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "value=A true 42 100 3.5 2.25 null\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BuildStringAppendTypedValuesRuntime", expected: "value=A true 42 100 3.5 2.25 null\n")
     }
 
     func testCodegenBuildStringBuilderProducesMutableBuilder() throws {
@@ -125,20 +86,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BuildStringBuilderRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "hello\nworld!\ncaught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BuildStringBuilderRuntime", expected: "hello\nworld!\ncaught\n")
     }
 
     func testCodegenPrintlnNoArgUsesRuntimeNewlineHelper() throws {
@@ -149,20 +97,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrintlnNoArgRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "\nafter\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrintlnNoArgRuntime", expected: "\nafter\n")
     }
 
     func testCodegenRequireLazyMessageUsesCapturedValue() throws {
@@ -177,20 +112,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RequireLazyRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "Throwable(IllegalArgumentException: value)\n")
-        }
+        try assertKotlinOutput(source, moduleName: "RequireLazyRuntime", expected: "Throwable(IllegalArgumentException: value)\n")
     }
 
     func testCodegenReadLineEOFReturnsNull() throws {
@@ -246,8 +168,6 @@ extension CodegenBackendIntegrationTests {
             XCTAssertEqual(normalizedStdout, "\n")
         }
     }
-
-    // MARK: - readln / readlnOrNull (STDLIB-658, STDLIB-659)
 
     func testCodegenReadlnReturnsInputLine() throws {
         let source = """
@@ -364,8 +284,6 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    // MARK: - print() 0-arg (STDLIB-572)
-
     func testCodegenPrintNoArgIsNoOp() throws {
         let source = """
         fun main() {
@@ -374,19 +292,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrintNoArgRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "done\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrintNoArgRuntime", expected: "done\n")
     }
 }
+

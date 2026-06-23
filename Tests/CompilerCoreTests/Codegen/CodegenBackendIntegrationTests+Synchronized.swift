@@ -18,20 +18,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SynchronizedBlocks",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "42\n1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SynchronizedBlocks", expected: "42\n1\n")
     }
 
     func testCodegenPropagatesThrowFromSynchronizedBlock() throws {
@@ -51,20 +38,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SynchronizedThrow",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "boom\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SynchronizedThrow", expected: "boom\n")
     }
 
     func testCodegenMutexDoubleUnlockPanicIncludesHelpfulMessage() throws {
@@ -104,3 +78,4 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
+
