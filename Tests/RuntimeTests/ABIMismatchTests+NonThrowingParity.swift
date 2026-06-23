@@ -373,6 +373,7 @@ extension ABIMismatchTests {
         "kk_kclass_is_sealed",
         "kk_kclass_is_value",
         "kk_kclass_members_count",
+        "kk_kclass_nested_classes",
         "kk_kclass_qualified_name",
         "kk_kclass_register_single_annotation",
         "kk_kclass_safeCast",

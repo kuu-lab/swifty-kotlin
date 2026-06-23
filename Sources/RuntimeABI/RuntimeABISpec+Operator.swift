@@ -361,16 +361,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
-        // MIGRATION-REFLECT-002: KClass.nestedClasses
-        RuntimeABIFunctionSpec(
-            name: "kk_kclass_nested_classes",
-            parameters: [
-                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
         // STDLIB-REFLECT-064: KClass.primaryConstructor
         RuntimeABIFunctionSpec(
             name: "kk_kclass_primary_constructor",
