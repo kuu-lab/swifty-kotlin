@@ -1853,6 +1853,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-027: CharSequence.isBlank ---
+        registerSyntheticStringExtensionFunction(
+            named: "isBlank",
+            externalLinkName: "kk_string_isBlank",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
             externalLinkName: "kk_string_isNotBlank",
