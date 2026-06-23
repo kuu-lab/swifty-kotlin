@@ -155,7 +155,6 @@ extension ABIMismatchTests {
             "kk_flow_retry_when",
             "kk_hexformat_prefix",
             "kk_hexformat_suffix",
-            "kk_java_atomic_bool_asKotlinAtomic",
             "kk_kxmini_async_with_dispatcher",
             "kk_math_e",
             "kk_math_pi",
