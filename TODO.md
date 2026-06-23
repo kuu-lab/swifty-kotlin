@@ -39,7 +39,7 @@
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
-- [ ] STDLIB-TEXT-FN-019: `indent` 関数の実装
+- [x] STDLIB-TEXT-FN-019: `indent` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-022: `indexOfFirst` 関数の実装
 - [x] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
