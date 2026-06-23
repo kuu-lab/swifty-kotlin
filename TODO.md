@@ -241,7 +241,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/io/`
 
 - [ ] MIGRATION-IO-001: File 読み書き関数を Kotlin source に移行する（`readText`, `writeText`, `readBytes`, `writeBytes`, `appendText`, `appendBytes`）
-- [ ] MIGRATION-IO-002: File ストリーム・バッファ関数を Kotlin source に移行する（`bufferedReader`, `bufferedWriter`, `inputStream`, `outputStream`, `reader`, `writer`）
+- [x] MIGRATION-IO-002: File ストリーム・バッファ関数を Kotlin source に移行する（`bufferedReader`, `bufferedWriter`, `inputStream`, `outputStream`, `reader`, `writer`）
 - [ ] MIGRATION-IO-003: File 走査・操作関数を Kotlin source に移行する（`walk`, `walkTopDown`, `walkBottomUp`, `copyTo`, `copyRecursively`, `deleteRecursively`, `forEachLine`, `useLines`）
 
 ### Phase M10: kotlin.io.encoding
