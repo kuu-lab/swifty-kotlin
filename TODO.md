@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-06-17
+最終更新: 2026-06-22
 
 ---
 
@@ -16,8 +16,8 @@
 - Runtime/API 差分は `Scripts/diff_kotlinc.sh` と `RuntimeABISpec` / ABI テストを起点に確認
 
 #### kotlin.io.path 関数の実装
-- [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
+- [x] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
+- [x] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 
 #### kotlin.system 関数の実装
 - [x] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
@@ -31,7 +31,7 @@
 
 #### kotlin.text 関数の実装
 - [x] STDLIB-TEXT-FN-003: `append` 関数の実装
-- [ ] STDLIB-TEXT-FN-004: `appendLine` 関数の実装
+- [x] STDLIB-TEXT-FN-004: `appendLine` 関数の実装
 - [x] STDLIB-TEXT-FN-005: `appendRange` 関数の実装
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
@@ -39,18 +39,18 @@
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
-- [ ] STDLIB-TEXT-FN-019: `indent` 関数の実装
+- [x] STDLIB-TEXT-FN-019: `indent` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
 - [x] STDLIB-TEXT-FN-022: `indexOfFirst` 関数の実装
-- [ ] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
+- [x] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-024: `insert` 関数の実装
 - [ ] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
-- [ ] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
+- [x] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
 - [ ] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
 - [ ] STDLIB-TEXT-FN-033: `iterator` 関数の実装
 - [ ] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
-- [ ] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
+- [x] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-038: `minus` 関数の実装
 - [ ] STDLIB-TEXT-FN-039: `onEach` 関数の実装
 - [ ] STDLIB-TEXT-FN-040: `onEachIndexed` 関数の実装
@@ -131,7 +131,7 @@
 ### Phase 5: 非スコープ/高度領域
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
-- [ ] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-009: `pin()` を追加する
 - [ ] STDLIB-CINTEROP-FN-011: `CPointer<T>.plus(index)` を追加する
