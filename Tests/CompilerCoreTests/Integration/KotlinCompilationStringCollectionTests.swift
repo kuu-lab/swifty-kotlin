@@ -83,6 +83,18 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
+    func testCompile_string_toBigDecimalOrNull() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigDecimal
+
+        fun main() {
+            val result: BigDecimal? = "3.14e2".toBigDecimalOrNull()
+            val fallback: BigDecimal = "not-a-number".toBigDecimalOrNull() ?: "0".toBigDecimal()
+            val text = fallback.toString()
+        }
+        """)
+    }
+
     func testCompile_string_toBigInteger() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
@@ -279,6 +291,19 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
             val mutable = list.toMutableList()
             val set = list.toSet()
             val sorted = list.sorted()
+            val reversed = list.reversed()
+        }
+        """)
+    }
+
+    func testCompile_collection_listSortingHOFs() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val list = listOf(3, 1, 2)
+            val byValue = list.sortedBy { it }
+            val byDescending = list.sortedByDescending { it }
+            val withComparator = list.sortedWith { a, b -> b - a }
+            val shuffled = list.shuffled()
             val reversed = list.reversed()
         }
         """)

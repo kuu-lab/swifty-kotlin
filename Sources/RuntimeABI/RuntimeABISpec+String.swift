@@ -2457,6 +2457,26 @@ public extension RuntimeABISpec {
             name: "kk_string_removeSurrounding_pair_flat",
             trailingStringPrefixes: ["prefix", "suffix"]
         ),
+        // STDLIB-TEXT-FN-019
+        RuntimeABIFunctionSpec(
+            name: "kk_string_indent_default",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_indent",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "n", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
         // STDLIB-191
         flatStringReturnSpec(
             name: "kk_string_prependIndent_default_flat",

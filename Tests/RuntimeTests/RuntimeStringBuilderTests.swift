@@ -148,6 +148,66 @@ final class RuntimeStringBuilderTests: XCTestCase {
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "Hello")
     }
 
+    // STDLIB-TEXT-FN-004: appendLine
+    func testAppendLineObjAppendsValueAndNewlineAndReturnsReceiver() {
+        let builder = kk_string_builder_new_from_string(makeRuntimeString(""))
+        let value = makeRuntimeString("hello")
+
+        let returned = kk_string_builder_append_line_obj(builder, value)
+
+        XCTAssertEqual(returned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "hello\n")
+    }
+
+    func testAppendLineNoargAppendsNewlineAndReturnsReceiver() {
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("test"))
+
+        let returned = kk_string_builder_append_line_noarg_obj(builder)
+
+        XCTAssertEqual(returned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "test\n")
+    }
+
+    func testAppendLineObjChainingProducesCorrectString() {
+        let builder = kk_string_builder_new()
+        let a = makeRuntimeString("first")
+        let b = makeRuntimeString("second")
+
+        _ = kk_string_builder_append_line_obj(builder, a)
+        _ = kk_string_builder_append_line_obj(builder, b)
+        _ = kk_string_builder_append_line_noarg_obj(builder)
+
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "first\nsecond\n\n")
+    }
+
+    func testAppendLineObjOnEmptyBuilderProducesJustNewline() {
+        let builder = kk_string_builder_new()
+        let value = makeRuntimeString("")
+
+        _ = kk_string_builder_append_line_obj(builder, value)
+
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "\n")
+    }
+
+    // DEBT-RT-001: out-of-bounds insert throws via outThrown instead of fatalError.
+    func testInsertObjOutOfBoundsThrowsStringIndexOutOfBoundsException() {
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
+        let value = makeRuntimeString("x")
+        var thrown = 0
+
+        _ = kk_string_builder_insert_obj(builder, 99, value, &thrown)
+
+        XCTAssertNotEqual(thrown, 0)
+        let box = Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: thrown)!)
+            .takeUnretainedValue() as? RuntimeThrowableBox
+        XCTAssertNotNil(box)
+        XCTAssertTrue(
+            box?.message.contains("index=99") ?? false,
+            "expected index=99 in message, got: \(box?.message ?? "<nil>")"
+        )
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "hello")
+    }
+
     func testFlatStringBuilderAPIsUseFlattenedStringFields() {
         let builder = withFlatString("ac") { data, length, byteCount, hash in
             kk_string_builder_new_from_string_flat(data, length, byteCount, hash)

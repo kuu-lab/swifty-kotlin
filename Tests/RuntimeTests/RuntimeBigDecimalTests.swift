@@ -52,4 +52,15 @@ final class RuntimeBigDecimalTests: XCTestCase {
             XCTAssertNotEqual(thrown, 0, "Expected \(value) to throw NumberFormatException")
         }
     }
+
+    func testStringToBigDecimalOrNullAcceptsScientificNotation() {
+        let raw = kk_string_toBigDecimalOrNull(runtimeString("+.5E-2"))
+        XCTAssertNotEqual(raw, runtimeNullSentinelInt)
+        XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "+.5E-2")
+    }
+
+    func testStringToBigDecimalOrNullReturnsNullForInvalidInput() {
+        XCTAssertEqual(kk_string_toBigDecimalOrNull(runtimeString("not-a-number")), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_string_toBigDecimalOrNull(runtimeString(" 12.5 ")), runtimeNullSentinelInt)
+    }
 }

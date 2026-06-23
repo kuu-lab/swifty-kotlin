@@ -1,5 +1,26 @@
 
 extension CollectionLiteralLoweringPass {
+    private func shouldPreserveSourceBackedListAggregateCall(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        guard callee == lookup.foldName
+            || callee == lookup.foldRightName
+            || callee == lookup.reduceName
+            || callee == lookup.reduceOrNullName
+            || callee == lookup.scanName
+            || callee == lookup.runningFoldName,
+            let symbol,
+            let sema = ctx.sema,
+            let semanticSymbol = sema.symbols.symbol(symbol),
+            semanticSymbol.declSite != nil
+        else {
+            return false
+        }
+        return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+    }
 
     func rewriteCalls(module: KIRModule, ctx: KIRContext) throws {
         let lookup = CollectionLiteralLookupTables(interner: ctx.interner)
@@ -118,6 +139,16 @@ extension CollectionLiteralLoweringPass {
                         state: &state,
                         loweredBody: &loweredBody
                     ) {
+                        continue
+                    }
+
+                    if shouldPreserveSourceBackedListAggregateCall(
+                        symbol: symbol,
+                        callee: callee,
+                        lookup: lookup,
+                        ctx: ctx
+                    ) {
+                        loweredBody.append(instruction)
                         continue
                     }
 
