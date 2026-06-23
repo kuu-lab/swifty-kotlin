@@ -21,7 +21,9 @@ final class FileStartsWithFunctionTests: XCTestCase {
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == name
+                  interner.resolve(callee) == name,
+                  let range = ast.arena.exprRange(exprID),
+                  range.start.file.rawValue >= 2
             else {
                 return nil
             }

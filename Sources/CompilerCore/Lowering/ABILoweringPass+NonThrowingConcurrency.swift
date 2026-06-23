@@ -66,6 +66,7 @@ extension ABILoweringPass {
             interner.intern("kk_atomic_int_compareAndSet"),
             interner.intern("kk_atomic_int_compareAndExchange"),
             interner.intern("kk_atomic_int_asJavaAtomic"),
+            interner.intern("kk_java_atomic_int_asKotlinAtomic"),
             interner.intern("kk_atomic_int_fetchAndAdd"),
             interner.intern("kk_atomic_int_addAndFetch"),
             interner.intern("kk_atomic_int_fetchAndIncrement"),

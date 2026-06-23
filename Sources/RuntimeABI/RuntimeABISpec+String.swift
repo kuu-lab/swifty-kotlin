@@ -1021,26 +1021,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-TEXT-FN-019
-        RuntimeABIFunctionSpec(
-            name: "kk_string_indent_default",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_indent",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "n", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
         // STDLIB-191
         RuntimeABIFunctionSpec(
             name: "kk_string_prependIndent_default",
