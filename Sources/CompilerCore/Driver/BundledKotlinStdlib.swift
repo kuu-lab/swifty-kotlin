@@ -413,19 +413,6 @@ public fun <T> List<T>.shuffled(random: Random): List<T> {
 }
 """
 
-    // MIGRATION-RESULT-001: runCatching migrated to Kotlin source.
-    // The Result class and its member functions remain registered by
-    // HeaderHelpers+SyntheticResultStubs.swift (class definitions cannot coexist
-    // with synthetic stubs in the bundled pipeline). Only the top-level
-    // runCatching function is bundled here because functions can coexist as
-    // overloads; the synthetic symbol registered first carries externalLinkName
-    // = "kk_runCatching" so actual dispatch still goes to the Swift runtime.
-    static let kotlinResultSource = """
-package kotlin
-
-public fun <T> runCatching(block: () -> T): Result<T> = throw RuntimeException()
-"""
-
     static let kotlinTextSource = """
 package kotlin.text
 
