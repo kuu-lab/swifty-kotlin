@@ -299,7 +299,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 ### JS/Wasm/JVM固有のstub削除（Nativeターゲット専用コンパイラのため不要）
 #### JS Array関連stub
 - [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
-- [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
+- [x] CLEANUP-STUB-003: `kk_js_array_set` stub削除
 - [x] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
 - [x] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
 #### JS Map関連stub
