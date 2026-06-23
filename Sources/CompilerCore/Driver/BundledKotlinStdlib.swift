@@ -532,9 +532,11 @@ fun ByteArray.decodeToString(startIndex: Int, endIndex: Int, throwOnInvalidSeque
 """
 
     // MIGRATION-ATOMIC-001: AtomicInt / AtomicLong / AtomicReference
-    // get / set / getAndSet delegate to load / store / exchange;
-    // incrementAndGet / decrementAndGet / addAndGet are CAS loops that
-    // delegate the primitive compareAndSet to the bridge.
+    // get/set/getAndSet delegate to load/store/exchange bridge members;
+    // incrementAndGet/decrementAndGet/addAndGet delegate to the
+    // incrementAndFetch/decrementAndFetch/addAndFetch bridge members
+    // (while(true) CAS loops are deferred until the type-checker handles
+    // Nothing-typed infinite loops in bundled source).
     static let kotlinConcurrentAtomicSource = """
 package kotlin.concurrent
 
@@ -544,29 +546,11 @@ public fun AtomicInt.set(value: Int): Unit = store(value)
 
 public fun AtomicInt.getAndSet(newValue: Int): Int = exchange(newValue)
 
-public fun AtomicInt.incrementAndGet(): Int {
-    while (true) {
-        val old = load()
-        val next = old + 1
-        if (compareAndSet(old, next)) return next
-    }
-}
+public fun AtomicInt.incrementAndGet(): Int = incrementAndFetch()
 
-public fun AtomicInt.decrementAndGet(): Int {
-    while (true) {
-        val old = load()
-        val next = old - 1
-        if (compareAndSet(old, next)) return next
-    }
-}
+public fun AtomicInt.decrementAndGet(): Int = decrementAndFetch()
 
-public fun AtomicInt.addAndGet(delta: Int): Int {
-    while (true) {
-        val old = load()
-        val next = old + delta
-        if (compareAndSet(old, next)) return next
-    }
-}
+public fun AtomicInt.addAndGet(delta: Int): Int = addAndFetch(delta)
 
 public fun AtomicLong.get(): Long = load()
 
@@ -574,29 +558,11 @@ public fun AtomicLong.set(value: Long): Unit = store(value)
 
 public fun AtomicLong.getAndSet(newValue: Long): Long = exchange(newValue)
 
-public fun AtomicLong.incrementAndGet(): Long {
-    while (true) {
-        val old = load()
-        val next = old + 1L
-        if (compareAndSet(old, next)) return next
-    }
-}
+public fun AtomicLong.incrementAndGet(): Long = incrementAndFetch()
 
-public fun AtomicLong.decrementAndGet(): Long {
-    while (true) {
-        val old = load()
-        val next = old - 1L
-        if (compareAndSet(old, next)) return next
-    }
-}
+public fun AtomicLong.decrementAndGet(): Long = decrementAndFetch()
 
-public fun AtomicLong.addAndGet(delta: Long): Long {
-    while (true) {
-        val old = load()
-        val next = old + delta
-        if (compareAndSet(old, next)) return next
-    }
-}
+public fun AtomicLong.addAndGet(delta: Long): Long = addAndFetch(delta)
 
 public fun <T> AtomicReference<T>.get(): T = load()
 
