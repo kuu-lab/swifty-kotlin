@@ -585,7 +585,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-CI-001: `LSPServerTests` が Package.swift にターゲット定義されているのに `.github/workflows/ci.yml` の full-swift-tests マトリクスへ含まれておらず CI 未実行。マトリクスへ追加する
 - [ ] DEBT-CI-002: `jscpd-check` / `smoke-tests` ジョブに `timeout-minutes` が未設定（npm install のネットワーク障害等でハングしうる。full-swift-tests は 45 分、diff-regression-shards は 60 分設定済み）。それぞれ適切な値を設定する
 - [ ] DEBT-SCRIPT-001: `detect_workers()` が `Scripts/swift_test.sh:9` と `Scripts/diff_kotlinc.sh:344` に同一実装でコピーされている。`Scripts/lib/common.sh` へ抽出し両者から source で共有する
-- [ ] DEBT-SCRIPT-003: `Scripts/test_templates/`（diff / lexer / parser / sema の 4 サブディレクトリ）がスクリプト・CI・ソースのどこからも参照されていない。用途を調査し、README へ用途を明記するか削除する
+- [x] DEBT-SCRIPT-003: `Scripts/test_templates/`（diff / lexer / parser / sema の 4 サブディレクトリ）がスクリプト・CI・ソースのどこからも参照されていない。用途を調査し、README へ用途を明記するか削除する → 削除済み
 
 ### テスト衛生
 - [ ] DEBT-TEST-002: `Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests.swift:548` と `LoweringABIAndPropertyRegressionTests.swift:6` に同一実装の `private func makeContext(...)` がコピー存在する。`Integration/TestSupport/Pipeline.swift` の `makeCompilationContext()` へ統一する
