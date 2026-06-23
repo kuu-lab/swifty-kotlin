@@ -509,11 +509,6 @@ private external fun kk_random_nextBytes(self: Any?, array: Any?): Any?
 public fun Random.nextBytes(array: ByteArray): ByteArray =
     kk_random_nextBytes(this, array) as ByteArray
 
-public fun Random.nextBytes(size: Int): ByteArray {
-    if (size < 0) throw IllegalArgumentException(
-        "Random byte array size must be non-negative, but was ${"$"}size.")
-    return nextBytes(ByteArray(size))
-}
 """
 
     static let kotlinTextSource = """
