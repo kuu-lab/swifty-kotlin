@@ -531,17 +531,15 @@ fun ByteArray.decodeToString(startIndex: Int, endIndex: Int, throwOnInvalidSeque
     this.__kk_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
 """
 
-    // MIGRATION-SEQ-003: Sequence terminal HOF
+    // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
     // toList / toSet / toMutableList use forEach as the iteration primitive
     // (intercepted by CollectionLiteralLoweringPass to kk_sequence_forEach).
-    // first / last / single / count / any / all / none delegate to bundled
-    // List<T> HOFs after materializing the sequence via toList().
     //
-    // NOTE: CollectionLiteralLoweringPass continues to intercept toList() and
-    // toSet() on sequence-typed expressions and rewrites them directly to
-    // kk_sequence_to_list / kk_sequence_toSet; toMutableList() is not
-    // intercepted and runs through this bundled implementation. Runtime ABI
-    // entry points remain as compatibility bridges until RF-STDLIB removes them.
+    // Terminal HOFs (first, last, single, count, any, all, none, …) are resolved
+    // via synthetic stubs (HeaderHelpers+SyntheticSequenceTerminalStubs.swift) to
+    // the C-level kk_sequence_* entry points in RuntimeSequence.swift.  They are
+    // NOT included here to avoid scope pollution that would break Sema resolution
+    // for List / Collection / Set receivers with the same member names.
     static let kotlinSequencesSource = """
 package kotlin.sequences
 
@@ -565,26 +563,5 @@ public fun <T> Sequence<T>.toSet(): Set<T> {
     return result
 }
 
-public fun <T> Sequence<T>.first(): T = toList().first()
-
-public fun <T> Sequence<T>.firstOrNull(): T? = toList().firstOrNull()
-
-public fun <T> Sequence<T>.last(): T = toList().last()
-
-public fun <T> Sequence<T>.lastOrNull(): T? = toList().lastOrNull()
-
-public fun <T> Sequence<T>.single(): T = toList().single()
-
-public fun <T> Sequence<T>.count(): Int = toList().size
-
-public fun <T> Sequence<T>.any(): Boolean = !toList().isEmpty()
-
-public fun <T> Sequence<T>.any(predicate: (T) -> Boolean): Boolean = toList().any(predicate)
-
-public fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean = toList().all(predicate)
-
-public fun <T> Sequence<T>.none(): Boolean = toList().isEmpty()
-
-public fun <T> Sequence<T>.none(predicate: (T) -> Boolean): Boolean = toList().none(predicate)
 """
 }
