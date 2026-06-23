@@ -937,6 +937,7 @@ extension ABIMismatchTests {
         "kk_set_size",
         "kk_set_sorted",
         "kk_set_sortedDescending",
+        "kk_js_readonly_set_toMutableSet",
         "kk_set_subtract",
         "kk_set_toList",
         "kk_set_to_mutable_set",
