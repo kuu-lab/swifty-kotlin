@@ -1246,6 +1246,53 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)
+    func testKotlinTextLastIndexOfCharEdgeCases() throws {
+        let source = """
+        fun main() {
+            val text: CharSequence = "Kotlin"
+            println(text.lastIndexOf('o', 5, false))
+            println(text.lastIndexOf('k', 5, true))
+            println("hello".lastIndexOf('l', 4, false))
+            println("hello".lastIndexOf('l', 2, false))
+            println("hello".lastIndexOf('l', 1, false))
+            println("hello".lastIndexOf('x', 4, false))
+            println("hello".lastIndexOf('H', 4, true))
+            println("".lastIndexOf('a', 0, false))
+            println("abc".lastIndexOf('a', -1, false))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextLastIndexOfCharEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                1
+                0
+                3
+                2
+                -1
+                -1
+                0
+                -1
+                -1
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - indexOfFirst / indexOfLast (predicate) — STDLIB-TEXT-FN-022 / STDLIB-TEXT-FN-023
 
     func testKotlinTextIndexOfFirstPredicateEdgeCases() throws {
