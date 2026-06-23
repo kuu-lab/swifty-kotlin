@@ -1,20 +1,16 @@
-// Function parameter type
 fun processLinkedSet(set: LinkedHashSet<String>) {
     println(set.size)
 }
 
-// Return type
 fun createLinkedSet(): LinkedHashSet<Int> {
     return LinkedHashSet<Int>()
 }
 
-// Property type
 class OrderedTags {
     val tags: LinkedHashSet<String> = LinkedHashSet()
     val ids: LinkedHashSet<Int> = LinkedHashSet<Int>()
 }
 
-// Generic type argument
 fun nestedLinkedSets() {
     val nested: LinkedHashSet<LinkedHashSet<String>> = LinkedHashSet()
     val inner = LinkedHashSet<String>()
@@ -23,17 +19,14 @@ fun nestedLinkedSets() {
     println(nested.size)
 }
 
-// Inheritance
 class MySet : LinkedHashSet<String>() {
     fun customOp() = "custom"
 }
 
-// Type constraint
 fun <T : LinkedHashSet<String>> constrainLinked(set: T): T {
     return set
 }
 
-// Extension function on LinkedHashSet
 fun LinkedHashSet<String>.linkedExtension(): String {
     return "linked: ${this.size}"
 }
