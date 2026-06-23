@@ -316,7 +316,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### Wasm Unsafe Annotation stub
 #### Wasm Unsafe Memory Allocator stub
 #### Wasm Unsafe Pointer stub
-- [ ] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
+- [x] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
 #### Wasm Unsafe Scoped Allocator stub
 - [x] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
 #### JVM Time相互運用stub
