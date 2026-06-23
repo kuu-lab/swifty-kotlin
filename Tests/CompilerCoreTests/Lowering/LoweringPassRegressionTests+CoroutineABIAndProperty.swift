@@ -810,7 +810,6 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        // Should generate a thunk for the lambda (1 capture param)
         let thunkFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
             guard case let .function(fn) = decl else { return nil }
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
@@ -826,7 +825,6 @@ extension LoweringPassRegressionTests {
         XCTAssertTrue(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
         XCTAssertTrue(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
 
-        // Main should use the _with_cont path and store capture via arg_set
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
             XCTFail("expected lowered main function")
             return
@@ -919,7 +917,6 @@ extension LoweringPassRegressionTests {
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        // Zero-arg path: should use kk_kxmini_run_blocking, NOT _with_cont
         XCTAssertTrue(mainCallees.contains("kk_kxmini_run_blocking"))
         XCTAssertFalse(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
         XCTAssertFalse(mainCallees.contains("kk_coroutine_launcher_arg_set"))
@@ -927,7 +924,6 @@ extension LoweringPassRegressionTests {
     }
 
     func testCoroutineLauncherLaunchWithSuspendLambdaCapturesGeneratesThunk() throws {
-        // Verify that launch correctly handles lambdas with captures
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
