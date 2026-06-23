@@ -26,7 +26,6 @@ enum BundledKotlinStdlib {
 package kotlin.collections
 
 import kotlin.random.Random
-import kotlin.random.nextInt
 
 // MIGRATION-COL-005
 
@@ -412,103 +411,6 @@ public fun <T> List<T>.shuffled(random: Random): List<T> {
     }
     return result
 }
-"""
-
-    // MIGRATION-RANDOM-001: Random API
-    // nextBoolean / nextInt / nextLong / nextFloat / nextDouble / nextBytes
-    // delegate PRNG-state management to the Swift bridge via the synthetic nextBits stub
-    // (kk_random_nextBits). Higher-level methods are implemented in pure Kotlin.
-    static let kotlinRandomSource = """
-package kotlin.random
-
-// ─── nextBoolean ─────────────────────────────────────────────────────────────
-
-public fun Random.nextBoolean(): Boolean = nextBits(1) != 0
-
-// ─── nextInt ─────────────────────────────────────────────────────────────────
-
-public fun Random.nextInt(): Int = nextBits(32)
-
-public fun Random.nextInt(until: Int): Int {
-    if (until <= 0) throw IllegalArgumentException(
-        "Random range is empty: until must be positive, but was ${"$"}until.")
-    val bits = nextBits(31)
-    val value = bits % until
-    return if (bits - value + (until - 1) < 0) nextInt(until) else value
-}
-
-public fun Random.nextInt(from: Int, until: Int): Int {
-    if (until <= from) throw IllegalArgumentException(
-        "Random range is empty: ${"$"}from..${"$"}until.")
-    return from + nextInt(until - from)
-}
-
-// ─── nextLong ────────────────────────────────────────────────────────────────
-
-public fun Random.nextLong(): Long {
-    val hi = nextBits(32).toLong() shl 32
-    val lo = nextBits(32).toLong() and 4294967295L
-    return hi or lo
-}
-
-public fun Random.nextLong(until: Long): Long {
-    if (until <= 0L) throw IllegalArgumentException(
-        "Random range is empty: until must be positive, but was ${"$"}until.")
-    return nextLong() % until
-}
-
-public fun Random.nextLong(from: Long, until: Long): Long {
-    if (until <= from) throw IllegalArgumentException(
-        "Random range is empty: ${"$"}from..${"$"}until.")
-    return from + nextLong(until - from)
-}
-
-// ─── nextFloat ───────────────────────────────────────────────────────────────
-
-public fun Random.nextFloat(): Float = nextBits(24).toFloat() / 16777216.0f
-
-public fun Random.nextFloat(until: Float): Float {
-    if (until <= 0.0f) throw IllegalArgumentException(
-        "Random range is empty: until must be positive, but was ${"$"}until.")
-    return nextFloat() * until
-}
-
-public fun Random.nextFloat(from: Float, until: Float): Float {
-    if (until <= from) throw IllegalArgumentException(
-        "Random range is empty: ${"$"}from..${"$"}until.")
-    return from + nextFloat() * (until - from)
-}
-
-// ─── nextDouble ──────────────────────────────────────────────────────────────
-
-public fun Random.nextDouble(): Double {
-    val hi = nextBits(26).toLong() shl 27
-    val lo = nextBits(27).toLong()
-    return (hi or lo).toDouble() / 9007199254740992.0
-}
-
-public fun Random.nextDouble(until: Double): Double {
-    if (until <= 0.0) throw IllegalArgumentException(
-        "Random range is empty: until must be positive and finite, but was ${"$"}until.")
-    return nextDouble() * until
-}
-
-public fun Random.nextDouble(from: Double, until: Double): Double {
-    if (until <= from) throw IllegalArgumentException(
-        "Random range is empty: ${"$"}from..${"$"}until.")
-    return from + nextDouble() * (until - from)
-}
-
-// ─── nextBytes ───────────────────────────────────────────────────────────────
-// kk_random_nextBytes is non-throwing; fills a pre-allocated array.
-
-@Suppress("UNCHECKED_CAST")
-private external fun kk_random_nextBytes(self: Any?, array: Any?): Any?
-
-@Suppress("UNCHECKED_CAST")
-public fun Random.nextBytes(array: ByteArray): ByteArray =
-    kk_random_nextBytes(this, array) as ByteArray
-
 """
 
     static let kotlinTextSource = """

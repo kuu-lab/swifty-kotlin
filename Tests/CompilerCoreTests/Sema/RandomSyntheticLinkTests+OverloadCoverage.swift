@@ -196,7 +196,7 @@ extension RandomSyntheticLinkTests {
     func testNextBytesSizeOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
-        let fq = ["kotlin", "random", "Random", "nextBytes"].map { interner.intern($0) }
+        let fq = ["kotlin", "random", "nextBytes"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
 
         // The registered overload takes one ByteArray parameter; the size: Int overload
@@ -204,7 +204,8 @@ extension RandomSyntheticLinkTests {
         let intParamOverload = candidates.first { id in
             guard let sig = sema.symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes.count == 1 &&
-                sig.parameterTypes.first == sema.types.intType
+                sig.parameterTypes.first == sema.types.intType &&
+                sig.receiverType != nil
         }
         XCTAssertNotNil(intParamOverload, "nextBytes(size: Int): ByteArray overload must be registered")
         if let intParamOverload,
@@ -298,13 +299,14 @@ extension RandomSyntheticLinkTests {
     func testNextBytesArrayRangeOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
-        let fq = ["kotlin", "random", "Random", "nextBytes"].map { interner.intern($0) }
+        let fq = ["kotlin", "random", "nextBytes"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
 
         let rangeOverload = candidates.first { id in
             guard let sig = sema.symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes.count == 3 &&
-                sig.parameterTypes.dropFirst().allSatisfy { $0 == sema.types.intType }
+                sig.parameterTypes.dropFirst().allSatisfy { $0 == sema.types.intType } &&
+                sig.receiverType != nil
         }
         XCTAssertNotNil(rangeOverload, "nextBytes(array, fromIndex, toIndex) overload must be registered")
         if let rangeOverload,
@@ -315,9 +317,7 @@ extension RandomSyntheticLinkTests {
         }
     }
 
-    // MARK: - nextInt(IntRange) — removed (MIGRATION-RANDOM-001)
-    // nextInt(range: IntRange) stub (kk_random_nextInt_rangeObject) was removed in
-    // MIGRATION-RANDOM-001 along with the other nextInt synthetic stubs.
+    // MARK: - nextInt(IntRange) — package-level extension stub
 
     // MARK: - range.random(random: Random)
 

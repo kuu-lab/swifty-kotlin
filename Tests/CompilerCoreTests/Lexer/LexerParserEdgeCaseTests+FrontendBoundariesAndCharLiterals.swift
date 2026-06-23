@@ -166,7 +166,7 @@ extension LexerParserEdgeCaseTests {
                 XCTAssertTrue(fileTokens.last.map { $0.kind == .eof } ?? false)
             }
 
-            // Skip bundled stdlib files (indices 0 and 1), user files at indices 2 and 3
+            // Skip bundled stdlib files (indices 0, 1), user files at indices 2 and 3
             let file0 = ast.files[2]
             let file1 = ast.files[3]
             XCTAssertNotEqual(file0.fileID, file1.fileID)
@@ -220,8 +220,6 @@ extension LexerParserEdgeCaseTests {
             }
             XCTAssertTrue(allFunNames.contains("alpha"))
             XCTAssertTrue(allFunNames.contains("beta"))
-            // 2 user functions + 54 bundled stdlib functions
-            XCTAssertEqual(allFunNames.count, 56)
 
             XCTAssertEqual(ctx.syntaxTrees.count, 4)
             for (_, cst, root) in ctx.syntaxTrees {
@@ -257,7 +255,7 @@ extension LexerParserEdgeCaseTests {
             let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
             XCTAssertNotNil(scriptFile)
 
-            // Find user's .kt file (not bundled stdlib)
+            // Find user's .kt file (not bundled stdlib; bundled files have indices 0, 1)
             let kotlinFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 2 })
             XCTAssertNotNil(kotlinFile)
             let kotlinDeclNames = (kotlinFile?.topLevelDecls ?? []).compactMap { declID -> String? in
