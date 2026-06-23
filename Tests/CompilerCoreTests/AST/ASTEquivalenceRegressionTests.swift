@@ -10,7 +10,7 @@ import XCTest
 final class ASTEquivalenceRegressionTests: XCTestCase {
     // MARK: - Helpers
 
-    private let bundledStdlibDeclarationCount = 54
+    private let bundledStdlibDeclarationCount = 69
 
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
         let ctx: CompilationContext = makeContextFromSource(source)
@@ -46,11 +46,11 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 54 bundled stdlib functions (37 collections + 17 text)
+        // 2 user declarations + 69 bundled stdlib functions (37 collections + 17 text + 15 atomic)
         XCTAssertEqual(
             ast.declarationCount,
             2 + bundledStdlibDeclarationCount,
-            "Expected 56 top-level declarations (2 user + 54 bundled stdlib)"
+            "Expected 71 top-level declarations (2 user + 69 bundled stdlib)"
         )
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 2, "Expected at least 2 expressions")
 
