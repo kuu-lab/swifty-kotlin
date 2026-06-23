@@ -61,7 +61,7 @@ final class StringToIntFunctionTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "toInt" && args.isEmpty
                 },
