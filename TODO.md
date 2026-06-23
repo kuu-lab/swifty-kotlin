@@ -36,7 +36,7 @@
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
 - [x] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
-- [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
+- [x] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
 - [x] STDLIB-TEXT-FN-019: `indent` 関数の実装
@@ -54,7 +54,7 @@
 - [ ] STDLIB-TEXT-FN-038: `minus` 関数の実装
 - [ ] STDLIB-TEXT-FN-039: `onEach` 関数の実装
 - [ ] STDLIB-TEXT-FN-040: `onEachIndexed` 関数の実装
-- [ ] STDLIB-TEXT-FN-042: `padStart` 関数の実装
+- [x] STDLIB-TEXT-FN-042: `padStart` 関数の実装
 - [ ] STDLIB-TEXT-FN-043: `plus` 関数の実装
 - [ ] STDLIB-TEXT-FN-044: `random` 関数の実装
 - [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
@@ -134,7 +134,7 @@
 - [x] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-009: `pin()` を追加する
-- [ ] STDLIB-CINTEROP-FN-011: `CPointer<T>.plus(index)` を追加する
+- [x] STDLIB-CINTEROP-FN-011: `CPointer<T>.plus(index)` を追加する
 - [ ] STDLIB-CINTEROP-FN-016: `CPointer<T>.set(index, value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
@@ -202,7 +202,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/sequences/`
 
 - [ ] MIGRATION-SEQ-001: Sequence ファクトリを Kotlin source に移行する（`sequenceOf`, `emptySequence`, `generateSequence`, `sequence { }` builder）
-- [ ] MIGRATION-SEQ-002: Sequence 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`, `filter`, `filterNot`, `filterNotNull`）
+- [x] MIGRATION-SEQ-002: Sequence 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`, `filter`, `filterNot`, `filterNotNull`）
 - [ ] MIGRATION-SEQ-003: Sequence 端末 HOF を Kotlin source に移行する（`toList`, `toSet`, `toMutableList`, `first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `count`, `any`, `all`, `none`）
 - [ ] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
 - [ ] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
@@ -308,7 +308,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
 #### JS型変換関連stub
 - [x] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
-- [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
+- [x] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
 - [x] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
 #### Wasm Export stub
@@ -316,7 +316,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### Wasm Unsafe Annotation stub
 #### Wasm Unsafe Memory Allocator stub
 #### Wasm Unsafe Pointer stub
-- [ ] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
+- [x] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
 #### Wasm Unsafe Scoped Allocator stub
 - [x] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
 #### JVM Time相互運用stub
@@ -346,7 +346,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-043: JS Class stub削除（`HeaderHelpers+SyntheticJsClassStubs.swift`）
 - [ ] CLEANUP-STUB-047: JS Date stub削除（`HeaderHelpers+SyntheticJsDateStubs.swift`）
 - [ ] CLEANUP-STUB-048: JS Exception stub削除（`HeaderHelpers+SyntheticJsExceptionStubs.swift`）
-- [ ] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
+- [x] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
 - [ ] CLEANUP-STUB-050: JS RegExpMatch stub削除（`HeaderHelpers+SyntheticJsRegExpMatchStubs.swift`）
 - [ ] CLEANUP-STUB-051: JS Static stub削除（`HeaderHelpers+SyntheticJsStaticStubs.swift`）
 - [ ] CLEANUP-STUB-052: JS ExternalArgument stub削除（`HeaderHelpers+SyntheticJsExternalArgumentStubs.swift`）
@@ -548,7 +548,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 > kotlinc では catch 可能な例外になるべき箇所がプロセス即死する。SPEC-NUM-0002（ゼロ除算 SIGFPE）と同型の問題系。
 
 - [ ] DEBT-RT-001: `Sources/Runtime/RuntimeStringBuilder.swift` の境界チェック 11 箇所の `fatalError("StringIndexOutOfBoundsException: ...")` を catch 可能な Kotlin 例外送出へ置換する。`sb.insert(99, "x")` 等のユーザーコード 1 行でプロセスが落ちる最も再現容易な箇所。`try/catch (e: IndexOutOfBoundsException)` の diff ケースで kotlinc と挙動一致を検証する
-- [ ] DEBT-RT-002: `Sources/Runtime/RuntimeStringStdlib.swift:3369` 付近の `trimMargin` が marginPrefix 空白時に `fatalError("IllegalArgumentException: ...")` する。catch 可能な例外送出へ置換する
+- [x] DEBT-RT-002: `Sources/Runtime/RuntimeStringStdlib.swift:3369` 付近の `trimMargin` が marginPrefix 空白時に `fatalError("IllegalArgumentException: ...")` する。catch 可能な例外送出へ置換する
 - [ ] DEBT-RT-003: `Sources/Runtime/RuntimeRegex.swift` の正規表現フォールバック失敗時 `fatalError` 4 箇所（238 / 439 / 471 / 755 付近）を整理する。pattern はユーザー入力直通。静的フォールバック `(?!)` が失敗し得ないことの検証コメント化、または例外送出化
 - [ ] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
 
@@ -635,5 +635,5 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 - [ ] RF-DEAD-001: 完全到達不能の `kk_*` ランタイム関数 102 個を削除する（CompilerCore から静的にも動的（文字列補間 25 プレフィックス・`StdlibSurfaceSpec` 表駆動）にも emit されず、Tests・Runtime 内部・`Stdlib/*.kt` からの参照もゼロ）。内訳: SLF4J 互換ロギング 28 / リフレクション（`kk_kclass_*` / `kk_kconstructor_*` / `kk_kproperty_*` / `kk_callable_ref_*`）32 / coroutines・Flow 19 / 配列 HOF 取り残し 8 / java.time・JS Date ブリッジ 5 / HTTP 2 / その他（`kk_math_pi` / `kk_char_plus` 等）8。カテゴリ単位の分割 PR 推奨
 - [ ] RF-DEAD-002: テストのみが延命させている `kk_*` 関数 128 個をトリアージする（コンパイラが emit できないため Kotlin プログラムから到達不能だが RuntimeTests が直接呼出。`kk_atomic_*_array_*` / `kk_parallel_stream_*` / `kk_flow_fold` / `kk_write_barrier` / `kk_panic` 等）。各関数を (a) 配線予定 → 対応 STDLIB タスクへ紐付け、(b) テスト支援 API（`kk_assertions_reset` / `kk_runtime_force_reset` 等）→ その旨をコメント明記、(c) 配線計画なし → 関数 + テスト + spec エントリをセットで削除、に分類する（`kk_set_*` HOF 群は TEST-COL-012 と重複するため配線が正解の可能性あり）
-- [ ] RF-DEAD-003: 参照ゼロの Swift 関数 6 個を削除する（`buildBoolCondition`〔`NativeEmitter+FunctionEmission.swift` 内ローカル関数〕、`StdlibSurfaceSpec.collectionHOFRuntimeLinkNames`〔複数形・単数形のみ使用〕、LSPServer の `DocumentStore.allURIs` / `PositionResolver.enclosingDecl`、Runtime の `runtimeRetainObjectHandle` / `runtimeParallelStreamElements`）。小粒・即着手可
+- [x] RF-DEAD-003: 参照ゼロの Swift 関数 6 個を削除する（`buildBoolCondition`〔`NativeEmitter+FunctionEmission.swift` 内ローカル関数〕、`StdlibSurfaceSpec.collectionHOFRuntimeLinkNames`〔複数形・単数形のみ使用〕、LSPServer の `DocumentStore.allURIs` / `PositionResolver.enclosingDecl`、Runtime の `runtimeRetainObjectHandle` / `runtimeParallelStreamElements`）。小粒・即着手可 → DEADCODE-011（36b8d11ab0）で実施済み
 - [ ] RF-DEAD-004: dead-code 検出を `Scripts/dead_code_audit.sh` としてスクリプト化する（`docs/dead-code-audit.md` の再現コマンドを移植。動的補間プレフィックス・`StdlibSurfaceSpec` 表駆動経路・テスト参照の除外を含む。RF-GOV-004 の四半期 audit で再利用）
