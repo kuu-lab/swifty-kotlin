@@ -251,6 +251,43 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-TEXT-FN-004: appendLine overloads for StringBuilder
+    func testCodegenCompilesStringBuilderAppendLineEdgeCases() throws {
+        let source = """
+        fun main() {
+            val sb = StringBuilder()
+            sb.appendLine("hello")
+            sb.appendLine("world")
+            sb.appendLine()
+            println(sb.toString())
+
+            val result = StringBuilder()
+                .appendLine("first")
+                .appendLine("second")
+                .toString()
+            print(result)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringBuilderAppendLineEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                "hello\nworld\n\n\nfirst\nsecond\n"
+            )
+        }
+    }
+
     // STDLIB-TEXT-FN-003: Typed append overloads for StringBuilder
     func testCodegenCompilesStringBuilderTypedAppendOverloads() throws {
         let source = """

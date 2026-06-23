@@ -1993,4 +1993,41 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - STDLIB-TEXT-FN-019: indent
+
+    func testIndentOverloadsResolveToDifferentExternalLinks() throws {
+        let source = """
+        fun indentDefault(value: String): String {
+            return value.indent()
+        }
+
+        fun indentWithN(value: String): String {
+            return value.indent(4)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let callExprs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "indent"
+            }
+            XCTAssertEqual(callExprs.count, 2)
+            let links = try callExprs.map { callExpr -> String in
+                let chosenCallee = try XCTUnwrap(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected call binding for indent"
+                )
+                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
+            }
+            XCTAssertEqual(
+                Set(links),
+                ["kk_string_indent_default", "kk_string_indent"]
+            )
+        }
+    }
 }
