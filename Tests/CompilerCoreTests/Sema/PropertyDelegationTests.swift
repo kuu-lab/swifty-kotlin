@@ -348,16 +348,16 @@ final class KIRDelegateAccessorTests: XCTestCase {
 
             // Delegate lowering may rewrite the direct getValue call in later phases, but
             // the synthesized getter should still carry observable call structure.
-            if let getter = getterFunctions.first {
-                let callArgs = getter.body.compactMap { instruction -> [KIRExprID]? in
-                    guard case let .call(_, _, args, _, _, _, _, _) = instruction else { return nil }
-                    return args
-                }
-                XCTAssertFalse(callArgs.isEmpty)
-                if let args = callArgs.first {
-                    XCTAssertGreaterThanOrEqual(args.count, 2, "Synthesized getter should pass receiver/property context")
+            // The delegate getter calls getValue(thisRef, property) — at least 2 args.
+            // Other "get" accessors from bundled stdlib extension properties may also exist
+            // in the KIR module but have fewer args, so search across all getters.
+            let hasGetterWithReceiverAndProperty = getterFunctions.contains { fn in
+                fn.body.contains { instruction in
+                    guard case let .call(_, _, args, _, _, _, _, _) = instruction else { return false }
+                    return args.count >= 2
                 }
             }
+            XCTAssertTrue(hasGetterWithReceiverAndProperty, "Synthesized getter should pass receiver/property context")
         }
     }
 
