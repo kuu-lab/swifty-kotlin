@@ -7,168 +7,11 @@ import XCTest
     import Darwin
 #endif
 
-private typealias RuntimeStringUnaryEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
-private typealias RuntimeFlatStringReturnEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithIntEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithIntNoThrowEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithIntCharEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithThreeIntsEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithTwoIntsEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithStringEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithTwoStringsBoolEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithStringBoolEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-private typealias RuntimeFlatStringReturnWithLeadingIntAndIntEntry = (
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-
-private let runtimeReplaceFirstCharWithUppercaseB: RuntimeStringUnaryEntry = { _, _, _ in
-    kk_box_char(Int(Character("B").unicodeScalars.first!.value))
-}
-
-private let runtimeReplaceFirstCharWithInvalidScalar: RuntimeStringUnaryEntry = { _, _, _ in
-    Int.max
-}
-
-private let runtimeReplaceFirstCharThrowing: RuntimeStringUnaryEntry = { _, _, outThrown in
-    outThrown?.pointee = runtimeAllocateThrowable(message: "replaceFirstChar failure")
-    return 0
-}
-
 private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         return nil
     }
     return tryCast(ptr, to: RuntimeThrowableBox.self)
-}
-
-private let runtimeFlatStringDigitPredicate: RuntimeStringUnaryEntry = { _, charRaw, _ in
-    (0x30 ... 0x39).contains(charRaw) ? 1 : 0
-}
-
-private let runtimeFlatStringLowercasePredicate: RuntimeStringUnaryEntry = { _, charRaw, _ in
-    (0x61 ... 0x7A).contains(charRaw) ? 1 : 0
-}
-
-private let runtimeFlatStringThrowingPredicate: RuntimeStringUnaryEntry = { _, _, outThrown in
-    outThrown?.pointee = runtimeAllocateThrowable(message: "flat predicate failure")
-    return 0
-}
-
-private let runtimeFlatStringLengthTransform: RuntimeStringUnaryEntry = { _, strRaw, _ in
-    runtimeStringFromRawOrPanic(strRaw, caller: "runtimeFlatStringLengthTransform").count
-}
-
-private let runtimeReturnValueTransform: RuntimeStringUnaryEntry = { _, valueRaw, _ in
-    valueRaw
 }
 
 final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
@@ -233,29 +76,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(output, "")
     }
 
-    // MARK: - kk_string_concat_flat
-
-    func testStringConcatFlatTwoStrings() {
-        XCTAssertEqual(concatFlatValue("Hello, ", "World!"), "Hello, World!")
-    }
-
-    func testStringConcatFlatWithNilDataLeftReturnsRightOnly() {
-        XCTAssertEqual(concatFlatValue(nil, "World"), "World")
-    }
-
-    func testStringConcatFlatWithNilDataRightReturnsLeftOnly() {
-        XCTAssertEqual(concatFlatValue("Hello", nil), "Hello")
-    }
-
-    func testStringConcatFlatBothNilDataReturnsEmptyString() {
-        XCTAssertEqual(concatFlatValue(nil, nil), "")
-    }
-
-    // MARK: - kk_string_compareTo_flat
-
-
-
-
+    // MARK: - Compare / Format
 
     func testCompareAnyDecodesBoxedDoubleValues() {
         let lhs = kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 1.25.bitPattern)))
@@ -297,40 +118,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - STDLIB-006 string runtime ABI
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray()
 
-
-
-
-
     // MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
-
-
-
-
-
-
 
     func testListToCharArrayStoresTaggedCharCodeUnits() {
         let listRaw = registerRuntimeObject(RuntimeListBox(values: [
@@ -346,18 +136,12 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(charArray?.elements.map(kk_unbox_char), [97, 233])
     }
 
-    // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet_flat tests
-
-
-
-
-
-
+    // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet tests
 
     // MARK: - STDLIB-317: String.asIterable() tests
 
     func testStringAsIterableReturnsLazyBox() {
-        let iterableRaw = flatStringAsIterable("abc")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("abc"))
 
         // The iterable should be a RuntimeStringIterableBox, not a list.
         let iterableBox = runtimeStringIterableBox(from: iterableRaw)
@@ -369,12 +153,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertNil(listBox, "asIterable should NOT materialise a list eagerly")
     }
 
-
-
-
-
     func testStringAsIterableToListMaterialises() {
-        let iterableRaw = flatStringAsIterable("abc")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("abc"))
         let listRaw = kk_string_iterable_toList(iterableRaw)
 
         let list = runtimeListBox(from: listRaw)
@@ -384,7 +164,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterableIteratorYieldsCharacters() {
-        let iterableRaw = flatStringAsIterable("hi")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("hi"))
         let iterRaw = kk_string_iterable_iterator(iterableRaw)
 
         XCTAssertEqual(kk_string_iterator_hasNext(iterRaw), 1)
@@ -399,7 +179,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringIteratorNextReturnsRawUTF16CodeUnits() {
-        let iterableRaw = flatStringAsIterable("hi")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("hi"))
         let iterRaw = kk_string_iterable_iterator(iterableRaw)
 
         XCTAssertEqual(kk_string_iterator_next(iterRaw), 104)
@@ -408,7 +188,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterableWithNonASCII() {
-        let iterableRaw = flatStringAsIterable("aé🐻")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("aé🐻"))
         let listRaw = kk_string_iterable_toList(iterableRaw)
 
         let list = runtimeListBox(from: listRaw)
@@ -428,7 +208,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterableGenericConversionsPreserveTaggedChars() {
-        let iterableRaw = flatStringAsIterable("aba")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("aba"))
 
         let mutableList = runtimeListBox(from: kk_iterable_toMutableList(iterableRaw))
         let mutableSet = runtimeSetBox(from: kk_iterable_toMutableSet(iterableRaw))
@@ -447,7 +227,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringCharCollectionCopiesPreserveTaggedChars() {
-        let listRaw = kk_iterable_toMutableList(flatStringAsIterable("aba"))
+        let listRaw = kk_iterable_toMutableList(kk_string_asIterable(rawFromRuntimeString("aba")))
 
         let set = runtimeSetBox(from: kk_list_to_set(listRaw))
         let mutableSet = runtimeSetBox(from: kk_list_to_mutable_set(listRaw))
@@ -474,7 +254,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterableGenericJoinToStringRendersTaggedChars() {
-        let iterableRaw = flatStringAsIterable("aé🐻")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("aé🐻"))
         let result = kk_iterable_joinToString(
             iterableRaw,
             rawFromRuntimeString("|"),
@@ -507,7 +287,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterableAsSequencePreservesTaggedSourceValues() {
-        let sequenceRaw = kk_iterable_asSequence(flatStringAsIterable("ab"))
+        let sequenceRaw = kk_iterable_asSequence(kk_string_asIterable(rawFromRuntimeString("ab")))
         let sequence = runtimeSequenceBox(from: sequenceRaw)
 
         guard case let .valueSource(values)? = sequence?.steps.first else {
@@ -520,7 +300,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterableEmptyString() {
-        let iterableRaw = flatStringAsIterable("")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString(""))
         let listRaw = kk_string_iterable_toList(iterableRaw)
 
         let list = runtimeListBox(from: listRaw)
@@ -539,7 +319,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterablePrintDoesNotMaterialiseList() {
-        let iterableRaw = flatStringAsIterable("aé🐻")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("aé🐻"))
         let baselineObjectCount = kk_runtime_heap_object_count()
 
         let output = capturePrintln {
@@ -551,14 +331,12 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringAsIterableRenderDoesNotMaterialiseList() {
-        let iterableRaw = flatStringAsIterable("abc")
+        let iterableRaw = kk_string_asIterable(rawFromRuntimeString("abc"))
         let baselineObjectCount = kk_runtime_heap_object_count()
 
         XCTAssertEqual(runtimeRenderAnyForPrint(iterableRaw), "[a, b, c]")
         XCTAssertEqual(kk_runtime_heap_object_count(), baselineObjectCount)
     }
-
-
 
     func testStringScalarIndexedOperationsWithNonASCII() {
         let textRaw = rawFromRuntimeString("aé🐻")
@@ -615,12 +393,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) }, "[1, 2]")
     }
 
-
-
-
-
-
-
     func testStringReplaceIndentByMarginBlankMarginPrefixThrowsIllegalArgumentException() throws {
         var thrown = 0
         _ = kk_string_replaceIndentByMargin(
@@ -635,40 +407,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(box.renderedMessage.contains("marginPrefix must be non-blank string."))
     }
 
-
     // MARK: - STDLIB-TEXT-FN-055: replace overloads
 
-
-
-
-
-
-
-
-
-
-
-    // STDLIB-TEXT-FN-012: kk_string_contains_ignoreCase_flat
+    // STDLIB-TEXT-FN-012: kk_string_contains_ignoreCase
     //
-    // Asserts the raw Boolean scalar returned by `kk_string_contains_ignoreCase_flat`
+    // Asserts the raw Boolean scalar returned by `kk_string_contains_ignoreCase`
     // matches Kotlin's `CharSequence.contains(other, ignoreCase)` semantics:
     // - empty needle always matches (mirroring `String.contains("")`)
-    // - case-sensitive mode (`ignoreCase = false`) behaves like `kk_string_contains_str_flat`
+    // - case-sensitive mode (`ignoreCase = false`) behaves like `kk_string_contains_str`
     // - case-insensitive mode matches across mixed-case ASCII without copying
     //   into a normalized scratch buffer.
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     func testStringToDoubleParsesKotlinFloatingLiterals() {
         var thrown = 0
@@ -702,20 +450,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(parsed, runtimeNullSentinelInt)
         XCTAssertEqual(doubleFromRuntimeBits(parsed), 4.0, accuracy: 1e-12)
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     // MARK: - kk_throwable_new
 
@@ -959,233 +693,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - STDLIB-TEXT-FN-115: String.withIndex()
 
-
-
-
-
     // MARK: - Helpers
-
-    private func withFlatString<T>(
-        _ value: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        var length = 0
-        var byteCount = 0
-        var hash = 0
-        let data = runtimeRegisterFlatString(
-            value,
-            outLength: &length,
-            outByteCount: &byteCount,
-            outHash: &hash
-        )
-        let constData = data.map { UnsafePointer($0) }
-        return body(constData, length, byteCount, hash)
-    }
-
-    private func concatFlatValue(_ lhs: String?, _ rhs: String?) -> String {
-        func makeFlatArgs(_ s: String?) -> (UnsafePointer<UInt8>?, Int, Int, Int) {
-            guard let s else { return (nil, 0, 0, 0) }
-            var length = 0
-            var byteCount = 0
-            var hash = 0
-            let data = runtimeRegisterFlatString(s, outLength: &length, outByteCount: &byteCount, outHash: &hash)
-            return (data.map { UnsafePointer($0) }, length, byteCount, hash)
-        }
-        let (lhsData, lhsLength, lhsByteCount, lhsHash) = makeFlatArgs(lhs)
-        let (rhsData, rhsLength, rhsByteCount, rhsHash) = makeFlatArgs(rhs)
-        var outLength = 0
-        var outByteCount = 0
-        var outHash = 0
-        let outData = kk_string_concat_flat(
-            lhsData, lhsLength, lhsByteCount, lhsHash,
-            rhsData, rhsLength, rhsByteCount, rhsHash,
-            &outLength, &outByteCount, &outHash
-        )
-        return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-    }
-
-    private func flatStringValue(
-        data: UnsafePointer<UInt8>?,
-        length _: Int,
-        byteCount: Int,
-        hash _: Int
-    ) -> String {
-        guard let data, byteCount > 0 else { return "" }
-        let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-        return String(decoding: buffer, as: UTF8.self)
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        using fn: RuntimeFlatStringReturnEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = fn(data, length, byteCount, hash, &outLength, &outByteCount, &outHash)
-            return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        intArg: Int,
-        using fn: RuntimeFlatStringReturnWithIntEntry,
-        outThrown: UnsafeMutablePointer<Int>? = nil
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = fn(data, length, byteCount, hash, intArg, &outLength, &outByteCount, &outHash, outThrown)
-            return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-        }
-    }
-
-    private func flatStringReturnValueNoThrow(
-        _ value: String,
-        intArg: Int,
-        using fn: RuntimeFlatStringReturnWithIntNoThrowEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = fn(data, length, byteCount, hash, intArg, &outLength, &outByteCount, &outHash)
-            return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        other: String,
-        using fn: RuntimeFlatStringReturnWithStringEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
-                var outLength = 0
-                var outByteCount = 0
-                var outHash = 0
-                let outData = fn(data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash, &outLength, &outByteCount, &outHash)
-                return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-            }
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        other: String,
-        ignoreCase: Bool,
-        using fn: RuntimeFlatStringReturnWithStringBoolEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
-                var outLength = 0
-                var outByteCount = 0
-                var outHash = 0
-                let outData = fn(data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash, ignoreCase ? 1 : 0, &outLength, &outByteCount, &outHash)
-                return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-            }
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        intArg: Int,
-        charArg: Int,
-        using fn: RuntimeFlatStringReturnWithIntCharEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = fn(data, length, byteCount, hash, intArg, charArg, &outLength, &outByteCount, &outHash)
-            return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        first: String,
-        second: String,
-        ignoreCase: Bool,
-        using fn: RuntimeFlatStringReturnWithTwoStringsBoolEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            withFlatString(first) { firstData, firstLength, firstByteCount, firstHash in
-                withFlatString(second) { secondData, secondLength, secondByteCount, secondHash in
-                    var outLength = 0
-                    var outByteCount = 0
-                    var outHash = 0
-                    let outData = fn(data, length, byteCount, hash, firstData, firstLength, firstByteCount, firstHash, secondData, secondLength, secondByteCount, secondHash, ignoreCase ? 1 : 0, &outLength, &outByteCount, &outHash)
-                    return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-                }
-            }
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        firstIntArg: Int,
-        secondIntArg: Int,
-        thirdIntArg: Int,
-        using fn: RuntimeFlatStringReturnWithThreeIntsEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = fn(data, length, byteCount, hash, firstIntArg, secondIntArg, thirdIntArg, &outLength, &outByteCount, &outHash)
-            return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        firstIntArg: Int,
-        secondIntArg: Int,
-        using fn: RuntimeFlatStringReturnWithTwoIntsEntry,
-        outThrown: UnsafeMutablePointer<Int>? = nil
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = fn(data, length, byteCount, hash, firstIntArg, secondIntArg, &outLength, &outByteCount, &outHash, outThrown)
-            return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-        }
-    }
-
-    private func flatStringReturnValue(
-        _ value: String,
-        leadingIntArg: Int,
-        trailingIntArg: Int,
-        using fn: RuntimeFlatStringReturnWithLeadingIntAndIntEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = fn(leadingIntArg, data, length, byteCount, hash, trailingIntArg, &outLength, &outByteCount, &outHash)
-            return flatStringValue(data: outData.map { UnsafePointer($0) }, length: outLength, byteCount: outByteCount, hash: outHash)
-        }
-    }
-
-    private func flatStringAsIterable(_ value: String) -> Int {
-        kk_string_asIterable(rawFromRuntimeString(value))
-    }
-
-    private func makeLocale(language: String, country: String) -> Int {
-        withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
-            withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                kk_locale_new_language_country_flat(
-                    languageData, languageLength, languageByteCount, languageHash,
-                    countryData, countryLength, countryByteCount, countryHash
-                )
-            }
-        }
-    }
 
     private func makeRuntimeString(_ value: String) -> UnsafeMutableRawPointer {
         value.withCString { cstr in
@@ -1199,126 +707,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         Int(bitPattern: makeRuntimeString(value))
     }
 
-    private func makeRuntimeArray(_ values: [Int]) -> Int {
-        let array = kk_array_new(values.count)
-        var thrown = 0
-        for (index, value) in values.enumerated() {
-            _ = kk_array_set(array, index, value, &thrown)
-            XCTAssertEqual(thrown, 0)
-        }
-        return array
-    }
-
-    private func makeRuntimeValueArray(_ values: [RuntimeValue]) -> Int {
-        let array = kk_array_new(values.count)
-        guard let box = runtimeArrayBox(from: array) else {
-            XCTFail("Expected RuntimeArrayBox")
-            return array
-        }
-        box.values = values
-        return array
-    }
-
-    private func makeRuntimeStringValueArray(_ values: [String]) -> Int {
-        makeRuntimeValueArray(values.map(runtimeStringAggregateValue))
-    }
-
     private func makeRuntimeValueList(_ values: [RuntimeValue]) -> Int {
         registerRuntimeObject(RuntimeListBox(values: values))
-    }
-
-    private func assertFindAnyOfPair(
-        _ pairRaw: Int,
-        offset: Int,
-        match: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        XCTAssertNotEqual(pairRaw, runtimeNullSentinelInt, file: file, line: line)
-        guard pairRaw != runtimeNullSentinelInt,
-              let pairPtr = UnsafeMutableRawPointer(bitPattern: pairRaw),
-              let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
-        else {
-            XCTFail("Expected RuntimePairBox result", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
-        XCTAssertEqual(pairBox.firstValue.payload0, offset, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), match, file: file, line: line)
-        XCTAssertEqual(kk_pair_first(pairRaw), offset, file: file, line: line)
-        XCTAssertEqual(
-            runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function),
-            match,
-            file: file,
-            line: line
-        )
-    }
-
-    private func assertStringValueList(
-        _ list: RuntimeListBox?,
-        equals expected: [String],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let list else {
-            XCTFail("Expected a RuntimeListBox", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(
-            list.values.map(\.tag),
-            Array(repeating: RuntimeValue.stringTag, count: expected.count),
-            file: file,
-            line: line
-        )
-        XCTAssertEqual(list.elements.map(runtimeStringValue), expected, file: file, line: line)
-    }
-
-    private func assertStringValueSequence(
-        _ sequenceRaw: Int,
-        equals expected: [String],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            XCTFail("Expected a RuntimeSequenceBox", file: file, line: line)
-            return
-        }
-        guard case let .valueSource(values)? = sequence.steps.first else {
-            XCTFail("Expected aggregate RuntimeValue sequence source", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(
-            values.map(\.tag),
-            Array(repeating: RuntimeValue.stringTag, count: expected.count),
-            file: file,
-            line: line
-        )
-        XCTAssertEqual(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue), expected, file: file, line: line)
-    }
-
-    private func assertRawValueSequence(
-        _ sequenceRaw: Int,
-        equals expected: [Int],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            XCTFail("Expected a RuntimeSequenceBox", file: file, line: line)
-            return
-        }
-        guard case let .valueSource(values)? = sequence.steps.first else {
-            XCTFail("Expected aggregate RuntimeValue sequence source", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(
-            values.map(\.tag),
-            Array(repeating: RuntimeValue.rawTag, count: expected.count),
-            file: file,
-            line: line
-        )
-        XCTAssertEqual(values.map(\.payload0), expected, file: file, line: line)
-        XCTAssertEqual(runtimeSequenceSourceElements(from: sequenceRaw), expected, file: file, line: line)
     }
 
     private func runtimeStringAggregateValue(_ value: String) -> RuntimeValue {
@@ -1339,85 +729,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         )
     }
 
-    private func assertIndexedStringValue(
-        _ raw: Int,
-        index: Int,
-        value: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        XCTAssertEqual(runtimeObjectTypeID(rawValue: raw), indexedValueRuntimeTypeID, file: file, line: line)
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
-        else {
-            XCTFail("Expected IndexedValue RuntimePairBox", file: file, line: line)
-            return
-        }
-
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
-        XCTAssertEqual(pairBox.firstValue.payload0, index, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), value, file: file, line: line)
-        XCTAssertEqual(runtimeElementToString(raw), "IndexedValue(index=\(index), value=\(value))", file: file, line: line)
-    }
-
-    private func assertIndexedCharValue(
-        _ raw: Int,
-        index: Int,
-        scalar: Int,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        XCTAssertEqual(runtimeObjectTypeID(rawValue: raw), indexedValueRuntimeTypeID, file: file, line: line)
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
-        else {
-            XCTFail("Expected IndexedValue RuntimePairBox", file: file, line: line)
-            return
-        }
-
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
-        XCTAssertEqual(pairBox.firstValue.payload0, index, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.charTag, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.payload0, scalar, file: file, line: line)
-        XCTAssertEqual(kk_unbox_char(kk_pair_second(raw)), scalar, file: file, line: line)
-    }
-
-    private func assertStringPairValue(
-        _ raw: Int,
-        first: String,
-        second: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
-        else {
-            XCTFail("Expected RuntimePairBox", file: file, line: line)
-            return
-        }
-
-        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.firstValue), first, file: file, line: line)
-        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), second, file: file, line: line)
-    }
-
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
-    private func runtimeFlatStringValue(_ value: RuntimeValue) -> String {
-        guard value.tag == RuntimeValue.stringTag,
-              let data = UnsafePointer<UInt8>(bitPattern: value.payload0)
-        else {
-            return ""
-        }
-        return runtimeStringFromFlatFields(
-            data: data,
-            length: value.payload1,
-            byteCount: value.payload2,
-            hash: value.payload3
-        )
-    }
 }
