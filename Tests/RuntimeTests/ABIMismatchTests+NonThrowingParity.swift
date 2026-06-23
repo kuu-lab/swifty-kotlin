@@ -1049,6 +1049,7 @@ extension ABIMismatchTests {
         "kk_string_toUShortOrNull",
         "kk_string_trim",
         "kk_string_trimEnd",
+        "kk_string_trimMargin_default",
         "kk_string_trimStart",
         "kk_string_uppercase",
         "kk_string_uppercase_locale",
