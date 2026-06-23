@@ -35,13 +35,15 @@ extension DataFlowSemaPhase {
             includeArithmetic: true,
             includeGetAndUpdate: true,
             includeFetchAndUpdateAlias: true,
-            includeIncrementAndGetAlias: true,
+            // MIGRATION-ATOMIC-001: getAndSet / incrementAndGet / decrementAndGet / addAndGet
+            // migrated to BundledKotlinStdlib (kotlinConcurrentAtomicSource).
+            includeIncrementAndGetAlias: false,
             includeGetAndIncrementAlias: true,
             includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
+            includeGetAndSetAlias: false,
             includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
+            includeDecrementAndGetAlias: false,
+            includeAddAndGetAlias: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -58,13 +60,15 @@ extension DataFlowSemaPhase {
             includeArithmetic: true,
             includeGetAndUpdate: true,
             includeFetchAndUpdateAlias: true,
-            includeIncrementAndGetAlias: true,
+            // MIGRATION-ATOMIC-001: getAndSet / incrementAndGet / decrementAndGet / addAndGet
+            // migrated to BundledKotlinStdlib (kotlinConcurrentAtomicSource).
+            includeIncrementAndGetAlias: false,
             includeGetAndIncrementAlias: true,
             includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
+            includeGetAndSetAlias: false,
             includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
+            includeDecrementAndGetAlias: false,
+            includeAddAndGetAlias: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -2462,7 +2466,8 @@ extension DataFlowSemaPhase {
             prefix: externalLinkPrefix,
             typeParameterSymbols: [typeParamSymbol],
             classTypeParameterCount: 1,
-            includeGetAndSetAlias: true,
+            // MIGRATION-ATOMIC-001: getAndSet migrated to BundledKotlinStdlib.
+            includeGetAndSetAlias: false,
             symbols: symbols,
             interner: interner
         )
