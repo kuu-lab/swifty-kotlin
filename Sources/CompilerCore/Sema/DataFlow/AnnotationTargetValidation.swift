@@ -146,20 +146,11 @@ extension DataFlowSemaPhase {
             }
             // Validate primary constructor value parameter annotations
             for param in classDecl.primaryConstructorParams {
-                for annotation in param.annotations {
-                    validateAnnotationTarget(
-                        annotation: annotation,
-                        site: .valueParameter,
-                        ownerRange: ownerRange(for: decl),
-                        decl: decl,
-                        file: file,
-                        propertySymbol: nil,
-                        symbols: symbols,
-                        diagnostics: diagnostics,
-                        interner: interner,
-                        filesByID: filesByID
-                    )
-                }
+                validateValueParamAnnotations(
+                    param: param, ownerDecl: decl, file: file,
+                    symbols: symbols, diagnostics: diagnostics,
+                    interner: interner, filesByID: filesByID
+                )
             }
             // Validate secondary constructor annotations and their parameters
             for ctor in classDecl.secondaryConstructors {
@@ -178,20 +169,11 @@ extension DataFlowSemaPhase {
                     )
                 }
                 for param in ctor.valueParams {
-                    for annotation in param.annotations {
-                        validateAnnotationTarget(
-                            annotation: annotation,
-                            site: .valueParameter,
-                            ownerRange: ownerRange(for: decl),
-                            decl: decl,
-                            file: file,
-                            propertySymbol: nil,
-                            symbols: symbols,
-                            diagnostics: diagnostics,
-                            interner: interner,
-                            filesByID: filesByID
-                        )
-                    }
+                    validateValueParamAnnotations(
+                        param: param, ownerDecl: decl, file: file,
+                        symbols: symbols, diagnostics: diagnostics,
+                        interner: interner, filesByID: filesByID
+                    )
                 }
             }
             // Validate enum entry annotations
@@ -247,23 +229,62 @@ extension DataFlowSemaPhase {
             )
         case let .funDecl(funDecl):
             for param in funDecl.valueParams {
-                for annotation in param.annotations {
-                    validateAnnotationTarget(
-                        annotation: annotation,
-                        site: .valueParameter,
-                        ownerRange: ownerRange(for: decl),
-                        decl: decl,
-                        file: file,
-                        propertySymbol: nil,
-                        symbols: symbols,
-                        diagnostics: diagnostics,
-                        interner: interner,
-                        filesByID: filesByID
-                    )
-                }
+                validateValueParamAnnotations(
+                    param: param, ownerDecl: decl, file: file,
+                    symbols: symbols, diagnostics: diagnostics,
+                    interner: interner, filesByID: filesByID
+                )
             }
         case .propertyDecl, .typeAliasDecl, .enumEntryDecl:
             break
+        }
+    }
+
+    /// Validates annotations on a value parameter, mapping use-site targets to the
+    /// appropriate `AnnotationUsageSite` rather than blindly using `.valueParameter`.
+    ///
+    /// Kotlin allows `@field:Anno`, `@get:Anno`, `@set:Anno`, `@param:Anno`, and
+    /// `@setparam:Anno` on primary-constructor parameters. Each must be validated
+    /// against the corresponding target kind, not the `VALUE_PARAMETER` target.
+    private func validateValueParamAnnotations(
+        param: ValueParamDecl,
+        ownerDecl: Decl,
+        file: ASTFile,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        filesByID: [Int32: ASTFile]
+    ) {
+        for annotation in param.annotations {
+            let site: AnnotationUsageSite
+            switch annotation.useSiteTarget?.lowercased() {
+            case nil, "param", "setparam":
+                site = .valueParameter
+            case "field":
+                site = .paramField
+            case "get":
+                site = .getter
+            case "set":
+                site = .setter
+            case "property":
+                site = .property(explicitUseSiteTarget: true)
+            case "delegate":
+                site = .delegate
+            default:
+                site = .valueParameter
+            }
+            validateAnnotationTarget(
+                annotation: annotation,
+                site: site,
+                ownerRange: ownerRange(for: ownerDecl),
+                decl: ownerDecl,
+                file: file,
+                propertySymbol: nil,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner,
+                filesByID: filesByID
+            )
         }
     }
 
@@ -604,6 +625,10 @@ extension DataFlowSemaPhase {
                 return false
             }
             return allowedTargets.contains("FIELD")
+        case .paramField:
+            // Constructor parameter backing field — always has a backing field
+            // (val/var params always generate a field), so skip PropertyDecl guard.
+            return allowedTargets.contains("FIELD")
         case .delegate:
             guard let propertySymbol,
                   symbols.delegateStorageSymbol(for: propertySymbol) != nil
@@ -661,6 +686,8 @@ extension DataFlowSemaPhase {
             return "a property setter"
         case .field:
             return "a backing field"
+        case .paramField:
+            return "a constructor parameter's backing field"
         case .delegate:
             return "a delegate storage field"
         case .file:
@@ -734,6 +761,9 @@ extension DataFlowSemaPhase {
         case getter
         case setter
         case field
+        /// Like `.field` but applies to a constructor parameter's backing field —
+        /// always valid for `FIELD` target without requiring a `PropertyDecl`.
+        case paramField
         case delegate
         case file
         case type
