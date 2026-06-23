@@ -986,6 +986,8 @@ extension ABIMismatchTests {
         "kk_string_firstOrNull",
         "kk_string_format",
         "kk_string_getOrNull",
+        "kk_string_indent",
+        "kk_string_indent_default",
         "kk_string_indexOfAny_chars",
         "kk_string_indexOfAny_strings",
         "kk_string_indexOf_char",
