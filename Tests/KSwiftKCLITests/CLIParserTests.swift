@@ -53,7 +53,6 @@ final class CLIParserTests: XCTestCase {
         ])
 
         XCTAssertEqual(options.runtimeFlags, ["reflection-metadata=all"])
-        XCTAssertTrue(options.runtimeFlags.contains("reflection-metadata=all"))
         XCTAssertTrue(options.includeNonPublicReflectionMetadata)
     }
 

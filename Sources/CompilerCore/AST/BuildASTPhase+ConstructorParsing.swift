@@ -78,10 +78,23 @@ extension BuildASTPhase {
             else {
                 continue
             }
+            // Annotations may appear as a preceding sibling statement node
+            // before the constructorDecl node in the body block CST.
+            // Accumulate tokens from sibling children so annotations are captured.
+            var precedingTokens: [Token] = []
             for bodyChild in arena.children(of: bodyBlockID) {
                 guard case let .node(ctorNodeID) = bodyChild,
                       arena.node(ctorNodeID).kind == .constructorDecl
                 else {
+                    switch bodyChild {
+                    case let .token(tokenID):
+                        if let tok = resolveToken(tokenID, in: arena) {
+                            precedingTokens.append(tok)
+                        }
+                    case let .node(siblingID):
+                        // Collect tokens from sibling nodes (e.g. statement wrapping @Annotation)
+                        precedingTokens.append(contentsOf: collectTokens(from: siblingID, in: arena))
+                    }
                     continue
                 }
                 let ctorNode = arena.node(ctorNodeID)
@@ -97,9 +110,15 @@ extension BuildASTPhase {
                 } else {
                     body = .unit
                 }
+                // Annotations from preceding sibling tokens + any inside the node
+                let nodeTokens = collectTokens(from: ctorNodeID, in: arena)
+                let combinedTokens = precedingTokens + nodeTokens
+                let annotations = annotationsFromTokens(combinedTokens, interner: interner)
+                precedingTokens.removeAll(keepingCapacity: true)
                 result.append(ConstructorDecl(
                     range: ctorNode.range,
                     modifiers: declarationModifiers(from: ctorNodeID, in: arena),
+                    annotations: annotations,
                     valueParams: params,
                     delegationCall: delegationCall,
                     body: body

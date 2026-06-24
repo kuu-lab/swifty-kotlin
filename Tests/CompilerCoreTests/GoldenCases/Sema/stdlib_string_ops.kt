@@ -68,6 +68,8 @@ fun usePrependIndent(): String = "abc\ndef".prependIndent("  ")
 
 fun useReplaceIndent(): String = "  abc\n  def".replaceIndent("")
 
+fun useEquals(): Boolean = "abc".equals("abc")
+
 fun useEqualsIgnoreCase(): Boolean = "abc".equals("ABC", ignoreCase = true)
 
 fun useReplaceFirst(): String = "abcabc".replaceFirst("abc", "X")

@@ -4,6 +4,10 @@ import Foundation
 ///
 /// Wires the Kotlin Base64 variants (Default / UrlSafe / Mime / Pem)
 /// and their PaddingOption enum to the `kk_base64_*` ABI entry points in RuntimeBase64.swift.
+///
+/// NOTE: Kotlin source exists at Stdlib/kotlin/io/encoding/Base64.kt (MIGRATION-ENC-001).
+/// These stubs still dispatch directly to the kk_base64_* ABI functions. The Kotlin source
+/// is the migration target; wiring (and removal of these stubs) happens in RF-STDLIB-004+.
 extension DataFlowSemaPhase {
     func registerSyntheticBase64Stubs(
         symbols: SymbolTable,

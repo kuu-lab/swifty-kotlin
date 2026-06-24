@@ -3,7 +3,6 @@ import Foundation
 import XCTest
 
 // MARK: - Value class edge case coverage (TEST-VAL-001)
-// Expands value class / inline class test coverage from ~10 to 21+ cases.
 
 extension ValueClassUnboxingTests {
 
