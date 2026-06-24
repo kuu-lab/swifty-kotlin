@@ -969,7 +969,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-SEARCH-001: CharSequence.indexOfAny(chars, startIndex, ignoreCase) ---
+        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(chars, startIndex, ignoreCase) ---
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
@@ -977,8 +977,8 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [
                 ("chars", charArrayType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
+                ("startIndex", intType, true, false),
+                ("ignoreCase", boolType, true, false),
             ],
             returnType: intType,
             packageFQName: kotlinTextPkg,
@@ -986,7 +986,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-SEARCH-002: CharSequence.indexOfAny(strings, startIndex, ignoreCase) ---
+        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(strings, startIndex, ignoreCase) ---
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
@@ -994,8 +994,8 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
+                ("startIndex", intType, true, false),
+                ("ignoreCase", boolType, true, false),
             ],
             returnType: intType,
             packageFQName: kotlinTextPkg,
@@ -1270,6 +1270,43 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-TEXT-FN-033: CharSequence.iterator() — returns CharIterator
+        let charIteratorType: TypeID = {
+            let charIteratorFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("CharIterator"),
+            ]
+            if let charIteratorSymbol = symbols.lookup(fqName: charIteratorFQName) {
+                return types.make(.classType(ClassType(
+                    classSymbol: charIteratorSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+            return iterableCharType
+        }()
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charIteratorType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: charIteratorType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
