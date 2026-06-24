@@ -460,6 +460,11 @@ extension ABIMismatchTests {
         "kk_writer_buffered_default",
     ]
 
+    // MARK: Kotlin/JS collections (STDLIB-JS-COLLECTIONS-FN-*)
+    private static let jsCollectionsStubLinkNames: Set<String> = [
+        "kk_js_readonly_set_toMutableSet",
+    ]
+
     /// Union of every category. New categories should be added below.
     /// Each category lives in its own `static let` above so that parallel
     /// branches editing different category Sets do not collide.
@@ -489,6 +494,7 @@ extension ABIMismatchTests {
         result.formUnion(kotlinVersionStubLinkNames)
         result.formUnion(urlStubLinkNames)
         result.formUnion(kotlinIOWriterBufferedStubLinkNames)
+        result.formUnion(jsCollectionsStubLinkNames)
         return result
     }
 
