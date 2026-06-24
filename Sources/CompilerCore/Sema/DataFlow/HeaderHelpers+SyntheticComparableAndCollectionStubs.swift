@@ -240,6 +240,11 @@ extension DataFlowSemaPhase {
             iterableInterfaceSymbol: iterableInterfaceSymbol,
             listInterfaceSymbol: listInterfaceSymbol
         )
+        registerIterableMinusMember(
+            symbols: symbols, types: types, interner: interner,
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            listInterfaceSymbol: listInterfaceSymbol
+        )
         registerIterableReduceRightIndexedOrNullMember(
             symbols: symbols, types: types, interner: interner,
             iterableInterfaceSymbol: iterableInterfaceSymbol
