@@ -415,28 +415,6 @@ private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Opti
     }
 }
 
-/// Applies LITERAL escaping and CANON_EQ normalization, compiles the pattern,
-/// and falls back to a never-matching regex on compile failure.
-private func createRegexBox(
-    pattern: String,
-    isLiteral: Bool,
-    options: NSRegularExpression.Options,
-    optionOrdinals: Set<Int>
-) -> RuntimeRegexBox {
-    let canonEq = optionOrdinals.contains(kRegexOptionOrdinalCanonEq)
-    let normalizedPattern = canonEq ? pattern.precomposedStringWithCanonicalMapping : pattern
-    let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: normalizedPattern) : normalizedPattern
-    guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
-        do {
-            let fallback = try NSRegularExpression(pattern: "(?!)", options: [])
-            return RuntimeRegexBox(regex: fallback, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
-        } catch {
-            fatalError("Failed to create fallback NSRegularExpression")
-        }
-    }
-    return RuntimeRegexBox(regex: regex, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
-}
-
 @_cdecl("kk_regex_create_with_option")
 public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int) -> Int {
     let pattern = regexStringFromRaw(patternRaw) ?? ""
