@@ -38,25 +38,25 @@
 - [x] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
 - [x] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
-- [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
+- [x] STDLIB-TEXT-FN-016: `equals` 関数の実装
 - [x] STDLIB-TEXT-FN-019: `indent` 関数の実装
-- [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
-- [ ] STDLIB-TEXT-FN-022: `indexOfFirst` 関数の実装
+- [x] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
+- [x] STDLIB-TEXT-FN-022: `indexOfFirst` 関数の実装
 - [x] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-024: `insert` 関数の実装
 - [x] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
 - [x] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
-- [ ] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
+- [x] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
 - [x] STDLIB-TEXT-FN-033: `iterator` 関数の実装
-- [ ] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
+- [x] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
 - [x] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-038: `minus` 関数の実装
 - [x] STDLIB-TEXT-FN-039: `onEach` 関数の実装
 - [ ] STDLIB-TEXT-FN-040: `onEachIndexed` 関数の実装
 - [x] STDLIB-TEXT-FN-042: `padStart` 関数の実装
-- [ ] STDLIB-TEXT-FN-043: `plus` 関数の実装
-- [ ] STDLIB-TEXT-FN-044: `random` 関数の実装
+- [x] STDLIB-TEXT-FN-043: `plus` 関数の実装
+- [x] STDLIB-TEXT-FN-044: `random` 関数の実装
 - [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-049: `reduceOrNull` 関数の実装
@@ -129,10 +129,10 @@
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
 
 ### Phase 5: 非スコープ/高度領域
-- [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
+- [x] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [x] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
-- [ ] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
+- [x] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-009: `pin()` を追加する
 - [x] STDLIB-CINTEROP-FN-011: `CPointer<T>.plus(index)` を追加する
 - [ ] STDLIB-CINTEROP-FN-016: `CPointer<T>.set(index, value)` を追加する
@@ -450,7 +450,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [x] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt` と `Tests/CompilerCoreTests/Codegen/CodegenBackendIntegrationTests+NumericDivisionByZero.swift`。
 - [x] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
 - [x] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現を `java.lang.*.toString` と一致させる。Swift の最短表現と Java の FloatingDecimal の差は `runtimeFormatFloatingPoint` 側で吸収済み。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`。
-- [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
+- [x] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
 
 ## 全体リファクタリング計画（RF0–RF9）
 
@@ -585,7 +585,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-CI-001: `LSPServerTests` が Package.swift にターゲット定義されているのに `.github/workflows/ci.yml` の full-swift-tests マトリクスへ含まれておらず CI 未実行。マトリクスへ追加する
 - [ ] DEBT-CI-002: `jscpd-check` / `smoke-tests` ジョブに `timeout-minutes` が未設定（npm install のネットワーク障害等でハングしうる。full-swift-tests は 45 分、diff-regression-shards は 60 分設定済み）。それぞれ適切な値を設定する
 - [ ] DEBT-SCRIPT-001: `detect_workers()` が `Scripts/swift_test.sh:9` と `Scripts/diff_kotlinc.sh:344` に同一実装でコピーされている。`Scripts/lib/common.sh` へ抽出し両者から source で共有する
-- [ ] DEBT-SCRIPT-003: `Scripts/test_templates/`（diff / lexer / parser / sema の 4 サブディレクトリ）がスクリプト・CI・ソースのどこからも参照されていない。用途を調査し、README へ用途を明記するか削除する
+- [x] DEBT-SCRIPT-003: `Scripts/test_templates/`（diff / lexer / parser / sema の 4 サブディレクトリ）がスクリプト・CI・ソースのどこからも参照されていない。用途を調査し、README へ用途を明記するか削除する → 削除済み
 
 ### テスト衛生
 - [ ] DEBT-TEST-002: `Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests.swift:548` と `LoweringABIAndPropertyRegressionTests.swift:6` に同一実装の `private func makeContext(...)` がコピー存在する。`Integration/TestSupport/Pipeline.swift` の `makeCompilationContext()` へ統一する

@@ -28,7 +28,6 @@ class Dog : Pet() {
     override val owner: String = "human"
 }
 
-// Test abstract var property
 abstract class Container {
     abstract var items: List<String>
 }

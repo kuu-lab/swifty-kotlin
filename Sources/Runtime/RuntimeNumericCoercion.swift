@@ -154,6 +154,48 @@ public func kk_ushort_to_short(_ value: Int) -> Int {
     Int(Int16(truncatingIfNeeded: value))
 }
 
+// MARK: - Unsigned toFloat / toDouble Conversions
+
+@_cdecl("kk_uint_to_float")
+public func kk_uint_to_float(_ value: Int) -> Int {
+    kk_float_to_bits(Float(UInt32(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_uint_to_double")
+public func kk_uint_to_double(_ value: Int) -> Int {
+    kk_double_to_bits(Double(UInt32(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_ulong_to_float")
+public func kk_ulong_to_float(_ value: Int) -> Int {
+    kk_float_to_bits(Float(UInt64(bitPattern: Int64(value))))
+}
+
+@_cdecl("kk_ulong_to_double")
+public func kk_ulong_to_double(_ value: Int) -> Int {
+    kk_double_to_bits(Double(UInt64(bitPattern: Int64(value))))
+}
+
+@_cdecl("kk_ubyte_to_float")
+public func kk_ubyte_to_float(_ value: Int) -> Int {
+    kk_float_to_bits(Float(value))
+}
+
+@_cdecl("kk_ubyte_to_double")
+public func kk_ubyte_to_double(_ value: Int) -> Int {
+    kk_double_to_bits(Double(value))
+}
+
+@_cdecl("kk_ushort_to_float")
+public func kk_ushort_to_float(_ value: Int) -> Int {
+    kk_float_to_bits(Float(value))
+}
+
+@_cdecl("kk_ushort_to_double")
+public func kk_ushort_to_double(_ value: Int) -> Int {
+    kk_double_to_bits(Double(value))
+}
+
 // MARK: - UByte and UShort Conversions (STDLIB-PRIM-002)
 
 @_cdecl("kk_int_to_ubyte")
@@ -218,6 +260,17 @@ public func kk_ubyte_to_long(_ value: Int) -> Int {
 public func kk_ushort_to_long(_ value: Int) -> Int {
     // UShort is always in valid range for Long
     value
+}
+
+@_cdecl("kk_ubyte_to_ushort")
+public func kk_ubyte_to_ushort(_ value: Int) -> Int {
+    // UByte (0-255) always fits in UShort (0-65535), identity
+    value
+}
+
+@_cdecl("kk_ushort_to_ubyte")
+public func kk_ushort_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
 }
 
 @_cdecl("kk_ubyte_to_uint")

@@ -769,16 +769,25 @@ public protocol KIRPass {
 
 ## J12.1 パス順（固定）
 
-1. NormalizeBlocks
-2. OperatorLowering
-3. ForLowering（iterator/hasNext/next）
-4. WhenLowering
-5. PropertyLowering（backing field / delegated）
-6. DataEnumSealedSynthesis
-7. LambdaClosureConversion
-8. InlineLowering
-9. CoroutineLowering
-10. ABILowering（boxing/exception channel/vtable slots）
+1. TailrecLowering（tailrec 関数のループ変換）
+2. NormalizeBlocks
+3. OperatorLowering
+4. ForLowering（iterator/hasNext/next）
+5. CollectionLiteralLowering
+6. FlowLowering（Kotlin Flow 構築・変換）
+7. ValueClassUnboxing（value class アンボクシング）
+8. PropertyLowering（backing field / delegated）
+9. StdlibDelegateLowering（lazy/observable/vetoable delegate）
+10. JvmStaticLowering（@JvmStatic）
+11. JvmOverloadsLowering（@JvmOverloads）
+12. DataEnumSealedSynthesis
+13. EnumEntriesLowering（enum entries プロパティ合成）
+14. EnumNameAccessLowering（enum name アクセス展開）
+15. LambdaClosureConversion
+16. InlineLowering
+17. CoroutineLowering
+18. IntegerNarrowing（整数型ナローイング最適化）
+19. ABILowering（boxing/exception channel/vtable slots）
 
 ## J12.2 各 lowering の “入力/出力条件”
 
