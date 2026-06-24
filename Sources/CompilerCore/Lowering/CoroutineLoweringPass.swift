@@ -149,7 +149,10 @@ final class CoroutineLoweringPass: LoweringPass {
             // caller continuation so the runtime can resume them without blocking.
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
-            ctx.interner.intern("kk_job_await_completion")
+            ctx.interner.intern("kk_job_await_completion"),
+            // CORO-004: withContext suspends the caller while the dispatched block
+            // runs on another dispatcher; the runtime resumes via callerState.resume.
+            kxMiniWithContextCallee,
         ]
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString] = [
             kxMiniRunBlockingCallee: runtimeRunBlockingCallee,
