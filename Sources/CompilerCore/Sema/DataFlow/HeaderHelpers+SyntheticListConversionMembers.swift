@@ -293,7 +293,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Ensure the primitive array has size property and toList() method
         let sizeName = interner.intern("size")
         let sizeFQName = arrayPackage + [interner.intern(arrayTypeName), sizeName]
         if symbols.lookup(fqName: sizeFQName) == nil {

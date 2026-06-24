@@ -423,8 +423,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - Helpers
-
     private func ensureAtomicMemoryOrderEnum(
         in pkg: [InternedString],
         symbols: SymbolTable,
@@ -607,7 +605,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Register the T type parameter
         let typeParamName = interner.intern("T")
         let typeParamFQName = packageFQName + [className, typeParamName]
         let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {

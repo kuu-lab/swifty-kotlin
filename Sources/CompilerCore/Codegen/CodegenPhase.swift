@@ -18,6 +18,11 @@ final class CodegenPhase: CompilerPhase {
                 try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
                 return
             } catch {
+                ctx.diagnostics.error(
+                    "KSWIFTK-PIPELINE-0004",
+                    "Failed to write KIR dump to '\(path)': \(error)",
+                    range: nil
+                )
                 throw CompilerPipelineError.outputUnavailable
             }
         }

@@ -179,6 +179,10 @@ public final class IncrementalCompilationCache {
             try fm.copyItem(atPath: sourcePath, toPath: destinationPath)
             return true
         } catch {
+            let message = "[IncrementalCompilationCache] Failed to restore cached output at '\(cachePath)': \(error)\n"
+            if let data = message.data(using: .utf8) {
+                FileHandle.standardError.write(data)
+            }
             return false
         }
     }
@@ -306,6 +310,10 @@ public final class IncrementalCompilationCache {
                 relativePath: relativePath
             )
         } catch {
+            let message = "[IncrementalCompilationCache] Failed to cache output artifact at '\(cachePath)': \(error)\n"
+            if let data = message.data(using: .utf8) {
+                FileHandle.standardError.write(data)
+            }
             return nil
         }
     }

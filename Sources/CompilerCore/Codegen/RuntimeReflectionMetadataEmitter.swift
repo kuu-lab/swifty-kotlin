@@ -225,8 +225,6 @@ struct RuntimeReflectionMetadataEmitter {
         }
     }
 
-    // MARK: - Binary Helpers
-
     private static func appendU16(_ data: inout Data, _ value: UInt16) {
         var v = value.littleEndian
         withUnsafeBytes(of: &v) { data.append(contentsOf: $0) }

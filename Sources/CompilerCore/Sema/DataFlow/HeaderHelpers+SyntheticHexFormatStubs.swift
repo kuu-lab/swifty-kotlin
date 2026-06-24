@@ -247,8 +247,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - HexFormat Helpers
-
     private func ensureHexFormatKotlinTextPackage(
         symbols: SymbolTable,
         interner: StringInterner
@@ -286,7 +284,6 @@ extension DataFlowSemaPhase {
         if let existingCompanion = symbols.companionObjectSymbol(for: ownerSymbol),
            let companionInfo = symbols.symbol(existingCompanion)
         {
-            // Ensure Default field exists
             ensureHexFormatDefaultField(
                 companionSymbol: existingCompanion,
                 companionFQName: companionInfo.fqName,
