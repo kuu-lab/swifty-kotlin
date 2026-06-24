@@ -1027,6 +1027,14 @@ public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeKConstructorRegistry.constructors(for: kclassRaw)))
 }
 
+/// Returns the nested classes of this KClass as a runtime list of KClass handles.
+/// Currently returns an empty list; nested class metadata registration is not yet
+/// emitted by the compiler (MIGRATION-REFLECT-002).
+@_cdecl("kk_kclass_nested_classes")
+public func kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
+    return registerRuntimeObject(RuntimeListBox(elements: []))
+}
+
 /// Returns the primary constructor of this KClass as a KConstructor box, or null sentinel if none.
 /// STDLIB-REFLECT-064
 @_cdecl("kk_kclass_primary_constructor")

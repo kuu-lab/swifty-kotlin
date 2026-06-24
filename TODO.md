@@ -281,7 +281,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/reflect/`
 
 - [x] MIGRATION-REFLECT-001: `KClass` 基本 API を Kotlin source に移行する（`simpleName`, `qualifiedName`, `isInstance`, `isAbstract`, `isSealed`, `isFinal`）
-- [ ] MIGRATION-REFLECT-002: `KClass` メンバ introspection を Kotlin source に移行する（`members`, `constructors`, `nestedClasses`, `supertypes`）
+- [x] MIGRATION-REFLECT-002: `KClass` メンバ introspection を Kotlin source に移行する（`members`, `constructors`, `nestedClasses`, `supertypes`）
 
 ### Phase M16: kotlin.concurrent.atomics
 > 移行元: `Sources/Runtime/RuntimeAtomic.swift` (97 @_cdecl)
