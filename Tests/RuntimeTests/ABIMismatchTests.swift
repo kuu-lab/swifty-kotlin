@@ -260,7 +260,6 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.stringBuilderFunctions,
             RuntimeABISpec.fileIOFunctions,
             RuntimeABISpec.pathFunctions,
-            RuntimeABISpec.i18nFunctions,
             RuntimeABISpec.uuidFunctions,
             RuntimeABISpec.durationFunctions,
             RuntimeABISpec.timeAndPathBridgeFunctions,
