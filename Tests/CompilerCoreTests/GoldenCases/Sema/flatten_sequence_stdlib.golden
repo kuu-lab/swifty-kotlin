@@ -354,7 +354,7 @@ symbol s352 kind=local fq=__local_100.sb vis=private flags=_ type=Class#43
 symbol s353 kind=local fq=__local_101.i vis=private flags=mutable type=Int
 symbol s354 kind=local fq=__local_102.sb vis=private flags=_ type=Class#43
 symbol s355 kind=local fq=__local_103.i vis=private flags=mutable type=Int
-symbol s356 kind=local fq=__for_1388.i vis=private flags=_ type=Int
+symbol s356 kind=local fq=__for_1382.i vis=private flags=_ type=Int
 symbol s357 kind=local fq=__local_104.largeSeq vis=private flags=_ type=Class#3<out Class#6<out Int>>
 symbol s358 kind=local fq=__local_105.flattenedSeq vis=private flags=_ type=Class#6<Int>
 symbol s359 kind=local fq=__local_106.nestedSeq vis=private flags=_ type=Class#3<out Class#3<out Int>>
@@ -1654,94 +1654,80 @@ expr e1332 name(value) type=T#246 ref=s247
 expr e1333 call callee=e1331 args=[_:e1332] type=Unit call=s75 targs=[T#246]
 expr e1335 name(newValue) type=T#249 ref=s250
 expr e1336 call callee=e1334 args=[_:e1335] type=T#249 call=s76 targs=[T#249]
-expr e1338 string(=== Sequence flatten edge cases ===) type=String
-expr e1339 call callee=e1337 args=[_:e1338] type=Unit call=s47
-expr e1342 call callee=e1341 args=[] type=Class#3<out Class#6<Int>> call=s55 targs=[Class#6<Int>]
-expr e1343 memberCall recv=e1342 callee=flatten args=[] type=Class#3<out Int>
-expr e1344 memberCall recv=e1343 callee=toList args=[] type=Class#6<Int> call=s57
-expr e1345 call callee=e1340 args=[_:e1344] type=Unit call=s47
-expr e1348 call callee=e1347 args=[] type=Class#3<out Class#6<Int>> call=s53 targs=[Class#6<Int>]
-expr e1349 memberCall recv=e1348 callee=flatten args=[] type=Class#3<out Int>
-expr e1350 memberCall recv=e1349 callee=toList args=[] type=Class#6<Int> call=s57
-expr e1351 call callee=e1346 args=[_:e1350] type=Unit call=s47
-expr e1355 call callee=e1354 args=[] type=Any
-expr e1357 int(1) type=Int
-expr e1358 call callee=e1356 args=[_:e1357] type=Class#6<out Int>
-expr e1360 call callee=e1359 args=[] type=Any
-expr e1361 call callee=e1353 args=[_:e1355,_:e1358,_:e1360] type=Class#3<out Any> call=s53 targs=[Any]
-expr e1362 memberCall recv=e1361 callee=flatten args=[] type=Class#3<out Any>
-expr e1363 memberCall recv=e1362 callee=toList args=[] type=Class#6<Any> call=s57
-expr e1364 call callee=e1352 args=[_:e1363] type=Unit call=s47
-expr e1366 string(
-=== Large sequence data ===) type=String
-expr e1367 call callee=e1365 args=[_:e1366] type=Unit call=s47
-expr e1379 int(1) type=Int
-expr e1380 int(10) type=Int
-expr e1381 binary(rangeTo) lhs=e1379 rhs=e1380 type=Int
-expr e1384 name(i) type=Int ref=s356
-expr e1385 call callee=e1383 args=[_:e1384] type=Class#6<out Int>
-expr e1386 call callee=e1382 args=[_:e1385] type=Unit call=s50
-expr e1387 blockExpr stmts=[] trailing=e1386 type=Unit
-expr e1388 for var=i iterable=e1381 body=e1387 type=Unit ref=s356
-expr e1389 lambda params=[] body=e1388 label=sequence type=suspend Class#48<Class#6<out <error>>>.() -> Unit
-expr e1390 call callee=e1368 args=[_:e1389] type=Class#3<out Class#6<out Int>> call=s51
-expr e1391 localDecl largeSeq mutable=0 type=_ init=e1390 type=Unit ref=s357
-expr e1392 name(largeSeq) type=Class#3<out Class#6<out Int>> ref=s357
-expr e1393 memberCall recv=e1392 callee=flatten args=[] type=Class#3<out Int>
-expr e1394 memberCall recv=e1393 callee=toList args=[] type=Class#6<Int> call=s57
-expr e1395 localDecl flattenedSeq mutable=0 type=_ init=e1394 type=Unit ref=s358
-expr e1397 name(flattenedSeq) type=Class#6<Int> ref=s358
-expr e1398 memberCall recv=e1397 callee=size args=[] type=Int ref=s5
-expr e1399 call callee=e1396 args=[_:e1398] type=Unit call=s47
+expr e1339 call callee=e1338 args=[] type=Class#3<out Class#6<Int>> call=s55 targs=[Class#6<Int>]
+expr e1340 memberCall recv=e1339 callee=flatten args=[] type=Class#3<out Int>
+expr e1341 memberCall recv=e1340 callee=toList args=[] type=Class#6<Int> call=s57
+expr e1342 call callee=e1337 args=[_:e1341] type=Unit call=s47
+expr e1345 call callee=e1344 args=[] type=Class#3<out Class#6<Int>> call=s53 targs=[Class#6<Int>]
+expr e1346 memberCall recv=e1345 callee=flatten args=[] type=Class#3<out Int>
+expr e1347 memberCall recv=e1346 callee=toList args=[] type=Class#6<Int> call=s57
+expr e1348 call callee=e1343 args=[_:e1347] type=Unit call=s47
+expr e1352 call callee=e1351 args=[] type=Any
+expr e1354 int(1) type=Int
+expr e1355 call callee=e1353 args=[_:e1354] type=Class#6<out Int>
+expr e1357 call callee=e1356 args=[] type=Any
+expr e1358 call callee=e1350 args=[_:e1352,_:e1355,_:e1357] type=Class#3<out Any> call=s53 targs=[Any]
+expr e1359 memberCall recv=e1358 callee=flatten args=[] type=Class#3<out Any>
+expr e1360 memberCall recv=e1359 callee=toList args=[] type=Class#6<Any> call=s57
+expr e1361 call callee=e1349 args=[_:e1360] type=Unit call=s47
+expr e1373 int(1) type=Int
+expr e1374 int(10) type=Int
+expr e1375 binary(rangeTo) lhs=e1373 rhs=e1374 type=Int
+expr e1378 name(i) type=Int ref=s356
+expr e1379 call callee=e1377 args=[_:e1378] type=Class#6<out Int>
+expr e1380 call callee=e1376 args=[_:e1379] type=Unit call=s50
+expr e1381 blockExpr stmts=[] trailing=e1380 type=Unit
+expr e1382 for var=i iterable=e1375 body=e1381 type=Unit ref=s356
+expr e1383 lambda params=[] body=e1382 label=sequence type=suspend Class#48<Class#6<out <error>>>.() -> Unit
+expr e1384 call callee=e1362 args=[_:e1383] type=Class#3<out Class#6<out Int>> call=s51
+expr e1385 localDecl largeSeq mutable=0 type=_ init=e1384 type=Unit ref=s357
+expr e1386 name(largeSeq) type=Class#3<out Class#6<out Int>> ref=s357
+expr e1387 memberCall recv=e1386 callee=flatten args=[] type=Class#3<out Int>
+expr e1388 memberCall recv=e1387 callee=toList args=[] type=Class#6<Int> call=s57
+expr e1389 localDecl flattenedSeq mutable=0 type=_ init=e1388 type=Unit ref=s358
+expr e1391 name(flattenedSeq) type=Class#6<Int> ref=s358
+expr e1392 memberCall recv=e1391 callee=size args=[] type=Int ref=s5
+expr e1393 call callee=e1390 args=[_:e1392] type=Unit call=s47
+expr e1395 name(flattenedSeq) type=Class#6<Int> ref=s358
+expr e1396 int(5) type=Int
+expr e1397 memberCall recv=e1395 callee=take args=[_:e1396] type=Any call=s13
+expr e1398 call callee=e1394 args=[_:e1397] type=Unit call=s47
+expr e1400 name(flattenedSeq) type=Class#6<Int> ref=s358
 expr e1401 name(flattenedSeq) type=Class#6<Int> ref=s358
-expr e1402 int(5) type=Int
-expr e1403 memberCall recv=e1401 callee=take args=[_:e1402] type=Any call=s13
-expr e1404 call callee=e1400 args=[_:e1403] type=Unit call=s47
-expr e1406 name(flattenedSeq) type=Class#6<Int> ref=s358
-expr e1407 name(flattenedSeq) type=Class#6<Int> ref=s358
-expr e1408 memberCall recv=e1407 callee=size args=[] type=Int ref=s5
-expr e1409 int(5) type=Int
-expr e1410 binary(subtract) lhs=e1408 rhs=e1409 type=Int
-expr e1411 memberCall recv=e1406 callee=drop args=[_:e1410] type=Any call=s14
-expr e1412 call callee=e1405 args=[_:e1411] type=Unit call=s47
-expr e1414 string(
-=== Nested sequences ===) type=String
-expr e1415 call callee=e1413 args=[_:e1414] type=Unit call=s47
-expr e1418 int(1) type=Int
-expr e1419 int(2) type=Int
-expr e1420 call callee=e1417 args=[_:e1418,_:e1419] type=Class#3<out Int> call=s53 targs=[Int]
-expr e1422 int(3) type=Int
-expr e1423 int(4) type=Int
-expr e1424 call callee=e1421 args=[_:e1422,_:e1423] type=Class#3<out Int> call=s53 targs=[Int]
-expr e1425 call callee=e1416 args=[_:e1420,_:e1424] type=Class#3<out Class#3<out Int>> call=s53 targs=[Class#3<out Int>]
-expr e1426 localDecl nestedSeq mutable=0 type=_ init=e1425 type=Unit ref=s359
-expr e1428 name(nestedSeq) type=Class#3<out Class#3<out Int>> ref=s359
-expr e1429 memberCall recv=e1428 callee=flatten args=[] type=Class#3<out Int>
-expr e1430 memberCall recv=e1429 callee=toList args=[] type=Class#6<Int> call=s57
-expr e1431 call callee=e1427 args=[_:e1430] type=Unit call=s47
-expr e1433 string(
-=== Mixed collection types ===) type=String
-expr e1434 call callee=e1432 args=[_:e1433] type=Unit call=s47
-expr e1437 int(1) type=Int
-expr e1438 int(2) type=Int
-expr e1439 call callee=e1436 args=[_:e1437,_:e1438] type=Class#6<out Int>
-expr e1441 int(3) type=Int
-expr e1442 int(4) type=Int
-expr e1443 call callee=e1440 args=[_:e1441,_:e1442] type=Class#3<out Int> call=s53 targs=[Int]
-expr e1444 call callee=e1435 args=[_:e1439,_:e1443] type=Class#3<out Any> call=s53 targs=[Any]
-expr e1445 localDecl mixedSeq mutable=0 type=_ init=e1444 type=Unit ref=s360
-expr e1447 name(mixedSeq) type=Class#3<out Any> ref=s360
-expr e1448 memberCall recv=e1447 callee=flatten args=[] type=Class#3<out Any>
-expr e1449 memberCall recv=e1448 callee=toList args=[] type=Class#6<Any> call=s57
-expr e1450 call callee=e1446 args=[_:e1449] type=Unit call=s47
-expr e1452 string(
-=== Sequence with special cases ===) type=String
-expr e1453 call callee=e1451 args=[_:e1452] type=Unit call=s47
-expr e1456 int(42) type=Int
-expr e1457 call callee=e1455 args=[_:e1456] type=Class#6<out Int>
-expr e1458 call callee=e1454 args=[_:e1457] type=Class#3<out Class#6<out Int>> call=s53 targs=[Class#6<out Int>]
-expr e1459 localDecl singleSeq mutable=0 type=_ init=e1458 type=Unit ref=s361
-expr e1461 name(singleSeq) type=Class#3<out Class#6<out Int>> ref=s361
-expr e1462 memberCall recv=e1461 callee=flatten args=[] type=Class#3<out Int>
-expr e1463 memberCall recv=e1462 callee=toList args=[] type=Class#6<Int> call=s57
-expr e1464 call callee=e1460 args=[_:e1463] type=Unit call=s47
+expr e1402 memberCall recv=e1401 callee=size args=[] type=Int ref=s5
+expr e1403 int(5) type=Int
+expr e1404 binary(subtract) lhs=e1402 rhs=e1403 type=Int
+expr e1405 memberCall recv=e1400 callee=drop args=[_:e1404] type=Any call=s14
+expr e1406 call callee=e1399 args=[_:e1405] type=Unit call=s47
+expr e1409 int(1) type=Int
+expr e1410 int(2) type=Int
+expr e1411 call callee=e1408 args=[_:e1409,_:e1410] type=Class#3<out Int> call=s53 targs=[Int]
+expr e1413 int(3) type=Int
+expr e1414 int(4) type=Int
+expr e1415 call callee=e1412 args=[_:e1413,_:e1414] type=Class#3<out Int> call=s53 targs=[Int]
+expr e1416 call callee=e1407 args=[_:e1411,_:e1415] type=Class#3<out Class#3<out Int>> call=s53 targs=[Class#3<out Int>]
+expr e1417 localDecl nestedSeq mutable=0 type=_ init=e1416 type=Unit ref=s359
+expr e1419 name(nestedSeq) type=Class#3<out Class#3<out Int>> ref=s359
+expr e1420 memberCall recv=e1419 callee=flatten args=[] type=Class#3<out Int>
+expr e1421 memberCall recv=e1420 callee=toList args=[] type=Class#6<Int> call=s57
+expr e1422 call callee=e1418 args=[_:e1421] type=Unit call=s47
+expr e1425 int(1) type=Int
+expr e1426 int(2) type=Int
+expr e1427 call callee=e1424 args=[_:e1425,_:e1426] type=Class#6<out Int>
+expr e1429 int(3) type=Int
+expr e1430 int(4) type=Int
+expr e1431 call callee=e1428 args=[_:e1429,_:e1430] type=Class#3<out Int> call=s53 targs=[Int]
+expr e1432 call callee=e1423 args=[_:e1427,_:e1431] type=Class#3<out Any> call=s53 targs=[Any]
+expr e1433 localDecl mixedSeq mutable=0 type=_ init=e1432 type=Unit ref=s360
+expr e1435 name(mixedSeq) type=Class#3<out Any> ref=s360
+expr e1436 memberCall recv=e1435 callee=flatten args=[] type=Class#3<out Any>
+expr e1437 memberCall recv=e1436 callee=toList args=[] type=Class#6<Any> call=s57
+expr e1438 call callee=e1434 args=[_:e1437] type=Unit call=s47
+expr e1441 int(42) type=Int
+expr e1442 call callee=e1440 args=[_:e1441] type=Class#6<out Int>
+expr e1443 call callee=e1439 args=[_:e1442] type=Class#3<out Class#6<out Int>> call=s53 targs=[Class#6<out Int>]
+expr e1444 localDecl singleSeq mutable=0 type=_ init=e1443 type=Unit ref=s361
+expr e1446 name(singleSeq) type=Class#3<out Class#6<out Int>> ref=s361
+expr e1447 memberCall recv=e1446 callee=flatten args=[] type=Class#3<out Int>
+expr e1448 memberCall recv=e1447 callee=toList args=[] type=Class#6<Int> call=s57
+expr e1449 call callee=e1445 args=[_:e1448] type=Unit call=s47
