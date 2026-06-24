@@ -523,6 +523,19 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown2, 0, "kk_string_dropLast(-1) should set outThrown")
     }
 
+    func testStringTrimMarginBlankMarginPrefixThrowsIllegalArgumentException() throws {
+        var thrown = 0
+        _ = kk_string_trimMargin(
+            rawFromRuntimeString("|line"),
+            rawFromRuntimeString("   "),
+            &thrown
+        )
+        XCTAssertNotEqual(thrown, 0, "blank marginPrefix should set outThrown")
+        let box = try XCTUnwrap(throwableBox(from: thrown))
+        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
+        XCTAssertTrue(box.renderedMessage.contains("marginPrefix must be non-blank string."))
+    }
+
     func testStringReplaceIndentByMarginBlankMarginPrefixThrowsIllegalArgumentException() throws {
         var thrown = 0
         _ = kk_string_replaceIndentByMargin(

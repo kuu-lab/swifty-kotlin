@@ -969,7 +969,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-SEARCH-001: CharSequence.indexOfAny(chars, startIndex, ignoreCase) ---
+        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(chars, startIndex, ignoreCase) ---
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
@@ -977,8 +977,8 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [
                 ("chars", charArrayType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
+                ("startIndex", intType, true, false),
+                ("ignoreCase", boolType, true, false),
             ],
             returnType: intType,
             packageFQName: kotlinTextPkg,
@@ -986,7 +986,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-SEARCH-002: CharSequence.indexOfAny(strings, startIndex, ignoreCase) ---
+        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(strings, startIndex, ignoreCase) ---
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
@@ -994,8 +994,8 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
+                ("startIndex", intType, true, false),
+                ("ignoreCase", boolType, true, false),
             ],
             returnType: intType,
             packageFQName: kotlinTextPkg,
@@ -1270,6 +1270,43 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-TEXT-FN-033: CharSequence.iterator() — returns CharIterator
+        let charIteratorType: TypeID = {
+            let charIteratorFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("CharIterator"),
+            ]
+            if let charIteratorSymbol = symbols.lookup(fqName: charIteratorFQName) {
+                return types.make(.classType(ClassType(
+                    classSymbol: charIteratorSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+            return iterableCharType
+        }()
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charIteratorType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: charIteratorType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1853,6 +1890,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-027: CharSequence.isBlank ---
+        registerSyntheticStringExtensionFunction(
+            named: "isBlank",
+            externalLinkName: "kk_string_isBlank",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
             externalLinkName: "kk_string_isNotBlank",
@@ -2018,6 +2067,32 @@ extension DataFlowSemaPhase {
                 ("index", intType, false, false),
             ],
             returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-FN-019: indent ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "indent",
+            externalLinkName: "kk_string_indent_default",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "indent",
+            externalLinkName: "kk_string_indent",
+            receiverType: stringType,
+            parameters: [
+                ("n", intType, false, false),
+            ],
+            returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3898,6 +3973,38 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("str", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-FN-043: String?.plus(other: Any?) ---
+        // `operator fun String.plus(other: Any?): String` and the nullable-receiver
+        // variant `operator fun String?.plus(other: Any?): String`. Both delegate to
+        // kk_string_plus which converts receiver and argument via runtimeElementToString.
+        // Primitive `other` values are boxed by the ABI lowering pass before the call,
+        // so runtimeElementToString correctly renders Boolean/Char/Float/Double.
+        registerSyntheticStringExtensionFunction(
+            named: "plus",
+            externalLinkName: "kk_string_plus",
+            receiverType: stringType,
+            parameters: [
+                ("other", types.nullableAnyType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "plus",
+            externalLinkName: "kk_string_plus",
+            receiverType: nullableStringType,
+            parameters: [
+                ("other", types.nullableAnyType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,

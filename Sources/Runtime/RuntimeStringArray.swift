@@ -278,6 +278,17 @@ public func kk_string_concat(_ a: UnsafeMutableRawPointer?, _ b: UnsafeMutableRa
     return opaque
 }
 
+// STDLIB-TEXT-FN-043: String?.plus(other: Any?): String
+// Receiver is passed as Int (intptr) so null receivers produce "null".
+// Primitives passed as `other` are already boxed by the ABI lowering pass
+// when widened to Any?, so runtimeElementToString handles them correctly.
+@_cdecl("kk_string_plus")
+public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
+    let lhs = runtimeElementToString(receiverRaw)
+    let rhs = runtimeElementToString(otherRaw)
+    return runtimeMakeStringRaw(lhs + rhs)
+}
+
 @_cdecl("kk_string_compareTo")
 public func kk_string_compareTo(_ a: UnsafeMutableRawPointer?, _ b: UnsafeMutableRawPointer?) -> Int {
     let lhs = extractString(from: normalizeNullableRuntimePointer(a)) ?? ""
