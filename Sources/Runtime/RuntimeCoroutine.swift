@@ -129,12 +129,19 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        which may be a coroutine or a raw thread, plus post-wakeup state
 //        inspection (delivered / result / cancelledWakeup).
 //
-// [IN PROGRESS] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
-//        sequence/iterator builder coroutines:
-//        `RuntimeCoroutineSyncGate` replaces raw DispatchSemaphore ping-pong
-//        and supports continuation-based wakeups.  Remaining work: CPS-transform
-//        builder lambdas so `yield()` / `hasNext()` / `next()` can install
-//        resume continuations instead of using the semaphore fallback.
+// [DEBT-CORO-002 PHASE 1 DONE] RuntimeTypes.swift —
+//        RuntimeSequenceCoroutine / RuntimeIteratorBuilderBox: producer now runs
+//        on a dedicated OS Thread (Thread.detachNewThread) instead of a GCD
+//        pool thread.  Only one thread blocks per iteration step (the consumer);
+//        the GCD pool is no longer occupied by the producer between yields.
+//        Each type exposes invokeBuilderLambda() for the next phase.
+//
+//        Remaining (CORO-004 Phase 2): CPS-transform sequence/iterator builder
+//        lambdas in CollectionLiteralLoweringPass so yield() returns
+//        COROUTINE_SUSPENDED.  Once the compiler emits that check, the runtime
+//        can use invokeBuilderLambda() as a per-element re-entry point, install
+//        a continuation in producerGate, and eliminate the dedicated thread
+//        entirely — reducing to zero blocked threads per iteration step.
 //
 // Priority order (remaining): Channel > withContext > sequence builders > flow
 // (await/join were completed in Phase 2.)
