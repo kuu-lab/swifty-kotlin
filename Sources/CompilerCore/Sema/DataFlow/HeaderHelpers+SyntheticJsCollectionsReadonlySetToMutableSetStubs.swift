@@ -1,4 +1,3 @@
-
 /// Synthetic Kotlin/JS collections `JsReadonlySet<out E>` and `JsSet<E>` surfaces.
 extension DataFlowSemaPhase {
     func registerSyntheticJsCollectionsReadonlySetStubs(
@@ -24,6 +23,13 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        registerJsReadonlySetToMutableSetMember(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            readonlySetSymbol: readonlySet.symbol,
+            readonlySetTypeParamSymbol: readonlySet.typeParameterSymbol
+        )
         // STDLIB-JS-COLLECTIONS-FN-006
         registerJsReadonlySetToSetMember(
             readonlySetSymbol: readonlySet.symbol,
@@ -34,58 +40,58 @@ extension DataFlowSemaPhase {
         )
     }
 
-    func ensureJsReadonlySetForConversions(
-        packageFQName: [InternedString],
+    private func registerJsReadonlySetToMutableSetMember(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
-    ) -> (symbol: SymbolID, typeParameterSymbol: SymbolID) {
-        let interfaceName = interner.intern("JsReadonlySet")
-        let interfaceFQName = packageFQName + [interfaceName]
-        let interfaceSymbol = ensureInterfaceSymbol(
-            named: "JsReadonlySet",
-            in: packageFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: interfaceSymbol)
-        }
-        appendJsCollectionsReadonlySetAnnotation(to: interfaceSymbol, symbols: symbols)
+        interner: StringInterner,
+        readonlySetSymbol: SymbolID,
+        readonlySetTypeParamSymbol: SymbolID
+    ) {
+        let kotlinCollectionsPkg = [interner.intern("kotlin"), interner.intern("collections")]
+        guard let mutableSetSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPkg + [interner.intern("MutableSet")]
+        ) else { return }
+        guard let readonlySetFQName = symbols.symbol(readonlySetSymbol)?.fqName else { return }
 
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = interfaceFQName + [typeParamName]
-        let typeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParamFQName),
-           symbols.symbol(existing)?.kind == .typeParameter {
-            typeParamSymbol = existing
-        } else {
-            typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(interfaceSymbol, for: typeParamSymbol)
+        let memberName = interner.intern("toMutableSet")
+        let memberFQName = readonlySetFQName + [memberName]
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
 
         let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
+            symbol: readonlySetTypeParamSymbol,
             nullability: .nonNull
         )))
-        let interfaceType = types.make(.classType(ClassType(
-            classSymbol: interfaceSymbol,
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: readonlySetSymbol,
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
+        let mutableSetType = types.make(.classType(ClassType(
+            classSymbol: mutableSetSymbol,
+            args: [.invariant(typeParamType)],
+            nullability: .nonNull
+        )))
 
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
-        types.setNominalTypeParameterVariances([.out], for: interfaceSymbol)
-        symbols.setPropertyType(interfaceType, for: interfaceSymbol)
-
-        return (interfaceSymbol, typeParamSymbol)
+        let memberSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .operatorFunction]
+        )
+        symbols.setParentSymbol(readonlySetSymbol, for: memberSymbol)
+        symbols.setExternalLinkName("kk_js_readonly_set_toMutableSet", for: memberSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [],
+                returnType: mutableSetType,
+                typeParameterSymbols: [readonlySetTypeParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: memberSymbol
+        )
     }
 
     /// STDLIB-JS-COLLECTIONS-FN-006: Register `JsReadonlySet<E>.toSet()` returning `Set<E>`.
@@ -143,6 +149,60 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
+    }
+
+    func ensureJsReadonlySetForConversions(
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> (symbol: SymbolID, typeParameterSymbol: SymbolID) {
+        let interfaceName = interner.intern("JsReadonlySet")
+        let interfaceFQName = packageFQName + [interfaceName]
+        let interfaceSymbol = ensureInterfaceSymbol(
+            named: "JsReadonlySet",
+            in: packageFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: interfaceSymbol)
+        }
+        appendJsCollectionsReadonlySetAnnotation(to: interfaceSymbol, symbols: symbols)
+
+        let typeParamName = interner.intern("E")
+        let typeParamFQName = interfaceFQName + [typeParamName]
+        let typeParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: typeParamFQName),
+           symbols.symbol(existing)?.kind == .typeParameter {
+            typeParamSymbol = existing
+        } else {
+            typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
+        symbols.setParentSymbol(interfaceSymbol, for: typeParamSymbol)
+
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let interfaceType = types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol,
+            args: [.out(typeParamType)],
+            nullability: .nonNull
+        )))
+
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
+        types.setNominalTypeParameterVariances([.out], for: interfaceSymbol)
+        symbols.setPropertyType(interfaceType, for: interfaceSymbol)
+
+        return (interfaceSymbol, typeParamSymbol)
     }
 
     func appendJsCollectionsReadonlySetAnnotation(
