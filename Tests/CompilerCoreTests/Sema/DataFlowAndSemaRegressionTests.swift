@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - DataFlow + Sema Regression Tests
 
@@ -8,10 +9,11 @@ import XCTest
 //          DataFlow/HeaderCollection.swift (49.9%)
 //          TypeCheck/TypeCheckSemaPhase.swift (51.4%)
 
-final class DataFlowAndSemaRegressionTests: XCTestCase {
+@Suite
+struct DataFlowAndSemaRegressionTests {
     // MARK: - BodyAnalysis: duplicate parameter name
 
-    func testDuplicateParameterNameEmitsDiagnostic() throws {
+    @Test func testDuplicateParameterNameEmitsDiagnostic() throws {
         let source = """
         fun bad(x: Int, x: Int): Int = x
         """
@@ -24,7 +26,7 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
 
     // MARK: - BodyAnalysis: expression-body binding
 
-    func testExpressionBodyFunctionBindsReturnType() throws {
+    @Test func testExpressionBodyFunctionBindsReturnType() throws {
         let source = """
         fun answer(): Int = 42
         fun main() = answer()
@@ -32,14 +34,15 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - BodyAnalysis: property decl binding
 
-    func testPropertyDeclBindsIdentifierAndType() throws {
+    @Test func testPropertyDeclBindsIdentifierAndType() throws {
         let source = """
         val greeting: String = "hello"
         fun main() = greeting
@@ -47,17 +50,17 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let greetingSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "greeting"
             }
-            XCTAssertNotNil(greetingSymbol)
+            #expect(greetingSymbol != nil)
         }
     }
 
     // MARK: - BodyAnalysis: resolveTypeRef nullable
 
-    func testNullableTypeAnnotationResolvesCorrectly() throws {
+    @Test func testNullableTypeAnnotationResolvesCorrectly() throws {
         let source = """
         fun nullable(x: Int?): Int? = x
         fun main() = nullable(null)
@@ -65,22 +68,22 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let nullableSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "nullable"
             }
-            XCTAssertNotNil(nullableSymbol)
+            #expect(nullableSymbol != nil)
             if let sym = nullableSymbol,
                let sig = sema.symbols.functionSignature(for: sym.id)
             {
-                XCTAssertEqual(sig.parameterTypes.count, 1)
+                #expect(sig.parameterTypes.count == 1)
             }
         }
     }
 
     // MARK: - BodyAnalysis: star projection (DEBT-SEMA-004)
 
-    func testStarProjectionInTypeAnnotationDoesNotCrashCompiler() throws {
+    @Test func testStarProjectionInTypeAnnotationDoesNotCrashCompiler() throws {
         let source = """
         class Container<T>(val item: T)
         typealias OutContainer<T> = Container<out T>
@@ -99,7 +102,7 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
 
     // MARK: - BodyAnalysis: function type parameter
 
-    func testFunctionTypeParameterResolvesCorrectly() throws {
+    @Test func testFunctionTypeParameterResolvesCorrectly() throws {
         let source = """
         fun apply(f: (Int) -> Int, x: Int): Int = f(x)
         fun main() = apply(f = { it -> it + 1 }, x = 5)
@@ -107,17 +110,17 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let applySymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "apply"
             }
-            XCTAssertNotNil(applySymbol)
+            #expect(applySymbol != nil)
         }
     }
 
     // MARK: - HeaderCollection: secondary constructor
 
-    func testSecondaryConstructorDefinesSymbol() throws {
+    @Test func testSecondaryConstructorDefinesSymbol() throws {
         let source = """
         class Person(val name: String) {
             constructor(first: String, last: String): this(first)
@@ -127,17 +130,17 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let ctorSymbols = sema.symbols.allSymbols().filter { symbol in
                 symbol.kind == .constructor
             }
-            XCTAssertGreaterThanOrEqual(ctorSymbols.count, 2, "Expected primary + secondary constructor")
+            #expect(ctorSymbols.count >= 2, "Expected primary + secondary constructor")
         }
     }
 
     // MARK: - HeaderCollection: enum class entries
 
-    func testEnumClassEntriesDefineFieldSymbols() throws {
+    @Test func testEnumClassEntriesDefineFieldSymbols() throws {
         let source = """
         enum class Color { RED, GREEN, BLUE }
         fun main(): Int = 0
@@ -145,7 +148,7 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fieldSymbols = sema.symbols.allSymbols().filter { symbol in
                 symbol.kind == .field && (
                     ctx.interner.resolve(symbol.name) == "RED" ||
@@ -153,13 +156,13 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
                         ctx.interner.resolve(symbol.name) == "BLUE"
                 )
             }
-            XCTAssertGreaterThanOrEqual(fieldSymbols.count, 1, "Expected at least 1 enum entry field")
+            #expect(fieldSymbols.count >= 1, "Expected at least 1 enum entry field")
         }
     }
 
     // MARK: - HeaderCollection: object declaration
 
-    func testObjectDeclarationDefinesSymbol() throws {
+    @Test func testObjectDeclarationDefinesSymbol() throws {
         let source = """
         object Singleton {
             val value: Int = 42
@@ -169,17 +172,17 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let objectSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "Singleton" && symbol.kind == .object
             }
-            XCTAssertNotNil(objectSymbol)
+            #expect(objectSymbol != nil)
         }
     }
 
     // MARK: - HeaderCollection: interface declaration
 
-    func testInterfaceDeclarationDefinesSymbol() throws {
+    @Test func testInterfaceDeclarationDefinesSymbol() throws {
         let source = """
         interface Greetable {
             fun greet(): String
@@ -189,17 +192,17 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interfaceSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "Greetable" && symbol.kind == .interface
             }
-            XCTAssertNotNil(interfaceSymbol)
+            #expect(interfaceSymbol != nil)
         }
     }
 
     // MARK: - HeaderCollection: typeAlias declaration
 
-    func testTypeAliasDeclarationDefinesSymbol() throws {
+    @Test func testTypeAliasDeclarationDefinesSymbol() throws {
         let source = """
         typealias Name = String
         fun greet(n: Name): String = n
@@ -208,17 +211,17 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let aliasSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "Name" && symbol.kind == .typeAlias
             }
-            XCTAssertNotNil(aliasSymbol)
+            #expect(aliasSymbol != nil)
         }
     }
 
     // MARK: - HeaderCollection: extension function with receiver type
 
-    func testExtensionFunctionHasReceiverType() throws {
+    @Test func testExtensionFunctionHasReceiverType() throws {
         let source = """
         fun String.shout(): String = this
         fun main() = "hello".shout()
@@ -226,22 +229,22 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let shoutSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "shout"
             }
-            XCTAssertNotNil(shoutSymbol)
+            #expect(shoutSymbol != nil)
             if let sym = shoutSymbol,
                let sig = sema.symbols.functionSignature(for: sym.id)
             {
-                XCTAssertNotNil(sig.receiverType)
+                #expect(sig.receiverType != nil)
             }
         }
     }
 
     // MARK: - HeaderCollection: reified inline function
 
-    func testReifiedInlineFunctionDefinesTypeParameter() throws {
+    @Test func testReifiedInlineFunctionDefinesTypeParameter() throws {
         let source = """
         inline fun <reified T> typeCheck(x: Any): Boolean = x is T
         fun main() = typeCheck<Int>(42)
@@ -249,22 +252,23 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let typeCheckSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "typeCheck"
             }
-            XCTAssertNotNil(typeCheckSymbol)
+            #expect(typeCheckSymbol != nil)
             if let sym = typeCheckSymbol,
                let sig = sema.symbols.functionSignature(for: sym.id)
             {
-                XCTAssertFalse(sig.reifiedTypeParameterIndices.isEmpty)
+                let reifiedEmpty = sig.reifiedTypeParameterIndices.isEmpty
+                #expect(!reifiedEmpty)
             }
         }
     }
 
     // MARK: - HeaderCollection: reified on non-inline emits diagnostic
 
-    func testReifiedOnNonInlineFunctionEmitsDiagnostic() throws {
+    @Test func testReifiedOnNonInlineFunctionEmitsDiagnostic() throws {
         let source = """
         fun <reified T> badReified(x: Any): Boolean = x is T
         fun main(): Int = 0
@@ -278,7 +282,7 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
 
     // MARK: - HeaderCollection: member functions and properties
 
-    func testClassMemberFunctionsAndPropertiesDefineSymbols() throws {
+    @Test func testClassMemberFunctionsAndPropertiesDefineSymbols() throws {
         let source = """
         class Counter {
             val count: Int = 0
@@ -289,21 +293,21 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let incrementSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "increment"
             }
-            XCTAssertNotNil(incrementSymbol)
+            #expect(incrementSymbol != nil)
             let countSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "count" && symbol.kind == .property
             }
-            XCTAssertNotNil(countSymbol)
+            #expect(countSymbol != nil)
         }
     }
 
     // MARK: - HeaderCollection: duplicate declaration diagnostic
 
-    func testDuplicateTopLevelDeclarationEmitsDiagnostic() throws {
+    @Test func testDuplicateTopLevelDeclarationEmitsDiagnostic() throws {
         let source = """
         val x: Int = 1
         val x: Int = 2
@@ -316,3 +320,4 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         }
     }
 }
+#endif

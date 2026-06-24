@@ -1,16 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class NativeByteArrayAccessorSurfaceTests: XCTestCase {
+private struct _TestHelperFailure: Error {}
+
+@Suite
+struct NativeByteArrayAccessorSurfaceTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -30,11 +34,9 @@ final class NativeByteArrayAccessorSurfaceTests: XCTestCase {
         line: UInt = #line
     ) throws -> TypeID {
         let fqName = ["kotlin", "ByteArray"].map { interner.intern($0) }
-        let byteArraySymbol = try XCTUnwrap(
+        let byteArraySymbol = try #require(
             sema.symbols.lookup(fqName: fqName),
-            "kotlin.ByteArray must be registered",
-            file: file,
-            line: line
+            "kotlin.ByteArray must be registered"
         )
         return sema.types.make(.classType(ClassType(
             classSymbol: byteArraySymbol,
@@ -66,11 +68,11 @@ final class NativeByteArrayAccessorSurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected kotlin.native.\(name) ByteArray accessor, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected kotlin.native.\(name) ByteArray accessor, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw _TestHelperFailure()
     }
 
-    func testSignedByteArrayAccessorsAreRegistered() throws {
+    @Test func testSignedByteArrayAccessorsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let expected: [(name: String, returnType: TypeID, linkName: String)] = [
             ("getByteAt", sema.types.intType, "kk_native_byteArray_getByteAt"),
@@ -86,9 +88,9 @@ final class NativeByteArrayAccessorSurfaceTests: XCTestCase {
                 sema: sema,
                 interner: interner
             )
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), accessor.linkName)
-            XCTAssertTrue(
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(sema.symbols.externalLinkName(for: symbol) == accessor.linkName)
+            #expect(
                 sema.symbols.annotations(for: symbol).contains {
                     $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
                 },
@@ -97,7 +99,7 @@ final class NativeByteArrayAccessorSurfaceTests: XCTestCase {
         }
     }
 
-    func testSignedByteArrayAccessorsResolveInSourceWithOptIn() {
+    @Test func testSignedByteArrayAccessorsResolveInSourceWithOptIn() {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
         import kotlin.native.getByteAt
@@ -116,6 +118,7 @@ final class NativeByteArrayAccessorSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(errors.isEmpty, "Expected signed ByteArray accessors to resolve without errors, got \(errors)")
+        #expect(errors.isEmpty, "Expected signed ByteArray accessors to resolve without errors, got \(errors)")
     }
 }
+#endif

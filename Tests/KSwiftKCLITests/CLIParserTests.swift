@@ -1,17 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import KSwiftKCLI
-import XCTest
+import Testing
 
-final class CLIParserTests: XCTestCase {
-    func testParsesMinimalInput() throws {
+@Suite("CLI.Parser")
+struct CLIParserTests {
+    @Test
+    func parsesMinimalInput() throws {
         let options = try CLIParser.parse(args: ["input.kt"])
-        XCTAssertEqual(options.inputs, ["input.kt"])
-        XCTAssertEqual(options.outputPath, "./a.out")
-        XCTAssertEqual(options.moduleName, "Main")
-        XCTAssertEqual(options.emit, .executable)
+        #expect(options.inputs == ["input.kt"])
+        #expect(options.outputPath == "./a.out")
+        #expect(options.moduleName == "Main")
+        #expect(options.emit == .executable)
     }
 
-    func testParsesOptionsAndFlags() throws {
+    @Test
+    func parsesOptionsAndFlags() throws {
         let options = try CLIParser.parse(args: [
             "-o", "out.bin",
             "-m", "Demo",
@@ -28,36 +32,38 @@ final class CLIParserTests: XCTestCase {
             "main.kt",
         ])
 
-        XCTAssertEqual(options.outputPath, "out.bin")
-        XCTAssertEqual(options.moduleName, "Demo")
-        XCTAssertEqual(options.emit, .kirDump)
-        XCTAssertEqual(options.optLevel, .O2)
-        XCTAssertEqual(options.searchPaths, ["include"])
-        XCTAssertEqual(options.libraryPaths, ["lib"])
-        XCTAssertEqual(options.linkLibraries, ["runtime"])
-        XCTAssertEqual(options.frontendFlags, ["time-phases"])
-        XCTAssertEqual(options.irFlags, ["trace-lowering"])
-        XCTAssertEqual(options.runtimeFlags, ["trace=true"])
-        XCTAssertTrue(options.debugInfo)
-        XCTAssertEqual(options.inputs, ["main.kt"])
-        XCTAssertEqual(options.target.arch, "x86_64")
-        XCTAssertEqual(options.target.vendor, "apple")
-        XCTAssertEqual(options.target.os, "macos")
+        #expect(options.outputPath == "out.bin")
+        #expect(options.moduleName == "Demo")
+        #expect(options.emit == .kirDump)
+        #expect(options.optLevel == .O2)
+        #expect(options.searchPaths == ["include"])
+        #expect(options.libraryPaths == ["lib"])
+        #expect(options.linkLibraries == ["runtime"])
+        #expect(options.frontendFlags == ["time-phases"])
+        #expect(options.irFlags == ["trace-lowering"])
+        #expect(options.runtimeFlags == ["trace=true"])
+        #expect(options.debugInfo)
+        #expect(options.inputs == ["main.kt"])
+        #expect(options.target.arch == "x86_64")
+        #expect(options.target.vendor == "apple")
+        #expect(options.target.os == "macos")
     }
 
-    func testParsesReflectionMetadataRuntimeFlag() throws {
+    @Test
+    func parsesReflectionMetadataRuntimeFlag() throws {
         let options = try CLIParser.parse(args: [
             "-Xruntime",
             "reflection-metadata=all",
             "main.kt",
         ])
 
-        XCTAssertEqual(options.runtimeFlags, ["reflection-metadata=all"])
-        XCTAssertTrue(options.runtimeFlags.contains("reflection-metadata=all"))
-        XCTAssertTrue(options.includeNonPublicReflectionMetadata)
+        #expect(options.runtimeFlags == ["reflection-metadata=all"])
+        #expect(options.runtimeFlags.contains("reflection-metadata=all"))
+        #expect(options.includeNonPublicReflectionMetadata)
     }
 
-    func testParsesAdvancedTypeInferenceFlags() throws {
+    @Test
+    func parsesAdvancedTypeInferenceFlags() throws {
         let options = try CLIParser.parse(args: [
             "-Xnew-inference",
             "-Xunrestricted-builder-inference",
@@ -65,56 +71,63 @@ final class CLIParserTests: XCTestCase {
             "main.kt",
         ])
 
-        XCTAssertTrue(options.useNewInference)
-        XCTAssertTrue(options.useUnrestrictedBuilderInference)
-        XCTAssertTrue(options.useProperTypeInferenceConstraintsProcessing)
+        #expect(options.useNewInference)
+        #expect(options.useUnrestrictedBuilderInference)
+        #expect(options.useProperTypeInferenceConstraintsProcessing)
     }
 
-    func testParsesOptInFlag() throws {
+    @Test
+    func parsesOptInFlag() throws {
         let options = try CLIParser.parse(args: [
             "-opt-in=kotlin.ExperimentalVersionOverloading",
             "main.kt",
         ])
 
-        XCTAssertEqual(options.frontendFlags, ["opt-in=kotlin.ExperimentalVersionOverloading"])
-        XCTAssertEqual(options.optInMarkerNames, ["kotlin.ExperimentalVersionOverloading"])
+        #expect(options.frontendFlags == ["opt-in=kotlin.ExperimentalVersionOverloading"])
+        #expect(options.optInMarkerNames == ["kotlin.ExperimentalVersionOverloading"])
     }
 
-    func testParsesOptInFlagWithSeparateValue() throws {
+    @Test
+    func parsesOptInFlagWithSeparateValue() throws {
         let options = try CLIParser.parse(args: [
             "-opt-in",
             "kotlin.ExperimentalVersionOverloading,kotlin.ExperimentalStdlibApi",
             "main.kt",
         ])
 
-        XCTAssertEqual(options.frontendFlags, ["opt-in=kotlin.ExperimentalVersionOverloading,kotlin.ExperimentalStdlibApi"])
-        XCTAssertEqual(
-            options.optInMarkerNames,
-            ["kotlin.ExperimentalVersionOverloading", "kotlin.ExperimentalStdlibApi"]
+        #expect(options.frontendFlags == ["opt-in=kotlin.ExperimentalVersionOverloading,kotlin.ExperimentalStdlibApi"])
+        #expect(
+            options.optInMarkerNames
+                == ["kotlin.ExperimentalVersionOverloading", "kotlin.ExperimentalStdlibApi"]
         )
     }
 
-    func testThrowsMissingValue() {
-        XCTAssertThrowsError(try CLIParser.parse(args: ["-o"])) { error in
-            XCTAssertEqual(error as? CLIParseError, .missingValue("-o"))
+    @Test
+    func throwsMissingValue() {
+        #expect(throws: CLIParseError.missingValue("-o")) {
+            try CLIParser.parse(args: ["-o"])
         }
     }
 
-    func testThrowsInvalidTargetTriple() {
-        XCTAssertThrowsError(try CLIParser.parse(args: ["--target", "invalid", "main.kt"])) { error in
-            XCTAssertEqual(error as? CLIParseError, .invalidTargetTriple("invalid"))
+    @Test
+    func throwsInvalidTargetTriple() {
+        #expect(throws: CLIParseError.invalidTargetTriple("invalid")) {
+            try CLIParser.parse(args: ["--target", "invalid", "main.kt"])
         }
     }
 
-    func testThrowsUnknownOption() {
-        XCTAssertThrowsError(try CLIParser.parse(args: ["--unknown", "main.kt"])) { error in
-            XCTAssertEqual(error as? CLIParseError, .unknownOption("--unknown"))
+    @Test
+    func throwsUnknownOption() {
+        #expect(throws: CLIParseError.unknownOption("--unknown")) {
+            try CLIParser.parse(args: ["--unknown", "main.kt"])
         }
     }
 
-    func testHelpFlagRequestsUsage() {
-        XCTAssertThrowsError(try CLIParser.parse(args: ["--help"])) { error in
-            XCTAssertEqual(error as? CLIParseError, .usageRequested)
+    @Test
+    func helpFlagRequestsUsage() {
+        #expect(throws: CLIParseError.usageRequested) {
+            try CLIParser.parse(args: ["--help"])
         }
     }
 }
+#endif

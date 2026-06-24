@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectCreateInstanceSyntheticTests: XCTestCase {
+@Suite
+struct ReflectCreateInstanceSyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,46 +12,46 @@ final class ReflectCreateInstanceSyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected createInstance surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected createInstance surface to resolve cleanly, got: \(diagnostics)"))
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testCreateInstanceSurfaceIsRegistered() throws {
+    @Test func testCreateInstanceSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let functionFQName = ["kotlin", "reflect", "full", "createInstance"].map { interner.intern($0) }
-        let functionSymbol = try XCTUnwrap(
+        let functionSymbol = try #require(
             sema.symbols.lookupAll(fqName: functionFQName).first,
             "Expected kotlin.reflect.full.createInstance to be registered"
         )
-        let symbol = try XCTUnwrap(sema.symbols.symbol(functionSymbol))
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
+        let symbol = try #require(sema.symbols.symbol(functionSymbol))
+        let signature = try #require(sema.symbols.functionSignature(for: functionSymbol))
 
-        XCTAssertEqual(symbol.kind, .function)
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(signature.parameterTypes, [])
-        XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[sema.types.anyType]])
+        #expect(symbol.kind == .function)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(signature.parameterTypes == [])
+        #expect(signature.typeParameterSymbols.count == 1)
+        #expect(signature.typeParameterUpperBoundsList == [[sema.types.anyType]])
 
-        let typeParam = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let typeParam = try #require(signature.typeParameterSymbols.first)
         let typeParamType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParam,
             nullability: .nonNull
         )))
-        let kClassSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kClassSymbol = try #require(sema.symbols.lookup(
             fqName: ["kotlin", "reflect", "KClass"].map { interner.intern($0) }
         ))
-        XCTAssertEqual(signature.receiverType, sema.types.make(.classType(ClassType(
+        #expect(signature.receiverType == sema.types.make(.classType(ClassType(
             classSymbol: kClassSymbol,
             args: [.invariant(typeParamType)],
             nullability: .nonNull
         ))))
-        XCTAssertEqual(signature.returnType, typeParamType)
+        #expect(signature.returnType == typeParamType)
     }
 
-    func testCreateInstanceResolvesInSource() throws {
+    @Test func testCreateInstanceResolvesInSource() throws {
         let source = """
         import kotlin.reflect.KClass
         import kotlin.reflect.full.createInstance
@@ -65,3 +67,4 @@ final class ReflectCreateInstanceSyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

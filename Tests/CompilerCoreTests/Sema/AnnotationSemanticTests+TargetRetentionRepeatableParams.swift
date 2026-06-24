@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // STDLIB-ANNO-002: annotation sema / diagnostics coverage
 // Covers: @Target enforcement on additional sites, @Retention(RUNTIME) metadata,
@@ -14,7 +15,7 @@ extension AnnotationSemanticTests {
 
     // MARK: - @Target enforcement on additional sites
 
-    func testTargetFunctionOnlyRejectsProperty() {
+    @Test func testTargetFunctionOnlyRejectsProperty() {
         let source = """
         @Target(AnnotationTarget.FUNCTION)
         annotation class FunctionOnly
@@ -26,11 +27,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diags.count, 1, "Expected one annotation-target diagnostic for property, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diags.count == 1, "Expected one annotation-target diagnostic for property, got: \(ctx.diagnostics.diagnostics)")
+        let v0 = diags.allSatisfy(isError)
+        #expect(v0, "Annotation-target diagnostics should be errors")
     }
 
-    func testTargetPropertyOnlyAcceptsProperty() {
+    @Test func testTargetPropertyOnlyAcceptsProperty() {
         let source = """
         @Target(AnnotationTarget.PROPERTY)
         annotation class PropOnly
@@ -42,10 +44,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no annotation-target diagnostics for property, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no annotation-target diagnostics for property, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testTargetPropertyOnlyRejectsClass() {
+    @Test func testTargetPropertyOnlyRejectsClass() {
         let source = """
         @Target(AnnotationTarget.PROPERTY)
         annotation class PropOnly
@@ -57,11 +59,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diags.count, 1, "Expected one annotation-target diagnostic for class, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diags.count == 1, "Expected one annotation-target diagnostic for class, got: \(ctx.diagnostics.diagnostics)")
+        let v1 = diags.allSatisfy(isError)
+        #expect(v1, "Annotation-target diagnostics should be errors")
     }
 
-    func testAnnotationClassWithoutTargetIsUnrestricted() {
+    @Test func testAnnotationClassWithoutTargetIsUnrestricted() {
         // An annotation class with no @Target at all can be applied to any site.
         let source = """
         annotation class Anywhere
@@ -79,10 +82,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no annotation-target errors for annotation without @Target, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no annotation-target errors for annotation without @Target, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testTargetClassAndFunctionRejectsBothWhenWrong() {
+    @Test func testTargetClassAndFunctionRejectsBothWhenWrong() {
         let source = """
         @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
         annotation class ClassOrFunction
@@ -100,11 +103,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diags.count, 1, "Expected exactly one annotation-target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diags.count == 1, "Expected exactly one annotation-target diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v2 = diags.allSatisfy(isError)
+        #expect(v2, "Annotation-target diagnostics should be errors")
     }
 
-    func testTargetTypeAliasAcceptsTypeAliasDeclaration() {
+    @Test func testTargetTypeAliasAcceptsTypeAliasDeclaration() {
         let source = """
         @Target(AnnotationTarget.TYPEALIAS)
         annotation class TypeAliasOnly
@@ -116,10 +120,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no annotation-target diagnostics for typealias, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no annotation-target diagnostics for typealias, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testTargetClassRejectsTypeAliasDeclaration() {
+    @Test func testTargetClassRejectsTypeAliasDeclaration() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         annotation class ClassOnly
@@ -131,9 +135,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diags.count, 1, "Expected one annotation-target diagnostic for typealias, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError), "Annotation-target diagnostics should be errors")
-        XCTAssertTrue(
+        #expect(diags.count == 1, "Expected one annotation-target diagnostic for typealias, got: \(ctx.diagnostics.diagnostics)")
+        let v3 = diags.allSatisfy(isError)
+        #expect(v3, "Annotation-target diagnostics should be errors")
+        #expect(
             diags.first?.message.contains("type alias") == true,
             "Expected diagnostic to mention type alias usage, got: \(diags.map(\.message))"
         )
@@ -141,7 +146,7 @@ extension AnnotationSemanticTests {
 
     // MARK: - @Retention(RUNTIME) metadata
 
-    func testRetentionRuntimeIsRecordedOnAnnotationSymbol() throws {
+    @Test func testRetentionRuntimeIsRecordedOnAnnotationSymbol() throws {
         let source = """
         @Retention(AnnotationRetention.RUNTIME)
         annotation class RuntimeAnnotation
@@ -150,20 +155,21 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: [ctx.interner.intern("RuntimeAnnotation")]))
+        let sema = try #require(ctx.sema)
+        let symbolID = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("RuntimeAnnotation")]))
         let annotations = sema.symbols.annotations(for: symbolID)
 
-        XCTAssertTrue(
-            annotations.contains(where: {
-                $0.annotationFQName.hasSuffix("Retention")
-                    && $0.arguments.contains(where: { $0.contains("RUNTIME") })
-            }),
+        let v4 = annotations.contains(where: {
+            $0.annotationFQName.hasSuffix("Retention")
+                && $0.arguments.contains(where: { $0.contains("RUNTIME") })
+        })
+        #expect(
+            v4,
             "Expected @Retention(RUNTIME) to be recorded on annotation symbol, got: \(annotations)"
         )
     }
 
-    func testRetentionSourceAnnotationIsRecorded() throws {
+    @Test func testRetentionSourceAnnotationIsRecorded() throws {
         let source = """
         @Retention(AnnotationRetention.SOURCE)
         annotation class SourceOnly
@@ -172,22 +178,23 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: [ctx.interner.intern("SourceOnly")]))
+        let sema = try #require(ctx.sema)
+        let symbolID = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("SourceOnly")]))
         let annotations = sema.symbols.annotations(for: symbolID)
 
-        XCTAssertTrue(
-            annotations.contains(where: {
-                $0.annotationFQName.hasSuffix("Retention")
-                    && $0.arguments.contains(where: { $0.contains("SOURCE") })
-            }),
+        let v5 = annotations.contains(where: {
+            $0.annotationFQName.hasSuffix("Retention")
+                && $0.arguments.contains(where: { $0.contains("SOURCE") })
+        })
+        #expect(
+            v5,
             "Expected @Retention(SOURCE) to be recorded on annotation symbol, got: \(annotations)"
         )
     }
 
     // MARK: - @Repeatable allows multiple occurrences
 
-    func testRepeatableAnnotationAllowsMultipleApplications() {
+    @Test func testRepeatableAnnotationAllowsMultipleApplications() {
         let source = """
         @Repeatable
         annotation class Tag(val value: String)
@@ -201,7 +208,7 @@ extension AnnotationSemanticTests {
         // The test verifies no error-level diagnostics for using an annotation twice
         // when the annotation class is @Repeatable (stricter than substring heuristics).
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected no sema errors for @Repeatable duplicate applications, got: \(errors.map(\.message))"
         )
@@ -209,7 +216,7 @@ extension AnnotationSemanticTests {
 
     // MARK: - @MustBeDocumented visibility in reflection
 
-    func testMustBeDocumentedAppliedToAnnotationClassIsAccepted() {
+    @Test func testMustBeDocumentedAppliedToAnnotationClassIsAccepted() {
         let source = """
         @MustBeDocumented
         annotation class PublicApi
@@ -218,10 +225,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let targetDiags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(targetDiags.isEmpty, "Expected @MustBeDocumented to be accepted on annotation class, got: \(ctx.diagnostics.diagnostics)")
+        #expect(targetDiags.isEmpty, "Expected @MustBeDocumented to be accepted on annotation class, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testMustBeDocumentedOnAnnotationClassIsRecordedInSymbol() throws {
+    @Test func testMustBeDocumentedOnAnnotationClassIsRecordedInSymbol() throws {
         let source = """
         @MustBeDocumented
         annotation class DocRequiredMark
@@ -230,19 +237,20 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: [ctx.interner.intern("DocRequiredMark")]))
+        let sema = try #require(ctx.sema)
+        let symbolID = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("DocRequiredMark")]))
         let annotations = sema.symbols.annotations(for: symbolID)
 
-        XCTAssertTrue(
-            annotations.contains(where: { $0.annotationFQName.hasSuffix("MustBeDocumented") }),
+        let v6 = annotations.contains(where: { $0.annotationFQName.hasSuffix("MustBeDocumented") })
+        #expect(
+            v6,
             "Expected @MustBeDocumented to be recorded on annotation symbol, got: \(annotations)"
         )
     }
 
     // MARK: - Getter / Setter use-site targets
 
-    func testGetterUseSiteTargetAcceptedForPropertyGetterAnnotation() {
+    @Test func testGetterUseSiteTargetAcceptedForPropertyGetterAnnotation() {
         let source = """
         @Target(AnnotationTarget.PROPERTY_GETTER)
         annotation class GetterMark
@@ -256,10 +264,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no diagnostics for @get: use-site target on PROPERTY_GETTER annotation, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no diagnostics for @get: use-site target on PROPERTY_GETTER annotation, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testSetterUseSiteTargetAcceptedForPropertySetterAnnotation() {
+    @Test func testSetterUseSiteTargetAcceptedForPropertySetterAnnotation() {
         let source = """
         @Target(AnnotationTarget.PROPERTY_SETTER)
         annotation class SetterMark
@@ -273,12 +281,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no diagnostics for @set: use-site target on PROPERTY_SETTER annotation, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no diagnostics for @set: use-site target on PROPERTY_SETTER annotation, got: \(ctx.diagnostics.diagnostics)")
     }
 
     // MARK: - Object and enum class targets
 
-    func testTargetClassAcceptsObjectDeclaration() {
+    @Test func testTargetClassAcceptsObjectDeclaration() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         annotation class ClassMark
@@ -290,10 +298,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no diagnostics for @ClassMark on object, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no diagnostics for @ClassMark on object, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testTargetClassAcceptsEnumClass() {
+    @Test func testTargetClassAcceptsEnumClass() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         annotation class ClassMark
@@ -305,12 +313,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no diagnostics for @ClassMark on enum class, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no diagnostics for @ClassMark on enum class, got: \(ctx.diagnostics.diagnostics)")
     }
 
     // MARK: - Annotation parameters: default values, named vs positional
 
-    func testAnnotationWithDefaultParamCanBeAppliedWithNoArgs() {
+    @Test func testAnnotationWithDefaultParamCanBeAppliedWithNoArgs() {
         let source = """
         annotation class Label(val name: String = "default")
 
@@ -322,10 +330,10 @@ extension AnnotationSemanticTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for annotation with default parameter, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for annotation with default parameter, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testAnnotationNamedArgIsAccepted() {
+    @Test func testAnnotationNamedArgIsAccepted() {
         let source = """
         annotation class Configured(val level: Int = 1, val tag: String = "")
 
@@ -334,10 +342,10 @@ extension AnnotationSemanticTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for annotation with named args, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for annotation with named args, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testAnnotationClassIsRegisteredAsAnnotationKind() throws {
+    @Test func testAnnotationClassIsRegisteredAsAnnotationKind() throws {
         let source = """
         annotation class MultiParam(val a: Int, val b: String)
         """
@@ -345,16 +353,16 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: [ctx.interner.intern("MultiParam")]))
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let sema = try #require(ctx.sema)
+        let symbolID = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("MultiParam")]))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.kind, .annotationClass, "Expected MultiParam to be registered as annotationClass kind")
+        #expect(symbol.kind == .annotationClass, "Expected MultiParam to be registered as annotationClass kind")
     }
 
     // MARK: - @Target(ANNOTATION_CLASS) enforcement
 
-    func testTargetAnnotationClassOnlyRejectsRegularClass() {
+    @Test func testTargetAnnotationClassOnlyRejectsRegularClass() {
         let source = """
         @Target(AnnotationTarget.ANNOTATION_CLASS)
         annotation class MetaOnly
@@ -366,11 +374,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diags.count, 1, "Expected one annotation-target diagnostic for regular class, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diags.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diags.count == 1, "Expected one annotation-target diagnostic for regular class, got: \(ctx.diagnostics.diagnostics)")
+        let v7 = diags.allSatisfy(isError)
+        #expect(v7, "Annotation-target diagnostics should be errors")
     }
 
-    func testTargetAnnotationClassOnlyAcceptsAnnotationClass() {
+    @Test func testTargetAnnotationClassOnlyAcceptsAnnotationClass() {
         let source = """
         @Target(AnnotationTarget.ANNOTATION_CLASS)
         annotation class MetaOnly
@@ -382,6 +391,7 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diags = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diags.isEmpty, "Expected no annotation-target diagnostics for annotation class, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diags.isEmpty, "Expected no annotation-target diagnostics for annotation class, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

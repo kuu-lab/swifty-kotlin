@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class ReadWriteLockSyntheticLinkTests: XCTestCase {
+@Suite
+struct ReadWriteLockSyntheticLinkTests {
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
@@ -13,7 +15,7 @@ final class ReadWriteLockSyntheticLinkTests: XCTestCase {
         }
     }
 
-    func testReadResolvesToSyntheticKotlinConcurrentExtension() throws {
+    @Test func testReadResolvesToSyntheticKotlinConcurrentExtension() throws {
         let source = """
         import java.util.concurrent.locks.ReentrantReadWriteLock
         import kotlin.concurrent.read
@@ -27,23 +29,23 @@ final class ReadWriteLockSyntheticLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected read() sample to resolve without diagnostics.")
+            #expect(!(ctx.diagnostics.hasError), "Expected read() sample to resolve without diagnostics.")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let readCalls = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "read"
             }
 
-            XCTAssertEqual(readCalls.count, 1, "Expected a single ReentrantReadWriteLock.read call.")
+            #expect(readCalls.count == 1, "Expected a single ReentrantReadWriteLock.read call.")
 
             if case let .memberCall(receiverExpr, _, _, _, _) = ast.arena.expr(readCalls[0]) {
                 let receiverType = sema.bindings.exprTypes[receiverExpr]
                 let renderedReceiverType = receiverType.map(sema.types.renderType) ?? "nil"
                 let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
                 let expectedReceiverType = sema.types.make(.classType(ClassType(
-                    classSymbol: try XCTUnwrap(sema.symbols.lookup(fqName: [
+                    classSymbol: try #require(sema.symbols.lookup(fqName: [
                         ctx.interner.intern("java"),
                         ctx.interner.intern("util"),
                         ctx.interner.intern("concurrent"),
@@ -53,25 +55,24 @@ final class ReadWriteLockSyntheticLinkTests: XCTestCase {
                     args: [],
                     nullability: .nonNull
                 )))
-                XCTAssertEqual(
-                    receiverType,
-                    expectedReceiverType,
-                    "Expected read() receiver to resolve as java.util.concurrent.locks.ReentrantReadWriteLock, got \(renderedReceiverType); diagnostics: \(diagnosticMessages)"
+                #expect(
+                    receiverType == expectedReceiverType,
+                    Comment(rawValue: "Expected read() receiver to resolve as java.util.concurrent.locks.ReentrantReadWriteLock, got \(renderedReceiverType); diagnostics: \(diagnosticMessages)")
                 )
             }
 
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: readCalls[0])?.chosenCallee,
                 "Expected ReentrantReadWriteLock.read to resolve"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_reentrant_read_write_lock_read"
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_reentrant_read_write_lock_read"
             )
 
-            let symbol = try XCTUnwrap(sema.symbols.symbol(chosenCallee))
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
             let fqName = symbol.fqName.map { ctx.interner.resolve($0) }
-            XCTAssertEqual(fqName, ["kotlin", "concurrent", "read"])
+            #expect(fqName == ["kotlin", "concurrent", "read"])
         }
     }
 }
+#endif

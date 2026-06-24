@@ -1,169 +1,181 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // STDLIB-CORO-ABI-001: Tests verifying that AbstractCoroutineContextElement,
 // AbstractCoroutineContextKey, and the CoroutineContext.plus operator are
 // registered as synthetic sema symbols and that user-defined context elements
 // subclassing the abstract base resolve without diagnostics.
 
-final class CoroutinesABIStubTests: XCTestCase {
+@Suite
+struct CoroutinesABIStubTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     // ── Registration tests ────────────────────────────────────────────────
 
+    @Test
     func testAbstractCoroutineContextElementIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "AbstractCoroutineContextElement"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.coroutines.AbstractCoroutineContextElement to be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(info.kind, .class)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertTrue(info.flags.contains(.abstractType))
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .class)
+        #expect(info.flags.contains(.synthetic))
+        #expect(info.flags.contains(.abstractType))
     }
 
+    @Test
     func testAbstractCoroutineContextElementSupertype() throws {
         let (sema, interner) = try makeSema()
         let aceFQName = ["kotlin", "coroutines", "AbstractCoroutineContextElement"].map { interner.intern($0) }
-        let aceSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: aceFQName))
+        let aceSymbol = try #require(sema.symbols.lookup(fqName: aceFQName))
         let elementFQName = ["kotlin", "coroutines", "CoroutineContext", "Element"].map { interner.intern($0) }
-        let elementSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: elementFQName))
-        XCTAssertTrue(
+        let elementSymbol = try #require(sema.symbols.lookup(fqName: elementFQName))
+        #expect(
             sema.symbols.directSupertypes(for: aceSymbol).contains(elementSymbol),
             "AbstractCoroutineContextElement must extend CoroutineContext.Element"
         )
     }
 
+    @Test
     func testAbstractCoroutineContextElementPrimaryConstructor() throws {
         let (sema, interner) = try makeSema()
         let aceFQName = ["kotlin", "coroutines", "AbstractCoroutineContextElement"].map { interner.intern($0) }
-        let aceSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: aceFQName))
+        let aceSymbol = try #require(sema.symbols.lookup(fqName: aceFQName))
         let ctorFQName = aceFQName + [interner.intern("<init>")]
-        let ctorSymbol = try XCTUnwrap(
+        let ctorSymbol = try #require(
             sema.symbols.lookup(fqName: ctorFQName),
             "Expected primary constructor for AbstractCoroutineContextElement"
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: ctorSymbol))
-        XCTAssertEqual(sig.parameterTypes.count, 1)
+        let sig = try #require(sema.symbols.functionSignature(for: ctorSymbol))
+        #expect(sig.parameterTypes.count == 1)
         // Receiver type must be ACE itself
-        XCTAssertEqual(sig.receiverType, sema.symbols.propertyType(for: aceSymbol))
+        #expect(sig.receiverType == sema.symbols.propertyType(for: aceSymbol))
         // Single parameter must be Key<*>
         let keyFQName = ["kotlin", "coroutines", "CoroutineContext", "Key"].map { interner.intern($0) }
-        let keySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: keyFQName))
+        let keySymbol = try #require(sema.symbols.lookup(fqName: keyFQName))
         guard case let .classType(paramKind) = sema.types.kind(of: sig.parameterTypes[0]) else {
-            return XCTFail("Expected ACE ctor parameter to be a class type (Key<*>)")
+            Issue.record("Expected ACE ctor parameter to be a class type (Key<*>)"); return
         }
-        XCTAssertEqual(paramKind.classSymbol, keySymbol)
-        XCTAssertEqual(paramKind.args, [.star])
+        #expect(paramKind.classSymbol == keySymbol)
+        #expect(paramKind.args == [.star])
     }
 
+    @Test
     func testAbstractCoroutineContextKeyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "AbstractCoroutineContextKey"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.coroutines.AbstractCoroutineContextKey to be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(info.kind, .class)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertTrue(info.flags.contains(.abstractType))
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .class)
+        #expect(info.flags.contains(.synthetic))
+        #expect(info.flags.contains(.abstractType))
     }
 
+    @Test
     func testAbstractCoroutineContextKeyHasTwoTypeParameters() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "AbstractCoroutineContextKey"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
         let typeParams = sema.types.nominalTypeParameterSymbols(for: symbol)
-        XCTAssertEqual(typeParams.count, 2, "AbstractCoroutineContextKey must have two type parameters B and E")
+        #expect(typeParams.count == 2, "AbstractCoroutineContextKey must have two type parameters B and E")
     }
 
+    @Test
     func testAbstractCoroutineContextKeyExtendsKey() throws {
         let (sema, interner) = try makeSema()
         let ackFQName = ["kotlin", "coroutines", "AbstractCoroutineContextKey"].map { interner.intern($0) }
-        let ackSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: ackFQName))
+        let ackSymbol = try #require(sema.symbols.lookup(fqName: ackFQName))
         let keyFQName = ["kotlin", "coroutines", "CoroutineContext", "Key"].map { interner.intern($0) }
-        let keySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: keyFQName))
-        XCTAssertTrue(
+        let keySymbol = try #require(sema.symbols.lookup(fqName: keyFQName))
+        #expect(
             sema.symbols.directSupertypes(for: ackSymbol).contains(keySymbol),
             "AbstractCoroutineContextKey must implement CoroutineContext.Key"
         )
     }
 
+    @Test
     func testCoroutineContextPlusOperatorIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "CoroutineContext", "plus"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected CoroutineContext.plus operator to be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(info.kind, .function)
-        XCTAssertTrue(info.flags.contains(.operatorFunction))
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-        XCTAssertEqual(sig.parameterTypes.count, 1)
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .function)
+        #expect(info.flags.contains(.operatorFunction))
+        #expect(info.flags.contains(.synthetic))
+        let sig = try #require(sema.symbols.functionSignature(for: symbol))
+        #expect(sig.parameterTypes.count == 1)
         let contextFQName = ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) }
-        let contextSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: contextFQName))
+        let contextSymbol = try #require(sema.symbols.lookup(fqName: contextFQName))
         let contextType = sema.types.make(.classType(ClassType(
             classSymbol: contextSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sig.parameterTypes[0], contextType)
-        XCTAssertEqual(sig.returnType, contextType)
+        #expect(sig.parameterTypes[0] == contextType)
+        #expect(sig.returnType == contextType)
     }
 
+    @Test
     func testCoroutineContextKeyNestedInterfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "CoroutineContext", "Key"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected CoroutineContext.Key to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .interface)
+        #expect(sema.symbols.symbol(symbol)?.kind == .interface)
     }
 
+    @Test
     func testCoroutineContextElementNestedInterfaceExtendsCoroutineContext() throws {
         let (sema, interner) = try makeSema()
         let elementFQName = ["kotlin", "coroutines", "CoroutineContext", "Element"].map { interner.intern($0) }
-        let elementSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: elementFQName))
+        let elementSymbol = try #require(sema.symbols.lookup(fqName: elementFQName))
         let contextFQName = ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) }
-        let contextSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: contextFQName))
-        XCTAssertTrue(
+        let contextSymbol = try #require(sema.symbols.lookup(fqName: contextFQName))
+        #expect(
             sema.symbols.directSupertypes(for: elementSymbol).contains(contextSymbol),
             "CoroutineContext.Element must extend CoroutineContext"
         )
     }
 
+    @Test
     func testCoroutineContextGetPolymorphicElementIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "getPolymorphicElement"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.coroutines.getPolymorphicElement to be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(info.kind, .function)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_context_get")
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .function)
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_context_get")
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-        let elementSymbol = try XCTUnwrap(
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        let elementSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext", "Element"].map { interner.intern($0) })
         )
-        let keySymbol = try XCTUnwrap(
+        let keySymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext", "Key"].map { interner.intern($0) })
         )
         let elementType = sema.types.make(.classType(ClassType(
@@ -171,7 +183,7 @@ final class CoroutinesABIStubTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let typeParam = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let typeParam = try #require(signature.typeParameterSymbols.first)
         let typeParamType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParam,
             nullability: .nonNull
@@ -181,11 +193,11 @@ final class CoroutinesABIStubTests: XCTestCase {
             args: [.invariant(typeParamType)],
             nullability: .nonNull
         )))
-        XCTAssertEqual(signature.receiverType, elementType)
-        XCTAssertEqual(signature.parameterTypes, [keyType])
-        XCTAssertEqual(signature.returnType, sema.types.makeNullable(typeParamType))
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[elementType]])
-        XCTAssertTrue(
+        #expect(signature.receiverType == elementType)
+        #expect(signature.parameterTypes == [keyType])
+        #expect(signature.returnType == sema.types.makeNullable(typeParamType))
+        #expect(signature.typeParameterUpperBoundsList == [[elementType]])
+        #expect(
             sema.symbols.annotations(for: symbol).contains {
                 $0.annotationFQName == KnownCompilerAnnotation.experimentalStdlibApi.qualifiedName
             },
@@ -193,26 +205,27 @@ final class CoroutinesABIStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testCoroutineContextMinusPolymorphicKeyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "minusPolymorphicKey"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.coroutines.minusPolymorphicKey to be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(info.kind, .function)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_context_minusKey")
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .function)
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_context_minusKey")
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-        let elementSymbol = try XCTUnwrap(
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        let elementSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext", "Element"].map { interner.intern($0) })
         )
-        let keySymbol = try XCTUnwrap(
+        let keySymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext", "Key"].map { interner.intern($0) })
         )
-        let contextSymbol = try XCTUnwrap(
+        let contextSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) })
         )
         let elementType = sema.types.make(.classType(ClassType(
@@ -230,10 +243,10 @@ final class CoroutinesABIStubTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(signature.receiverType, elementType)
-        XCTAssertEqual(signature.parameterTypes, [keyType])
-        XCTAssertEqual(signature.returnType, contextType)
-        XCTAssertTrue(
+        #expect(signature.receiverType == elementType)
+        #expect(signature.parameterTypes == [keyType])
+        #expect(signature.returnType == contextType)
+        #expect(
             sema.symbols.annotations(for: symbol).contains {
                 $0.annotationFQName == KnownCompilerAnnotation.experimentalStdlibApi.qualifiedName
             },
@@ -243,6 +256,7 @@ final class CoroutinesABIStubTests: XCTestCase {
 
     // ── Integration / subclassing pattern tests ──────────────────────────────
 
+    @Test
     func testUserDefinedContextElementSubclassResolvesWithoutDiagnostics() throws {
         let source = """
         import kotlin.coroutines.AbstractCoroutineContextElement
@@ -257,13 +271,14 @@ final class CoroutinesABIStubTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected no errors for user-defined CoroutineContext.Element: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testCoroutinePlusOperatorResolvesInSource() throws {
         let source = """
         import kotlin.coroutines.EmptyCoroutineContext
@@ -276,13 +291,14 @@ final class CoroutinesABIStubTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected CoroutineContext.plus to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testGetPolymorphicElementResolvesInSourceWithOptIn() throws {
         let source = """
         import kotlin.ExperimentalStdlibApi
@@ -304,13 +320,14 @@ final class CoroutinesABIStubTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected getPolymorphicElement to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testMinusPolymorphicKeyResolvesInSourceWithOptIn() throws {
         let source = """
         import kotlin.ExperimentalStdlibApi
@@ -332,10 +349,11 @@ final class CoroutinesABIStubTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected minusPolymorphicKey to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 }
+#endif

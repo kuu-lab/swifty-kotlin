@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class AdvancedTypeInferenceTests: XCTestCase {
-    func testExperimentalTypeInferenceInfersCustomBuilderElementTypeWithoutExpectedType() throws {
+@Suite
+struct AdvancedTypeInferenceTests {
+    @Test func testExperimentalTypeInferenceInfersCustomBuilderElementTypeWithoutExpectedType() throws {
         let source = """
         import kotlin.experimental.ExperimentalTypeInference
 
@@ -35,13 +37,13 @@ final class AdvancedTypeInferenceTests: XCTestCase {
         try runSema(ctx)
         let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !ctx.diagnostics.hasError,
             "Expected custom builder inference to succeed, got: \(diagnostics)"
         )
     }
 
-    func testExperimentalTypeInferenceAnnotationIsAvailableWithoutCompilerFlags() throws {
+    @Test func testExperimentalTypeInferenceAnnotationIsAvailableWithoutCompilerFlags() throws {
         let source = """
         import kotlin.experimental.ExperimentalTypeInference
 
@@ -56,9 +58,10 @@ final class AdvancedTypeInferenceTests: XCTestCase {
         try runSema(ctx)
         let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !ctx.diagnostics.hasError,
             "Expected annotation-driven builder inference to succeed, got: \(diagnostics)"
         )
     }
 }
+#endif

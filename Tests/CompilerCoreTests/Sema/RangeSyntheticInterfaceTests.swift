@@ -1,18 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class RangeSyntheticInterfaceTests: XCTestCase {
+@Suite
+struct RangeSyntheticInterfaceTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testClosedRangeAndClosedFloatingPointRangeSymbolsAreRegistered() throws {
+    @Test func testClosedRangeAndClosedFloatingPointRangeSymbolsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let rangesFQName = ["kotlin", "ranges"].map { interner.intern($0) }
@@ -20,24 +22,24 @@ final class RangeSyntheticInterfaceTests: XCTestCase {
         let closedFloatingPointRangeFQName = rangesFQName + [interner.intern("ClosedFloatingPointRange")]
         let comparableFQName = ["kotlin", "Comparable"].map { interner.intern($0) }
 
-        let closedRangeSymbol = try XCTUnwrap(
+        let closedRangeSymbol = try #require(
             sema.symbols.lookup(fqName: closedRangeFQName),
             "Expected kotlin.ranges.ClosedRange to be registered"
         )
-        let closedFloatingPointRangeSymbol = try XCTUnwrap(
+        let closedFloatingPointRangeSymbol = try #require(
             sema.symbols.lookup(fqName: closedFloatingPointRangeFQName),
             "Expected kotlin.ranges.ClosedFloatingPointRange to be registered"
         )
-        let comparableSymbol = try XCTUnwrap(
+        let comparableSymbol = try #require(
             sema.symbols.lookup(fqName: comparableFQName),
             "Expected kotlin.Comparable to be registered"
         )
 
-        XCTAssertEqual(sema.symbols.symbol(closedRangeSymbol)?.kind, .interface)
-        XCTAssertEqual(sema.symbols.symbol(closedFloatingPointRangeSymbol)?.kind, .interface)
+        #expect(sema.symbols.symbol(closedRangeSymbol)?.kind == .interface)
+        #expect(sema.symbols.symbol(closedFloatingPointRangeSymbol)?.kind == .interface)
 
-        let closedRangeTypeParamSymbol = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: closedRangeSymbol).first)
-        let closedFloatingPointRangeTypeParamSymbol = try XCTUnwrap(
+        let closedRangeTypeParamSymbol = try #require(sema.types.nominalTypeParameterSymbols(for: closedRangeSymbol).first)
+        let closedFloatingPointRangeTypeParamSymbol = try #require(
             sema.types.nominalTypeParameterSymbols(for: closedFloatingPointRangeSymbol).first
         )
         let closedRangeTypeParamType = sema.types.make(.typeParam(TypeParamType(
@@ -49,8 +51,8 @@ final class RangeSyntheticInterfaceTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: closedRangeSymbol), [.invariant])
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: closedFloatingPointRangeSymbol), [.invariant])
+        #expect(sema.types.nominalTypeParameterVariances(for: closedRangeSymbol) == [.invariant])
+        #expect(sema.types.nominalTypeParameterVariances(for: closedFloatingPointRangeSymbol) == [.invariant])
 
         let expectedComparableBoundForClosedRange = sema.types.make(.classType(ClassType(
             classSymbol: comparableSymbol,
@@ -63,22 +65,18 @@ final class RangeSyntheticInterfaceTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(
-            sema.symbols.typeParameterUpperBounds(for: closedRangeTypeParamSymbol),
-            [expectedComparableBoundForClosedRange]
+        #expect(
+            sema.symbols.typeParameterUpperBounds(for: closedRangeTypeParamSymbol) == [expectedComparableBoundForClosedRange]
         )
-        XCTAssertEqual(
-            sema.symbols.typeParameterUpperBounds(for: closedFloatingPointRangeTypeParamSymbol),
-            [expectedComparableBoundForFloatingPointRange]
+        #expect(
+            sema.symbols.typeParameterUpperBounds(for: closedFloatingPointRangeTypeParamSymbol) == [expectedComparableBoundForFloatingPointRange]
         )
 
-        XCTAssertEqual(
-            sema.symbols.directSupertypes(for: closedFloatingPointRangeSymbol),
-            [closedRangeSymbol]
+        #expect(
+            sema.symbols.directSupertypes(for: closedFloatingPointRangeSymbol) == [closedRangeSymbol]
         )
-        XCTAssertEqual(
-            sema.symbols.supertypeTypeArgs(for: closedFloatingPointRangeSymbol, supertype: closedRangeSymbol),
-            [.invariant(closedFloatingPointRangeTypeParamType)]
+        #expect(
+            sema.symbols.supertypeTypeArgs(for: closedFloatingPointRangeSymbol, supertype: closedRangeSymbol) == [.invariant(closedFloatingPointRangeTypeParamType)]
         )
 
         let closedRangeInterfaceType = sema.types.make(.classType(ClassType(
@@ -102,46 +100,46 @@ final class RangeSyntheticInterfaceTests: XCTestCase {
         let floatingIsEmptyFQName = closedFloatingPointRangeFQName + [interner.intern("isEmpty")]
         let lessThanOrEqualsFQName = closedFloatingPointRangeFQName + [interner.intern("lessThanOrEquals")]
 
-        let startSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: startFQName))
-        let endSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: endFQName))
-        let containsSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: containsFQName))
-        let isEmptySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: isEmptyFQName))
-        let floatingStartSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: floatingStartFQName))
-        let floatingEndSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: floatingEndFQName))
-        let floatingContainsSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: floatingContainsFQName))
-        let floatingIsEmptySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: floatingIsEmptyFQName))
-        let lessThanOrEqualsSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: lessThanOrEqualsFQName))
+        let startSymbol = try #require(sema.symbols.lookup(fqName: startFQName))
+        let endSymbol = try #require(sema.symbols.lookup(fqName: endFQName))
+        let containsSymbol = try #require(sema.symbols.lookup(fqName: containsFQName))
+        let isEmptySymbol = try #require(sema.symbols.lookup(fqName: isEmptyFQName))
+        let floatingStartSymbol = try #require(sema.symbols.lookup(fqName: floatingStartFQName))
+        let floatingEndSymbol = try #require(sema.symbols.lookup(fqName: floatingEndFQName))
+        let floatingContainsSymbol = try #require(sema.symbols.lookup(fqName: floatingContainsFQName))
+        let floatingIsEmptySymbol = try #require(sema.symbols.lookup(fqName: floatingIsEmptyFQName))
+        let lessThanOrEqualsSymbol = try #require(sema.symbols.lookup(fqName: lessThanOrEqualsFQName))
 
-        XCTAssertEqual(sema.symbols.propertyType(for: startSymbol), closedRangeTypeParamType)
-        XCTAssertEqual(sema.symbols.propertyType(for: endSymbol), closedRangeTypeParamType)
-        XCTAssertEqual(sema.symbols.propertyType(for: floatingStartSymbol), closedFloatingPointRangeTypeParamType)
-        XCTAssertEqual(sema.symbols.propertyType(for: floatingEndSymbol), closedFloatingPointRangeTypeParamType)
+        #expect(sema.symbols.propertyType(for: startSymbol) == closedRangeTypeParamType)
+        #expect(sema.symbols.propertyType(for: endSymbol) == closedRangeTypeParamType)
+        #expect(sema.symbols.propertyType(for: floatingStartSymbol) == closedFloatingPointRangeTypeParamType)
+        #expect(sema.symbols.propertyType(for: floatingEndSymbol) == closedFloatingPointRangeTypeParamType)
 
-        let containsSignature = try XCTUnwrap(sema.symbols.functionSignature(for: containsSymbol))
-        XCTAssertEqual(containsSignature.receiverType, closedRangeInterfaceType)
-        XCTAssertEqual(containsSignature.parameterTypes, [closedRangeTypeParamType])
-        XCTAssertEqual(containsSignature.returnType, sema.types.booleanType)
-        let floatingContainsSignature = try XCTUnwrap(sema.symbols.functionSignature(for: floatingContainsSymbol))
-        XCTAssertEqual(floatingContainsSignature.receiverType, closedFloatingPointRangeInterfaceType)
-        XCTAssertEqual(floatingContainsSignature.parameterTypes, [closedFloatingPointRangeTypeParamType])
-        XCTAssertEqual(floatingContainsSignature.returnType, sema.types.booleanType)
+        let containsSignature = try #require(sema.symbols.functionSignature(for: containsSymbol))
+        #expect(containsSignature.receiverType == closedRangeInterfaceType)
+        #expect(containsSignature.parameterTypes == [closedRangeTypeParamType])
+        #expect(containsSignature.returnType == sema.types.booleanType)
+        let floatingContainsSignature = try #require(sema.symbols.functionSignature(for: floatingContainsSymbol))
+        #expect(floatingContainsSignature.receiverType == closedFloatingPointRangeInterfaceType)
+        #expect(floatingContainsSignature.parameterTypes == [closedFloatingPointRangeTypeParamType])
+        #expect(floatingContainsSignature.returnType == sema.types.booleanType)
 
-        let isEmptySignature = try XCTUnwrap(sema.symbols.functionSignature(for: isEmptySymbol))
-        XCTAssertEqual(isEmptySignature.receiverType, closedRangeInterfaceType)
-        XCTAssertEqual(isEmptySignature.parameterTypes, [])
-        XCTAssertEqual(isEmptySignature.returnType, sema.types.booleanType)
-        let floatingIsEmptySignature = try XCTUnwrap(sema.symbols.functionSignature(for: floatingIsEmptySymbol))
-        XCTAssertEqual(floatingIsEmptySignature.receiverType, closedFloatingPointRangeInterfaceType)
-        XCTAssertEqual(floatingIsEmptySignature.parameterTypes, [])
-        XCTAssertEqual(floatingIsEmptySignature.returnType, sema.types.booleanType)
+        let isEmptySignature = try #require(sema.symbols.functionSignature(for: isEmptySymbol))
+        #expect(isEmptySignature.receiverType == closedRangeInterfaceType)
+        #expect(isEmptySignature.parameterTypes == [])
+        #expect(isEmptySignature.returnType == sema.types.booleanType)
+        let floatingIsEmptySignature = try #require(sema.symbols.functionSignature(for: floatingIsEmptySymbol))
+        #expect(floatingIsEmptySignature.receiverType == closedFloatingPointRangeInterfaceType)
+        #expect(floatingIsEmptySignature.parameterTypes == [])
+        #expect(floatingIsEmptySignature.returnType == sema.types.booleanType)
 
-        let lessThanOrEqualsSignature = try XCTUnwrap(sema.symbols.functionSignature(for: lessThanOrEqualsSymbol))
-        XCTAssertEqual(lessThanOrEqualsSignature.receiverType, closedFloatingPointRangeInterfaceType)
-        XCTAssertEqual(lessThanOrEqualsSignature.parameterTypes, [closedFloatingPointRangeTypeParamType, closedFloatingPointRangeTypeParamType])
-        XCTAssertEqual(lessThanOrEqualsSignature.returnType, sema.types.booleanType)
+        let lessThanOrEqualsSignature = try #require(sema.symbols.functionSignature(for: lessThanOrEqualsSymbol))
+        #expect(lessThanOrEqualsSignature.receiverType == closedFloatingPointRangeInterfaceType)
+        #expect(lessThanOrEqualsSignature.parameterTypes == [closedFloatingPointRangeTypeParamType, closedFloatingPointRangeTypeParamType])
+        #expect(lessThanOrEqualsSignature.returnType == sema.types.booleanType)
     }
 
-    func testClosedRangeAndClosedFloatingPointRangeResolveInSource() throws {
+    @Test func testClosedRangeAndClosedFloatingPointRangeResolveInSource() throws {
         let source = """
         fun inspectClosedRange(range: ClosedRange<Int>): Boolean {
             return range.start <= range.endInclusive && range.contains(3) && !range.isEmpty()
@@ -159,10 +157,11 @@ final class RangeSyntheticInterfaceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected ClosedRange and ClosedFloatingPointRange surface to resolve cleanly, got: \(diagnosticSummary)"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "Expected ClosedRange and ClosedFloatingPointRange surface to resolve cleanly, got: \(diagnosticSummary)")
             )
         }
     }
 }
+#endif

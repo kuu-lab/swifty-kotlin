@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testGetTimeMicrosLowersToRuntimeCallee() throws {
+    @Test func testGetTimeMicrosLowersToRuntimeCallee() throws {
         let source = """
         import kotlin.system.getTimeMicros
 
@@ -13,15 +14,15 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_system_getTimeMicros"), "Expected getTimeMicros runtime call")
+            #expect(callees.contains("kk_system_getTimeMicros"), "Expected getTimeMicros runtime call")
         }
     }
 
-    func testGetTimeMillisLowersToRuntimeCallee() throws {
+    @Test func testGetTimeMillisLowersToRuntimeCallee() throws {
         let source = """
         import kotlin.system.getTimeMillis
 
@@ -31,15 +32,15 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_system_getTimeMillis"), "Expected getTimeMillis runtime call")
+            #expect(callees.contains("kk_system_getTimeMillis"), "Expected getTimeMillis runtime call")
         }
     }
 
-    func testGetTimeNanosLowersToRuntimeCallee() throws {
+    @Test func testGetTimeNanosLowersToRuntimeCallee() throws {
         let source = """
         import kotlin.system.getTimeNanos
 
@@ -49,15 +50,15 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_system_getTimeNanos"), "Expected getTimeNanos runtime call")
+            #expect(callees.contains("kk_system_getTimeNanos"), "Expected getTimeNanos runtime call")
         }
     }
 
-    func testSystemObjectMembersLowerToRuntimeCallees() throws {
+    @Test func testSystemObjectMembersLowerToRuntimeCallees() throws {
         let source = """
         import kotlin.system.System
 
@@ -72,17 +73,17 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_system_currentTimeMillis"), "Expected System.currentTimeMillis runtime call")
-            XCTAssertTrue(callees.contains("kk_system_nanoTime"), "Expected System.nanoTime runtime call")
-            XCTAssertTrue(callees.contains("kk_system_process_start_nanos"), "Expected System.processStartNanos runtime call")
+            #expect(callees.contains("kk_system_currentTimeMillis"), "Expected System.currentTimeMillis runtime call")
+            #expect(callees.contains("kk_system_nanoTime"), "Expected System.nanoTime runtime call")
+            #expect(callees.contains("kk_system_process_start_nanos"), "Expected System.processStartNanos runtime call")
         }
     }
 
-    func testMeasureTimeCallsLowerToClockDeltaRuntimeCallees() throws {
+    @Test func testMeasureTimeCallsLowerToClockDeltaRuntimeCallees() throws {
         let source = """
         import kotlin.system.measureNanoTime
         import kotlin.system.measureTimeMicros
@@ -99,34 +100,30 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertGreaterThanOrEqual(
-                callees.filter { $0 == "kk_system_currentTimeMillis" }.count,
-                2,
+            #expect(
+                callees.filter { $0 == "kk_system_currentTimeMillis" }.count >= 2,
                 "measureTimeMillis should lower to start/end currentTimeMillis calls"
             )
-            XCTAssertGreaterThanOrEqual(
-                callees.filter { $0 == "kk_system_nanoTime" }.count,
-                2,
+            #expect(
+                callees.filter { $0 == "kk_system_nanoTime" }.count >= 2,
                 "measureNanoTime should lower to start/end nanoTime calls"
             )
-            XCTAssertGreaterThanOrEqual(
-                callees.filter { $0 == "kk_system_getTimeMicros" }.count,
-                2,
+            #expect(
+                callees.filter { $0 == "kk_system_getTimeMicros" }.count >= 2,
                 "measureTimeMicros should lower to start/end getTimeMicros calls"
             )
-            XCTAssertGreaterThanOrEqual(
-                callees.filter { $0 == "kk_op_sub" }.count,
-                3,
+            #expect(
+                callees.filter { $0 == "kk_op_sub" }.count >= 3,
                 "measureTimeMillis, measureTimeMicros, and measureNanoTime should lower to elapsed-time subtraction"
             )
         }
     }
 
-    func testMeasureTimeMillisCallableReferenceRethrowsThrownResult() throws {
+    @Test func testMeasureTimeMillisCallableReferenceRethrowsThrownResult() throws {
         let source = """
         import kotlin.system.measureTimeMillis
 
@@ -140,7 +137,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let hasRethrow = body.contains { instruction in
                 if case .rethrow = instruction {
@@ -149,10 +146,11 @@ extension BuildKIRRegressionTests {
                 return false
             }
 
-            XCTAssertTrue(
+            #expect(
                 hasRethrow,
                 "measureTimeMillis callable-reference path must rethrow a non-null thrown channel"
             )
         }
     }
 }
+#endif

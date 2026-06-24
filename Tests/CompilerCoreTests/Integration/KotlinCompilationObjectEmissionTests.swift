@@ -1,15 +1,16 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class KotlinCompilationObjectEmissionTests: XCTestCase {
-    func testCompileToObject_minimalMain() throws {
+@Suite struct KotlinCompilationObjectEmissionTests {
+    @Test func testCompileToObject_minimalMain() throws {
         try assertKotlinCompilesToObject("""
         fun main() = 0
         """, moduleName: "ObjMinimal")
     }
 
-    func testCompileToObject_functionCalls() throws {
+    @Test func testCompileToObject_functionCalls() throws {
         try assertKotlinCompilesToObject("""
         fun add(a: Int, b: Int): Int = a + b
         fun mul(a: Int, b: Int): Int = a * b
@@ -20,7 +21,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjFunctions")
     }
 
-    func testCompileToObject_classHierarchy() throws {
+    @Test func testCompileToObject_classHierarchy() throws {
         try assertKotlinCompilesToObject("""
         open class Base(val id: Int) {
             open fun describe(): String = "Base"
@@ -35,7 +36,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjClasses")
     }
 
-    func testCompileToObject_controlFlow() throws {
+    @Test func testCompileToObject_controlFlow() throws {
         try assertKotlinCompilesToObject("""
         fun fizzbuzz(n: Int): String {
             return when {
@@ -53,7 +54,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjControl")
     }
 
-    func testCompileToObject_lambdaAndHigherOrder() throws {
+    @Test func testCompileToObject_lambdaAndHigherOrder() throws {
         try assertKotlinCompilesToObject("""
         fun transform(x: Int, f: (Int) -> Int): Int = f(x)
         fun main() {
@@ -63,7 +64,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjLambda")
     }
 
-    func testCompileToObject_generics() throws {
+    @Test func testCompileToObject_generics() throws {
         try assertKotlinCompilesToObject("""
         class Pair<A, B>(val first: A, val second: B) {
             fun swap(): Pair<B, A> = Pair(second, first)
@@ -75,7 +76,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjGenerics")
     }
 
-    func testCompileToObject_nullable() throws {
+    @Test func testCompileToObject_nullable() throws {
         try assertKotlinCompilesToObject("""
         fun safeLength(s: String?): Int {
             return s?.length ?: -1
@@ -87,7 +88,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjNullable")
     }
 
-    func testCompileToObject_interfacePolymorphism() throws {
+    @Test func testCompileToObject_interfacePolymorphism() throws {
         try assertKotlinCompilesToObject("""
         interface Printable {
             fun print(): String
@@ -106,7 +107,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjInterface")
     }
 
-    func testCompileToObject_complexProgram() throws {
+    @Test func testCompileToObject_complexProgram() throws {
         try assertKotlinCompilesToObject("""
         data class Student(val name: String, val grade: Int)
 
@@ -131,7 +132,7 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjComplex")
     }
 
-    func testCompileToObject_whenExhaustive() throws {
+    @Test func testCompileToObject_whenExhaustive() throws {
         try assertKotlinCompilesToObject("""
         enum class Season { SPRING, SUMMER, AUTUMN, WINTER }
 
@@ -148,3 +149,4 @@ final class KotlinCompilationObjectEmissionTests: XCTestCase {
         """, moduleName: "ObjWhen")
     }
 }
+#endif

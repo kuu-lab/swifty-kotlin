@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 // STDLIB-CINTEROP-FN-039: kotlinx.cinterop.typeOf<T>() stub registration
-final class CinteropTypeOfSyntheticTests: XCTestCase {
+@Suite
+struct CinteropTypeOfSyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -11,32 +13,33 @@ final class CinteropTypeOfSyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected cinterop typeOf surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!ctx.diagnostics.hasError, "Expected cinterop typeOf surface to resolve cleanly, got: \(diagnostics)")
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
+    @Test
     func testCinteropTypeOfIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
-        let typeOfSymbol = try XCTUnwrap(
+        let typeOfSymbol = try #require(
             sema.symbols.lookupAll(fqName: cinteropPkg + [interner.intern("typeOf")]).first,
             "Expected kotlinx.cinterop.typeOf to be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(typeOfSymbol))
-        XCTAssertEqual(info.kind, .function)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertTrue(info.flags.contains(.inlineFunction))
+        let info = try #require(sema.symbols.symbol(typeOfSymbol))
+        #expect(info.kind == .function)
+        #expect(info.flags.contains(.synthetic))
+        #expect(info.flags.contains(.inlineFunction))
 
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: typeOfSymbol))
-        XCTAssertTrue(sig.parameterTypes.isEmpty)
-        XCTAssertEqual(sig.reifiedTypeParameterIndices, [0])
-        XCTAssertNil(sig.receiverType)
+        let sig = try #require(sema.symbols.functionSignature(for: typeOfSymbol))
+        #expect(sig.parameterTypes.isEmpty)
+        #expect(sig.reifiedTypeParameterIndices == [0])
+        #expect(sig.receiverType == nil)
 
         let reflectPkg = ["kotlin", "reflect"].map { interner.intern($0) }
-        let kTypeSymbol = try XCTUnwrap(
+        let kTypeSymbol = try #require(
             sema.symbols.lookup(fqName: reflectPkg + [interner.intern("KType")])
         )
         let expectedReturnType = sema.types.make(.classType(ClassType(
@@ -44,9 +47,10 @@ final class CinteropTypeOfSyntheticTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sig.returnType, expectedReturnType)
+        #expect(sig.returnType == expectedReturnType)
     }
 
+    @Test
     func testCinteropTypeOfResolvesInSource() throws {
         let source = """
         import kotlinx.cinterop.typeOf
@@ -57,3 +61,4 @@ final class CinteropTypeOfSyntheticTests: XCTestCase {
         let (_, _) = try makeSema(source: source)
     }
 }
+#endif

@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension TokenModelTests {
+    @Test
     func testSymbolAllCasesRawValues() {
         let expectedSymbols: [(Symbol, String)] = [
             (.plus, "+"),
@@ -51,10 +53,11 @@ extension TokenModelTests {
         ]
 
         for (symbol, expected) in expectedSymbols {
-            XCTAssertEqual(symbol.rawValue, expected, "Symbol.\(symbol) rawValue mismatch")
+            #expect(symbol.rawValue == expected, "Symbol.\(symbol) rawValue mismatch")
         }
     }
 
+    @Test
     func testSymbolInitFromRawValueRoundTrips() {
         let allRawValues = [
             "+", "-", "*", "/", "%", "++", "--", "&&", "||", "!",
@@ -66,17 +69,19 @@ extension TokenModelTests {
 
         for raw in allRawValues {
             let symbol = Symbol(rawValue: raw)
-            XCTAssertNotNil(symbol, "Symbol(rawValue: \"\(raw)\") should not be nil")
-            XCTAssertEqual(symbol?.rawValue, raw)
+            #expect(symbol != nil, "Symbol(rawValue: \"\(raw)\") should not be nil")
+            #expect(symbol?.rawValue == raw)
         }
     }
 
+    @Test
     func testSymbolInitFromInvalidRawValueReturnsNil() {
-        XCTAssertNil(Symbol(rawValue: "notASymbol"))
-        XCTAssertNil(Symbol(rawValue: ""))
-        XCTAssertNil(Symbol(rawValue: "+++"))
+        #expect(Symbol(rawValue: "notASymbol") == nil)
+        #expect(Symbol(rawValue: "") == nil)
+        #expect(Symbol(rawValue: "+++") == nil)
     }
 
+    @Test
     func testSymbolTokenKindEquality() {
         let allSymbols: [Symbol] = [
             .plus, .minus, .star, .slash, .percent, .plusPlus, .minusMinus,
@@ -91,128 +96,143 @@ extension TokenModelTests {
 
         for symbol in allSymbols {
             let kind = TokenKind.symbol(symbol)
-            XCTAssertEqual(kind, TokenKind.symbol(symbol))
+            #expect(kind == TokenKind.symbol(symbol))
         }
 
         // Different symbols should not be equal
-        XCTAssertNotEqual(TokenKind.symbol(.plus), TokenKind.symbol(.minus))
-        XCTAssertNotEqual(TokenKind.symbol(.lParen), TokenKind.symbol(.rParen))
+        #expect(TokenKind.symbol(.plus) != TokenKind.symbol(.minus))
+        #expect(TokenKind.symbol(.lParen) != TokenKind.symbol(.rParen))
     }
 
     // MARK: - TokenKind: all variants
 
+    @Test
     func testTokenKindLongLiteral() {
         let kind = TokenKind.longLiteral("42L")
-        XCTAssertEqual(kind, TokenKind.longLiteral("42L"))
-        XCTAssertNotEqual(kind, TokenKind.longLiteral("0L"))
-        XCTAssertNotEqual(kind, TokenKind.intLiteral("42"))
+        #expect(kind == TokenKind.longLiteral("42L"))
+        #expect(kind != TokenKind.longLiteral("0L"))
+        #expect(kind != TokenKind.intLiteral("42"))
     }
 
+    @Test
     func testTokenKindFloatLiteral() {
         let kind = TokenKind.floatLiteral("3.14f")
-        XCTAssertEqual(kind, TokenKind.floatLiteral("3.14f"))
-        XCTAssertNotEqual(kind, TokenKind.floatLiteral("2.71f"))
-        XCTAssertNotEqual(kind, TokenKind.doubleLiteral("3.14"))
+        #expect(kind == TokenKind.floatLiteral("3.14f"))
+        #expect(kind != TokenKind.floatLiteral("2.71f"))
+        #expect(kind != TokenKind.doubleLiteral("3.14"))
     }
 
+    @Test
     func testTokenKindDoubleLiteral() {
         let kind = TokenKind.doubleLiteral("3.14")
-        XCTAssertEqual(kind, TokenKind.doubleLiteral("3.14"))
-        XCTAssertNotEqual(kind, TokenKind.doubleLiteral("2.71"))
-        XCTAssertNotEqual(kind, TokenKind.floatLiteral("3.14f"))
+        #expect(kind == TokenKind.doubleLiteral("3.14"))
+        #expect(kind != TokenKind.doubleLiteral("2.71"))
+        #expect(kind != TokenKind.floatLiteral("3.14f"))
     }
 
+    @Test
     func testTokenKindStringQuote() {
         let kind = TokenKind.stringQuote
-        XCTAssertEqual(kind, TokenKind.stringQuote)
-        XCTAssertNotEqual(kind, TokenKind.rawStringQuote)
+        #expect(kind == TokenKind.stringQuote)
+        #expect(kind != TokenKind.rawStringQuote)
     }
 
+    @Test
     func testTokenKindRawStringQuote() {
         let kind = TokenKind.rawStringQuote
-        XCTAssertEqual(kind, TokenKind.rawStringQuote)
-        XCTAssertNotEqual(kind, TokenKind.stringQuote)
+        #expect(kind == TokenKind.rawStringQuote)
+        #expect(kind != TokenKind.stringQuote)
     }
 
+    @Test
     func testTokenKindTemplateExprStart() {
         let kind = TokenKind.templateExprStart
-        XCTAssertEqual(kind, TokenKind.templateExprStart)
-        XCTAssertNotEqual(kind, TokenKind.templateExprEnd)
+        #expect(kind == TokenKind.templateExprStart)
+        #expect(kind != TokenKind.templateExprEnd)
     }
 
+    @Test
     func testTokenKindTemplateExprEnd() {
         let kind = TokenKind.templateExprEnd
-        XCTAssertEqual(kind, TokenKind.templateExprEnd)
-        XCTAssertNotEqual(kind, TokenKind.templateExprStart)
+        #expect(kind == TokenKind.templateExprEnd)
+        #expect(kind != TokenKind.templateExprStart)
     }
 
+    @Test
     func testTokenKindTemplateSimpleNameStart() {
         let kind = TokenKind.templateSimpleNameStart
-        XCTAssertEqual(kind, TokenKind.templateSimpleNameStart)
-        XCTAssertNotEqual(kind, TokenKind.templateExprStart)
-        XCTAssertNotEqual(kind, TokenKind.templateExprEnd)
+        #expect(kind == TokenKind.templateSimpleNameStart)
+        #expect(kind != TokenKind.templateExprStart)
+        #expect(kind != TokenKind.templateExprEnd)
     }
 
+    @Test
     func testTokenKindIntLiteral() {
         let kind = TokenKind.intLiteral("42")
-        XCTAssertEqual(kind, TokenKind.intLiteral("42"))
-        XCTAssertNotEqual(kind, TokenKind.intLiteral("0"))
-        XCTAssertNotEqual(kind, TokenKind.longLiteral("42L"))
+        #expect(kind == TokenKind.intLiteral("42"))
+        #expect(kind != TokenKind.intLiteral("0"))
+        #expect(kind != TokenKind.longLiteral("42L"))
     }
 
+    @Test
     func testTokenKindIdentifier() {
         let interner = StringInterner()
         let id = interner.intern("myVar")
         let kind = TokenKind.identifier(id)
-        XCTAssertEqual(kind, TokenKind.identifier(id))
+        #expect(kind == TokenKind.identifier(id))
 
         let otherId = interner.intern("otherVar")
-        XCTAssertNotEqual(kind, TokenKind.identifier(otherId))
-        XCTAssertNotEqual(kind, TokenKind.backtickedIdentifier(id))
+        #expect(kind != TokenKind.identifier(otherId))
+        #expect(kind != TokenKind.backtickedIdentifier(id))
     }
 
+    @Test
     func testTokenKindStringSegment() {
         let interner = StringInterner()
         let seg = interner.intern("hello world")
         let kind = TokenKind.stringSegment(seg)
-        XCTAssertEqual(kind, TokenKind.stringSegment(seg))
+        #expect(kind == TokenKind.stringSegment(seg))
 
         let otherSeg = interner.intern("other")
-        XCTAssertNotEqual(kind, TokenKind.stringSegment(otherSeg))
+        #expect(kind != TokenKind.stringSegment(otherSeg))
     }
 
+    @Test
     func testTokenKindEof() {
         let kind = TokenKind.eof
-        XCTAssertEqual(kind, TokenKind.eof)
-        XCTAssertNotEqual(kind, TokenKind.stringQuote)
+        #expect(kind == TokenKind.eof)
+        #expect(kind != TokenKind.stringQuote)
     }
 
+    @Test
     func testTokenKindMissingVariant() {
         let missing1 = TokenKind.missing(expected: .keyword(.val))
         let missing2 = TokenKind.missing(expected: .keyword(.val))
         let missing3 = TokenKind.missing(expected: .keyword(.var))
 
-        XCTAssertEqual(missing1, missing2)
-        XCTAssertNotEqual(missing1, missing3)
-        XCTAssertNotEqual(missing1, TokenKind.keyword(.val))
+        #expect(missing1 == missing2)
+        #expect(missing1 != missing3)
+        #expect(missing1 != TokenKind.keyword(.val))
 
         // missing with symbol
         let missingSymbol = TokenKind.missing(expected: .symbol(.lParen))
-        XCTAssertEqual(missingSymbol, TokenKind.missing(expected: .symbol(.lParen)))
-        XCTAssertNotEqual(missingSymbol, TokenKind.missing(expected: .symbol(.rParen)))
+        #expect(missingSymbol == TokenKind.missing(expected: .symbol(.lParen)))
+        #expect(missingSymbol != TokenKind.missing(expected: .symbol(.rParen)))
 
         // missing with eof
         let missingEof = TokenKind.missing(expected: .eof)
-        XCTAssertEqual(missingEof, TokenKind.missing(expected: .eof))
+        #expect(missingEof == TokenKind.missing(expected: .eof))
     }
 
+    @Test
     func testTokenKindCharLiteral() {
         let kind = TokenKind.charLiteral(0x41)
-        XCTAssertEqual(kind, TokenKind.charLiteral(0x41))
-        XCTAssertNotEqual(kind, TokenKind.charLiteral(0x42))
-        XCTAssertNotEqual(kind, TokenKind.intLiteral("65"))
+        #expect(kind == TokenKind.charLiteral(0x41))
+        #expect(kind != TokenKind.charLiteral(0x42))
+        #expect(kind != TokenKind.intLiteral("65"))
     }
 
+    @Test
     func testTokenKindAllVariantsAreMutuallyDistinct() {
         let interner = StringInterner()
         let id = interner.intern("x")
@@ -242,11 +262,12 @@ extension TokenModelTests {
         for i in 0 ..< allKinds.count {
             for j in 0 ..< allKinds.count {
                 if i == j {
-                    XCTAssertEqual(allKinds[i], allKinds[j], "TokenKind at index \(i) should equal itself")
+                    #expect(allKinds[i] == allKinds[j], "TokenKind at index \(i) should equal itself")
                 } else {
-                    XCTAssertNotEqual(allKinds[i], allKinds[j], "TokenKind at index \(i) should not equal index \(j)")
+                    #expect(allKinds[i] != allKinds[j], "TokenKind at index \(i) should not equal index \(j)")
                 }
             }
         }
     }
 }
+#endif

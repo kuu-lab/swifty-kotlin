@@ -1,53 +1,56 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
+@Suite
+struct CoroutineIntrinsicsSyntheticStubTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
+    @Test
     func testCoroutineIntrinsicsStubsAreRegisteredWithExpectedShapes() throws {
         let (sema, interner) = try makeSema()
 
         let continuationFQName = ["kotlin", "coroutines", "Continuation"].map { interner.intern($0) }
-        let continuationSymbol = try XCTUnwrap(
+        let continuationSymbol = try #require(
             sema.symbols.lookup(fqName: continuationFQName),
             "Expected kotlin.coroutines.Continuation to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(continuationSymbol)?.kind, .interface)
+        #expect(sema.symbols.symbol(continuationSymbol)?.kind == .interface)
         let continuationTypeParams = sema.types.nominalTypeParameterSymbols(for: continuationSymbol)
-        XCTAssertEqual(continuationTypeParams.count, 1)
+        #expect(continuationTypeParams.count == 1)
 
         let coroutineSuspendedFQName = ["kotlin", "coroutines", "intrinsics", "COROUTINE_SUSPENDED"].map { interner.intern($0) }
-        let coroutineSuspendedSymbol = try XCTUnwrap(
+        let coroutineSuspendedSymbol = try #require(
             sema.symbols.lookup(fqName: coroutineSuspendedFQName),
             "Expected COROUTINE_SUSPENDED to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(coroutineSuspendedSymbol)?.kind, .property)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: coroutineSuspendedSymbol), "kk_coroutine_suspended")
-        XCTAssertEqual(sema.symbols.propertyType(for: coroutineSuspendedSymbol), sema.types.nullableAnyType)
+        #expect(sema.symbols.symbol(coroutineSuspendedSymbol)?.kind == .property)
+        #expect(sema.symbols.externalLinkName(for: coroutineSuspendedSymbol) == "kk_coroutine_suspended")
+        #expect(sema.symbols.propertyType(for: coroutineSuspendedSymbol) == sema.types.nullableAnyType)
 
         let suspendIntrinsicFQName = ["kotlin", "coroutines", "intrinsics", "suspendCoroutineUninterceptedOrReturn"].map { interner.intern($0) }
-        let suspendIntrinsicSymbol = try XCTUnwrap(
+        let suspendIntrinsicSymbol = try #require(
             sema.symbols.lookup(fqName: suspendIntrinsicFQName),
             "Expected suspendCoroutineUninterceptedOrReturn to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(suspendIntrinsicSymbol)?.kind, .function)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: suspendIntrinsicSymbol), nil)
+        #expect(sema.symbols.symbol(suspendIntrinsicSymbol)?.kind == .function)
+        #expect(sema.symbols.externalLinkName(for: suspendIntrinsicSymbol) == nil)
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: suspendIntrinsicSymbol))
-        XCTAssertEqual(signature.isSuspend, true)
-        XCTAssertEqual(signature.parameterTypes.count, 1)
-        XCTAssertEqual(signature.typeParameterSymbols.count, 1)
+        let signature = try #require(sema.symbols.functionSignature(for: suspendIntrinsicSymbol))
+        #expect(signature.isSuspend == true)
+        #expect(signature.parameterTypes.count == 1)
+        #expect(signature.typeParameterSymbols.count == 1)
 
-        let functionTypeParam = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let functionTypeParam = try #require(signature.typeParameterSymbols.first)
         let functionTypeParamType = sema.types.make(.typeParam(TypeParamType(
             symbol: functionTypeParam,
             nullability: .nonNull
@@ -64,10 +67,11 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(signature.parameterTypes, [blockType])
-        XCTAssertEqual(signature.returnType, functionTypeParamType)
+        #expect(signature.parameterTypes == [blockType])
+        #expect(signature.returnType == functionTypeParamType)
     }
 
+    @Test
     func testSuspendCoroutineIntrinsicsResolveInSource() throws {
         let source = """
         import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
@@ -84,10 +88,10 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else {
@@ -96,16 +100,17 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
                 return ctx.interner.resolve(calleeName) == "suspendCoroutineUninterceptedOrReturn"
             })
 
-            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .suspendCoroutineUninterceptedOrReturn)
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .suspendCoroutineUninterceptedOrReturn)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) ==
                 nil
             )
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
         }
     }
 
+    @Test
     func testStartCoroutineUninterceptedOrReturnOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -113,35 +118,36 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
             interner.intern($0)
         }
         let symbols = sema.symbols.lookupAll(fqName: fqName)
-        XCTAssertEqual(symbols.count, 2)
+        #expect(symbols.count == 2)
 
         let signatures = symbols.compactMap { sema.symbols.functionSignature(for: $0) }
-        XCTAssertEqual(signatures.count, 2)
-        XCTAssertTrue(symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
-        XCTAssertTrue(symbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.inlineFunction) == true })
-        XCTAssertTrue(signatures.allSatisfy { $0.receiverType != nil })
-        XCTAssertTrue(signatures.allSatisfy { $0.returnType == sema.types.nullableAnyType })
-        XCTAssertTrue(signatures.contains(where: { $0.parameterTypes.count == 1 && $0.typeParameterSymbols.count == 1 }))
-        XCTAssertTrue(signatures.contains(where: { $0.parameterTypes.count == 2 && $0.typeParameterSymbols.count == 2 }))
+        #expect(signatures.count == 2)
+        #expect(symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
+        #expect(symbols.allSatisfy { sema.symbols.symbol($0)?.flags.contains(.inlineFunction) == true })
+        #expect(signatures.allSatisfy { $0.receiverType != nil })
+        #expect(signatures.allSatisfy { $0.returnType == sema.types.nullableAnyType })
+        #expect(signatures.contains(where: { $0.parameterTypes.count == 1 && $0.typeParameterSymbols.count == 1 }))
+        #expect(signatures.contains(where: { $0.parameterTypes.count == 2 && $0.typeParameterSymbols.count == 2 }))
     }
 
+    @Test
     func testRestrictsSuspensionAnnotationIsRegisteredWithClassTarget() throws {
         let (sema, interner) = try makeSema()
 
         let fqName = ["kotlin", "coroutines", "RestrictsSuspension"].map {
             interner.intern($0)
         }
-        let symbolID = try XCTUnwrap(
+        let symbolID = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.coroutines.RestrictsSuspension to be registered"
         )
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
-        XCTAssertEqual(symbol.kind, .annotationClass)
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
+        #expect(symbol.kind == .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
 
         let annotations = sema.symbols.annotations(for: symbolID)
-        XCTAssertTrue(
+        #expect(
             annotations.contains {
                 $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
                     && $0.arguments == ["AnnotationTarget.CLASS"]
@@ -150,6 +156,7 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testRestrictsSuspensionAnnotationTargetsClassLikeDeclarationsOnly() throws {
         let acceptedSource = """
         import kotlin.coroutines.RestrictsSuspension
@@ -163,7 +170,7 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
         let acceptedCtx = makeContextFromSource(acceptedSource)
         try runSema(acceptedCtx)
         let acceptedDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: acceptedCtx)
-        XCTAssertTrue(
+        #expect(
             acceptedDiagnostics.isEmpty,
             "Expected RestrictsSuspension to accept class-like declarations, got: \(acceptedCtx.diagnostics.diagnostics)"
         )
@@ -177,14 +184,14 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
         let rejectedCtx = makeContextFromSource(rejectedSource)
         try runSema(rejectedCtx)
         let rejectedDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: rejectedCtx)
-        XCTAssertEqual(
-            rejectedDiagnostics.count,
-            1,
+        #expect(
+            rejectedDiagnostics.count == 1,
             "Expected RestrictsSuspension to reject function declarations, got: \(rejectedCtx.diagnostics.diagnostics)"
         )
-        XCTAssertTrue(rejectedDiagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(rejectedDiagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
     }
 
+    @Test
     func testStartCoroutineUninterceptedOrReturnResolvesInSource() throws {
         let source = """
         import kotlin.coroutines.Continuation
@@ -199,19 +206,19 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, memberName, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(memberName) == "startCoroutineUninterceptedOrReturn"
             })
 
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), nil)
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.nullableAnyType)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.nullableAnyType)
         }
     }
 
@@ -223,3 +230,4 @@ final class CoroutineIntrinsicsSyntheticStubTests: XCTestCase {
         diagnostic.severity == .error
     }
 }
+#endif

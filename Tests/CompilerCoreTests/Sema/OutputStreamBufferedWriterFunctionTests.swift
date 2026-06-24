@@ -1,6 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
 /// Sema-surface tests for the `kotlin.io.bufferedWriter` extension function
 /// on `java.io.OutputStream` (STDLIB-IO-FN-009).
@@ -8,10 +8,12 @@ import XCTest
 /// Kotlin signature: `public fun OutputStream.bufferedWriter(
 ///     charset: Charset = Charsets.UTF_8
 /// ): BufferedWriter`
-final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
+@Suite
+struct OutputStreamBufferedWriterFunctionTests {
     /// `OutputStream.bufferedWriter(charset)` should resolve to the
     /// synthetic extension function in `kotlin.io` and return a
     /// `java.io.BufferedWriter`.
+    @Test
     func testOutputStreamBufferedWriterWithExplicitCharsetResolves() throws {
         let source = """
         import java.io.BufferedWriter
@@ -30,23 +32,23 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "OutputStream.bufferedWriter(charset) extension function in kotlin.io should resolve: \(diagnostics)"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let outputStreamSymbol = try XCTUnwrap(
+            let outputStreamSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "OutputStream"].map(interner.intern))
             )
-            let charsetSymbol = try XCTUnwrap(
+            let charsetSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern))
             )
-            let bufferedWriterSymbol = try XCTUnwrap(
+            let bufferedWriterSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern))
             )
 
@@ -63,7 +65,7 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
             let bufferedWriterSymbols = symbols.lookupAll(
                 fqName: ["kotlin", "io", "bufferedWriter"].map(interner.intern)
             )
-            let bufferedWriter = try XCTUnwrap(bufferedWriterSymbols.first { symbolID in
+            let bufferedWriter = try #require(bufferedWriterSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -72,19 +74,19 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
                     && signature.returnType == bufferedWriterType
             })
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: bufferedWriter),
-                "kk_output_stream_bufferedWriter"
+            #expect(
+                symbols.externalLinkName(for: bufferedWriter) == "kk_output_stream_bufferedWriter"
             )
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: bufferedWriter))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
+            let signature = try #require(symbols.functionSignature(for: bufferedWriter))
+            #expect(signature.valueParameterHasDefaultValues == [true])
+            #expect(signature.valueParameterIsVararg == [false])
         }
     }
 
     /// `OutputStream.bufferedWriter()` with no arguments should resolve via
     /// the `charset` parameter's default value (`Charsets.UTF_8`).
+    @Test
     func testOutputStreamBufferedWriterWithDefaultCharsetResolves() throws {
         let source = """
         import java.io.BufferedWriter
@@ -102,8 +104,8 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "OutputStream.bufferedWriter() with default charset should resolve: \(diagnostics)"
             )
         }
@@ -111,6 +113,7 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
 
     /// The returned `BufferedWriter` should be usable for `.write`, `.flush`,
     /// and `.close` member calls — confirming the type chain stays intact.
+    @Test
     func testOutputStreamBufferedWriterChainedMemberCallsResolve() throws {
         let source = """
         import java.io.File
@@ -131,8 +134,8 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Chained BufferedWriter member calls after OutputStream.bufferedWriter should resolve: \(diagnostics)"
             )
         }
@@ -141,6 +144,7 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
     /// The Sema layer should record the external link name on the symbol so
     /// codegen can resolve it to `kk_output_stream_bufferedWriter` later in
     /// the pipeline.
+    @Test
     func testOutputStreamBufferedWriterExternalLinkNameIsRegisteredOnSymbol() throws {
         let source = """
         import java.io.BufferedWriter
@@ -156,14 +160,14 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let outputStreamSymbol = try XCTUnwrap(
+            let outputStreamSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "OutputStream"].map(interner.intern))
             )
-            let charsetSymbol = try XCTUnwrap(
+            let charsetSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern))
             )
             let outputStreamType = types.make(.classType(ClassType(
@@ -175,17 +179,17 @@ final class OutputStreamBufferedWriterFunctionTests: XCTestCase {
             let bufferedWriterCandidates = symbols.lookupAll(
                 fqName: ["kotlin", "io", "bufferedWriter"].map(interner.intern)
             )
-            let bufferedWriter = try XCTUnwrap(bufferedWriterCandidates.first { symbolID in
+            let bufferedWriter = try #require(bufferedWriterCandidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
                 return signature.receiverType == outputStreamType
                     && signature.parameterTypes == [charsetType]
             })
-            XCTAssertEqual(
-                symbols.externalLinkName(for: bufferedWriter),
-                "kk_output_stream_bufferedWriter"
+            #expect(
+                symbols.externalLinkName(for: bufferedWriter) == "kk_output_stream_bufferedWriter"
             )
         }
     }
 }
+#endif

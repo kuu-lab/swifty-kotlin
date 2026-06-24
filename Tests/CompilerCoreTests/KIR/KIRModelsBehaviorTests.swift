@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class KIRModelsBehaviorTests: XCTestCase {
-    func testArenaAppendLookupTransformAndModuleDerivedCounts() {
+@Suite @MainActor
+struct KIRModelsBehaviorTests {
+    @Test func testArenaAppendLookupTransformAndModuleDerivedCounts() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
@@ -74,15 +76,15 @@ final class KIRModelsBehaviorTests: XCTestCase {
         _ = arena.appendDecl(.nominalType(KIRNominalType(symbol: symB)))
         _ = arena.appendDecl(.function(fnB))
 
-        XCTAssertNotNil(arena.decl(declFnA))
-        XCTAssertNil(arena.decl(KIRDeclID(rawValue: -1)))
-        XCTAssertNil(arena.decl(KIRDeclID(rawValue: 999)))
-        XCTAssertEqual(arena.expr(expr0), .intLiteral(10))
-        XCTAssertEqual(arena.exprType(expr0), intType)
+        #expect(arena.decl(declFnA) != nil)
+        #expect(arena.decl(KIRDeclID(rawValue: -1)) == nil)
+        #expect(arena.decl(KIRDeclID(rawValue: 999)) == nil)
+        #expect(arena.expr(expr0) == .intLiteral(10))
+        #expect(arena.exprType(expr0) == intType)
         arena.setExprType(types.unitType, for: expr5)
-        XCTAssertEqual(arena.exprType(expr5), types.unitType)
-        XCTAssertNil(arena.expr(KIRExprID(rawValue: -1)))
-        XCTAssertNil(arena.expr(KIRExprID(rawValue: 999)))
+        #expect(arena.exprType(expr5) == types.unitType)
+        #expect(arena.expr(KIRExprID(rawValue: -1)) == nil)
+        #expect(arena.expr(KIRExprID(rawValue: 999)) == nil)
 
         arena.transformFunctions { fn in
             var copy = fn
@@ -91,24 +93,25 @@ final class KIRModelsBehaviorTests: XCTestCase {
         }
 
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declFnA])], arena: arena)
-        XCTAssertEqual(module.functionCount, 2)
-        XCTAssertEqual(module.symbolCount, 2)
+        #expect(module.functionCount == 2)
+        #expect(module.symbolCount == 2)
 
         module.recordLowering("NormalizeBlocks")
         module.recordLowering("OperatorLowering")
         let dump = module.dump(interner: interner, symbols: symbols)
 
-        XCTAssertTrue(dump.contains("function #\(symA.rawValue) alpha"))
-        XCTAssertTrue(dump.contains("global"))
-        XCTAssertTrue(dump.contains("type beta"))
-        XCTAssertTrue(dump.contains("const r"))
-        XCTAssertTrue(dump.contains("binary add"))
-        XCTAssertTrue(dump.contains("label L100"))
-        XCTAssertTrue(dump.contains("jumpIfEqual"))
-        XCTAssertTrue(dump.contains("jump L101"))
-        XCTAssertTrue(dump.contains("call beta"))
-        XCTAssertTrue(dump.contains("returnIfEqual"))
-        XCTAssertTrue(dump.contains("return r"))
-        XCTAssertTrue(dump.contains("lowerings: NormalizeBlocks, OperatorLowering"))
+        #expect(dump.contains("function #\(symA.rawValue) alpha"))
+        #expect(dump.contains("global"))
+        #expect(dump.contains("type beta"))
+        #expect(dump.contains("const r"))
+        #expect(dump.contains("binary add"))
+        #expect(dump.contains("label L100"))
+        #expect(dump.contains("jumpIfEqual"))
+        #expect(dump.contains("jump L101"))
+        #expect(dump.contains("call beta"))
+        #expect(dump.contains("returnIfEqual"))
+        #expect(dump.contains("return r"))
+        #expect(dump.contains("lowerings: NormalizeBlocks, OperatorLowering"))
     }
 }
+#endif

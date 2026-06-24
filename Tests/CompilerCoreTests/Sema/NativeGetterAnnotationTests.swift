@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeGetterAnnotationTests: XCTestCase {
+@Suite
+struct NativeGetterAnnotationTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -12,46 +14,49 @@ final class NativeGetterAnnotationTests: XCTestCase {
             let diagnostics = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected nativeGetter annotation surface to resolve cleanly, got: \(diagnostics)"
             )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
+    @Test
     func testNativeGetterAnnotationIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "nativeGetter"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "kotlin.js.nativeGetter must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+        let info = try #require(sema.symbols.symbol(symbol))
 
-        XCTAssertEqual(info.kind, .annotationClass)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
+        #expect(info.kind == .annotationClass)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
     }
 
+    @Test
     func testNativeGetterCarriesExpectedMetadata() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "nativeGetter"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        let target = try XCTUnwrap(
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        let target = try #require(
             sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" },
             "nativeGetter must carry @Target metadata"
         )
-        let deprecated = try XCTUnwrap(
+        let deprecated = try #require(
             sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.Deprecated" },
             "nativeGetter must carry Deprecated metadata"
         )
 
-        XCTAssertEqual(Set(target.arguments), Set(["AnnotationTarget.FUNCTION"]))
-        XCTAssertEqual(
-            deprecated.arguments,
-            ["message = \"Use inline extension function with body using dynamic\""]
+        #expect(Set(target.arguments) == Set(["AnnotationTarget.FUNCTION"]))
+        #expect(
+            deprecated.arguments
+            == ["message = \"Use inline extension function with body using dynamic\""]
         )
     }
 }
+#endif

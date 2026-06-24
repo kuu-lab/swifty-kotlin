@@ -1,6 +1,6 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Sema-level coverage for the kotlin.system namespace (STDLIB-SYSTEM-001/002).
 ///
@@ -12,7 +12,8 @@ import XCTest
 /// - getTimeNanos top-level Native API visibility
 /// - System.currentTimeMillis / System.nanoTime member visibility
 /// - getTimeMillis (alias currentTimeMillis) and getTimeNanos (alias nanoTime) via System object
-final class SystemNamespaceSemaOverloadTests: XCTestCase {
+@Suite
+struct SystemNamespaceSemaOverloadTests {
 
     // MARK: - Helpers
 
@@ -21,9 +22,9 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func systemPkgExternalLink(
@@ -38,6 +39,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
 
     // MARK: - STDLIB-SYSTEM-001: API list / symbol registration
 
+    @Test
     func testKotlinSystemAPIInventoryMatchesTrackedSurface() throws {
         let (sema, interner) = try makeSema()
 
@@ -51,19 +53,18 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             ("measureNanoTime", "kk_system_measureNanoTime"),
         ]
         for function in implementedTopLevelFunctions {
-            XCTAssertEqual(
-                systemPkgExternalLink(for: function.name, sema: sema, interner: interner),
-                function.link,
+            #expect(
+                systemPkgExternalLink(for: function.name, sema: sema, interner: interner) == function.link,
                 "kotlin.system.\(function.name) should remain implemented via \(function.link)"
             )
         }
 
         let systemFQ = ["kotlin", "system", "System"].map { interner.intern($0) }
-        let systemSymbol = try XCTUnwrap(
+        let systemSymbol = try #require(
             sema.symbols.lookup(fqName: systemFQ),
             "Existing kotlin.system.System shim should remain registered"
         )
-        let systemName = try XCTUnwrap(sema.symbols.symbol(systemSymbol)?.fqName)
+        let systemName = try #require(sema.symbols.symbol(systemSymbol)?.fqName)
         let shimMembers = [
             ("currentTimeMillis", "kk_system_currentTimeMillis"),
             ("nanoTime", "kk_system_nanoTime"),
@@ -71,7 +72,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
         ]
         for member in shimMembers {
             let memberFQ = systemName + [interner.intern(member.0)]
-            XCTAssertTrue(
+            #expect(
                 sema.symbols.lookupAll(fqName: memberFQ).contains {
                     sema.symbols.externalLinkName(for: $0) == member.1
                 },
@@ -82,6 +83,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
 
     /// measureTimeMillis, measureTimeMicros, and measureNanoTime are distinct top-level symbols
     /// in kotlin.system and map to different runtime entry points.
+    @Test
     func testMeasureTimeFunctionsAreRegisteredAsSeparateSymbols() throws {
         let (sema, interner) = try makeSema()
 
@@ -95,73 +97,78 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             for: "measureNanoTime", sema: sema, interner: interner
         )
 
-        XCTAssertEqual(
-            millisLink, "kk_system_measureTimeMillis",
+        #expect(
+            millisLink == "kk_system_measureTimeMillis",
             "measureTimeMillis must link to kk_system_measureTimeMillis"
         )
-        XCTAssertEqual(
-            microsLink, "kk_system_measureTimeMicros",
+        #expect(
+            microsLink == "kk_system_measureTimeMicros",
             "measureTimeMicros must link to kk_system_measureTimeMicros"
         )
-        XCTAssertEqual(
-            nanoLink, "kk_system_measureNanoTime",
+        #expect(
+            nanoLink == "kk_system_measureNanoTime",
             "measureNanoTime must link to kk_system_measureNanoTime"
         )
-        XCTAssertNotEqual(
-            millisLink, nanoLink,
+        #expect(
+            millisLink != nanoLink,
             "measureTimeMillis and measureNanoTime must link to distinct runtime functions"
         )
-        XCTAssertNotEqual(
-            millisLink, microsLink,
+        #expect(
+            millisLink != microsLink,
             "measureTimeMillis and measureTimeMicros must link to distinct runtime functions"
         )
-        XCTAssertNotEqual(
-            microsLink, nanoLink,
+        #expect(
+            microsLink != nanoLink,
             "measureTimeMicros and measureNanoTime must link to distinct runtime functions"
         )
     }
 
+    @Test
     func testGetTimeMicrosIsRegisteredAsTopLevelNativeFunction() throws {
         let (sema, interner) = try makeSema()
         let link = systemPkgExternalLink(for: "getTimeMicros", sema: sema, interner: interner)
-        XCTAssertEqual(link, "kk_system_getTimeMicros")
+        #expect(link == "kk_system_getTimeMicros")
     }
 
+    @Test
     func testGetTimeMillisIsRegisteredAsTopLevelNativeFunction() throws {
         let (sema, interner) = try makeSema()
         let link = systemPkgExternalLink(for: "getTimeMillis", sema: sema, interner: interner)
-        XCTAssertEqual(link, "kk_system_getTimeMillis")
+        #expect(link == "kk_system_getTimeMillis")
     }
 
+    @Test
     func testGetTimeNanosIsRegisteredAsTopLevelNativeFunction() throws {
         let (sema, interner) = try makeSema()
         let link = systemPkgExternalLink(for: "getTimeNanos", sema: sema, interner: interner)
-        XCTAssertEqual(link, "kk_system_getTimeNanos")
+        #expect(link == "kk_system_getTimeNanos")
     }
 
     /// exitProcess is a top-level kotlin.system function that accepts an Int parameter.
+    @Test
     func testExitProcessIsRegisteredInKotlinSystemPackage() throws {
         let (sema, interner) = try makeSema()
 
         let link = systemPkgExternalLink(for: "exitProcess", sema: sema, interner: interner)
-        XCTAssertEqual(
-            link, "kk_system_exitProcess",
+        #expect(
+            link == "kk_system_exitProcess",
             "exitProcess must link to kk_system_exitProcess"
         )
     }
 
     /// The System object members (currentTimeMillis, nanoTime, processStartNanos)
     /// must be registered and link to the correct runtime functions.
+    @Test
     func testSystemObjectMembersAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         // Look up the System object symbol under kotlin.system
         let systemFQ = ["kotlin", "system", "System"].map { interner.intern($0) }
         let systemSymbolID = sema.symbols.lookup(fqName: systemFQ)
-        XCTAssertNotNil(systemSymbolID, "kotlin.system.System object must be registered")
+        #expect(systemSymbolID != nil, "kotlin.system.System object must be registered")
 
         guard let ownerID = systemSymbolID else { return }
-        let ownerSymbol = try XCTUnwrap(sema.symbols.symbol(ownerID))
+        let ownerSymbol = try #require(sema.symbols.symbol(ownerID))
 
         // Verify expected member links on the System object
         let expectedMembers: [(String, String)] = [
@@ -176,7 +183,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let foundLink = memberSymbols.contains { id in
                 sema.symbols.externalLinkName(for: id) == expectedLink
             }
-            XCTAssertTrue(
+            #expect(
                 foundLink,
                 "System.\(memberName) must link to \(expectedLink)"
             )
@@ -191,6 +198,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
     /// Note: measureTimeMillis uses a special fast path in CallTypeChecker that does NOT
     /// set callBinding (KIR lowering drives dispatch directly from the special kind tag).
     /// The test validates the kind tag and return type, matching the compiler's design.
+    @Test
     func testMeasureTimeMillisCallResolvesToCorrectCallee() throws {
         let source = """
         import kotlin.system.measureTimeMillis
@@ -204,12 +212,12 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected no errors for measureTimeMillis call")
+            #expect(!(ctx.diagnostics.hasError), "Expected no errors for measureTimeMillis call")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -220,15 +228,14 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             )
 
             // Type must be Long
-            XCTAssertEqual(
-                sema.bindings.exprTypes[callExpr],
-                sema.types.longType,
+            #expect(
+                sema.bindings.exprTypes[callExpr] == sema.types.longType,
                 "measureTimeMillis must resolve to Long"
             )
 
             // Must be tagged as measureTimeMillis special call
             let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
-            XCTAssertEqual(kind, .measureTimeMillis, "Expected .measureTimeMillis special call kind")
+            #expect(kind == .measureTimeMillis, "Expected .measureTimeMillis special call kind")
 
             // measureTimeMillis fast path does not set callBinding (KIR lowering reads special kind tag).
             // Instead verify the top-level symbol is registered with the correct link name.
@@ -237,7 +244,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let hasLink = allSymbols.contains {
                 sema.symbols.externalLinkName(for: $0) == "kk_system_measureTimeMillis"
             }
-            XCTAssertTrue(hasLink, "kotlin.system.measureTimeMillis must link to kk_system_measureTimeMillis")
+            #expect(hasLink, "kotlin.system.measureTimeMillis must link to kk_system_measureTimeMillis")
         }
     }
 
@@ -245,6 +252,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
     /// and resolves to Long.
     ///
     /// Note: Like measureTimeMillis, this uses the special fast path that does NOT set callBinding.
+    @Test
     func testMeasureTimeMicrosCallResolvesToCorrectCallee() throws {
         let source = """
         import kotlin.system.measureTimeMicros
@@ -258,12 +266,12 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected no errors for measureTimeMicros call")
+            #expect(!(ctx.diagnostics.hasError), "Expected no errors for measureTimeMicros call")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -273,14 +281,13 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
                 "Expected call to measureTimeMicros"
             )
 
-            XCTAssertEqual(
-                sema.bindings.exprTypes[callExpr],
-                sema.types.longType,
+            #expect(
+                sema.bindings.exprTypes[callExpr] == sema.types.longType,
                 "measureTimeMicros must resolve to Long"
             )
 
             let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
-            XCTAssertEqual(kind, .measureTimeMicros, "Expected .measureTimeMicros special call kind")
+            #expect(kind == .measureTimeMicros, "Expected .measureTimeMicros special call kind")
 
             // measureTimeMicros fast path does not set callBinding.
             // Verify the top-level symbol is registered with the correct link name.
@@ -289,7 +296,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let hasLink = allSymbols.contains {
                 sema.symbols.externalLinkName(for: $0) == "kk_system_measureTimeMicros"
             }
-            XCTAssertTrue(hasLink, "kotlin.system.measureTimeMicros must link to kk_system_measureTimeMicros")
+            #expect(hasLink, "kotlin.system.measureTimeMicros must link to kk_system_measureTimeMicros")
         }
     }
 
@@ -297,6 +304,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
     /// and resolves to Long.
     ///
     /// Note: Like measureTimeMillis, this uses the special fast path that does NOT set callBinding.
+    @Test
     func testMeasureNanoTimeCallResolvesToCorrectCallee() throws {
         let source = """
         import kotlin.system.measureNanoTime
@@ -310,12 +318,12 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected no errors for measureNanoTime call")
+            #expect(!(ctx.diagnostics.hasError), "Expected no errors for measureNanoTime call")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -326,15 +334,14 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             )
 
             // Type must be Long
-            XCTAssertEqual(
-                sema.bindings.exprTypes[callExpr],
-                sema.types.longType,
+            #expect(
+                sema.bindings.exprTypes[callExpr] == sema.types.longType,
                 "measureNanoTime must resolve to Long"
             )
 
             // Must be tagged as measureNanoTime special call
             let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
-            XCTAssertEqual(kind, .measureNanoTime, "Expected .measureNanoTime special call kind")
+            #expect(kind == .measureNanoTime, "Expected .measureNanoTime special call kind")
 
             // measureNanoTime fast path does not set callBinding.
             // Verify the top-level symbol is registered with the correct link name.
@@ -343,12 +350,13 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let hasLink = allSymbols.contains {
                 sema.symbols.externalLinkName(for: $0) == "kk_system_measureNanoTime"
             }
-            XCTAssertTrue(hasLink, "kotlin.system.measureNanoTime must link to kk_system_measureNanoTime")
+            #expect(hasLink, "kotlin.system.measureNanoTime must link to kk_system_measureNanoTime")
         }
     }
 
     /// measureTimeMillis, measureTimeMicros, and measureNanoTime must produce distinct special call kind tags
     /// when used in the same translation unit (overload disambiguation).
+    @Test
     func testMeasureTimeFunctionsResolveToDistinctCallees() throws {
         let source = """
         import kotlin.system.*
@@ -365,10 +373,10 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected no errors")
+            #expect(!(ctx.diagnostics.hasError), "Expected no errors")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             var millisKind: StdlibSpecialCallKind?
             var microsKind: StdlibSpecialCallKind?
@@ -389,25 +397,26 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
                 if name == "measureNanoTime" { nanoKind = kind }
             }
 
-            XCTAssertEqual(millisKind, .measureTimeMillis, "measureTimeMillis must be tagged .measureTimeMillis")
-            XCTAssertEqual(microsKind, .measureTimeMicros, "measureTimeMicros must be tagged .measureTimeMicros")
-            XCTAssertEqual(nanoKind, .measureNanoTime, "measureNanoTime must be tagged .measureNanoTime")
-            XCTAssertNotEqual(
-                millisKind, nanoKind,
+            #expect(millisKind == .measureTimeMillis, "measureTimeMillis must be tagged .measureTimeMillis")
+            #expect(microsKind == .measureTimeMicros, "measureTimeMicros must be tagged .measureTimeMicros")
+            #expect(nanoKind == .measureNanoTime, "measureNanoTime must be tagged .measureNanoTime")
+            #expect(
+                millisKind != nanoKind,
                 "measureTimeMillis and measureNanoTime must have distinct special call kind tags"
             )
-            XCTAssertNotEqual(
-                millisKind, microsKind,
+            #expect(
+                millisKind != microsKind,
                 "measureTimeMillis and measureTimeMicros must have distinct special call kind tags"
             )
-            XCTAssertNotEqual(
-                microsKind, nanoKind,
+            #expect(
+                microsKind != nanoKind,
                 "measureTimeMicros and measureNanoTime must have distinct special call kind tags"
             )
         }
     }
 
     /// exitProcess(Int) resolves with a single Int parameter and Nothing return type.
+    @Test
     func testExitProcessSignatureResolution() throws {
         let source = """
         import kotlin.system.exitProcess
@@ -421,12 +430,12 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected no errors for exitProcess call")
+            #expect(!(ctx.diagnostics.hasError), "Expected no errors for exitProcess call")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -437,25 +446,24 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             )
 
             // Return type should be Nothing
-            XCTAssertEqual(
-                sema.bindings.exprTypes[callExpr],
-                sema.types.nothingType,
+            #expect(
+                sema.bindings.exprTypes[callExpr] == sema.types.nothingType,
                 "exitProcess must have Nothing return type"
             )
 
             // Chosen callee must link to the exitProcess runtime function
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected a chosen callee for exitProcess"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_system_exitProcess"
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_system_exitProcess"
             )
         }
     }
 
     /// exitProcess must reject a call without an Int argument (wrong arity).
+    @Test
     func testExitProcessWithWrongArityProducesDiagnostic() throws {
         let source = """
         import kotlin.system.exitProcess
@@ -469,7 +477,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.hasError,
                 "exitProcess() without arguments must produce a sema error"
             )
@@ -480,6 +488,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
 
     /// System.currentTimeMillis() (analogous to getTimeMillis) is visible as a
     /// member of the kotlin.system.System object.
+    @Test
     func testSystemCurrentTimeMillisIsVisible() throws {
         let source = """
         import kotlin.system.System
@@ -493,15 +502,15 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "System.currentTimeMillis() must be resolvable without errors; got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let memberCallExpr = try XCTUnwrap(
+            let memberCallExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "currentTimeMillis"
@@ -509,9 +518,8 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
                 "Expected member call to currentTimeMillis"
             )
 
-            XCTAssertEqual(
-                sema.bindings.exprTypes[memberCallExpr],
-                sema.types.longType,
+            #expect(
+                sema.bindings.exprTypes[memberCallExpr] == sema.types.longType,
                 "System.currentTimeMillis() must return Long"
             )
         }
@@ -519,6 +527,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
 
     /// System.nanoTime() (analogous to getTimeNanos) is visible as a
     /// member of the kotlin.system.System object.
+    @Test
     func testSystemNanoTimeIsVisible() throws {
         let source = """
         import kotlin.system.System
@@ -532,15 +541,15 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "System.nanoTime() must be resolvable without errors; got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let memberCallExpr = try XCTUnwrap(
+            let memberCallExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "nanoTime"
@@ -548,9 +557,8 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
                 "Expected member call to nanoTime"
             )
 
-            XCTAssertEqual(
-                sema.bindings.exprTypes[memberCallExpr],
-                sema.types.longType,
+            #expect(
+                sema.bindings.exprTypes[memberCallExpr] == sema.types.longType,
                 "System.nanoTime() must return Long"
             )
         }
@@ -558,6 +566,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
 
     /// Both System.currentTimeMillis() and System.nanoTime() must resolve in the
     /// same translation unit, and their return types must both be Long.
+    @Test
     func testCurrentTimeMillisAndNanoTimeBothVisibleInSameFile() throws {
         let source = """
         import kotlin.system.System
@@ -573,8 +582,8 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Both System time members must be visible without errors"
             )
         }

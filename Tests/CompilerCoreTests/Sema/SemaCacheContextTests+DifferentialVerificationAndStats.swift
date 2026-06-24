@@ -1,8 +1,8 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension SemaCacheContextTests {
-    func testDifferentialVerificationUnresolvedFunction() throws {
+    @Test func testDifferentialVerificationUnresolvedFunction() throws {
         let source = """
         fun main() {
             val x = unknown(42)
@@ -17,14 +17,13 @@ extension SemaCacheContextTests {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostics must match for unresolved function with and without cache"
         )
     }
 
-    func testDifferentialVerificationClassAndMemberCall() throws {
+    @Test func testDifferentialVerificationClassAndMemberCall() throws {
         let source = """
         class Foo {
             fun bar(): Int = 42
@@ -43,14 +42,13 @@ extension SemaCacheContextTests {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostics must match for class member calls with and without cache"
         )
     }
 
-    func testDifferentialVerificationBinaryOperator() throws {
+    @Test func testDifferentialVerificationBinaryOperator() throws {
         let source = """
         fun main() {
             val a = 1 + 2
@@ -67,14 +65,13 @@ extension SemaCacheContextTests {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostics must match for binary operators with and without cache"
         )
     }
 
-    func testDifferentialVerificationMultipleOverloads() throws {
+    @Test func testDifferentialVerificationMultipleOverloads() throws {
         let source = """
         fun greet(name: String): String = "Hello, " + name
         fun greet(count: Int): String = "Hello #" + count.toString()
@@ -92,16 +89,15 @@ extension SemaCacheContextTests {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostics must match for overloaded functions with and without cache"
         )
     }
 
     // MARK: - Diagnostic Source-Range Correctness
 
-    func testDiagnosticSourceRangesCorrectWithCache() throws {
+    @Test func testDiagnosticSourceRangesCorrectWithCache() throws {
         // Two identical failing calls at different lines must produce diagnostics
         // that point to their respective (different) source locations.
         let source = """
@@ -117,17 +113,17 @@ extension SemaCacheContextTests {
 
         // There should be at least two diagnostics for the two unresolved calls
         let unresolvedDiags = diags.filter { $0.code == "KSWIFTK-SEMA-0023" }
-        XCTAssertGreaterThanOrEqual(
-            unresolvedDiags.count, 2,
+        #expect(
+            unresolvedDiags.count >= 2,
             "Should have at least 2 unresolved function diagnostics"
         )
         if unresolvedDiags.count >= 2 {
             // The two diagnostics must have different source ranges (different lines)
             let ranges = unresolvedDiags.compactMap(\.primaryRange)
-            XCTAssertEqual(ranges.count, unresolvedDiags.count, "All diagnostics should have a primaryRange")
+            #expect(ranges.count == unresolvedDiags.count, "All diagnostics should have a primaryRange")
             if ranges.count >= 2 {
-                XCTAssertNotEqual(
-                    ranges[0], ranges[1],
+                #expect(
+                    ranges[0] != ranges[1],
                     "Two identical failing calls at different locations must produce diagnostics with different source ranges"
                 )
             }
@@ -136,7 +132,7 @@ extension SemaCacheContextTests {
 
     // MARK: - Inheritance / Super Call with Cache
 
-    func testDifferentialVerificationInheritance() throws {
+    @Test func testDifferentialVerificationInheritance() throws {
         let source = """
         open class Animal {
             open fun speak(): String = "..."
@@ -158,16 +154,15 @@ extension SemaCacheContextTests {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostics must match for inheritance with and without cache"
         )
     }
 
     // MARK: - Callable Reference with Cache
 
-    func testDifferentialVerificationCallableReference() throws {
+    @Test func testDifferentialVerificationCallableReference() throws {
         let source = """
         fun double(x: Int): Int = x * 2
         fun main() {
@@ -183,16 +178,15 @@ extension SemaCacheContextTests {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostics must match for callable references with and without cache"
         )
     }
 
     // MARK: - Scope Cache Statistics
 
-    func testScopeCacheStatisticsAreTracked() {
+    @Test func testScopeCacheStatisticsAreTracked() {
         let setup = makeSemaModule()
         let interner = setup.interner
         let symbols = setup.symbols
@@ -209,29 +203,29 @@ extension SemaCacheContextTests {
 
         let cache = SemaCacheContext()
 
-        XCTAssertEqual(cache.scopeHits, 0)
-        XCTAssertEqual(cache.scopeMisses, 0)
+        #expect(cache.scopeHits == 0)
+        #expect(cache.scopeMisses == 0)
 
         // First lookup: cache miss
         _ = cache.lookupInScope(fooName, scope: scope)
-        XCTAssertEqual(cache.scopeHits, 0, "First lookup should be a miss")
-        XCTAssertEqual(cache.scopeMisses, 1, "First lookup should be a miss")
+        #expect(cache.scopeHits == 0, "First lookup should be a miss")
+        #expect(cache.scopeMisses == 1, "First lookup should be a miss")
 
         // Second lookup: cache hit
         _ = cache.lookupInScope(fooName, scope: scope)
-        XCTAssertEqual(cache.scopeHits, 1, "Second lookup should be a hit")
-        XCTAssertEqual(cache.scopeMisses, 1, "Miss count should not change")
+        #expect(cache.scopeHits == 1, "Second lookup should be a hit")
+        #expect(cache.scopeMisses == 1, "Miss count should not change")
 
         // Third lookup (different name): cache miss
         let barName = interner.intern("bar")
         _ = cache.lookupInScope(barName, scope: scope)
-        XCTAssertEqual(cache.scopeHits, 1, "Unknown name should be a miss")
-        XCTAssertEqual(cache.scopeMisses, 2, "Miss count should increment")
+        #expect(cache.scopeHits == 1, "Unknown name should be a miss")
+        #expect(cache.scopeMisses == 2, "Miss count should increment")
     }
 
     // MARK: - Lambda with Cache
 
-    func testDifferentialVerificationLambda() throws {
+    @Test func testDifferentialVerificationLambda() throws {
         let source = """
         fun apply(f: (Int) -> Int, x: Int): Int = f(x)
         fun main() {
@@ -247,9 +241,8 @@ extension SemaCacheContextTests {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostics must match for lambda expressions with and without cache"
         )
     }

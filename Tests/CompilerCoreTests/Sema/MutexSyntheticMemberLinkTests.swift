@@ -1,16 +1,18 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class MutexSyntheticMemberLinkTests: XCTestCase {
+@Suite
+struct MutexSyntheticMemberLinkTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func externalLinks(
@@ -22,7 +24,7 @@ final class MutexSyntheticMemberLinkTests: XCTestCase {
         return sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) }
     }
 
-    func testMutexMembersHaveCorrectExternalLinks() throws {
+    @Test func testMutexMembersHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expectations: [(member: String, link: String)] = [
@@ -35,10 +37,11 @@ final class MutexSyntheticMemberLinkTests: XCTestCase {
 
         for expectation in expectations {
             let links = externalLinks(for: expectation.member, sema: sema, interner: interner)
-            XCTAssertTrue(
+            #expect(
                 links.contains(expectation.link),
                 "Mutex.\(expectation.member)() stub missing"
             )
         }
     }
 }
+#endif

@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LibraryMetadataImportIntegrationTests {
-    func testLibraryImportRestoresFunctionAndPropertyTypeSignatures() throws {
+    @Test func testLibraryImportRestoresFunctionAndPropertyTypeSignatures() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -33,25 +34,25 @@ extension LibraryMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let ext = ctx.interner.intern("ext")
             let idName = ctx.interner.intern("id")
             let answerName = ctx.interner.intern("answer")
 
-            let functionSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, idName]).first)
-            let propertySymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, answerName]).first)
-            let functionSignature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
-            let propertyType = try XCTUnwrap(sema.symbols.propertyType(for: propertySymbol))
+            let functionSymbol = try #require(sema.symbols.lookupAll(fqName: [ext, idName]).first)
+            let propertySymbol = try #require(sema.symbols.lookupAll(fqName: [ext, answerName]).first)
+            let functionSignature = try #require(sema.symbols.functionSignature(for: functionSymbol))
+            let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
 
-            XCTAssertEqual(functionSignature.parameterTypes.count, 1)
-            XCTAssertEqual(functionSignature.isSuspend, false)
-            XCTAssertEqual(sema.types.kind(of: functionSignature.parameterTypes[0]), .primitive(.int, .nonNull))
-            XCTAssertEqual(sema.types.kind(of: functionSignature.returnType), .primitive(.int, .nonNull))
-            XCTAssertEqual(sema.types.kind(of: propertyType), .primitive(.int, .nonNull))
+            #expect(functionSignature.parameterTypes.count == 1)
+            #expect(functionSignature.isSuspend == false)
+            #expect(sema.types.kind(of: functionSignature.parameterTypes[0]) == .primitive(.int, .nonNull))
+            #expect(sema.types.kind(of: functionSignature.returnType) == .primitive(.int, .nonNull))
+            #expect(sema.types.kind(of: propertyType) == .primitive(.int, .nonNull))
         }
     }
 
-    func testLibraryImportRestoresKClassTypeSignatures() throws {
+    @Test func testLibraryImportRestoresKClassTypeSignatures() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -81,28 +82,28 @@ extension LibraryMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let ext = ctx.interner.intern("ext")
             let classOf = ctx.interner.intern("classOf")
             let classRef = ctx.interner.intern("classRef")
 
-            let functionSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, classOf]).first)
-            let propertySymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, classRef]).first)
-            let functionSignature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
-            let propertyType = try XCTUnwrap(sema.symbols.propertyType(for: propertySymbol))
+            let functionSymbol = try #require(sema.symbols.lookupAll(fqName: [ext, classOf]).first)
+            let propertySymbol = try #require(sema.symbols.lookupAll(fqName: [ext, classRef]).first)
+            let functionSignature = try #require(sema.symbols.functionSignature(for: functionSymbol))
+            let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
 
-            XCTAssertEqual(
-                functionSignature.returnType,
+            #expect(
+                functionSignature.returnType ==
                 sema.types.makeKClassType(argument: sema.types.intType)
             )
-            XCTAssertEqual(
-                propertyType,
+            #expect(
+                propertyType ==
                 sema.types.makeKClassType(argument: sema.types.intType, nullability: .nullable)
             )
         }
     }
 
-    func testLibraryImportRestoresExplicitNominalLayoutSlotsAndOffsets() throws {
+    @Test func testLibraryImportRestoresExplicitNominalLayoutSlotsAndOffsets() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -134,28 +135,28 @@ extension LibraryMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let ext = ctx.interner.intern("ext")
             let box = ctx.interner.intern("Box")
             let face = ctx.interner.intern("Face")
             let get = ctx.interner.intern("get")
             let value = ctx.interner.intern("value")
 
-            let boxSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, box]).first)
-            let faceSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, face]).first)
-            let getSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, box, get]).first)
-            let valueSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, box, value]).first)
-            let layout = try XCTUnwrap(sema.symbols.nominalLayout(for: boxSymbol))
+            let boxSymbol = try #require(sema.symbols.lookupAll(fqName: [ext, box]).first)
+            let faceSymbol = try #require(sema.symbols.lookupAll(fqName: [ext, face]).first)
+            let getSymbol = try #require(sema.symbols.lookupAll(fqName: [ext, box, get]).first)
+            let valueSymbol = try #require(sema.symbols.lookupAll(fqName: [ext, box, value]).first)
+            let layout = try #require(sema.symbols.nominalLayout(for: boxSymbol))
 
-            XCTAssertEqual(layout.fieldOffsets[valueSymbol], 2)
-            XCTAssertEqual(layout.vtableSlots[getSymbol], 0)
-            XCTAssertEqual(layout.itableSlots[faceSymbol], 0)
-            XCTAssertEqual(layout.vtableSize, 1)
-            XCTAssertEqual(layout.itableSize, 1)
+            #expect(layout.fieldOffsets[valueSymbol] == 2)
+            #expect(layout.vtableSlots[getSymbol] == 0)
+            #expect(layout.itableSlots[faceSymbol] == 0)
+            #expect(layout.vtableSize == 1)
+            #expect(layout.itableSize == 1)
         }
     }
 
-    func testLibraryImportReportsMetadataInconsistencyDiagnostics() throws {
+    @Test func testLibraryImportReportsMetadataInconsistencyDiagnostics() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -186,13 +187,16 @@ extension LibraryMetadataImportIntegrationTests {
             try runToKIR(ctx)
 
             let codes = Set(ctx.diagnostics.diagnostics.map(\.code))
-            XCTAssertTrue(codes.contains("KSWIFTK-LIB-0003"))
-            XCTAssertTrue(codes.contains("KSWIFTK-LIB-0004"))
-            XCTAssertTrue(codes.contains("KSWIFTK-LIB-0005"))
+            let hasLib0003 = codes.contains("KSWIFTK-LIB-0003")
+            #expect(hasLib0003)
+            let hasLib0004 = codes.contains("KSWIFTK-LIB-0004")
+            #expect(hasLib0004)
+            let hasLib0005 = codes.contains("KSWIFTK-LIB-0005")
+            #expect(hasLib0005)
         }
     }
 
-    func testWildcardImportResolvesKklibSymbols() throws {
+    @Test func testWildcardImportResolvesKklibSymbols() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -227,14 +231,14 @@ extension LibraryMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let helperSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "helper" &&
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic) &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["wc", "util", "helper"]
             }
-            XCTAssertNotNil(helperSymbol, "Wildcard import should resolve library function 'helper'")
+            #expect(helperSymbol != nil, "Wildcard import should resolve library function 'helper'")
 
             let widgetSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "Widget" &&
@@ -242,12 +246,13 @@ extension LibraryMetadataImportIntegrationTests {
                     symbol.flags.contains(.synthetic) &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["wc", "util", "Widget"]
             }
-            XCTAssertNotNil(widgetSymbol, "Wildcard import should resolve library class 'Widget'")
-            XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") })
+            #expect(widgetSymbol != nil, "Wildcard import should resolve library class 'Widget'")
+            let hasNoSemaError = !ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") }
+            #expect(hasNoSemaError)
         }
     }
 
-    func testDefaultImportResolvesKklibSymbolsFromStdlibPackages() throws {
+    @Test func testDefaultImportResolvesKklibSymbolsFromStdlibPackages() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -281,19 +286,20 @@ extension LibraryMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let listOfSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "listOf" &&
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic) &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "collections", "listOf"]
             }
-            XCTAssertNotNil(listOfSymbol, "Default import should resolve library function 'listOf' from kotlin.collections")
-            XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") })
+            #expect(listOfSymbol != nil, "Default import should resolve library function 'listOf' from kotlin.collections")
+            let hasNoSemaError = !ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") }
+            #expect(hasNoSemaError)
         }
     }
 
-    func testExplicitImportStillWorksAlongsideWildcardForKklibSymbols() throws {
+    @Test func testExplicitImportStillWorksAlongsideWildcardForKklibSymbols() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -330,14 +336,14 @@ extension LibraryMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let alphaSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "alpha" &&
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic) &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["mix", "api", "alpha"]
             }
-            XCTAssertNotNil(alphaSymbol, "Explicit import should resolve library function 'alpha'")
+            #expect(alphaSymbol != nil, "Explicit import should resolve library function 'alpha'")
 
             let betaSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "beta" &&
@@ -345,7 +351,7 @@ extension LibraryMetadataImportIntegrationTests {
                     symbol.flags.contains(.synthetic) &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["mix", "api", "beta"]
             }
-            XCTAssertNotNil(betaSymbol, "Wildcard import should resolve library function 'beta'")
+            #expect(betaSymbol != nil, "Wildcard import should resolve library function 'beta'")
 
             let gammaSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "Gamma" &&
@@ -353,8 +359,10 @@ extension LibraryMetadataImportIntegrationTests {
                     symbol.flags.contains(.synthetic) &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["mix", "api", "Gamma"]
             }
-            XCTAssertNotNil(gammaSymbol, "Wildcard import should resolve library class 'Gamma'")
-            XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") })
+            #expect(gammaSymbol != nil, "Wildcard import should resolve library class 'Gamma'")
+            let hasNoSemaError = !ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") }
+            #expect(hasNoSemaError)
         }
     }
 }
+#endif

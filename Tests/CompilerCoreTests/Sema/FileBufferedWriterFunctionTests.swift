@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-010: Validates that `File.bufferedWriter()` resolves through Sema
 /// for the `java.io.File` receiver and produces a `java.io.BufferedWriter`.
@@ -16,11 +17,12 @@ import XCTest
 /// Declared as a synthetic member of `java.io.File` (registered via
 /// `registerFileMemberFunction` with no-arg parameters; charset support
 /// is handled by the runtime which defaults to UTF-8).
-final class FileBufferedWriterFunctionTests: XCTestCase {
+@Suite
+struct FileBufferedWriterFunctionTests {
 
     // MARK: - Basic resolution
 
-    func testFileBufferedWriterNoArgsResolves() throws {
+    @Test func testFileBufferedWriterNoArgsResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.BufferedWriter
         import java.io.File
@@ -29,13 +31,13 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected File.bufferedWriter() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testFileBufferedWriterReturnTypeIsBufferedWriter() throws {
+    @Test func testFileBufferedWriterReturnTypeIsBufferedWriter() throws {
         let ctx = makeContextFromSource("""
         import java.io.BufferedWriter
         import java.io.File
@@ -47,7 +49,7 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected File.bufferedWriter() return type to be BufferedWriter, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -55,7 +57,7 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
 
     // MARK: - Chained member calls
 
-    func testFileBufferedWriterChainedWriteFlushCloseResolve() throws {
+    @Test func testFileBufferedWriterChainedWriteFlushCloseResolve() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
 
@@ -69,13 +71,13 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected chained BufferedWriter member calls to resolve, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testFileBufferedWriterInlineChainedCallsResolve() throws {
+    @Test func testFileBufferedWriterInlineChainedCallsResolve() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
 
@@ -85,7 +87,7 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected inline File.bufferedWriter().use { } to resolve, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -93,7 +95,7 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
 
     // MARK: - Sema surface inspection
 
-    func testFileBufferedWriterExtensionFunctionSurfaceIsRegistered() throws {
+    @Test func testFileBufferedWriterExtensionFunctionSurfaceIsRegistered() throws {
         let source = """
         import java.io.BufferedWriter
         import java.io.File
@@ -104,20 +106,20 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "File.bufferedWriter() should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let fileSymbol = try XCTUnwrap(
+            let fileSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
             )
-            let bufferedWriterSymbol = try XCTUnwrap(
+            let bufferedWriterSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern))
             )
             let fileType = types.make(.classType(ClassType(
@@ -131,7 +133,7 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
             let candidates = symbols.lookupAll(
                 fqName: ["java", "io", "File", "bufferedWriter"].map(interner.intern)
             )
-            let bufferedWriter = try XCTUnwrap(candidates.first { symbolID in
+            let bufferedWriter = try #require(candidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -140,14 +142,14 @@ final class FileBufferedWriterFunctionTests: XCTestCase {
                     && signature.returnType == bufferedWriterType
             }, "Expected to find java.io.File.bufferedWriter() with receiver=File, params=[], ret=BufferedWriter")
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: bufferedWriter),
-                "kk_file_bufferedWriter"
+            #expect(
+                symbols.externalLinkName(for: bufferedWriter) == "kk_file_bufferedWriter"
             )
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: bufferedWriter))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [])
-            XCTAssertEqual(signature.valueParameterIsVararg, [])
+            let signature = try #require(symbols.functionSignature(for: bufferedWriter))
+            #expect(signature.valueParameterHasDefaultValues == [])
+            #expect(signature.valueParameterIsVararg == [])
         }
     }
 }
+#endif

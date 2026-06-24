@@ -1,23 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropNativePlacementPlaceFunctionTests: XCTestCase {
-    func testNativePlacementPlaceFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropNativePlacementPlaceFunctionTests {
+    @Test func testNativePlacementPlaceFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected NativePlacement.place<T>() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected NativePlacement.place<T>() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -37,7 +34,7 @@ final class NativeCInteropNativePlacementPlaceFunctionTests: XCTestCase {
         let cPointerSymbol = try cinteropSymbol("CPointer")
 
         let placeFQName = cinteropPkg + [interner.intern("place")]
-        let placeSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: placeFQName).first { symbolID in
+        let placeSymbol = try #require(sema.symbols.lookupAll(fqName: placeFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
@@ -46,8 +43,8 @@ final class NativeCInteropNativePlacementPlaceFunctionTests: XCTestCase {
                 && signature.typeParameterSymbols.count == 1
         }, "NativePlacement.place<T>(value: CValues<T>): CPointer<T> must be registered")
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: placeSymbol))
-        let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let signature = try #require(sema.symbols.functionSignature(for: placeSymbol))
+        let typeParameter = try #require(signature.typeParameterSymbols.first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -62,20 +59,20 @@ final class NativeCInteropNativePlacementPlaceFunctionTests: XCTestCase {
             args: [.invariant(typeParameterType)],
             nullability: .nonNull
         )))
-        let flags = try XCTUnwrap(sema.symbols.symbol(placeSymbol)?.flags)
+        let flags = try #require(sema.symbols.symbol(placeSymbol)?.flags)
 
-        XCTAssertTrue(flags.isSuperset(of: [.synthetic, .inlineFunction]))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: placeSymbol), sema.symbols.lookup(fqName: cinteropPkg))
-        XCTAssertEqual(signature.receiverType, nativePlacementType)
-        XCTAssertEqual(signature.parameterTypes, [expectedParamType])
-        XCTAssertEqual(signature.returnType, expectedReturnType)
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[cVariableType]])
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [cVariableType])
-        XCTAssertEqual(sema.symbols.parentSymbol(for: typeParameter), placeSymbol)
-        XCTAssertEqual(signature.reifiedTypeParameterIndices, [])
+        #expect(flags.isSuperset(of: [.synthetic, .inlineFunction]))
+        #expect(sema.symbols.parentSymbol(for: placeSymbol) == sema.symbols.lookup(fqName: cinteropPkg))
+        #expect(signature.receiverType == nativePlacementType)
+        #expect(signature.parameterTypes == [expectedParamType])
+        #expect(signature.returnType == expectedReturnType)
+        #expect(signature.typeParameterUpperBoundsList == [[cVariableType]])
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [cVariableType])
+        #expect(sema.symbols.parentSymbol(for: typeParameter) == placeSymbol)
+        #expect(signature.reifiedTypeParameterIndices == [])
     }
 
-    func testNativePlacementPlaceFunctionResolvesInSource() throws {
+    @Test func testNativePlacementPlaceFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointer
         import kotlinx.cinterop.CValues
@@ -89,9 +86,7 @@ final class NativeCInteropNativePlacementPlaceFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected NativePlacement.place<T>(value: CValues<T>) to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected NativePlacement.place<T>(value: CValues<T>) to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

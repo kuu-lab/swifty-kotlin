@@ -1,23 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropReinterpretFunctionTests: XCTestCase {
-    func testReinterpretFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropReinterpretFunctionTests {
+    @Test func testReinterpretFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer<*>.reinterpret<T>() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer<*>.reinterpret<T>() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -40,7 +37,7 @@ final class NativeCInteropReinterpretFunctionTests: XCTestCase {
         let reinterpretFQName = cinteropPkg + [interner.intern("reinterpret")]
         let reinterpretCandidates = sema.symbols.lookupAll(fqName: reinterpretFQName)
 
-        let reinterpret = try XCTUnwrap(reinterpretCandidates.first { symbolID in
+        let reinterpret = try #require(reinterpretCandidates.first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
@@ -48,8 +45,8 @@ final class NativeCInteropReinterpretFunctionTests: XCTestCase {
                 && signature.parameterTypes.isEmpty
                 && signature.typeParameterSymbols.count == 1
         })
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: reinterpret))
-        let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let signature = try #require(sema.symbols.functionSignature(for: reinterpret))
+        let typeParameter = try #require(signature.typeParameterSymbols.first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -59,20 +56,20 @@ final class NativeCInteropReinterpretFunctionTests: XCTestCase {
             args: [.invariant(typeParameterType)],
             nullability: .nonNull
         )))
-        let flags = try XCTUnwrap(sema.symbols.symbol(reinterpret)?.flags)
-        let typeParameterFlags = try XCTUnwrap(sema.symbols.symbol(typeParameter)?.flags)
+        let flags = try #require(sema.symbols.symbol(reinterpret)?.flags)
+        let typeParameterFlags = try #require(sema.symbols.symbol(typeParameter)?.flags)
 
-        XCTAssertTrue(flags.isSuperset(of: [.synthetic, .inlineFunction]))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: reinterpret), sema.symbols.lookup(fqName: cinteropPkg))
-        XCTAssertEqual(signature.returnType, expectedReturnType)
-        XCTAssertEqual(signature.reifiedTypeParameterIndices, [0])
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[cPointedType]])
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [cPointedType])
-        XCTAssertTrue(typeParameterFlags.isSuperset(of: [.synthetic, .reifiedTypeParameter]))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: typeParameter), reinterpret)
+        #expect(flags.isSuperset(of: [.synthetic, .inlineFunction]))
+        #expect(sema.symbols.parentSymbol(for: reinterpret) == sema.symbols.lookup(fqName: cinteropPkg))
+        #expect(signature.returnType == expectedReturnType)
+        #expect(signature.reifiedTypeParameterIndices == [0])
+        #expect(signature.typeParameterUpperBoundsList == [[cPointedType]])
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [cPointedType])
+        #expect(typeParameterFlags.isSuperset(of: [.synthetic, .reifiedTypeParameter]))
+        #expect(sema.symbols.parentSymbol(for: typeParameter) == reinterpret)
     }
 
-    func testReinterpretFunctionResolvesInSource() throws {
+    @Test func testReinterpretFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.ByteVar
         import kotlinx.cinterop.CPointer
@@ -85,9 +82,7 @@ final class NativeCInteropReinterpretFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer<ByteVar>.reinterpret<IntVar>() to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer<ByteVar>.reinterpret<IntVar>() to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

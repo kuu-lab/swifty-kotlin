@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-PATH-FN-025: Validates that `kotlin.io.path.Path.inputStream(vararg OpenOption)`
 /// resolves through Sema for plain Path receivers and yields a `java.io.InputStream` value.
@@ -8,7 +9,8 @@ import XCTest
 /// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs.swift`, and is
 /// expected to bind to the runtime helper `kk_path_inputStream` declared in
 /// `Sources/RuntimeABI/RuntimeABISpec.swift`.
-final class PathInputStreamFunctionTests: XCTestCase {
+@Suite
+struct PathInputStreamFunctionTests {
     private func memberCallExprIDs(
         named name: String,
         in ast: ASTModule,
@@ -26,7 +28,7 @@ final class PathInputStreamFunctionTests: XCTestCase {
         }
     }
 
-    func testPathInputStreamResolvesWithNoArguments() throws {
+    @Test func testPathInputStreamResolvesWithNoArguments() throws {
         let source = """
         import java.io.InputStream
         import kotlin.io.path.Path
@@ -41,14 +43,14 @@ final class PathInputStreamFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.inputStream() should resolve without arguments, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathInputStreamResolvesWithVarargOpenOptions() throws {
+    @Test func testPathInputStreamResolvesWithVarargOpenOptions() throws {
         let source = """
         import java.io.InputStream
         import java.nio.file.OpenOption
@@ -64,30 +66,30 @@ final class PathInputStreamFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.inputStream(option, option) should resolve with vararg OpenOption args, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathInputStreamFunctionSignatureAndRuntimeLink() throws {
+    @Test func testPathInputStreamFunctionSignatureAndRuntimeLink() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let pathSymbol = try XCTUnwrap(
+            let pathSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern))
             )
-            let openOptionSymbol = try XCTUnwrap(
+            let openOptionSymbol = try #require(
                 symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern))
             )
-            let inputStreamSymbol = try XCTUnwrap(
+            let inputStreamSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "InputStream"].map(interner.intern))
             )
             let pathType = types.make(
@@ -103,28 +105,27 @@ final class PathInputStreamFunctionTests: XCTestCase {
             let candidates = symbols.lookupAll(
                 fqName: ["kotlin", "io", "path", "inputStream"].map(interner.intern)
             )
-            let inputStream = try XCTUnwrap(candidates.first { symbolID in
+            let inputStream = try #require(candidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [openOptionType]
                     && signature.returnType == inputStreamType
             })
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: inputStream),
-                "kk_path_inputStream",
+            #expect(
+                symbols.externalLinkName(for: inputStream) == "kk_path_inputStream",
                 "Path.inputStream should bind to runtime helper kk_path_inputStream"
             )
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: inputStream))
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.returnType, inputStreamType)
-            XCTAssertEqual(signature.receiverType, pathType)
+            let signature = try #require(symbols.functionSignature(for: inputStream))
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.returnType == inputStreamType)
+            #expect(signature.receiverType == pathType)
         }
     }
 
-    func testPathInputStreamCallExpressionTypedAsInputStream() throws {
+    @Test func testPathInputStreamCallExpressionTypedAsInputStream() throws {
         let source = """
         import java.io.InputStream
         import java.nio.file.OpenOption
@@ -141,32 +142,32 @@ final class PathInputStreamFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Path.inputStream() should resolve cleanly: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let inputStreamSymbol = try XCTUnwrap(
+            let inputStreamSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "InputStream"].map(interner.intern))
             )
             let inputStreamType = types.make(
                 .classType(ClassType(classSymbol: inputStreamSymbol, args: [], nullability: .nonNull))
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "inputStream", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(
-                    sema.bindings.exprTypes[callExpr],
-                    inputStreamType,
+                #expect(
+                    sema.bindings.exprTypes[callExpr] == inputStreamType,
                     "Each Path.inputStream() call expression must be typed as java.io.InputStream"
                 )
             }
         }
     }
 }
+#endif

@@ -1,11 +1,12 @@
-import XCTest
+#if canImport(Testing)
+import Testing
 @testable import CompilerCore
 
-final class AbstractOpenOverrideTests: XCTestCase {
+@Suite struct AbstractOpenOverrideTests {
 
     // MARK: - Original Test Case Validation
 
-    func testOriginalAbstractOpenOverrideCase() throws {
+    @Test func testOriginalAbstractOpenOverrideCase() throws {
         let source = """
         abstract class Shape {
             abstract fun area(): Double
@@ -36,10 +37,10 @@ final class AbstractOpenOverrideTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testMissingAbstractOverride() throws {
+    @Test func testMissingAbstractOverride() throws {
         let source = """
         abstract class Shape {
             abstract fun area(): Double
@@ -57,7 +58,7 @@ final class AbstractOpenOverrideTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testMissingOverrideModifier() throws {
+    @Test func testMissingOverrideModifier() throws {
         let source = """
         abstract class Shape {
             abstract fun area(): Double
@@ -77,7 +78,7 @@ final class AbstractOpenOverrideTests: XCTestCase {
 
     // MARK: - Advanced Test Cases
 
-    func testAbstractOverrideChaining() throws {
+    @Test func testAbstractOverrideChaining() throws {
         let source = """
         abstract class Shape {
             abstract fun area(): Double
@@ -99,10 +100,10 @@ final class AbstractOpenOverrideTests: XCTestCase {
 
         // Should be valid - abstract override chaining
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testFinalOverrideTermination() throws {
+    @Test func testFinalOverrideTermination() throws {
         let source = """
         open class Shape {
             open fun describe(): String = "Shape"
@@ -125,3 +126,4 @@ final class AbstractOpenOverrideTests: XCTestCase {
     }
 
 }
+#endif

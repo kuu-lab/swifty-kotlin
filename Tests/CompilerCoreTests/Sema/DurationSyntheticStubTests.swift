@@ -1,22 +1,24 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class DurationSyntheticStubTests: XCTestCase {
+@Suite
+struct DurationSyntheticStubTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testDurationOperatorMembersAreRegisteredWithReceiverType() throws {
+    @Test func testDurationOperatorMembersAreRegisteredWithReceiverType() throws {
         let (sema, interner) = try makeSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
-        let durationSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: durationFQName))
+        let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
         let durationType = sema.types.make(.classType(ClassType(
             classSymbol: durationSymbol,
             args: [],
@@ -43,26 +45,25 @@ final class DurationSyntheticStubTests: XCTestCase {
                     && signature.parameterTypes == member.parameterTypes
             }
 
-            XCTAssertEqual(
-                matchingSymbols.count,
-                1,
+            #expect(
+                matchingSymbols.count == 1,
                 "Expected exactly one Duration.\(member.name) overload with receiverType=Duration"
             )
-            let symbol = try XCTUnwrap(matchingSymbols.first)
-            XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .function)
-            XCTAssertTrue(
+            let symbol = try #require(matchingSymbols.first)
+            #expect(sema.symbols.symbol(symbol)?.kind == .function)
+            #expect(
                 sema.symbols.symbol(symbol)?.flags.contains(.operatorFunction) == true,
                 "Duration.\(member.name) should be an operatorFunction"
             )
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), member.link)
+            #expect(sema.symbols.externalLinkName(for: symbol) == member.link)
         }
     }
 
-    func testDurationIsoAndParseSurfaceIsRegistered() throws {
+    @Test func testDurationIsoAndParseSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
-        let durationSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: durationFQName))
+        let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
         let durationType = sema.types.make(.classType(ClassType(
             classSymbol: durationSymbol,
             args: [],
@@ -70,7 +71,7 @@ final class DurationSyntheticStubTests: XCTestCase {
         )))
 
         let toIsoFQName = durationFQName + [interner.intern("toIsoString")]
-        let toIsoSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: toIsoFQName).first { symbolID in
+        let toIsoSymbol = try #require(sema.symbols.lookupAll(fqName: toIsoFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
@@ -78,67 +79,67 @@ final class DurationSyntheticStubTests: XCTestCase {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == sema.types.stringType
         })
-        XCTAssertEqual(sema.symbols.externalLinkName(for: toIsoSymbol), "kk_duration_toIsoString")
-        XCTAssertFalse(
-            sema.symbols.symbol(toIsoSymbol)?.flags.contains(.operatorFunction) == true,
+        #expect(sema.symbols.externalLinkName(for: toIsoSymbol) == "kk_duration_toIsoString")
+        #expect(
+            !(sema.symbols.symbol(toIsoSymbol)?.flags.contains(.operatorFunction) == true),
             "Duration.toIsoString should not be registered as an operator"
         )
 
         let companionFQName = durationFQName + [interner.intern("Companion")]
         let parseFQName = companionFQName + [interner.intern("parse")]
-        let parseSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: parseFQName).first { symbolID in
+        let parseSymbol = try #require(sema.symbols.lookupAll(fqName: parseFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return signature.parameterTypes == [sema.types.stringType]
                 && signature.returnType == durationType
         })
-        XCTAssertEqual(sema.symbols.externalLinkName(for: parseSymbol), "kk_duration_parse")
-        XCTAssertTrue(
+        #expect(sema.symbols.externalLinkName(for: parseSymbol) == "kk_duration_parse")
+        #expect(
             sema.symbols.symbol(parseSymbol)?.flags.contains(.throwingFunction) == true,
             "Duration.parse should use the thrown channel for invalid input"
         )
 
         let parseOrNullFQName = companionFQName + [interner.intern("parseOrNull")]
-        let parseOrNullSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: parseOrNullFQName).first { symbolID in
+        let parseOrNullSymbol = try #require(sema.symbols.lookupAll(fqName: parseOrNullFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return signature.parameterTypes == [sema.types.stringType]
                 && signature.returnType == sema.types.makeNullable(durationType)
         })
-        XCTAssertEqual(sema.symbols.externalLinkName(for: parseOrNullSymbol), "kk_duration_parseOrNull")
+        #expect(sema.symbols.externalLinkName(for: parseOrNullSymbol) == "kk_duration_parseOrNull")
 
         let parseIsoFQName = companionFQName + [interner.intern("parseIsoString")]
-        let parseIsoSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: parseIsoFQName).first { symbolID in
+        let parseIsoSymbol = try #require(sema.symbols.lookupAll(fqName: parseIsoFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return signature.parameterTypes == [sema.types.stringType]
                 && signature.returnType == durationType
         })
-        XCTAssertEqual(sema.symbols.externalLinkName(for: parseIsoSymbol), "kk_duration_parseIsoString")
-        XCTAssertTrue(
+        #expect(sema.symbols.externalLinkName(for: parseIsoSymbol) == "kk_duration_parseIsoString")
+        #expect(
             sema.symbols.symbol(parseIsoSymbol)?.flags.contains(.throwingFunction) == true,
             "Duration.parseIsoString should use the thrown channel for invalid input"
         )
 
         let parseIsoOrNullFQName = companionFQName + [interner.intern("parseIsoStringOrNull")]
-        let parseIsoOrNullSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: parseIsoOrNullFQName).first { symbolID in
+        let parseIsoOrNullSymbol = try #require(sema.symbols.lookupAll(fqName: parseIsoOrNullFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return signature.parameterTypes == [sema.types.stringType]
                 && signature.returnType == sema.types.makeNullable(durationType)
         })
-        XCTAssertEqual(sema.symbols.externalLinkName(for: parseIsoOrNullSymbol), "kk_duration_parseIsoStringOrNull")
+        #expect(sema.symbols.externalLinkName(for: parseIsoOrNullSymbol) == "kk_duration_parseIsoStringOrNull")
     }
 
-    func testDurationToComponentsOverloadsAreRegistered() throws {
+    @Test func testDurationToComponentsOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
-        let durationSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: durationFQName))
+        let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
         let durationType = sema.types.make(.classType(ClassType(
             classSymbol: durationSymbol,
             args: [],
@@ -165,35 +166,35 @@ final class DurationSyntheticStubTests: XCTestCase {
         ]
 
         for overload in overloads {
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: toComponentsFQName).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: toComponentsFQName).first { symbolID in
                 sema.symbols.externalLinkName(for: symbolID) == overload.link
             })
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            XCTAssertEqual(signature.receiverType, durationType)
-            XCTAssertEqual(signature.parameterTypes.count, 1)
-            XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-            XCTAssertEqual(signature.returnType, sema.types.make(.typeParam(TypeParamType(
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(signature.receiverType == durationType)
+            #expect(signature.parameterTypes.count == 1)
+            #expect(signature.typeParameterSymbols.count == 1)
+            #expect(signature.returnType == sema.types.make(.typeParam(TypeParamType(
                 symbol: signature.typeParameterSymbols[0]
             ))))
-            XCTAssertTrue(
+            #expect(
                 sema.symbols.symbol(symbol)?.flags.contains(.inlineFunction) == true,
                 "Duration.toComponents should be registered as inline synthetic surface"
             )
             guard let actionType = signature.parameterTypes.first,
                   case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(actionType))
             else {
-                return XCTFail("Duration.toComponents action must be a function type")
+                Issue.record("Duration.toComponents action must be a function type"); return
             }
-            XCTAssertEqual(functionType.params, overload.params)
-            XCTAssertEqual(functionType.returnType, signature.returnType)
+            #expect(functionType.params == overload.params)
+            #expect(functionType.returnType == signature.returnType)
         }
     }
 
-    func testNumericToDurationExtensionsAreRegistered() throws {
+    @Test func testNumericToDurationExtensionsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
-        let durationSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: durationFQName))
+        let durationSymbol = try #require(sema.symbols.lookup(fqName: durationFQName))
         let durationType = sema.types.make(.classType(ClassType(
             classSymbol: durationSymbol,
             args: [],
@@ -201,7 +202,7 @@ final class DurationSyntheticStubTests: XCTestCase {
         )))
 
         let durationUnitFQName = ["kotlin", "time", "DurationUnit"].map { interner.intern($0) }
-        let durationUnitSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: durationUnitFQName))
+        let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: durationUnitFQName))
         let durationUnitType = sema.types.make(.classType(ClassType(
             classSymbol: durationUnitSymbol,
             args: [],
@@ -216,7 +217,7 @@ final class DurationSyntheticStubTests: XCTestCase {
         ]
 
         for overload in expected {
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: toDurationFQName).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: toDurationFQName).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -224,14 +225,14 @@ final class DurationSyntheticStubTests: XCTestCase {
                     && signature.parameterTypes == [durationUnitType]
                     && signature.returnType == durationType
             })
-            XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .function)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), overload.link)
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            XCTAssertEqual(signature.valueParameterSymbols.count, 1)
-            XCTAssertEqual(
-                sema.symbols.propertyType(for: signature.valueParameterSymbols[0]),
-                durationUnitType
+            #expect(sema.symbols.symbol(symbol)?.kind == .function)
+            #expect(sema.symbols.externalLinkName(for: symbol) == overload.link)
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(signature.valueParameterSymbols.count == 1)
+            #expect(
+                sema.symbols.propertyType(for: signature.valueParameterSymbols[0]) == durationUnitType
             )
         }
     }
 }
+#endif

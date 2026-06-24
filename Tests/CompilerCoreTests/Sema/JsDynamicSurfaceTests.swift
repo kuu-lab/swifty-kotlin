@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class JsDynamicSurfaceTests: XCTestCase {
+@Suite
+struct JsDynamicSurfaceTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -12,13 +14,13 @@ final class JsDynamicSurfaceTests: XCTestCase {
             let diagnostics = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected Dynamic surface to resolve cleanly, got: \(diagnostics)"
             )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -31,25 +33,24 @@ final class JsDynamicSurfaceTests: XCTestCase {
         return ctx
     }
 
-    func testDynamicInterfaceIsRegistered() throws {
+    @Test func testDynamicInterfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "Dynamic"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "kotlin.js.Dynamic must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+        let info = try #require(sema.symbols.symbol(symbol))
 
-        XCTAssertEqual(info.kind, .interface)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertEqual(
-            sema.symbols.parentSymbol(for: symbol),
-            sema.symbols.lookup(fqName: ["kotlin", "js"].map { interner.intern($0) })
+        #expect(info.kind == .interface)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(
+            sema.symbols.parentSymbol(for: symbol) == sema.symbols.lookup(fqName: ["kotlin", "js"].map { interner.intern($0) })
         )
     }
 
-    func testDynamicCanBeImportedAndUsedAsParameterType() {
+    @Test func testDynamicCanBeImportedAndUsedAsParameterType() {
         let source = """
         import kotlin.js.Dynamic
 
@@ -58,6 +59,7 @@ final class JsDynamicSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(errors.isEmpty, "Expected Dynamic parameter usage to type-check, got \(errors)")
+        #expect(errors.isEmpty, "Expected Dynamic parameter usage to type-check, got \(errors)")
     }
 }
+#endif

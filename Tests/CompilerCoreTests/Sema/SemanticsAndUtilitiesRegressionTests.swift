@@ -1,8 +1,9 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
+@Suite
+struct SemanticsAndUtilitiesRegressionTests {
     private func memberCallExprIDs(named name: String, in ast: ASTModule, interner: StringInterner) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
@@ -16,6 +17,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
+    @Test
     func testAtomicStoreExpressionIsTypedAsUnit() throws {
         let source = """
         import kotlin.concurrent.atomics.AtomicInt
@@ -30,13 +32,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Atomic.store() should be typed as Unit: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Atomic.store() should be typed as Unit: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testBuilderMemberChainWithSameNamePropertiesResolvesMemberFunctions() throws {
         let source = """
         class Config(
@@ -70,15 +70,12 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             try runSema(ctx)
 
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
             let interner = ctx.interner
             let helpers = TypeCheckHelpers()
 
-            let builderSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("Config"), interner.intern("Builder")]),
-                "Expected nested Config.Builder symbol"
-            )
+            let builderSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("Config"), interner.intern("Builder")]))
             let builderType = sema.types.make(.classType(ClassType(classSymbol: builderSymbol, args: [], nullability: .nonNull)))
             let portCandidates = helpers.collectMemberFunctionCandidates(
                 named: interner.intern("port"),
@@ -86,47 +83,30 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 sema: sema,
                 interner: interner
             )
-            XCTAssertTrue(
-                portCandidates.contains { candidate in
+            #expect(portCandidates.contains { candidate in
                     sema.symbols.symbol(candidate)?.fqName == [interner.intern("Config"), interner.intern("Builder"), interner.intern("port")]
-                },
-                "Expected Config.Builder.port to be visible among candidates"
-            )
+                }, "Expected Config.Builder.port to be visible among candidates")
 
-            let hostCall = try XCTUnwrap(memberCallExprIDs(named: "host", in: ast, interner: interner).first)
-            let portCall = try XCTUnwrap(memberCallExprIDs(named: "port", in: ast, interner: interner).first)
+            let hostCall = try #require(memberCallExprIDs(named: "host", in: ast, interner: interner).first)
+            let portCall = try #require(memberCallExprIDs(named: "port", in: ast, interner: interner).first)
             let hostExprType = sema.bindings.exprTypes[hostCall]
             let portExprType = sema.bindings.exprTypes[portCall]
 
             if case let .memberCall(portReceiverExpr, _, _, _, _) = ast.arena.expr(portCall) {
                 let portReceiverType = sema.bindings.exprTypes[portReceiverExpr]
-                XCTAssertEqual(
-                    portReceiverType,
-                    builderType,
-                    "Expected host() result used as port() receiver to stay Config.Builder, got \(portReceiverType.map(sema.types.renderType) ?? "nil"); diagnostics: \(diagnostics)"
-                )
+                #expect(portReceiverType == builderType, "Expected host() result used as port() receiver to stay Config.Builder, got \(portReceiverType.map(sema.types.renderType) ?? "nil"); diagnostics: \(diagnostics)")
             } else {
-                XCTFail("Expected port call expression to be a memberCall")
+                Issue.record("Expected port call expression to be a memberCall")
             }
 
-            XCTAssertNotNil(sema.bindings.callBinding(for: hostCall)?.chosenCallee, "Expected host() call to resolve")
-            XCTAssertEqual(
-                hostExprType,
-                builderType,
-                "Expected host() to return Config.Builder, got \(hostExprType.map(sema.types.renderType) ?? "nil"); diagnostics: \(diagnostics)"
-            )
-            XCTAssertEqual(
-                portExprType,
-                builderType,
-                "Expected port() to return Config.Builder, got \(portExprType.map(sema.types.renderType) ?? "nil"); diagnostics: \(diagnostics)"
-            )
-            XCTAssertNotNil(
-                sema.bindings.callBinding(for: portCall)?.chosenCallee,
-                "Expected port() call to resolve; diagnostics: \(diagnostics)"
-            )
+            #expect(sema.bindings.callBinding(for: hostCall)?.chosenCallee != nil, "Expected host() call to resolve")
+            #expect(hostExprType == builderType, "Expected host() to return Config.Builder, got \(hostExprType.map(sema.types.renderType) ?? "nil"); diagnostics: \(diagnostics)")
+            #expect(portExprType == builderType, "Expected port() to return Config.Builder, got \(portExprType.map(sema.types.renderType) ?? "nil"); diagnostics: \(diagnostics)")
+            #expect(sema.bindings.callBinding(for: portCall)?.chosenCallee != nil, "Expected port() call to resolve; diagnostics: \(diagnostics)")
         }
     }
 
+    @Test
     func testLegacyAtomicTypeAliasStillResolves() throws {
         let source = """
         import kotlin.concurrent.AtomicInt
@@ -140,13 +120,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Legacy kotlin.concurrent.AtomicInt alias should still resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Legacy kotlin.concurrent.AtomicInt alias should still resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testExperimentalAtomicOptInMarkerIsResolved() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -161,13 +139,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "ExperimentalAtomicApi marker should resolve under OptIn: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "ExperimentalAtomicApi marker should resolve under OptIn: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testAtomicReferenceInAtomicsPackageIsResolved() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -184,13 +160,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "ExperimentalAtomicApi marker should resolve under OptIn: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "ExperimentalAtomicApi marker should resolve under OptIn: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testAtomicLongInConcurrentPackageIsResolved() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -206,13 +180,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "AtomicLong in kotlin.concurrent should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "AtomicLong in kotlin.concurrent should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testAtomicIntArrayInConcurrentPackageIsResolved() throws {
         let source = """
         import kotlin.concurrent.AtomicIntArray
@@ -228,13 +200,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "AtomicIntArray in kotlin.concurrent should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "AtomicIntArray in kotlin.concurrent should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testAtomicLongArrayInConcurrentPackageIsResolved() throws {
         let source = """
         import kotlin.concurrent.AtomicLongArray
@@ -250,13 +220,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "AtomicLongArray in kotlin.concurrent should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "AtomicLongArray in kotlin.concurrent should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testExperimentalAtomicArraysInAtomicsPackageAreResolved() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -282,13 +250,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Experimental atomic arrays in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Experimental atomic arrays in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testJavaAtomicIntegerArrayAsKotlinAtomicArrayResolvesWithoutRuntimeLink() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -305,33 +271,20 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "AtomicIntegerArray.asKotlinAtomicArray should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "AtomicIntegerArray.asKotlinAtomicArray should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(
-                memberCallExprIDs(named: "asKotlinAtomicArray", in: ast, interner: ctx.interner).first
-            )
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            let chosenSymbol = try XCTUnwrap(sema.symbols.symbol(chosenCallee))
-            XCTAssertTrue(
-                chosenSymbol.flags.contains(.synthetic),
-                "AtomicIntegerArray.asKotlinAtomicArray should bind to the synthetic stdlib bridge"
-            )
-            XCTAssertEqual(
-                chosenSymbol.fqName.map(ctx.interner.resolve),
-                ["kotlin", "concurrent", "atomics", "asKotlinAtomicArray"]
-            )
-            XCTAssertNil(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "AtomicIntegerArray.asKotlinAtomicArray should lower as an identity copy, not a runtime ABI call"
-            )
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(memberCallExprIDs(named: "asKotlinAtomicArray", in: ast, interner: ctx.interner).first)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let chosenSymbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(chosenSymbol.flags.contains(.synthetic), "AtomicIntegerArray.asKotlinAtomicArray should bind to the synthetic stdlib bridge")
+            #expect(chosenSymbol.fqName.map(ctx.interner.resolve) == ["kotlin", "concurrent", "atomics", "asKotlinAtomicArray"])
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "AtomicIntegerArray.asKotlinAtomicArray should lower as an identity copy, not a runtime ABI call")
         }
     }
 
+    @Test
     func testCopyActionContextInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.CopyActionContext
@@ -346,13 +299,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "CopyActionContext in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "CopyActionContext in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testAtomicNativePtrInAtomicsPackageSurfaceIsResolved() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -376,13 +327,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "AtomicNativePtr in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "AtomicNativePtr in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathNameExtensionPropertyInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -397,13 +346,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.name extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.name extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathNameWithoutExtensionPropertyInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -418,13 +365,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.nameWithoutExtension extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.nameWithoutExtension extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathExtensionPropertyInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -439,13 +384,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.extension extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.extension extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathStringExtensionPropertyInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -460,13 +403,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.pathString extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.pathString extension property in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testCopyActionResultInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.CopyActionResult
@@ -483,13 +424,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "CopyActionResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "CopyActionResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathAppendTextExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -506,55 +445,53 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.appendText extension functions in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.appendText extension functions in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charSequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charSequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charSequenceType = types.make(.classType(ClassType(classSymbol: charSequenceSymbol, args: [], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let appendTextSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "appendText"].map(interner.intern))
-            let defaultAppendText = try XCTUnwrap(appendTextSymbols.first { symbolID in
+            let defaultAppendText = try #require(appendTextSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [charSequenceType]
                     && signature.returnType == pathType
             })
-            let charsetAppendText = try XCTUnwrap(appendTextSymbols.first { symbolID in
+            let charsetAppendText = try #require(appendTextSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [charSequenceType, charsetType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: defaultAppendText), "kk_path_appendText_default")
-            XCTAssertEqual(symbols.externalLinkName(for: charsetAppendText), "kk_path_appendText")
+            #expect(symbols.externalLinkName(for: defaultAppendText) == "kk_path_appendText_default")
+            #expect(symbols.externalLinkName(for: charsetAppendText) == "kk_path_appendText")
 
-            let defaultSignature = try XCTUnwrap(symbols.functionSignature(for: defaultAppendText))
-            let charsetSignature = try XCTUnwrap(symbols.functionSignature(for: charsetAppendText))
-            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(charsetSignature.valueParameterHasDefaultValues, [false, false])
+            let defaultSignature = try #require(symbols.functionSignature(for: defaultAppendText))
+            let charsetSignature = try #require(symbols.functionSignature(for: charsetAppendText))
+            #expect(defaultSignature.valueParameterHasDefaultValues == [false])
+            #expect(charsetSignature.valueParameterHasDefaultValues == [false, false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "appendText", in: ast, interner: interner)
 
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             let chosenCallees = callExprs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
-            XCTAssertTrue(chosenCallees.contains(defaultAppendText))
-            XCTAssertTrue(chosenCallees.contains(charsetAppendText))
+            #expect(chosenCallees.contains(defaultAppendText))
+            #expect(chosenCallees.contains(charsetAppendText))
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], pathType)
+                #expect(sema.bindings.exprTypes[callExpr] == pathType)
             }
         }
     }
 
+    @Test
     func testPathWriteTextOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered() throws {
         let source = """
         import java.nio.file.OpenOption
@@ -568,38 +505,36 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.writeText(text, charset, options) extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.writeText(text, charset, options) extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charSequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charSequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charSequenceType = types.make(.classType(ClassType(classSymbol: charSequenceSymbol, args: [], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let writeTextSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "writeText"].map(interner.intern))
-            let writeText = try XCTUnwrap(writeTextSymbols.first { symbolID in
+            let writeText = try #require(writeTextSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [charSequenceType, charsetType, openOptionType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: writeText), "kk_path_writeText_options")
+            #expect(symbols.externalLinkName(for: writeText) == "kk_path_writeText_options")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: writeText))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
+            let signature = try #require(symbols.functionSignature(for: writeText))
+            #expect(signature.valueParameterHasDefaultValues == [false, true, false])
+            #expect(signature.valueParameterIsVararg == [false, false, true])
         }
     }
 
+    @Test
     func testPathCopyToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.CopyOption
@@ -617,51 +552,49 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.copyTo(target, options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.copyTo(target, options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let copyOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "CopyOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let copyOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "CopyOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let copyOptionType = types.make(.classType(ClassType(classSymbol: copyOptionSymbol, args: [], nullability: .nonNull)))
             let copyToSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "copyTo"].map(interner.intern))
-            let copyTo = try XCTUnwrap(copyToSymbols.first { symbolID in
+            let copyTo = try #require(copyToSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType, copyOptionType]
                     && signature.returnType == pathType
             })
-            let overwriteCopyTo = try XCTUnwrap(copyToSymbols.first { symbolID in
+            let overwriteCopyTo = try #require(copyToSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType, types.booleanType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: copyTo), "kk_path_copyTo_options")
-            XCTAssertEqual(symbols.externalLinkName(for: overwriteCopyTo), "kk_path_copyTo_overwrite")
+            #expect(symbols.externalLinkName(for: copyTo) == "kk_path_copyTo_options")
+            #expect(symbols.externalLinkName(for: overwriteCopyTo) == "kk_path_copyTo_overwrite")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: copyTo))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
+            let signature = try #require(symbols.functionSignature(for: copyTo))
+            #expect(signature.valueParameterHasDefaultValues == [false, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "copyTo", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 3)
+            #expect(callExprs.count == 3)
             let chosenCallees = callExprs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
-            XCTAssertEqual(chosenCallees.filter { $0 == copyTo }.count, 2)
-            XCTAssertEqual(chosenCallees.filter { $0 == overwriteCopyTo }.count, 1)
+            #expect(chosenCallees.filter { $0 == copyTo }.count == 2)
+            #expect(chosenCallees.filter { $0 == overwriteCopyTo }.count == 1)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], pathType)
+                #expect(sema.bindings.exprTypes[callExpr] == pathType)
             }
         }
     }
 
+    @Test
     func testPathFileAttributesViewOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -680,23 +613,20 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.fileAttributesView<V>(options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.fileAttributesView<V>(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-            let fileAttributeViewSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttributeView"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let fileAttributeViewSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttributeView"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let fileAttributeViewType = types.make(.classType(ClassType(classSymbol: fileAttributeViewSymbol, args: [], nullability: .nonNull)))
             let fileAttributesViewSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "fileAttributesView"].map(interner.intern))
-            let fileAttributesView = try XCTUnwrap(fileAttributesViewSymbols.first { symbolID in
+            let fileAttributesView = try #require(fileAttributesViewSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID),
                       let typeParameterSymbol = signature.typeParameterSymbols.first
                 else {
@@ -710,28 +640,26 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == returnType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: fileAttributesView), "kk_path_fileAttributesView")
+            #expect(symbols.externalLinkName(for: fileAttributesView) == "kk_path_fileAttributesView")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: fileAttributesView))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-            XCTAssertEqual(signature.typeParameterUpperBoundsList, [[fileAttributeViewType]])
-            XCTAssertEqual(
-                symbols.typeParameterUpperBounds(for: try XCTUnwrap(signature.typeParameterSymbols.first)),
-                [fileAttributeViewType]
-            )
+            let signature = try #require(symbols.functionSignature(for: fileAttributesView))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(signature.typeParameterSymbols.count == 1)
+            #expect(signature.typeParameterUpperBoundsList == [[fileAttributeViewType]])
+            #expect(symbols.typeParameterUpperBounds(for: try #require(signature.typeParameterSymbols.first)) == [fileAttributeViewType])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "fileAttributesView", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, fileAttributesView)
-                XCTAssertNotNil(sema.bindings.exprTypes[callExpr])
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == fileAttributesView)
+                #expect(sema.bindings.exprTypes[callExpr] != nil)
             }
         }
     }
 
+    @Test
     func testPathGetLastModifiedTimeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -749,44 +677,42 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.getLastModifiedTime(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.getLastModifiedTime(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-            let fileTimeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileTime"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let fileTimeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileTime"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let fileTimeType = types.make(.classType(ClassType(classSymbol: fileTimeSymbol, args: [], nullability: .nonNull)))
             let getLastModifiedTimeSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "getLastModifiedTime"].map(interner.intern))
-            let getLastModifiedTime = try XCTUnwrap(getLastModifiedTimeSymbols.first { symbolID in
+            let getLastModifiedTime = try #require(getLastModifiedTimeSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == fileTimeType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: getLastModifiedTime), "kk_path_getLastModifiedTime")
+            #expect(symbols.externalLinkName(for: getLastModifiedTime) == "kk_path_getLastModifiedTime")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: getLastModifiedTime))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: getLastModifiedTime))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "getLastModifiedTime", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, getLastModifiedTime)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], fileTimeType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == getLastModifiedTime)
+                #expect(sema.bindings.exprTypes[callExpr] == fileTimeType)
             }
         }
     }
 
+    @Test
     func testPathIsDirectoryOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -803,42 +729,40 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.isDirectory(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.isDirectory(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let isDirectorySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "isDirectory"].map(interner.intern))
-            let isDirectory = try XCTUnwrap(isDirectorySymbols.first { symbolID in
+            let isDirectory = try #require(isDirectorySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == types.booleanType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: isDirectory), "kk_path_isDirectory")
+            #expect(symbols.externalLinkName(for: isDirectory) == "kk_path_isDirectory")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: isDirectory))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: isDirectory))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "isDirectory", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, isDirectory)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.booleanType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == isDirectory)
+                #expect(sema.bindings.exprTypes[callExpr] == types.booleanType)
             }
         }
     }
 
+    @Test
     func testPathListDirectoryEntriesGlobExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.collections.List
@@ -856,17 +780,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.listDirectoryEntries(glob) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.listDirectoryEntries(glob) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let listSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "collections", "List"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let listSymbol = try #require(symbols.lookup(fqName: ["kotlin", "collections", "List"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let listOfPathType = types.make(.classType(ClassType(
                 classSymbol: listSymbol,
@@ -874,28 +795,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let listDirectoryEntriesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "listDirectoryEntries"].map(interner.intern))
-            let listDirectoryEntries = try XCTUnwrap(listDirectoryEntriesSymbols.first { symbolID in
+            let listDirectoryEntries = try #require(listDirectoryEntriesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [types.stringType]
                     && signature.returnType == listOfPathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: listDirectoryEntries), "kk_path_listDirectoryEntries")
+            #expect(symbols.externalLinkName(for: listDirectoryEntries) == "kk_path_listDirectoryEntries")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: listDirectoryEntries))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
+            let signature = try #require(symbols.functionSignature(for: listDirectoryEntries))
+            #expect(signature.valueParameterHasDefaultValues == [true])
+            #expect(signature.valueParameterIsVararg == [false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "listDirectoryEntries", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, listDirectoryEntries)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], listOfPathType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == listDirectoryEntries)
+                #expect(sema.bindings.exprTypes[callExpr] == listOfPathType)
             }
         }
     }
 
+    @Test
     func testPathOutputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.io.OutputStream
@@ -913,44 +835,42 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.outputStream(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.outputStream(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
-            let outputStreamSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "io", "OutputStream"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let outputStreamSymbol = try #require(symbols.lookup(fqName: ["java", "io", "OutputStream"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let outputStreamType = types.make(.classType(ClassType(classSymbol: outputStreamSymbol, args: [], nullability: .nonNull)))
             let outputStreamSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "outputStream"].map(interner.intern))
-            let outputStream = try XCTUnwrap(outputStreamSymbols.first { symbolID in
+            let outputStream = try #require(outputStreamSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [openOptionType]
                     && signature.returnType == outputStreamType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: outputStream), "kk_path_outputStream")
+            #expect(symbols.externalLinkName(for: outputStream) == "kk_path_outputStream")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: outputStream))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: outputStream))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "outputStream", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, outputStream)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], outputStreamType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == outputStream)
+                #expect(sema.bindings.exprTypes[callExpr] == outputStreamType)
             }
         }
     }
 
+    @Test
     func testPathInputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.io.InputStream
@@ -968,44 +888,42 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.inputStream(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.inputStream(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
-            let inputStreamSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "io", "InputStream"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let inputStreamSymbol = try #require(symbols.lookup(fqName: ["java", "io", "InputStream"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let inputStreamType = types.make(.classType(ClassType(classSymbol: inputStreamSymbol, args: [], nullability: .nonNull)))
             let inputStreamSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "inputStream"].map(interner.intern))
-            let inputStream = try XCTUnwrap(inputStreamSymbols.first { symbolID in
+            let inputStream = try #require(inputStreamSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [openOptionType]
                     && signature.returnType == inputStreamType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: inputStream), "kk_path_inputStream")
+            #expect(symbols.externalLinkName(for: inputStream) == "kk_path_inputStream")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: inputStream))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: inputStream))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "inputStream", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, inputStream)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], inputStreamType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == inputStream)
+                #expect(sema.bindings.exprTypes[callExpr] == inputStreamType)
             }
         }
     }
 
+    @Test
     func testPathBaseSubpathsTopLevelFactoryInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -1019,19 +937,16 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path(base, subpaths) top-level factory in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path(base, subpaths) top-level factory in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let pathFactorySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern))
-            let pathFactory = try XCTUnwrap(pathFactorySymbols.first { symbolID in
+            let pathFactory = try #require(pathFactorySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -1039,17 +954,17 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [types.stringType, types.stringType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: pathFactory), "kk_path_get_base_subpaths")
+            #expect(symbols.externalLinkName(for: pathFactory) == "kk_path_get_base_subpaths")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: pathFactory))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
-            XCTAssertEqual(signature.valueParameterSymbols.count, 2)
-            XCTAssertEqual(interner.resolve(try XCTUnwrap(symbols.symbol(signature.valueParameterSymbols[0])?.name)), "base")
-            XCTAssertEqual(interner.resolve(try XCTUnwrap(symbols.symbol(signature.valueParameterSymbols[1])?.name)), "subpaths")
+            let signature = try #require(symbols.functionSignature(for: pathFactory))
+            #expect(signature.valueParameterHasDefaultValues == [false, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
+            #expect(signature.valueParameterSymbols.count == 2)
+            #expect(interner.resolve(try #require(symbols.symbol(signature.valueParameterSymbols[0])?.name)) == "base")
+            #expect(interner.resolve(try #require(symbols.symbol(signature.valueParameterSymbols[1])?.name)) == "subpaths")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else {
@@ -1057,11 +972,12 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 }
                 return interner.resolve(calleeName) == "Path"
             })
-            XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, pathFactory)
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], pathType)
+            #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == pathFactory)
+            #expect(sema.bindings.exprTypes[callExpr] == pathType)
         }
     }
 
+    @Test
     func testPathFileVisitorBuilderActionTopLevelFunctionSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.FileVisitor
@@ -1077,18 +993,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "fileVisitor(builderAction) top-level function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "fileVisitor(builderAction) top-level function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileVisitorSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "FileVisitor"].map(interner.intern)))
-            let fileVisitorBuilderSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "FileVisitorBuilder"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileVisitorSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "FileVisitor"].map(interner.intern)))
+            let fileVisitorBuilderSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "FileVisitorBuilder"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileVisitorOfPathType = types.make(.classType(ClassType(
                 classSymbol: fileVisitorSymbol,
@@ -1108,23 +1021,23 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let fileVisitorSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "fileVisitor"].map(interner.intern))
-            let fileVisitor = try XCTUnwrap(fileVisitorSymbols.first { symbolID in
+            let fileVisitor = try #require(fileVisitorSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
                 return signature.parameterTypes == [builderActionType]
                     && signature.returnType == fileVisitorOfPathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: fileVisitor), "kk_path_fileVisitor")
+            #expect(symbols.externalLinkName(for: fileVisitor) == "kk_path_fileVisitor")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: fileVisitor))
-            XCTAssertNil(signature.receiverType)
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
-            XCTAssertEqual(types.nominalTypeParameterSymbols(for: fileVisitorSymbol).count, 1)
+            let signature = try #require(symbols.functionSignature(for: fileVisitor))
+            #expect(signature.receiverType == nil)
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [false])
+            #expect(types.nominalTypeParameterSymbols(for: fileVisitorSymbol).count == 1)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else {
@@ -1132,11 +1045,12 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 }
                 return interner.resolve(calleeName) == "fileVisitor"
             })
-            XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, fileVisitor)
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], fileVisitorOfPathType)
+            #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == fileVisitor)
+            #expect(sema.bindings.exprTypes[callExpr] == fileVisitorOfPathType)
         }
     }
 
+    @Test
     func testPathVisitFileTreeVisitorExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.FileVisitor
@@ -1153,17 +1067,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.visitFileTree(visitor, maxDepth, followLinks) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.visitFileTree(visitor, maxDepth, followLinks) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileVisitorSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "FileVisitor"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileVisitorSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "FileVisitor"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileVisitorOfPathType = types.make(.classType(ClassType(
                 classSymbol: fileVisitorSymbol,
@@ -1172,7 +1083,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             )))
 
             let visitFileTreeSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "visitFileTree"].map(interner.intern))
-            let visitFileTree = try XCTUnwrap(visitFileTreeSymbols.first { symbolID in
+            let visitFileTree = try #require(visitFileTreeSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -1180,26 +1091,27 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [fileVisitorOfPathType, types.intType, types.booleanType]
                     && signature.returnType == types.unitType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: visitFileTree), "kk_path_visitFileTree")
+            #expect(symbols.externalLinkName(for: visitFileTree) == "kk_path_visitFileTree")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: visitFileTree))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, true, true])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, false])
-            XCTAssertEqual(signature.valueParameterSymbols.count, 3)
-            XCTAssertEqual(interner.resolve(try XCTUnwrap(symbols.symbol(signature.valueParameterSymbols[0])?.name)), "visitor")
-            XCTAssertEqual(interner.resolve(try XCTUnwrap(symbols.symbol(signature.valueParameterSymbols[1])?.name)), "maxDepth")
-            XCTAssertEqual(interner.resolve(try XCTUnwrap(symbols.symbol(signature.valueParameterSymbols[2])?.name)), "followLinks")
+            let signature = try #require(symbols.functionSignature(for: visitFileTree))
+            #expect(signature.valueParameterHasDefaultValues == [false, true, true])
+            #expect(signature.valueParameterIsVararg == [false, false, false])
+            #expect(signature.valueParameterSymbols.count == 3)
+            #expect(interner.resolve(try #require(symbols.symbol(signature.valueParameterSymbols[0])?.name)) == "visitor")
+            #expect(interner.resolve(try #require(symbols.symbol(signature.valueParameterSymbols[1])?.name)) == "maxDepth")
+            #expect(interner.resolve(try #require(symbols.symbol(signature.valueParameterSymbols[2])?.name)) == "followLinks")
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "visitFileTree", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, visitFileTree)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.unitType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == visitFileTree)
+                #expect(sema.bindings.exprTypes[callExpr] == types.unitType)
             }
         }
     }
 
+    @Test
     func testPathUseLinesRegisteredAsClassMemberOfPath() throws {
         let source = """
         import kotlin.io.path.Path
@@ -1212,18 +1124,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.useLines class member stubs should register without errors: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.useLines class member stubs should register without errors: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let sequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let sequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let sequenceOfStringType = types.make(.classType(ClassType(
                 classSymbol: sequenceSymbol,
@@ -1240,32 +1149,33 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             // useLines is registered as a class member of Path (non-generic, Any return)
             // so Sema can set chosenCallee directly, like File.useLines.
             let useLinesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "Path", "useLines"].map(interner.intern))
-            let fullUseLines = try XCTUnwrap(useLinesSymbols.first { symbolID in
+            let fullUseLines = try #require(useLinesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [charsetType, blockType]
                     && signature.returnType == types.anyType
                     && signature.typeParameterSymbols.isEmpty
             })
-            let defaultUseLines = try XCTUnwrap(useLinesSymbols.first { symbolID in
+            let defaultUseLines = try #require(useLinesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [blockType]
                     && signature.returnType == types.anyType
                     && signature.typeParameterSymbols.isEmpty
             })
-            XCTAssertEqual(symbols.externalLinkName(for: fullUseLines), "kk_path_useLines")
-            XCTAssertEqual(symbols.externalLinkName(for: defaultUseLines), "kk_path_useLines_default")
+            #expect(symbols.externalLinkName(for: fullUseLines) == "kk_path_useLines")
+            #expect(symbols.externalLinkName(for: defaultUseLines) == "kk_path_useLines_default")
 
-            let fullSignature = try XCTUnwrap(symbols.functionSignature(for: fullUseLines))
-            XCTAssertEqual(fullSignature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(fullSignature.valueParameterIsVararg, [false, false])
-            let defaultSignature = try XCTUnwrap(symbols.functionSignature(for: defaultUseLines))
-            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(defaultSignature.valueParameterIsVararg, [false])
+            let fullSignature = try #require(symbols.functionSignature(for: fullUseLines))
+            #expect(fullSignature.valueParameterHasDefaultValues == [true, false])
+            #expect(fullSignature.valueParameterIsVararg == [false, false])
+            let defaultSignature = try #require(symbols.functionSignature(for: defaultUseLines))
+            #expect(defaultSignature.valueParameterHasDefaultValues == [false])
+            #expect(defaultSignature.valueParameterIsVararg == [false])
         }
     }
 
+    @Test
     func testPathReadAttributesStringOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1283,18 +1193,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.readAttributes(attributes, options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.readAttributes(attributes, options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let mapSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let mapSymbol = try #require(symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let mapOfStringToNullableAnyType = types.make(.classType(ClassType(
@@ -1303,7 +1210,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let readAttributesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "readAttributes"].map(interner.intern))
-            let readAttributes = try XCTUnwrap(readAttributesSymbols.first { symbolID in
+            let readAttributes = try #require(readAttributesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -1311,22 +1218,23 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [types.stringType, linkOptionType]
                     && signature.returnType == mapOfStringToNullableAnyType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: readAttributes), "kk_path_readAttributes_string")
+            #expect(symbols.externalLinkName(for: readAttributes) == "kk_path_readAttributes_string")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: readAttributes))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
+            let signature = try #require(symbols.functionSignature(for: readAttributes))
+            #expect(signature.valueParameterHasDefaultValues == [false, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "readAttributes", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, readAttributes)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], mapOfStringToNullableAnyType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == readAttributes)
+                #expect(sema.bindings.exprTypes[callExpr] == mapOfStringToNullableAnyType)
             }
         }
     }
 
+    @Test
     func testPathUseDirectoryEntriesExtensionFunctionInIOPathPackageSurfaceIsRegistered() throws {
         let source = """
         import kotlin.io.path.Path
@@ -1339,17 +1247,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.useDirectoryEntries(glob, block) extension function in kotlin.io.path should register: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.useDirectoryEntries(glob, block) extension function in kotlin.io.path should register: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let sequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let sequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let sequenceOfPathType = types.make(.classType(ClassType(
                 classSymbol: sequenceSymbol,
@@ -1357,7 +1262,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let useDirectoryEntriesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "useDirectoryEntries"].map(interner.intern))
-            let fullUseDirectoryEntries = try XCTUnwrap(useDirectoryEntriesSymbols.first { symbolID in
+            let fullUseDirectoryEntries = try #require(useDirectoryEntriesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID),
                       let typeParameterSymbol = signature.typeParameterSymbols.first
                 else {
@@ -1374,7 +1279,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [types.stringType, blockType]
                     && signature.returnType == typeParameterType
             })
-            let defaultUseDirectoryEntries = try XCTUnwrap(useDirectoryEntriesSymbols.first { symbolID in
+            let defaultUseDirectoryEntries = try #require(useDirectoryEntriesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID),
                       let typeParameterSymbol = signature.typeParameterSymbols.first
                 else {
@@ -1391,21 +1296,22 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [blockType]
                     && signature.returnType == typeParameterType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: fullUseDirectoryEntries), "kk_path_useDirectoryEntries")
-            XCTAssertEqual(symbols.externalLinkName(for: defaultUseDirectoryEntries), "kk_path_useDirectoryEntries_default")
+            #expect(symbols.externalLinkName(for: fullUseDirectoryEntries) == "kk_path_useDirectoryEntries")
+            #expect(symbols.externalLinkName(for: defaultUseDirectoryEntries) == "kk_path_useDirectoryEntries_default")
 
-            let fullSignature = try XCTUnwrap(symbols.functionSignature(for: fullUseDirectoryEntries))
-            XCTAssertEqual(fullSignature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(fullSignature.valueParameterIsVararg, [false, false])
-            let defaultSignature = try XCTUnwrap(symbols.functionSignature(for: defaultUseDirectoryEntries))
-            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(defaultSignature.valueParameterIsVararg, [false])
+            let fullSignature = try #require(symbols.functionSignature(for: fullUseDirectoryEntries))
+            #expect(fullSignature.valueParameterHasDefaultValues == [true, false])
+            #expect(fullSignature.valueParameterIsVararg == [false, false])
+            let defaultSignature = try #require(symbols.functionSignature(for: defaultUseDirectoryEntries))
+            #expect(defaultSignature.valueParameterHasDefaultValues == [false])
+            #expect(defaultSignature.valueParameterIsVararg == [false])
 
-            XCTAssertEqual(fullSignature.typeParameterSymbols.count, 1)
-            XCTAssertEqual(defaultSignature.typeParameterSymbols.count, 1)
+            #expect(fullSignature.typeParameterSymbols.count == 1)
+            #expect(defaultSignature.typeParameterSymbols.count == 1)
         }
     }
 
+    @Test
     func testPathReadAttributesGenericOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1424,23 +1330,20 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.readAttributes<A>(options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.readAttributes<A>(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let basicFileAttributesSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "BasicFileAttributes"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let basicFileAttributesSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "BasicFileAttributes"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let basicFileAttributesType = types.make(.classType(ClassType(classSymbol: basicFileAttributesSymbol, args: [], nullability: .nonNull)))
             let readAttributesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "readAttributes"].map(interner.intern))
-            let readAttributes = try XCTUnwrap(readAttributesSymbols.first { symbolID in
+            let readAttributes = try #require(readAttributesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID),
                       let typeParameterSymbol = signature.typeParameterSymbols.first
                 else {
@@ -1454,28 +1357,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == returnType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: readAttributes), "kk_path_readAttributes")
+            #expect(symbols.externalLinkName(for: readAttributes) == "kk_path_readAttributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: readAttributes))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-            XCTAssertEqual(signature.reifiedTypeParameterIndices, [0])
-            XCTAssertEqual(signature.typeParameterUpperBoundsList, [[basicFileAttributesType]])
-            let typeParameterSymbol = try XCTUnwrap(signature.typeParameterSymbols.first)
-            XCTAssertTrue(symbols.symbol(typeParameterSymbol)?.flags.contains(.reifiedTypeParameter) == true)
-            XCTAssertEqual(symbols.typeParameterUpperBounds(for: typeParameterSymbol), [basicFileAttributesType])
+            let signature = try #require(symbols.functionSignature(for: readAttributes))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(signature.typeParameterSymbols.count == 1)
+            #expect(signature.reifiedTypeParameterIndices == [0])
+            #expect(signature.typeParameterUpperBoundsList == [[basicFileAttributesType]])
+            let typeParameterSymbol = try #require(signature.typeParameterSymbols.first)
+            #expect(symbols.symbol(typeParameterSymbol)?.flags.contains(.reifiedTypeParameter) == true)
+            #expect(symbols.typeParameterUpperBounds(for: typeParameterSymbol) == [basicFileAttributesType])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "readAttributes", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, readAttributes)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], basicFileAttributesType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == readAttributes)
+                #expect(sema.bindings.exprTypes[callExpr] == basicFileAttributesType)
             }
         }
     }
 
+    @Test
     func testPathTopLevelPathStringFactoryShapeInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -1489,19 +1393,16 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path(pathString) top-level factory in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path(pathString) top-level factory in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let pathFactorySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern))
-            let pathFactory = try XCTUnwrap(pathFactorySymbols.first { symbolID in
+            let pathFactory = try #require(pathFactorySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -1509,16 +1410,16 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [types.stringType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: pathFactory), "kk_path_get")
+            #expect(symbols.externalLinkName(for: pathFactory) == "kk_path_get")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: pathFactory))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
-            let parameterSymbol = try XCTUnwrap(signature.valueParameterSymbols.first)
-            XCTAssertEqual(interner.resolve(try XCTUnwrap(symbols.symbol(parameterSymbol)?.name)), "pathString")
+            let signature = try #require(symbols.functionSignature(for: pathFactory))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [false])
+            let parameterSymbol = try #require(signature.valueParameterSymbols.first)
+            #expect(interner.resolve(try #require(symbols.symbol(parameterSymbol)?.name)) == "pathString")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else {
@@ -1526,11 +1427,12 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 }
                 return interner.resolve(calleeName) == "Path"
             })
-            XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, pathFactory)
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], pathType)
+            #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == pathFactory)
+            #expect(sema.bindings.exprTypes[callExpr] == pathType)
         }
     }
 
+    @Test
     func testPathReaderCharsetOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.io.BufferedReader
@@ -1550,25 +1452,22 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.reader(charset, options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.reader(charset, options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
-            let bufferedReaderSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "io", "BufferedReader"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let bufferedReaderSymbol = try #require(symbols.lookup(fqName: ["java", "io", "BufferedReader"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let bufferedReaderType = types.make(.classType(ClassType(classSymbol: bufferedReaderSymbol, args: [], nullability: .nonNull)))
             let readerSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "reader"].map(interner.intern))
-            let reader = try XCTUnwrap(readerSymbols.first { symbolID in
+            let reader = try #require(readerSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -1576,7 +1475,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [charsetType, openOptionType]
                     && signature.returnType == bufferedReaderType
             })
-            let defaultReader = try XCTUnwrap(readerSymbols.first { symbolID in
+            let defaultReader = try #require(readerSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -1584,28 +1483,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == []
                     && signature.returnType == bufferedReaderType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: reader), "kk_path_reader")
-            XCTAssertEqual(symbols.externalLinkName(for: defaultReader), "kk_path_reader_default")
+            #expect(symbols.externalLinkName(for: reader) == "kk_path_reader")
+            #expect(symbols.externalLinkName(for: defaultReader) == "kk_path_reader_default")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: reader))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
-            let defaultSignature = try XCTUnwrap(symbols.functionSignature(for: defaultReader))
-            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [])
-            XCTAssertEqual(defaultSignature.valueParameterIsVararg, [])
+            let signature = try #require(symbols.functionSignature(for: reader))
+            #expect(signature.valueParameterHasDefaultValues == [true, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
+            let defaultSignature = try #require(symbols.functionSignature(for: defaultReader))
+            #expect(defaultSignature.valueParameterHasDefaultValues == [])
+            #expect(defaultSignature.valueParameterIsVararg == [])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "reader", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             let chosenCallees = callExprs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
-            XCTAssertTrue(chosenCallees.contains(defaultReader))
-            XCTAssertTrue(chosenCallees.contains(reader))
+            #expect(chosenCallees.contains(defaultReader))
+            #expect(chosenCallees.contains(reader))
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], bufferedReaderType)
+                #expect(sema.bindings.exprTypes[callExpr] == bufferedReaderType)
             }
         }
     }
 
+    @Test
     func testPathSetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1620,21 +1520,18 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.setAttribute(attribute, value, options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.setAttribute(attribute, value, options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let setAttributeSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "setAttribute"].map(interner.intern))
-            let setAttribute = try XCTUnwrap(setAttributeSymbols.first { symbolID in
+            let setAttribute = try #require(setAttributeSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -1642,14 +1539,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [types.stringType, types.stringType, linkOptionType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: setAttribute), "kk_path_setAttribute")
+            #expect(symbols.externalLinkName(for: setAttribute) == "kk_path_setAttribute")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: setAttribute))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
+            let signature = try #require(symbols.functionSignature(for: setAttribute))
+            #expect(signature.valueParameterHasDefaultValues == [false, false, false])
+            #expect(signature.valueParameterIsVararg == [false, false, true])
         }
     }
 
+    @Test
     func testPathFileAttributesViewOrNullOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1668,23 +1566,20 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.fileAttributesViewOrNull<V>(options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.fileAttributesViewOrNull<V>(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-            let fileAttributeViewSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttributeView"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let fileAttributeViewSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttributeView"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let fileAttributeViewType = types.make(.classType(ClassType(classSymbol: fileAttributeViewSymbol, args: [], nullability: .nonNull)))
             let fileAttributesViewOrNullSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "fileAttributesViewOrNull"].map(interner.intern))
-            let fileAttributesViewOrNull = try XCTUnwrap(fileAttributesViewOrNullSymbols.first { symbolID in
+            let fileAttributesViewOrNull = try #require(fileAttributesViewOrNullSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID),
                       let typeParameterSymbol = signature.typeParameterSymbols.first
                 else {
@@ -1698,28 +1593,26 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == returnType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: fileAttributesViewOrNull), "kk_path_fileAttributesViewOrNull")
+            #expect(symbols.externalLinkName(for: fileAttributesViewOrNull) == "kk_path_fileAttributesViewOrNull")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: fileAttributesViewOrNull))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-            XCTAssertEqual(signature.typeParameterUpperBoundsList, [[fileAttributeViewType]])
-            XCTAssertEqual(
-                symbols.typeParameterUpperBounds(for: try XCTUnwrap(signature.typeParameterSymbols.first)),
-                [fileAttributeViewType]
-            )
+            let signature = try #require(symbols.functionSignature(for: fileAttributesViewOrNull))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(signature.typeParameterSymbols.count == 1)
+            #expect(signature.typeParameterUpperBoundsList == [[fileAttributeViewType]])
+            #expect(symbols.typeParameterUpperBounds(for: try #require(signature.typeParameterSymbols.first)) == [fileAttributeViewType])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "fileAttributesViewOrNull", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, fileAttributesViewOrNull)
-                XCTAssertNotNil(sema.bindings.exprTypes[callExpr])
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == fileAttributesViewOrNull)
+                #expect(sema.bindings.exprTypes[callExpr] != nil)
             }
         }
     }
 
+    @Test
     func testPathGetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1737,42 +1630,40 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.getAttribute(attribute, options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.getAttribute(attribute, options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let getAttributeSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "getAttribute"].map(interner.intern))
-            let getAttribute = try XCTUnwrap(getAttributeSymbols.first { symbolID in
+            let getAttribute = try #require(getAttributeSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [types.stringType, linkOptionType]
                     && signature.returnType == types.anyType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: getAttribute), "kk_path_getAttribute")
+            #expect(symbols.externalLinkName(for: getAttribute) == "kk_path_getAttribute")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: getAttribute))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
+            let signature = try #require(symbols.functionSignature(for: getAttribute))
+            #expect(signature.valueParameterHasDefaultValues == [false, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "getAttribute", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, getAttribute)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.anyType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == getAttribute)
+                #expect(sema.bindings.exprTypes[callExpr] == types.anyType)
             }
         }
     }
 
+    @Test
     func testPathGetOwnerOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1791,44 +1682,42 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.getOwner(options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.getOwner(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-            let userPrincipalSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "UserPrincipal"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let userPrincipalSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "UserPrincipal"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let userPrincipalType = types.make(.classType(ClassType(classSymbol: userPrincipalSymbol, args: [], nullability: .nonNull)))
             let getOwnerSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "getOwner"].map(interner.intern))
-            let getOwner = try XCTUnwrap(getOwnerSymbols.first { symbolID in
+            let getOwner = try #require(getOwnerSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == userPrincipalType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: getOwner), "kk_path_getOwner")
+            #expect(symbols.externalLinkName(for: getOwner) == "kk_path_getOwner")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: getOwner))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: getOwner))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "getOwner", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, getOwner)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], userPrincipalType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == getOwner)
+                #expect(sema.bindings.exprTypes[callExpr] == userPrincipalType)
             }
         }
     }
 
+    @Test
     func testPathMoveToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.CopyOption
@@ -1847,51 +1736,49 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.moveTo(target, options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.moveTo(target, options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let copyOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "CopyOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let copyOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "CopyOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let copyOptionType = types.make(.classType(ClassType(classSymbol: copyOptionSymbol, args: [], nullability: .nonNull)))
             let moveToSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "moveTo"].map(interner.intern))
-            let optionsMoveTo = try XCTUnwrap(moveToSymbols.first { symbolID in
+            let optionsMoveTo = try #require(moveToSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType, copyOptionType]
                     && signature.returnType == pathType
             })
-            let overwriteMoveTo = try XCTUnwrap(moveToSymbols.first { symbolID in
+            let overwriteMoveTo = try #require(moveToSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType, types.booleanType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: optionsMoveTo), "kk_path_moveTo_options")
-            XCTAssertEqual(symbols.externalLinkName(for: overwriteMoveTo), "kk_path_moveTo_overwrite")
+            #expect(symbols.externalLinkName(for: optionsMoveTo) == "kk_path_moveTo_options")
+            #expect(symbols.externalLinkName(for: overwriteMoveTo) == "kk_path_moveTo_overwrite")
 
-            let optionsSignature = try XCTUnwrap(symbols.functionSignature(for: optionsMoveTo))
-            XCTAssertEqual(optionsSignature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(optionsSignature.valueParameterIsVararg, [false, true])
+            let optionsSignature = try #require(symbols.functionSignature(for: optionsMoveTo))
+            #expect(optionsSignature.valueParameterHasDefaultValues == [false, false])
+            #expect(optionsSignature.valueParameterIsVararg == [false, true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "moveTo", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 3)
+            #expect(callExprs.count == 3)
             let chosenCallees = callExprs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
-            XCTAssertEqual(chosenCallees.filter { $0 == optionsMoveTo }.count, 2)
-            XCTAssertEqual(chosenCallees.filter { $0 == overwriteMoveTo }.count, 1)
+            #expect(chosenCallees.filter { $0 == optionsMoveTo }.count == 2)
+            #expect(chosenCallees.filter { $0 == overwriteMoveTo }.count == 1)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], pathType)
+                #expect(sema.bindings.exprTypes[callExpr] == pathType)
             }
         }
     }
 
+    @Test
     func testPathIsRegularFileOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1909,42 +1796,40 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.isRegularFile(options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.isRegularFile(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let isRegularFileSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "isRegularFile"].map(interner.intern))
-            let isRegularFile = try XCTUnwrap(isRegularFileSymbols.first { symbolID in
+            let isRegularFile = try #require(isRegularFileSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == types.booleanType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: isRegularFile), "kk_path_isRegularFile")
+            #expect(symbols.externalLinkName(for: isRegularFile) == "kk_path_isRegularFile")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: isRegularFile))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: isRegularFile))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "isRegularFile", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, isRegularFile)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.booleanType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == isRegularFile)
+                #expect(sema.bindings.exprTypes[callExpr] == types.booleanType)
             }
         }
     }
 
+    @Test
     func testPathExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -1962,42 +1847,40 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.exists(options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.exists(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let existsSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "exists"].map(interner.intern))
-            let exists = try XCTUnwrap(existsSymbols.first { symbolID in
+            let exists = try #require(existsSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == types.booleanType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: exists), "kk_path_exists")
+            #expect(symbols.externalLinkName(for: exists) == "kk_path_exists")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: exists))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: exists))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "exists", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, exists)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.booleanType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == exists)
+                #expect(sema.bindings.exprTypes[callExpr] == types.booleanType)
             }
         }
     }
 
+    @Test
     func testPathForEachDirectoryEntryExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -2017,16 +1900,13 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.forEachDirectoryEntry extension functions in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.forEachDirectoryEntry extension functions in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let pathActionType = types.make(.functionType(FunctionType(
                 params: [pathType],
@@ -2035,7 +1915,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let forEachSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "forEachDirectoryEntry"].map(interner.intern))
-            let globForEachDirectoryEntry = try XCTUnwrap(forEachSymbols.first { symbolID in
+            let globForEachDirectoryEntry = try #require(forEachSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2043,7 +1923,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [types.stringType, pathActionType]
                     && signature.returnType == types.unitType
             })
-            let defaultForEachDirectoryEntry = try XCTUnwrap(forEachSymbols.first { symbolID in
+            let defaultForEachDirectoryEntry = try #require(forEachSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2051,28 +1931,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [pathActionType]
                     && signature.returnType == types.unitType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: globForEachDirectoryEntry), "kk_path_forEachDirectoryEntry")
-            XCTAssertEqual(symbols.externalLinkName(for: defaultForEachDirectoryEntry), "kk_path_forEachDirectoryEntry_default")
+            #expect(symbols.externalLinkName(for: globForEachDirectoryEntry) == "kk_path_forEachDirectoryEntry")
+            #expect(symbols.externalLinkName(for: defaultForEachDirectoryEntry) == "kk_path_forEachDirectoryEntry_default")
 
-            let globSignature = try XCTUnwrap(symbols.functionSignature(for: globForEachDirectoryEntry))
-            XCTAssertEqual(globSignature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(globSignature.valueParameterIsVararg, [false, false])
-            let defaultSignature = try XCTUnwrap(symbols.functionSignature(for: defaultForEachDirectoryEntry))
-            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(defaultSignature.valueParameterIsVararg, [false])
+            let globSignature = try #require(symbols.functionSignature(for: globForEachDirectoryEntry))
+            #expect(globSignature.valueParameterHasDefaultValues == [true, false])
+            #expect(globSignature.valueParameterIsVararg == [false, false])
+            let defaultSignature = try #require(symbols.functionSignature(for: defaultForEachDirectoryEntry))
+            #expect(defaultSignature.valueParameterHasDefaultValues == [false])
+            #expect(defaultSignature.valueParameterIsVararg == [false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "forEachDirectoryEntry", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             let chosenCallees = callExprs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
-            XCTAssertTrue(chosenCallees.contains(defaultForEachDirectoryEntry))
-            XCTAssertTrue(chosenCallees.contains(globForEachDirectoryEntry))
+            #expect(chosenCallees.contains(defaultForEachDirectoryEntry))
+            #expect(chosenCallees.contains(globForEachDirectoryEntry))
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.unitType)
+                #expect(sema.bindings.exprTypes[callExpr] == types.unitType)
             }
         }
     }
 
+    @Test
     func testPathNotExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -2090,42 +1971,40 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.notExists(options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.notExists(options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let notExistsSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "notExists"].map(interner.intern))
-            let notExists = try XCTUnwrap(notExistsSymbols.first { symbolID in
+            let notExists = try #require(notExistsSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == types.booleanType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: notExists), "kk_path_notExists")
+            #expect(symbols.externalLinkName(for: notExists) == "kk_path_notExists")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: notExists))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: notExists))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "notExists", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, notExists)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.booleanType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == notExists)
+                #expect(sema.bindings.exprTypes[callExpr] == types.booleanType)
             }
         }
     }
 
+    @Test
     func testPathAppendLinesIterableExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -2144,26 +2023,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             try runSema(ctx)
 
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.appendLines Iterable extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.appendLines Iterable extension function in kotlin.io.path should resolve: \(diagnostics)")
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
             let interner = ctx.interner
-            let pathTypeSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("path"), interner.intern("Path")])
-            )
-            let charSequenceSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("CharSequence")])
-            )
-            let iterableSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Iterable")])
-            )
-            let charsetSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("text"), interner.intern("Charset")])
-            )
+            let pathTypeSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("path"), interner.intern("Path")]))
+            let charSequenceSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("CharSequence")]))
+            let iterableSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Iterable")]))
+            let charsetSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("text"), interner.intern("Charset")]))
             let pathType = sema.types.make(.classType(ClassType(classSymbol: pathTypeSymbol, args: [], nullability: .nonNull)))
             let charSequenceType = sema.types.make(.classType(ClassType(classSymbol: charSequenceSymbol, args: [], nullability: .nonNull)))
             let iterableType = sema.types.make(.classType(ClassType(classSymbol: iterableSymbol, args: [.invariant(charSequenceType)], nullability: .nonNull)))
@@ -2175,35 +2043,36 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 interner.intern("path"),
                 interner.intern("appendLines"),
             ])
-            let defaultSymbol = try XCTUnwrap(appendLinesSymbols.first { symbol in
+            let defaultSymbol = try #require(appendLinesSymbols.first { symbol in
                 sema.symbols.functionSignature(for: symbol)?.parameterTypes == [iterableType]
             })
-            let charsetOverloadSymbol = try XCTUnwrap(appendLinesSymbols.first { symbol in
+            let charsetOverloadSymbol = try #require(appendLinesSymbols.first { symbol in
                 sema.symbols.functionSignature(for: symbol)?.parameterTypes == [iterableType, charsetType]
             })
-            let defaultSignature = try XCTUnwrap(sema.symbols.functionSignature(for: defaultSymbol))
-            XCTAssertEqual(defaultSignature.receiverType, pathType)
-            XCTAssertEqual(defaultSignature.returnType, pathType)
-            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(sema.symbols.externalLinkName(for: defaultSymbol), "kk_path_appendLines_iterable_default")
+            let defaultSignature = try #require(sema.symbols.functionSignature(for: defaultSymbol))
+            #expect(defaultSignature.receiverType == pathType)
+            #expect(defaultSignature.returnType == pathType)
+            #expect(defaultSignature.valueParameterHasDefaultValues == [false])
+            #expect(sema.symbols.externalLinkName(for: defaultSymbol) == "kk_path_appendLines_iterable_default")
 
-            let charsetSignature = try XCTUnwrap(sema.symbols.functionSignature(for: charsetOverloadSymbol))
-            XCTAssertEqual(charsetSignature.receiverType, pathType)
-            XCTAssertEqual(charsetSignature.returnType, pathType)
-            XCTAssertEqual(charsetSignature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(sema.symbols.externalLinkName(for: charsetOverloadSymbol), "kk_path_appendLines_iterable")
+            let charsetSignature = try #require(sema.symbols.functionSignature(for: charsetOverloadSymbol))
+            #expect(charsetSignature.receiverType == pathType)
+            #expect(charsetSignature.returnType == pathType)
+            #expect(charsetSignature.valueParameterHasDefaultValues == [false, false])
+            #expect(sema.symbols.externalLinkName(for: charsetOverloadSymbol) == "kk_path_appendLines_iterable")
 
             let appendLinesCalls = memberCallExprIDs(named: "appendLines", in: ast, interner: interner)
-            XCTAssertEqual(appendLinesCalls.count, 2)
+            #expect(appendLinesCalls.count == 2)
             let chosenCallees = appendLinesCalls.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
-            XCTAssertTrue(chosenCallees.contains(defaultSymbol))
-            XCTAssertTrue(chosenCallees.contains(charsetOverloadSymbol))
+            #expect(chosenCallees.contains(defaultSymbol))
+            #expect(chosenCallees.contains(charsetOverloadSymbol))
             for call in appendLinesCalls {
-                XCTAssertEqual(sema.bindings.exprTypes[call], pathType)
+                #expect(sema.bindings.exprTypes[call] == pathType)
             }
         }
     }
 
+    @Test
     func testPathWriteLinesIterableExtensionFunctionInIOPathPackageSurfaceIsRegistered() throws {
         let source = """
         import java.nio.file.OpenOption
@@ -2217,40 +2086,38 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.writeLines Iterable extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.writeLines Iterable extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charSequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
-            let iterableSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "collections", "Iterable"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charSequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
+            let iterableSymbol = try #require(symbols.lookup(fqName: ["kotlin", "collections", "Iterable"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charSequenceType = types.make(.classType(ClassType(classSymbol: charSequenceSymbol, args: [], nullability: .nonNull)))
             let iterableType = types.make(.classType(ClassType(classSymbol: iterableSymbol, args: [.invariant(charSequenceType)], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let writeLinesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "writeLines"].map(interner.intern))
-            let writeLines = try XCTUnwrap(writeLinesSymbols.first { symbolID in
+            let writeLines = try #require(writeLinesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [iterableType, charsetType, openOptionType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: writeLines), "kk_path_writeLines_iterable")
+            #expect(symbols.externalLinkName(for: writeLines) == "kk_path_writeLines_iterable")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: writeLines))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
+            let signature = try #require(symbols.functionSignature(for: writeLines))
+            #expect(signature.valueParameterHasDefaultValues == [false, true, false])
+            #expect(signature.valueParameterIsVararg == [false, false, true])
         }
     }
 
+    @Test
     func testPathForEachLineExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -2271,17 +2138,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.forEachLine(charset, action) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.forEachLine(charset, action) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let stringActionType = types.make(.functionType(FunctionType(
@@ -2291,7 +2155,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let forEachSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "forEachLine"].map(interner.intern))
-            let forEachLine = try XCTUnwrap(forEachSymbols.first { symbolID in
+            let forEachLine = try #require(forEachSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2299,7 +2163,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [charsetType, stringActionType]
                     && signature.returnType == types.unitType
             })
-            let defaultForEachLine = try XCTUnwrap(forEachSymbols.first { symbolID in
+            let defaultForEachLine = try #require(forEachSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2307,28 +2171,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [stringActionType]
                     && signature.returnType == types.unitType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: forEachLine), "kk_path_forEachLine")
-            XCTAssertEqual(symbols.externalLinkName(for: defaultForEachLine), "kk_path_forEachLine_default")
+            #expect(symbols.externalLinkName(for: forEachLine) == "kk_path_forEachLine")
+            #expect(symbols.externalLinkName(for: defaultForEachLine) == "kk_path_forEachLine_default")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: forEachLine))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false])
-            let defaultSignature = try XCTUnwrap(symbols.functionSignature(for: defaultForEachLine))
-            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(defaultSignature.valueParameterIsVararg, [false])
+            let signature = try #require(symbols.functionSignature(for: forEachLine))
+            #expect(signature.valueParameterHasDefaultValues == [true, false])
+            #expect(signature.valueParameterIsVararg == [false, false])
+            let defaultSignature = try #require(symbols.functionSignature(for: defaultForEachLine))
+            #expect(defaultSignature.valueParameterHasDefaultValues == [false])
+            #expect(defaultSignature.valueParameterIsVararg == [false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "forEachLine", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             let chosenCallees = callExprs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
-            XCTAssertTrue(chosenCallees.contains(defaultForEachLine))
-            XCTAssertTrue(chosenCallees.contains(forEachLine))
+            #expect(chosenCallees.contains(defaultForEachLine))
+            #expect(chosenCallees.contains(forEachLine))
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], types.unitType)
+                #expect(sema.bindings.exprTypes[callExpr] == types.unitType)
             }
         }
     }
 
+    @Test
     func testPathWriteLinesSequenceExtensionFunctionInIOPathPackageSurfaceIsRegistered() throws {
         let source = """
         import java.nio.file.OpenOption
@@ -2343,40 +2208,38 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.writeLines Sequence extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.writeLines Sequence extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charSequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
-            let sequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charSequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "CharSequence"].map(interner.intern)))
+            let sequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charSequenceType = types.make(.classType(ClassType(classSymbol: charSequenceSymbol, args: [], nullability: .nonNull)))
             let sequenceType = types.make(.classType(ClassType(classSymbol: sequenceSymbol, args: [.out(charSequenceType)], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let writeLinesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "writeLines"].map(interner.intern))
-            let writeLines = try XCTUnwrap(writeLinesSymbols.first { symbolID in
+            let writeLines = try #require(writeLinesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [sequenceType, charsetType, openOptionType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: writeLines), "kk_path_writeLines_sequence")
+            #expect(symbols.externalLinkName(for: writeLines) == "kk_path_writeLines_sequence")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: writeLines))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
+            let signature = try #require(symbols.functionSignature(for: writeLines))
+            #expect(signature.valueParameterHasDefaultValues == [false, true, false])
+            #expect(signature.valueParameterIsVararg == [false, false, true])
         }
     }
 
+    @Test
     func testPathWriterOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered() throws {
         let source = """
         import java.io.BufferedWriter
@@ -2391,38 +2254,36 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.writer(charset, options) extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.writer(charset, options) extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
-            let bufferedWriterSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let bufferedWriterSymbol = try #require(symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let bufferedWriterType = types.make(.classType(ClassType(classSymbol: bufferedWriterSymbol, args: [], nullability: .nonNull)))
             let writerSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "writer"].map(interner.intern))
-            let writer = try XCTUnwrap(writerSymbols.first { symbolID in
+            let writer = try #require(writerSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [charsetType, openOptionType]
                     && signature.returnType == bufferedWriterType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: writer), "kk_path_writer")
+            #expect(symbols.externalLinkName(for: writer) == "kk_path_writer")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: writer))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
+            let signature = try #require(symbols.functionSignature(for: writer))
+            #expect(signature.valueParameterHasDefaultValues == [true, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
         }
     }
 
+    @Test
     func testPathBufferedWriterExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.io.BufferedWriter
@@ -2440,25 +2301,22 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.bufferedWriter(charset, bufferSize, options) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.bufferedWriter(charset, bufferSize, options) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
-            let bufferedWriterSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let charsetSymbol = try #require(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
+            let openOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
+            let bufferedWriterSymbol = try #require(symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
             let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
             let bufferedWriterType = types.make(.classType(ClassType(classSymbol: bufferedWriterSymbol, args: [], nullability: .nonNull)))
             let bufferedWriterSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "bufferedWriter"].map(interner.intern))
-            let bufferedWriter = try XCTUnwrap(bufferedWriterSymbols.first { symbolID in
+            let bufferedWriter = try #require(bufferedWriterSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2466,14 +2324,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [charsetType, types.intType, openOptionType]
                     && signature.returnType == bufferedWriterType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: bufferedWriter), "kk_path_bufferedWriter")
+            #expect(symbols.externalLinkName(for: bufferedWriter) == "kk_path_bufferedWriter")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: bufferedWriter))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
+            let signature = try #require(symbols.functionSignature(for: bufferedWriter))
+            #expect(signature.valueParameterHasDefaultValues == [true, true, false])
+            #expect(signature.valueParameterIsVararg == [false, false, true])
         }
     }
 
+    @Test
     func testPathFileSizeExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -2487,39 +2346,37 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.fileSize extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.fileSize extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileSizeSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "fileSize"].map(interner.intern))
-            let fileSize = try XCTUnwrap(fileSizeSymbols.first { symbolID in
+            let fileSize = try #require(fileSizeSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes.isEmpty
                     && signature.returnType == types.longType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: fileSize), "kk_path_fileSize")
+            #expect(symbols.externalLinkName(for: fileSize) == "kk_path_fileSize")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: fileSize))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [])
-            XCTAssertEqual(signature.valueParameterIsVararg, [])
+            let signature = try #require(symbols.functionSignature(for: fileSize))
+            #expect(signature.valueParameterHasDefaultValues == [])
+            #expect(signature.valueParameterIsVararg == [])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "fileSize", in: ast, interner: interner)
 
-            XCTAssertEqual(callExprs.count, 1)
-            XCTAssertEqual(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee, fileSize)
-            XCTAssertEqual(sema.bindings.exprTypes[callExprs[0]], types.longType)
+            #expect(callExprs.count == 1)
+            #expect(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee == fileSize)
+            #expect(sema.bindings.exprTypes[callExprs[0]] == types.longType)
         }
     }
 
+    @Test
     func testPathRelativeToOrNullExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -2533,40 +2390,38 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.relativeToOrNull extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.relativeToOrNull extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let nullablePathType = types.makeNullable(pathType)
             let relativeToOrNullSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "relativeToOrNull"].map(interner.intern))
-            let relativeToOrNull = try XCTUnwrap(relativeToOrNullSymbols.first { symbolID in
+            let relativeToOrNull = try #require(relativeToOrNullSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType]
                     && signature.returnType == nullablePathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: relativeToOrNull), "kk_path_relativeToOrNull")
+            #expect(symbols.externalLinkName(for: relativeToOrNull) == "kk_path_relativeToOrNull")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: relativeToOrNull))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
+            let signature = try #require(symbols.functionSignature(for: relativeToOrNull))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "relativeToOrNull", in: ast, interner: interner)
 
-            XCTAssertEqual(callExprs.count, 1)
-            XCTAssertEqual(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee, relativeToOrNull)
-            XCTAssertEqual(sema.bindings.exprTypes[callExprs[0]], nullablePathType)
+            #expect(callExprs.count == 1)
+            #expect(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee == relativeToOrNull)
+            #expect(sema.bindings.exprTypes[callExprs[0]] == nullablePathType)
         }
     }
 
+    @Test
     func testPathSetPosixFilePermissionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.PosixFilePermission
@@ -2582,18 +2437,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.setPosixFilePermissions extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.setPosixFilePermissions extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let setSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "collections", "Set"].map(interner.intern)))
-            let posixFilePermissionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "PosixFilePermission"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let setSymbol = try #require(symbols.lookup(fqName: ["kotlin", "collections", "Set"].map(interner.intern)))
+            let posixFilePermissionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "PosixFilePermission"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let posixFilePermissionType = types.make(.classType(ClassType(classSymbol: posixFilePermissionSymbol, args: [], nullability: .nonNull)))
             let setOfPosixFilePermissionType = types.make(.classType(ClassType(
@@ -2602,27 +2454,28 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let setPosixFilePermissionsSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "setPosixFilePermissions"].map(interner.intern))
-            let setPosixFilePermissions = try XCTUnwrap(setPosixFilePermissionsSymbols.first { symbolID in
+            let setPosixFilePermissions = try #require(setPosixFilePermissionsSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [setOfPosixFilePermissionType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: setPosixFilePermissions), "kk_path_setPosixFilePermissions")
+            #expect(symbols.externalLinkName(for: setPosixFilePermissions) == "kk_path_setPosixFilePermissions")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: setPosixFilePermissions))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
+            let signature = try #require(symbols.functionSignature(for: setPosixFilePermissions))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "setPosixFilePermissions", in: ast, interner: interner)
 
-            XCTAssertEqual(callExprs.count, 1)
-            XCTAssertEqual(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee, setPosixFilePermissions)
-            XCTAssertEqual(sema.bindings.exprTypes[callExprs[0]], pathType)
+            #expect(callExprs.count == 1)
+            #expect(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee == setPosixFilePermissions)
+            #expect(sema.bindings.exprTypes[callExprs[0]] == pathType)
         }
     }
 
+    @Test
     func testPathGetPosixFilePermissionsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.LinkOption
@@ -2641,19 +2494,16 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.getPosixFilePermissions(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.getPosixFilePermissions(options) extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let linkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
-            let posixFilePermissionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "PosixFilePermission"].map(interner.intern)))
-            let setSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "collections", "Set"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let linkOptionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "LinkOption"].map(interner.intern)))
+            let posixFilePermissionSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "PosixFilePermission"].map(interner.intern)))
+            let setSymbol = try #require(symbols.lookup(fqName: ["kotlin", "collections", "Set"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let linkOptionType = types.make(.classType(ClassType(classSymbol: linkOptionSymbol, args: [], nullability: .nonNull)))
             let posixFilePermissionType = types.make(.classType(ClassType(classSymbol: posixFilePermissionSymbol, args: [], nullability: .nonNull)))
@@ -2663,28 +2513,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let getPosixFilePermissionsSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "getPosixFilePermissions"].map(interner.intern))
-            let getPosixFilePermissions = try XCTUnwrap(getPosixFilePermissionsSymbols.first { symbolID in
+            let getPosixFilePermissions = try #require(getPosixFilePermissionsSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [linkOptionType]
                     && signature.returnType == setOfPosixFilePermissionType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: getPosixFilePermissions), "kk_path_getPosixFilePermissions")
+            #expect(symbols.externalLinkName(for: getPosixFilePermissions) == "kk_path_getPosixFilePermissions")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: getPosixFilePermissions))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: getPosixFilePermissions))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "getPosixFilePermissions", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, getPosixFilePermissions)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], setOfPosixFilePermissionType)
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == getPosixFilePermissions)
+                #expect(sema.bindings.exprTypes[callExpr] == setOfPosixFilePermissionType)
             }
         }
     }
 
+    @Test
     func testOnErrorResultInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.OnErrorResult
@@ -2700,13 +2551,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "OnErrorResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "OnErrorResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathCreateDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -2722,17 +2571,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.createDirectories(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.createDirectories(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileAttributeStarType = types.make(.classType(ClassType(
                 classSymbol: fileAttributeSymbol,
@@ -2740,7 +2586,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createDirectoriesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createDirectories"].map(interner.intern))
-            let createDirectories = try XCTUnwrap(createDirectoriesSymbols.first { symbolID in
+            let createDirectories = try #require(createDirectoriesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2748,14 +2594,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createDirectories), "kk_path_createDirectories_attributes")
+            #expect(symbols.externalLinkName(for: createDirectories) == "kk_path_createDirectories_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createDirectories))
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count, 1)
+            let signature = try #require(symbols.functionSignature(for: createDirectories))
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count == 1)
         }
     }
 
+    @Test
     func testPathCreateDirectoryAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -2771,17 +2618,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.createDirectory(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.createDirectory(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileAttributeStarType = types.make(.classType(ClassType(
                 classSymbol: fileAttributeSymbol,
@@ -2789,7 +2633,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createDirectorySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createDirectory"].map(interner.intern))
-            let createDirectory = try XCTUnwrap(createDirectorySymbols.first { symbolID in
+            let createDirectory = try #require(createDirectorySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2797,14 +2641,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createDirectory), "kk_path_createDirectory_attributes")
+            #expect(symbols.externalLinkName(for: createDirectory) == "kk_path_createDirectory_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createDirectory))
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count, 1)
+            let signature = try #require(symbols.functionSignature(for: createDirectory))
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count == 1)
         }
     }
 
+    @Test
     func testPathCreateFileAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -2820,17 +2665,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.createFile(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.createFile(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileAttributeStarType = types.make(.classType(ClassType(
                 classSymbol: fileAttributeSymbol,
@@ -2838,7 +2680,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createFileSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createFile"].map(interner.intern))
-            let createFile = try XCTUnwrap(createFileSymbols.first { symbolID in
+            let createFile = try #require(createFileSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2846,14 +2688,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createFile), "kk_path_createFile_attributes")
+            #expect(symbols.externalLinkName(for: createFile) == "kk_path_createFile_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createFile))
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count, 1)
+            let signature = try #require(symbols.functionSignature(for: createFile))
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count == 1)
         }
     }
 
+    @Test
     func testPathCreateParentDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -2869,17 +2712,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.createParentDirectories(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.createParentDirectories(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileAttributeStarType = types.make(.classType(ClassType(
                 classSymbol: fileAttributeSymbol,
@@ -2887,7 +2727,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createParentDirectoriesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createParentDirectories"].map(interner.intern))
-            let createParentDirectories = try XCTUnwrap(createParentDirectoriesSymbols.first { symbolID in
+            let createParentDirectories = try #require(createParentDirectoriesSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2895,14 +2735,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createParentDirectories), "kk_path_createParentDirectories_attributes")
+            #expect(symbols.externalLinkName(for: createParentDirectories) == "kk_path_createParentDirectories_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createParentDirectories))
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
-            XCTAssertEqual(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count, 1)
+            let signature = try #require(symbols.functionSignature(for: createParentDirectories))
+            #expect(signature.valueParameterIsVararg == [true])
+            #expect(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count == 1)
         }
     }
 
+    @Test
     func testPathDeleteIfExistsExtensionFunctionInIOPathPackageSurfaceMatchesOfficialShape() throws {
         let source = """
         import kotlin.io.path.Path
@@ -2917,19 +2758,16 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.deleteIfExists() extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.deleteIfExists() extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let deleteIfExistsSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "deleteIfExists"].map(interner.intern))
-            let deleteIfExists = try XCTUnwrap(deleteIfExistsSymbols.first { symbolID in
+            let deleteIfExists = try #require(deleteIfExistsSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -2937,35 +2775,24 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == []
                     && signature.returnType == types.booleanType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: deleteIfExists), "kk_path_deleteIfExists")
+            #expect(symbols.externalLinkName(for: deleteIfExists) == "kk_path_deleteIfExists")
 
             let annotations = symbols.annotations(for: deleteIfExists)
-            XCTAssertTrue(
-                annotations.contains { $0.annotationFQName == "kotlin.IgnorableReturnValue" },
-                "Path.deleteIfExists should carry @IgnorableReturnValue, got: \(annotations)"
-            )
-            XCTAssertTrue(
-                annotations.contains { $0.annotationFQName == "kotlin.SinceKotlin" && $0.arguments == ["1.5"] },
-                "Path.deleteIfExists should carry @SinceKotlin(\"1.5\"), got: \(annotations)"
-            )
-            XCTAssertTrue(
-                annotations.contains { $0.annotationFQName == "kotlin.Throws" && $0.arguments == ["java.io.IOException::class"] },
-                "Path.deleteIfExists should carry @Throws(IOException::class), got: \(annotations)"
-            )
+            #expect(annotations.contains { $0.annotationFQName == "kotlin.IgnorableReturnValue" }, "Path.deleteIfExists should carry @IgnorableReturnValue, got: \(annotations)")
+            #expect(annotations.contains { $0.annotationFQName == "kotlin.SinceKotlin" && $0.arguments == ["1.5"] }, "Path.deleteIfExists should carry @SinceKotlin(\"1.5\"), got: \(annotations)")
+            #expect(annotations.contains { $0.annotationFQName == "kotlin.Throws" && $0.arguments == ["java.io.IOException::class"] }, "Path.deleteIfExists should carry @Throws(IOException::class), got: \(annotations)")
 
             let memberSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "Path", "deleteIfExists"].map(interner.intern))
-            XCTAssertFalse(
-                memberSymbols.contains { symbolID in
+            #expect(!(memberSymbols.contains { symbolID in
                     guard let signature = symbols.functionSignature(for: symbolID) else {
                         return false
                     }
                     return signature.receiverType == pathType && signature.parameterTypes.isEmpty
-                },
-                "Path.deleteIfExists should be registered as a kotlin.io.path extension function, not a Path member"
-            )
+                }), "Path.deleteIfExists should be registered as a kotlin.io.path extension function, not a Path member")
         }
     }
 
+    @Test
     func testPathCreateSymbolicLinkPointingToAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -2981,17 +2808,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.createSymbolicLinkPointingTo(target, attributes) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.createSymbolicLinkPointingTo(target, attributes) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let fileAttributeStarType = types.make(.classType(ClassType(
                 classSymbol: fileAttributeSymbol,
@@ -2999,7 +2823,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createLinkSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createSymbolicLinkPointingTo"].map(interner.intern))
-            let createLink = try XCTUnwrap(createLinkSymbols.first { symbolID in
+            let createLink = try #require(createLinkSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -3007,13 +2831,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [pathType, fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createLink), "kk_path_createSymbolicLinkPointingTo_attributes")
+            #expect(symbols.externalLinkName(for: createLink) == "kk_path_createSymbolicLinkPointingTo_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createLink))
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
+            let signature = try #require(symbols.functionSignature(for: createLink))
+            #expect(signature.valueParameterIsVararg == [false, true])
         }
     }
 
+    @Test
     func testCreateTempDirectoryDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -3029,17 +2854,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "createTempDirectory(directory, prefix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "createTempDirectory(directory, prefix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let nullablePathType = types.makeNullable(pathType)
             let nullableStringType = types.makeNullable(types.stringType)
@@ -3049,7 +2871,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createTempDirectorySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createTempDirectory"].map(interner.intern))
-            let createTempDirectory = try XCTUnwrap(createTempDirectorySymbols.first { symbolID in
+            let createTempDirectory = try #require(createTempDirectorySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -3057,14 +2879,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [nullablePathType, nullableStringType, fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createTempDirectory), "kk_path_createTempDirectory_directory_prefix_attributes")
+            #expect(symbols.externalLinkName(for: createTempDirectory) == "kk_path_createTempDirectory_directory_prefix_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createTempDirectory))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
+            let signature = try #require(symbols.functionSignature(for: createTempDirectory))
+            #expect(signature.valueParameterHasDefaultValues == [false, true, false])
+            #expect(signature.valueParameterIsVararg == [false, false, true])
         }
     }
 
+    @Test
     func testCreateTempDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -3080,17 +2903,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "createTempDirectory(prefix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "createTempDirectory(prefix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let nullableStringType = types.makeNullable(types.stringType)
             let fileAttributeStarType = types.make(.classType(ClassType(
@@ -3099,7 +2919,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createTempDirectorySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createTempDirectory"].map(interner.intern))
-            let createTempDirectory = try XCTUnwrap(createTempDirectorySymbols.first { symbolID in
+            let createTempDirectory = try #require(createTempDirectorySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -3107,14 +2927,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [nullableStringType, fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createTempDirectory), "kk_path_createTempDirectory_prefix_attributes")
+            #expect(symbols.externalLinkName(for: createTempDirectory) == "kk_path_createTempDirectory_prefix_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createTempDirectory))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
+            let signature = try #require(symbols.functionSignature(for: createTempDirectory))
+            #expect(signature.valueParameterHasDefaultValues == [true, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
         }
     }
 
+    @Test
     func testCreateTempFileDirectoryPrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -3130,17 +2951,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "createTempFile(directory, prefix, suffix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "createTempFile(directory, prefix, suffix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let nullablePathType = types.makeNullable(pathType)
             let nullableStringType = types.makeNullable(types.stringType)
@@ -3150,7 +2968,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createTempFileSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createTempFile"].map(interner.intern))
-            let createTempFile = try XCTUnwrap(createTempFileSymbols.first { symbolID in
+            let createTempFile = try #require(createTempFileSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -3158,14 +2976,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [nullablePathType, nullableStringType, nullableStringType, fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createTempFile), "kk_path_createTempFile_directory_prefix_suffix_attributes")
+            #expect(symbols.externalLinkName(for: createTempFile) == "kk_path_createTempFile_directory_prefix_suffix_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createTempFile))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, true, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, false, true])
+            let signature = try #require(symbols.functionSignature(for: createTempFile))
+            #expect(signature.valueParameterHasDefaultValues == [false, true, true, false])
+            #expect(signature.valueParameterIsVararg == [false, false, false, true])
         }
     }
 
+    @Test
     func testCreateTempFilePrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.nio.file.attribute.FileAttribute
@@ -3181,17 +3000,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "createTempFile(prefix, suffix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "createTempFile(prefix, suffix, attributes) top-level function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let fileAttributeSymbol = try #require(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let nullableStringType = types.makeNullable(types.stringType)
             let fileAttributeStarType = types.make(.classType(ClassType(
@@ -3200,7 +3016,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let createTempFileSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createTempFile"].map(interner.intern))
-            let createTempFile = try XCTUnwrap(createTempFileSymbols.first { symbolID in
+            let createTempFile = try #require(createTempFileSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -3208,14 +3024,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [nullableStringType, nullableStringType, fileAttributeStarType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: createTempFile), "kk_path_createTempFile_prefix_suffix_attributes")
+            #expect(symbols.externalLinkName(for: createTempFile) == "kk_path_createTempFile_prefix_suffix_attributes")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: createTempFile))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
+            let signature = try #require(symbols.functionSignature(for: createTempFile))
+            #expect(signature.valueParameterHasDefaultValues == [true, true, false])
+            #expect(signature.valueParameterIsVararg == [false, false, true])
         }
     }
 
+    @Test
     func testPathCopyToRecursivelyOverwriteExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.Exception
@@ -3232,18 +3049,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.copyToRecursively(target, onError, followLinks, overwrite) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.copyToRecursively(target, onError, followLinks, overwrite) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let exceptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "Exception"].map(interner.intern)))
-            let onErrorResultSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "OnErrorResult"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let exceptionSymbol = try #require(symbols.lookup(fqName: ["kotlin", "Exception"].map(interner.intern)))
+            let onErrorResultSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "OnErrorResult"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let exceptionType = types.make(.classType(ClassType(classSymbol: exceptionSymbol, args: [], nullability: .nonNull)))
             let onErrorResultType = types.make(.classType(ClassType(classSymbol: onErrorResultSymbol, args: [], nullability: .nonNull)))
@@ -3254,7 +3068,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let copySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "copyToRecursively"].map(interner.intern))
-            let copyToRecursively = try XCTUnwrap(copySymbols.first { symbolID in
+            let copyToRecursively = try #require(copySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -3262,10 +3076,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [pathType, onErrorType, types.booleanType, types.booleanType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: copyToRecursively), "kk_path_copyToRecursively_overwrite")
+            #expect(symbols.externalLinkName(for: copyToRecursively) == "kk_path_copyToRecursively_overwrite")
         }
     }
 
+    @Test
     func testPathCopyToRecursivelyCopyActionExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.Exception
@@ -3289,20 +3104,17 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.copyToRecursively(target, onError, followLinks, copyAction) extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.copyToRecursively(target, onError, followLinks, copyAction) extension function in kotlin.io.path should resolve: \(diagnostics)")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let exceptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "Exception"].map(interner.intern)))
-            let onErrorResultSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "OnErrorResult"].map(interner.intern)))
-            let copyActionContextSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "CopyActionContext"].map(interner.intern)))
-            let copyActionResultSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "CopyActionResult"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let exceptionSymbol = try #require(symbols.lookup(fqName: ["kotlin", "Exception"].map(interner.intern)))
+            let onErrorResultSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "OnErrorResult"].map(interner.intern)))
+            let copyActionContextSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "CopyActionContext"].map(interner.intern)))
+            let copyActionResultSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "CopyActionResult"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let exceptionType = types.make(.classType(ClassType(classSymbol: exceptionSymbol, args: [], nullability: .nonNull)))
             let onErrorResultType = types.make(.classType(ClassType(classSymbol: onErrorResultSymbol, args: [], nullability: .nonNull)))
@@ -3322,7 +3134,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let copySymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "copyToRecursively"].map(interner.intern))
-            let copyToRecursively = try XCTUnwrap(copySymbols.first { symbolID in
+            let copyToRecursively = try #require(copySymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -3330,10 +3142,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [pathType, onErrorType, types.booleanType, copyActionType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: copyToRecursively), "kk_path_copyToRecursively_copyAction")
+            #expect(symbols.externalLinkName(for: copyToRecursively) == "kk_path_copyToRecursively_copyAction")
         }
     }
 
+    @Test
     func testPathReadSymbolicLinkExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3347,39 +3160,37 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.readSymbolicLink extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.readSymbolicLink extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let readSymbolicLinkSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "readSymbolicLink"].map(interner.intern))
-            let readSymbolicLink = try XCTUnwrap(readSymbolicLinkSymbols.first { symbolID in
+            let readSymbolicLink = try #require(readSymbolicLinkSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes.isEmpty
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: readSymbolicLink), "kk_path_readSymbolicLink")
+            #expect(symbols.externalLinkName(for: readSymbolicLink) == "kk_path_readSymbolicLink")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: readSymbolicLink))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [])
-            XCTAssertEqual(signature.valueParameterIsVararg, [])
+            let signature = try #require(symbols.functionSignature(for: readSymbolicLink))
+            #expect(signature.valueParameterHasDefaultValues == [])
+            #expect(signature.valueParameterIsVararg == [])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "readSymbolicLink", in: ast, interner: interner)
 
-            XCTAssertEqual(callExprs.count, 1)
-            XCTAssertEqual(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee, readSymbolicLink)
-            XCTAssertEqual(sema.bindings.exprTypes[callExprs[0]], pathType)
+            #expect(callExprs.count == 1)
+            #expect(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee == readSymbolicLink)
+            #expect(sema.bindings.exprTypes[callExprs[0]] == pathType)
         }
     }
 
+    @Test
     func testPathRelativeToOrSelfExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3393,39 +3204,37 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.relativeToOrSelf extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.relativeToOrSelf extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let relativeToOrSelfSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "relativeToOrSelf"].map(interner.intern))
-            let relativeToOrSelf = try XCTUnwrap(relativeToOrSelfSymbols.first { symbolID in
+            let relativeToOrSelf = try #require(relativeToOrSelfSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: relativeToOrSelf), "kk_path_relativeToOrSelf")
+            #expect(symbols.externalLinkName(for: relativeToOrSelf) == "kk_path_relativeToOrSelf")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: relativeToOrSelf))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
+            let signature = try #require(symbols.functionSignature(for: relativeToOrSelf))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "relativeToOrSelf", in: ast, interner: interner)
 
-            XCTAssertEqual(callExprs.count, 1)
-            XCTAssertEqual(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee, relativeToOrSelf)
-            XCTAssertEqual(sema.bindings.exprTypes[callExprs[0]], pathType)
+            #expect(callExprs.count == 1)
+            #expect(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee == relativeToOrSelf)
+            #expect(sema.bindings.exprTypes[callExprs[0]] == pathType)
         }
     }
 
+    @Test
     func testPathRelativeToExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3439,39 +3248,37 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.relativeTo extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.relativeTo extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let relativeToSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "relativeTo"].map(interner.intern))
-            let relativeTo = try XCTUnwrap(relativeToSymbols.first { symbolID in
+            let relativeTo = try #require(relativeToSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType]
                     && signature.returnType == pathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: relativeTo), "kk_path_relativeTo")
+            #expect(symbols.externalLinkName(for: relativeTo) == "kk_path_relativeTo")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: relativeTo))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false])
+            let signature = try #require(symbols.functionSignature(for: relativeTo))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [false])
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "relativeTo", in: ast, interner: interner)
 
-            XCTAssertEqual(callExprs.count, 1)
-            XCTAssertEqual(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee, relativeTo)
-            XCTAssertEqual(sema.bindings.exprTypes[callExprs[0]], pathType)
+            #expect(callExprs.count == 1)
+            #expect(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee == relativeTo)
+            #expect(sema.bindings.exprTypes[callExprs[0]] == pathType)
         }
     }
 
+    @Test
     func testPathWalkOptionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.PathWalkOption
@@ -3487,13 +3294,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "PathWalkOption entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "PathWalkOption entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathWalkOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3507,18 +3312,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.walk(options) extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.walk(options) extension function in kotlin.io.path should register: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let walkOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "PathWalkOption"].map(interner.intern)))
-            let sequenceSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
+            let pathSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let walkOptionSymbol = try #require(symbols.lookup(fqName: ["kotlin", "io", "path", "PathWalkOption"].map(interner.intern)))
+            let sequenceSymbol = try #require(symbols.lookup(fqName: ["kotlin", "sequences", "Sequence"].map(interner.intern)))
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let walkOptionType = types.make(.classType(ClassType(classSymbol: walkOptionSymbol, args: [], nullability: .nonNull)))
             let sequenceOfPathType = types.make(.classType(ClassType(
@@ -3527,20 +3329,21 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 nullability: .nonNull
             )))
             let walkSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "walk"].map(interner.intern))
-            let walk = try XCTUnwrap(walkSymbols.first { symbolID in
+            let walk = try #require(walkSymbols.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [walkOptionType]
                     && signature.returnType == sequenceOfPathType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: walk), "kk_path_walk")
+            #expect(symbols.externalLinkName(for: walk) == "kk_path_walk")
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: walk))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            let signature = try #require(symbols.functionSignature(for: walk))
+            #expect(signature.valueParameterHasDefaultValues == [false])
+            #expect(signature.valueParameterIsVararg == [true])
         }
     }
 
+    @Test
     func testPathInvariantSeparatorsPathStringPropertyInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3555,13 +3358,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.invariantSeparatorsPathString in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.invariantSeparatorsPathString in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathInvariantSeparatorsPathPropertyInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3576,13 +3377,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.invariantSeparatorsPath in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.invariantSeparatorsPath in kotlin.io.path should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testPathAbsoluteExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3596,39 +3395,35 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let pathFQName = ["kotlin", "io", "path", "Path"].map { ctx.interner.intern($0) }
-            let pathSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: pathFQName))
+            let pathSymbol = try #require(sema.symbols.lookup(fqName: pathFQName))
             let pathType = sema.types.make(.classType(ClassType(
                 classSymbol: pathSymbol,
                 args: [],
                 nullability: .nonNull
             )))
             let absoluteFQName = ["kotlin", "io", "path", "absolute"].map { ctx.interner.intern($0) }
-            let absoluteSymbol = try XCTUnwrap(
-                sema.symbols.lookupAll(fqName: absoluteFQName).first(where: { symbolID in
+            let absoluteSymbol = try #require(sema.symbols.lookupAll(fqName: absoluteFQName).first(where: { symbolID in
                     sema.symbols.functionSignature(for: symbolID)?.receiverType == pathType
-                })
-            )
-            let absoluteSignature = try XCTUnwrap(sema.symbols.functionSignature(for: absoluteSymbol))
-            XCTAssertEqual(absoluteSignature.parameterTypes, [])
-            XCTAssertEqual(absoluteSignature.returnType, pathType)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.absolute extension function in kotlin.io.path should resolve as Path: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                }))
+            let absoluteSignature = try #require(sema.symbols.functionSignature(for: absoluteSymbol))
+            #expect(absoluteSignature.parameterTypes == [])
+            #expect(absoluteSignature.returnType == pathType)
+            #expect(!(ctx.diagnostics.hasError), "Path.absolute extension function in kotlin.io.path should resolve as Path: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, calleeName, _, _, _) = expr else {
                     return false
                 }
                 return ctx.interner.resolve(calleeName) == "absolute"
             })
-            XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, absoluteSymbol)
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], pathType)
+            #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == absoluteSymbol)
+            #expect(sema.bindings.exprTypes[callExpr] == pathType)
         }
     }
 
+    @Test
     func testPathAbsolutePathStringExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3644,45 +3439,39 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             try runSema(ctx)
 
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            let sema = try XCTUnwrap(ctx.sema)
-            let astAbs = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let astAbs = try #require(ctx.ast)
             let interner = ctx.interner
-            let pathSymbolAbs = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [
+            let pathSymbolAbs = try #require(sema.symbols.lookup(fqName: [
                     interner.intern("kotlin"),
                     interner.intern("io"),
                     interner.intern("path"),
                     interner.intern("Path"),
-                ])
-            )
+                ]))
             let pathTypeAbs = sema.types.make(.classType(ClassType(
                 classSymbol: pathSymbolAbs,
                 args: [],
                 nullability: .nonNull
             )))
-            let absolutePathStringSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [
+            let absolutePathStringSymbol = try #require(sema.symbols.lookup(fqName: [
                     interner.intern("kotlin"),
                     interner.intern("io"),
                     interner.intern("path"),
                     interner.intern("absolutePathString"),
-                ])
-            )
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: absolutePathStringSymbol))
-            XCTAssertEqual(signature.receiverType, pathTypeAbs)
-            XCTAssertEqual(signature.parameterTypes, [])
-            XCTAssertEqual(signature.returnType, sema.types.stringType)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.absolutePathString() in kotlin.io.path should resolve as String: \(diagnostics)"
-            )
+                ]))
+            let signature = try #require(sema.symbols.functionSignature(for: absolutePathStringSymbol))
+            #expect(signature.receiverType == pathTypeAbs)
+            #expect(signature.parameterTypes == [])
+            #expect(signature.returnType == sema.types.stringType)
+            #expect(!(ctx.diagnostics.hasError), "Path.absolutePathString() in kotlin.io.path should resolve as String: \(diagnostics)")
 
-            let callExpr = try XCTUnwrap(memberCallExprIDs(named: "absolutePathString", in: astAbs, interner: interner).first)
-            XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, absolutePathStringSymbol)
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.stringType)
+            let callExpr = try #require(memberCallExprIDs(named: "absolutePathString", in: astAbs, interner: interner).first)
+            #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == absolutePathStringSymbol)
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.stringType)
         }
     }
 
+    @Test
     func testPathAppendBytesExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.Path
@@ -3698,38 +3487,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             try runSema(ctx)
 
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Path.appendBytes extension function in kotlin.io.path should resolve: \(diagnostics)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Path.appendBytes extension function in kotlin.io.path should resolve: \(diagnostics)")
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
             let interner = ctx.interner
-            let pathTypeSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("path"), interner.intern("Path")])
-            )
-            let byteArraySymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("ByteArray")])
-            )
+            let pathTypeSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("path"), interner.intern("Path")]))
+            let byteArraySymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]))
             let pathType = sema.types.make(.classType(ClassType(classSymbol: pathTypeSymbol, args: [], nullability: .nonNull)))
             let byteArrayType = sema.types.make(.classType(ClassType(classSymbol: byteArraySymbol, args: [], nullability: .nonNull)))
-            let appendBytesSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("path"), interner.intern("appendBytes")]),
-                "Expected kotlin.io.path.appendBytes synthetic extension function"
-            )
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: appendBytesSymbol))
-            XCTAssertEqual(signature.receiverType, pathType)
-            XCTAssertEqual(signature.parameterTypes, [byteArrayType])
-            XCTAssertEqual(signature.returnType, sema.types.unitType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: appendBytesSymbol), "kk_path_appendBytes")
+            let appendBytesSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("path"), interner.intern("appendBytes")]))
+            let signature = try #require(sema.symbols.functionSignature(for: appendBytesSymbol))
+            #expect(signature.receiverType == pathType)
+            #expect(signature.parameterTypes == [byteArrayType])
+            #expect(signature.returnType == sema.types.unitType)
+            #expect(sema.symbols.externalLinkName(for: appendBytesSymbol) == "kk_path_appendBytes")
 
-            let appendBytesCall = try XCTUnwrap(memberCallExprIDs(named: "appendBytes", in: ast, interner: interner).first)
-            XCTAssertEqual(sema.bindings.callBinding(for: appendBytesCall)?.chosenCallee, appendBytesSymbol)
-            XCTAssertEqual(sema.bindings.exprTypes[appendBytesCall], sema.types.unitType)
+            let appendBytesCall = try #require(memberCallExprIDs(named: "appendBytes", in: ast, interner: interner).first)
+            #expect(sema.bindings.callBinding(for: appendBytesCall)?.chosenCallee == appendBytesSymbol)
+            #expect(sema.bindings.exprTypes[appendBytesCall] == sema.types.unitType)
         }
     }
 
+    @Test
     func testMemoryOrderInAtomicsPackageIsResolved() throws {
         let source = """
         import kotlin.concurrent.atomics.MemoryOrder
@@ -3743,13 +3523,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "MemoryOrder in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "MemoryOrder in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testTypeSystemLUBAndGLB() {
         let types = TypeSystem()
 
@@ -3757,20 +3535,21 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         let intNullable = types.make(.primitive(.int, .nullable))
         let boolNN = types.make(.primitive(.boolean, .nonNull))
 
-        XCTAssertEqual(types.lub([]), types.errorType)
-        XCTAssertEqual(types.lub([intNN, intNN]), intNN)
-        XCTAssertEqual(types.lub([intNN, intNullable]), types.nullableAnyType)
+        #expect(types.lub([]) == types.errorType)
+        #expect(types.lub([intNN, intNN]) == intNN)
+        #expect(types.lub([intNN, intNullable]) == types.nullableAnyType)
 
-        XCTAssertEqual(types.glb([]), types.errorType)
-        XCTAssertEqual(types.glb([intNN, intNN]), intNN)
-        XCTAssertEqual(types.glb([intNN, types.nothingType]), types.nothingType)
+        #expect(types.glb([]) == types.errorType)
+        #expect(types.glb([intNN, intNN]) == intNN)
+        #expect(types.glb([intNN, types.nothingType]) == types.nothingType)
 
         let glbMixed = types.glb([intNN, boolNN])
-        XCTAssertEqual(types.kind(of: glbMixed), .intersection([intNN, boolNN]))
+        #expect(types.kind(of: glbMixed) == .intersection([intNN, boolNN]))
 
-        XCTAssertEqual(types.kind(of: TypeID(rawValue: 9999)), .error)
+        #expect(types.kind(of: TypeID(rawValue: 9999)) == .error)
     }
 
+    @Test
     func testTypeSystemAnyNonNullSubtypeCoversClassFunctionIntersectionAndDefaultCases() {
         let types = TypeSystem()
 
@@ -3806,15 +3585,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         let intersectionAllNonNull = types.make(.intersection([intNN, classNN]))
         let intersectionWithNullable = types.make(.intersection([intNN, intNullable]))
 
-        XCTAssertTrue(types.isSubtype(classNN, types.anyType))
-        XCTAssertFalse(types.isSubtype(classNullable, types.anyType))
-        XCTAssertTrue(types.isSubtype(fnNN, types.anyType))
-        XCTAssertFalse(types.isSubtype(fnNullable, types.anyType))
-        XCTAssertTrue(types.isSubtype(intersectionAllNonNull, types.anyType))
+        #expect(types.isSubtype(classNN, types.anyType))
+        #expect(!(types.isSubtype(classNullable, types.anyType)))
+        #expect(types.isSubtype(fnNN, types.anyType))
+        #expect(!(types.isSubtype(fnNullable, types.anyType)))
+        #expect(types.isSubtype(intersectionAllNonNull, types.anyType))
         // With corrected intersection subtype rules (P5-97): A & B <: C if ANY part <: C.
         // intersection([Int, Int?]) <: Any is true because Int <: Any.
-        XCTAssertTrue(types.isSubtype(intersectionWithNullable, types.anyType))
-        XCTAssertFalse(types.isSubtype(types.nullableAnyType, types.anyType))
+        #expect(types.isSubtype(intersectionWithNullable, types.anyType))
+        #expect(!(types.isSubtype(types.nullableAnyType, types.anyType)))
 
         let fnWithReceiver = types.make(.functionType(FunctionType(
             receiver: intNN,
@@ -3830,9 +3609,10 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             isSuspend: false,
             nullability: .nonNull
         )))
-        XCTAssertFalse(types.isSubtype(fnWithReceiver, fnWithoutReceiver))
+        #expect(!(types.isSubtype(fnWithReceiver, fnWithoutReceiver)))
     }
 
+    @Test
     func testSemanticsBindingTableAndSymbolTableScopes() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -3854,19 +3634,19 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             flags: [.inlineFunction, .suspendFunction]
         )
 
-        XCTAssertEqual(symbols.count, 2)
-        XCTAssertEqual(symbols.symbol(pkg)?.kind, .package)
-        XCTAssertEqual(symbols.lookup(fqName: [interner.intern("pkg")]), pkg)
+        #expect(symbols.count == 2)
+        #expect(symbols.symbol(pkg)?.kind == .package)
+        #expect(symbols.lookup(fqName: [interner.intern("pkg")]) == pkg)
 
         let signature = FunctionSignature(parameterTypes: [TypeSystem().anyType], returnType: TypeSystem().unitType)
         symbols.setFunctionSignature(signature, for: fn)
-        XCTAssertEqual(symbols.functionSignature(for: fn)?.parameterTypes.count, 1)
+        #expect(symbols.functionSignature(for: fn)?.parameterTypes.count == 1)
 
         let root = PackageScope(parent: nil, symbols: symbols)
         let fileScope = FileScope(parent: root, symbols: symbols)
         fileScope.insert(fn)
-        XCTAssertEqual(fileScope.lookup(interner.intern("run")), [fn])
-        XCTAssertTrue(root.lookup(interner.intern("run")).isEmpty)
+        #expect(fileScope.lookup(interner.intern("run")) == [fn])
+        #expect(root.lookup(interner.intern("run")).isEmpty)
 
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 1)
@@ -3888,27 +3668,29 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         bindings.bindDecl(decl, symbol: fn)
         bindings.bindCatchClause(expr, binding: CatchClauseBinding(parameterSymbol: fn, parameterType: TypeSystem().anyType))
 
-        XCTAssertEqual(bindings.identifierSymbol(for: expr), fn)
-        XCTAssertEqual(bindings.callBinding(for: expr)?.chosenCallee, fn)
-        XCTAssertEqual(bindings.callableTarget(for: expr), .localValue(fn))
-        XCTAssertEqual(bindings.callableValueCallBinding(for: expr)?.parameterMapping, [0: 0])
-        XCTAssertEqual(bindings.catchClauseBinding(for: expr)?.parameterSymbol, fn)
-        XCTAssertEqual(bindings.captureSymbols(for: expr), [fn])
-        XCTAssertEqual(bindings.declSymbol(for: decl), fn)
-        XCTAssertFalse(bindings.isSuperCallExpr(expr))
+        #expect(bindings.identifierSymbol(for: expr) == fn)
+        #expect(bindings.callBinding(for: expr)?.chosenCallee == fn)
+        #expect(bindings.callableTarget(for: expr) == .localValue(fn))
+        #expect(bindings.callableValueCallBinding(for: expr)?.parameterMapping == [0: 0])
+        #expect(bindings.catchClauseBinding(for: expr)?.parameterSymbol == fn)
+        #expect(bindings.captureSymbols(for: expr) == [fn])
+        #expect(bindings.declSymbol(for: decl) == fn)
+        #expect(!(bindings.isSuperCallExpr(expr)))
     }
 
+    @Test
     func testImportAliasDeclStoresAliasField() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 10)
 
         let noAlias = ImportDecl(range: range, path: [interner.intern("a"), interner.intern("B")], alias: nil)
-        XCTAssertNil(noAlias.alias)
+        #expect(noAlias.alias == nil)
 
         let withAlias = ImportDecl(range: range, path: [interner.intern("a"), interner.intern("B")], alias: interner.intern("X"))
-        XCTAssertEqual(withAlias.alias, interner.intern("X"))
+        #expect(withAlias.alias == interner.intern("X"))
     }
 
+    @Test
     func testConditionBranchStructCreation() {
         let analyzer = DataFlowAnalyzer()
         let sym = SymbolID(rawValue: 100)
@@ -3924,55 +3706,61 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         ])
         let branch = ConditionBranch(trueState: trueState, falseState: falseState)
 
-        XCTAssertEqual(branch.trueState.variables[sym]?.possibleTypes, [intType])
-        XCTAssertEqual(branch.falseState.variables[sym]?.possibleTypes, [stringType])
+        #expect(branch.trueState.variables[sym]?.possibleTypes == [intType])
+        #expect(branch.falseState.variables[sym]?.possibleTypes == [stringType])
 
         let merged = analyzer.merge(branch.trueState, branch.falseState)
-        XCTAssertEqual(merged.variables[sym]?.possibleTypes.count, 2)
-        XCTAssertTrue(merged.variables[sym]?.possibleTypes.contains(intType) == true)
-        XCTAssertTrue(merged.variables[sym]?.possibleTypes.contains(stringType) == true)
+        #expect(merged.variables[sym]?.possibleTypes.count == 2)
+        #expect(merged.variables[sym]?.possibleTypes.contains(intType) == true)
+        #expect(merged.variables[sym]?.possibleTypes.contains(stringType) == true)
     }
 }
 
-final class CommandRunnerErrorPathTests: XCTestCase {
+@Suite
+struct CommandRunnerErrorPathTests {
+    @Test
     func testRunReturnsStdoutOnSuccess() throws {
         let result = try CommandRunner.run(
             executable: "/usr/bin/env",
             arguments: ["sh", "-c", "printf 'ok'"]
         )
 
-        XCTAssertEqual(result.exitCode, 0)
-        XCTAssertEqual(result.stdout, "ok")
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == "ok")
     }
 
-    func testRunThrowsNonZeroExitWithCapturedStderr() {
-        XCTAssertThrowsError(
+    @Test
+    func testRunThrowsNonZeroExitWithCapturedStderr() throws {
+        do {
             try CommandRunner.run(
                 executable: "/usr/bin/env",
                 arguments: ["sh", "-c", "printf 'err' >&2; exit 7"]
             )
-        ) { error in
+            Issue.record("expected throw")
+        } catch {
             guard case let CommandRunnerError.nonZeroExit(result) = error else {
-                XCTFail("Expected nonZeroExit, got \(error)")
+                Issue.record("Expected nonZeroExit, got \(error)")
                 return
             }
-            XCTAssertEqual(result.exitCode, 7)
-            XCTAssertEqual(result.stderr, "err")
+            #expect(result.exitCode == 7)
+            #expect(result.stderr == "err")
         }
     }
 
-    func testRunThrowsLaunchFailedForMissingExecutable() {
-        XCTAssertThrowsError(
+    @Test
+    func testRunThrowsLaunchFailedForMissingExecutable() throws {
+        do {
             try CommandRunner.run(
                 executable: "/definitely/missing/executable",
                 arguments: []
             )
-        ) { error in
+            Issue.record("expected throw")
+        } catch {
             guard case let CommandRunnerError.launchFailed(message) = error else {
-                XCTFail("Expected launchFailed, got \(error)")
+                Issue.record("Expected launchFailed, got \(error)")
                 return
             }
-            XCTAssertTrue(message.contains("Failed to launch"))
+            #expect(message.contains("Failed to launch"))
         }
     }
 }

@@ -1,16 +1,17 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
-final class NativeUnhandledExceptionHookSurfaceTests: XCTestCase {
+@Suite
+struct NativeUnhandledExceptionHookSurfaceTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -25,7 +26,7 @@ final class NativeUnhandledExceptionHookSurfaceTests: XCTestCase {
 
     private func throwableType(sema: SemaModule, interner: StringInterner) throws -> TypeID {
         let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
-        let throwableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: throwableFQName))
+        let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
         return sema.types.make(.classType(ClassType(
             classSymbol: throwableSymbol,
             args: [],
@@ -49,19 +50,21 @@ final class NativeUnhandledExceptionHookSurfaceTests: XCTestCase {
         sema.symbols.lookup(fqName: ["kotlin", "native", name].map { interner.intern($0) })
     }
 
+    @Test
     func testReportUnhandledExceptionHookTypeAliasIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let alias = try XCTUnwrap(nativeSymbol("ReportUnhandledExceptionHook", sema: sema, interner: interner))
+        let alias = try #require(nativeSymbol("ReportUnhandledExceptionHook", sema: sema, interner: interner))
 
-        XCTAssertEqual(sema.symbols.symbol(alias)?.kind, .typeAlias)
-        XCTAssertEqual(sema.symbols.typeAliasUnderlyingType(for: alias), try hookType(sema: sema, interner: interner))
-        XCTAssertTrue(
+        #expect(sema.symbols.symbol(alias)?.kind == .typeAlias)
+        #expect(sema.symbols.typeAliasUnderlyingType(for: alias) == (try hookType(sema: sema, interner: interner)))
+        #expect(
             sema.symbols.annotations(for: alias).contains {
                 $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
             }
         )
     }
 
+    @Test
     func testUnhandledExceptionHookFunctionsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let throwable = try throwableType(sema: sema, interner: interner)
@@ -76,14 +79,14 @@ final class NativeUnhandledExceptionHookSurfaceTests: XCTestCase {
         ]
 
         for (name, params, returnType, externalLinkName, canThrow) in expectations {
-            let symbol = try XCTUnwrap(nativeSymbol(name, sema: sema, interner: interner), name)
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol), name)
-            XCTAssertEqual(signature.receiverType, nil, name)
-            XCTAssertEqual(signature.parameterTypes, params, name)
-            XCTAssertEqual(signature.returnType, returnType, name)
-            XCTAssertEqual(signature.canThrow, canThrow, name)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), externalLinkName, name)
-            XCTAssertTrue(
+            let symbol = try #require(nativeSymbol(name, sema: sema, interner: interner), Comment(rawValue: name))
+            let signature = try #require(sema.symbols.functionSignature(for: symbol), Comment(rawValue: name))
+            #expect(signature.receiverType == nil, Comment(rawValue: name))
+            #expect(signature.parameterTypes == params, Comment(rawValue: name))
+            #expect(signature.returnType == returnType, Comment(rawValue: name))
+            #expect(signature.canThrow == canThrow, Comment(rawValue: name))
+            #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, Comment(rawValue: name))
+            #expect(
                 sema.symbols.annotations(for: symbol).contains {
                     $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
                 },
@@ -92,6 +95,7 @@ final class NativeUnhandledExceptionHookSurfaceTests: XCTestCase {
         }
     }
 
+    @Test
     func testUnhandledExceptionHooksResolveInSourceWithOptIn() {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -112,6 +116,7 @@ final class NativeUnhandledExceptionHookSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(errors.isEmpty, "Expected unhandled exception hooks to resolve without errors, got \(errors)")
+        #expect(errors.isEmpty, "Expected unhandled exception hooks to resolve without errors, got \(errors)")
     }
 }
+#endif

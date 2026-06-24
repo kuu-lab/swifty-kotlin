@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-037: `fun java.io.File.startsWith(other: File): Boolean`
 ///                   `fun java.io.File.startsWith(other: String): Boolean`
@@ -11,7 +12,8 @@ import XCTest
 /// resolve through Sema for plain File receivers and bind to the runtime
 /// helpers `kk_file_startsWith_file` / `kk_file_startsWith_string` listed in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
-final class FileStartsWithFunctionTests: XCTestCase {
+@Suite
+struct FileStartsWithFunctionTests {
     private func memberCallExprIDs(
         named name: String,
         in ast: ASTModule,
@@ -31,7 +33,7 @@ final class FileStartsWithFunctionTests: XCTestCase {
 
     // MARK: - File overload resolves cleanly
 
-    func testFileStartsWithFileOverloadResolves() throws {
+    @Test func testFileStartsWithFileOverloadResolves() throws {
         let source = """
         import java.io.File
 
@@ -48,7 +50,7 @@ final class FileStartsWithFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "File.startsWith(File) should resolve cleanly, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -57,7 +59,7 @@ final class FileStartsWithFunctionTests: XCTestCase {
 
     // MARK: - String overload resolves cleanly
 
-    func testFileStartsWithStringOverloadResolves() throws {
+    @Test func testFileStartsWithStringOverloadResolves() throws {
         let source = """
         import java.io.File
 
@@ -74,7 +76,7 @@ final class FileStartsWithFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "File.startsWith(String) should resolve cleanly, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -83,7 +85,7 @@ final class FileStartsWithFunctionTests: XCTestCase {
 
     // MARK: - Both call expressions are typed as Boolean
 
-    func testFileStartsWithCallExpressionsAreTypedAsBoolean() throws {
+    @Test func testFileStartsWithCallExpressionsAreTypedAsBoolean() throws {
         let source = """
         import java.io.File
 
@@ -97,22 +99,21 @@ final class FileStartsWithFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "File.startsWith call expressions should type cleanly as Boolean: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let booleanType = sema.types.booleanType
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callExprs = memberCallExprIDs(named: "startsWith", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2, "expected two startsWith member calls")
+            #expect(callExprs.count == 2, "expected two startsWith member calls")
             for callExpr in callExprs {
-                XCTAssertEqual(
-                    sema.bindings.exprTypes[callExpr],
-                    booleanType,
+                #expect(
+                    sema.bindings.exprTypes[callExpr] == booleanType,
                     "Each File.startsWith(...) call expression must be typed as Boolean"
                 )
             }
@@ -121,17 +122,17 @@ final class FileStartsWithFunctionTests: XCTestCase {
 
     // MARK: - Sema registers both overloads with the expected runtime link names
 
-    func testFileStartsWithSignaturesAndRuntimeLinkNames() throws {
+    @Test func testFileStartsWithSignaturesAndRuntimeLinkNames() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let fileSymbol = try XCTUnwrap(
+            let fileSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
             )
             let fileType = types.make(
@@ -142,29 +143,28 @@ final class FileStartsWithFunctionTests: XCTestCase {
                 fqName: ["java", "io", "File", "startsWith"].map(interner.intern)
             )
 
-            let fileOverload = try XCTUnwrap(candidates.first { symbolID in
+            let fileOverload = try #require(candidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == fileType
                     && signature.parameterTypes == [fileType]
                     && signature.returnType == types.booleanType
             })
-            XCTAssertEqual(
-                symbols.externalLinkName(for: fileOverload),
-                "kk_file_startsWith_file",
+            #expect(
+                symbols.externalLinkName(for: fileOverload) == "kk_file_startsWith_file",
                 "File.startsWith(File) should bind to runtime helper kk_file_startsWith_file"
             )
 
-            let stringOverload = try XCTUnwrap(candidates.first { symbolID in
+            let stringOverload = try #require(candidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == fileType
                     && signature.parameterTypes == [types.stringType]
                     && signature.returnType == types.booleanType
             })
-            XCTAssertEqual(
-                symbols.externalLinkName(for: stringOverload),
-                "kk_file_startsWith_string",
+            #expect(
+                symbols.externalLinkName(for: stringOverload) == "kk_file_startsWith_string",
                 "File.startsWith(String) should bind to runtime helper kk_file_startsWith_string"
             )
         }
     }
 }
+#endif

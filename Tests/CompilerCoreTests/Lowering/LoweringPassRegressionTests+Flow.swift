@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringPassRegressionTests {
+    @Test
     func testFlowLoweringRewritesFlowCallsToRuntimeABI() throws {
         let source = """
         fun main() {
@@ -28,7 +30,7 @@ extension LoweringPassRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             var allCallees: [String] = []
             for decl in module.arena.declarations {
                 guard case let .function(function) = decl else {
@@ -37,18 +39,19 @@ extension LoweringPassRegressionTests {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
-            XCTAssertTrue(allCallees.contains("kk_flow_create"))
-            XCTAssertTrue(allCallees.contains("kk_flow_emit"))
-            XCTAssertTrue(allCallees.contains("kk_flow_collect"))
-            XCTAssertTrue(allCallees.contains("kk_flow_single"))
-            XCTAssertFalse(allCallees.contains("flow"))
-            XCTAssertFalse(allCallees.contains("transform"))
-            XCTAssertFalse(allCallees.contains("collect"))
-            XCTAssertFalse(allCallees.contains("emit"))
-            XCTAssertFalse(allCallees.contains("single"))
+            #expect(allCallees.contains("kk_flow_create"))
+            #expect(allCallees.contains("kk_flow_emit"))
+            #expect(allCallees.contains("kk_flow_collect"))
+            #expect(allCallees.contains("kk_flow_single"))
+            #expect(!allCallees.contains("flow"))
+            #expect(!allCallees.contains("transform"))
+            #expect(!allCallees.contains("collect"))
+            #expect(!allCallees.contains("emit"))
+            #expect(!allCallees.contains("single"))
         }
     }
 
+    @Test
     func testCoroutineLoweringFlowCollectInjectsSuspendCollectorFunctionID() throws {
         let source = """
         fun main() {
@@ -68,7 +71,7 @@ extension LoweringPassRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             var collectCallArgs: [KIRExprID]?
             for decl in module.arena.declarations {
                 guard case let .function(function) = decl else {
@@ -88,13 +91,13 @@ extension LoweringPassRegressionTests {
                 }
             }
 
-            let callArgs = try XCTUnwrap(collectCallArgs, "Expected kk_flow_collect call after lowering.")
-            XCTAssertEqual(callArgs.count, 3)
+            let callArgs = try #require(collectCallArgs, "Expected kk_flow_collect call after lowering.")
+            #expect(callArgs.count == 3)
 
             guard let collectorExpr = module.arena.expr(callArgs[1]),
                   case let .symbolRef(collectorSymbol) = collectorExpr
             else {
-                XCTFail("kk_flow_collect collector argument must be a symbol reference.")
+                Issue.record("kk_flow_collect collector argument must be a symbol reference.")
                 return
             }
 
@@ -103,7 +106,7 @@ extension LoweringPassRegressionTests {
                 return function.symbol == collectorSymbol ? function : nil
             }.first
             let collectorName = collectorFunction.map { ctx.interner.resolve($0.name) } ?? ""
-            XCTAssertTrue(
+            #expect(
                 collectorName.hasPrefix("kk_suspend_"),
                 "Collector argument should be rewritten to suspend-lowered entry point."
             )
@@ -111,14 +114,15 @@ extension LoweringPassRegressionTests {
             guard let functionIDExpr = module.arena.expr(callArgs[2]),
                   case let .intLiteral(functionID) = functionIDExpr
             else {
-                XCTFail("kk_flow_collect third argument must be a function ID literal.")
+                Issue.record("kk_flow_collect third argument must be a function ID literal.")
                 return
             }
-            XCTAssertNotEqual(functionID, 0)
-            XCTAssertEqual(functionID, Int64(collectorSymbol.rawValue))
+            #expect(functionID != 0)
+            #expect(functionID == Int64(collectorSymbol.rawValue))
         }
     }
 
+    @Test
     func testFlowMapCollectExecutablePrintsExpectedOutput() throws {
         let source = """
         suspend fun runFlowCollectExecutable() {
@@ -141,6 +145,7 @@ extension LoweringPassRegressionTests {
         )
     }
 
+    @Test
     func testFlowCollectTwiceLowersBothCollectCalls() throws {
         let source = """
         suspend fun runFlowCollectTwice() {
@@ -162,7 +167,7 @@ extension LoweringPassRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let collectCalls = module.arena.declarations.compactMap { decl -> Int? in
                 guard case let .function(function) = decl else {
                     return nil
@@ -172,10 +177,11 @@ extension LoweringPassRegressionTests {
                 return collectCount == 0 ? nil : collectCount
             }.reduce(0, +)
 
-            XCTAssertEqual(collectCalls, 2, "Lowering should preserve both collect calls for a reused cold flow.")
+            #expect(collectCalls == 2, "Lowering should preserve both collect calls for a reused cold flow.")
         }
     }
 
+    @Test
     func testFlowLoweringInsertsFlowHandleReleaseCalls() throws {
         let source = """
         suspend fun runFlowOwnership() {
@@ -199,7 +205,7 @@ extension LoweringPassRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             var allCallees: [String] = []
             for decl in module.arena.declarations {
                 guard case let .function(function) = decl else {
@@ -208,7 +214,7 @@ extension LoweringPassRegressionTests {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
-            XCTAssertTrue(allCallees.contains("kk_flow_release"))
+            #expect(allCallees.contains("kk_flow_release"))
         }
     }
 
@@ -239,8 +245,9 @@ extension LoweringPassRegressionTests {
 
             let runResult = try CommandRunner.run(executable: outputPath, arguments: [])
             let normalizedStdout = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(runResult.exitCode, 0)
-            XCTAssertEqual(normalizedStdout, expectedStdout)
+            #expect(runResult.exitCode == 0)
+            #expect(normalizedStdout == expectedStdout)
         }
     }
 }
+#endif

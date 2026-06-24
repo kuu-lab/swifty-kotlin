@@ -1,20 +1,21 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Verifies that `kotlin.text.String.toInt()` and `String.toInt(radix:)` —
 /// tracked by STDLIB-TEXT-FN-099 — are registered as synthetic stdlib stubs
 /// and resolve to the correct runtime external link names at sema time.
-final class StringToIntFunctionTests: XCTestCase {
+@Suite
+struct StringToIntFunctionTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func externalLinks(
@@ -32,15 +33,16 @@ final class StringToIntFunctionTests: XCTestCase {
     /// Both `String.toInt()` and `String.toInt(radix)` must be registered with
     /// their respective runtime ABI bridges (`kk_string_toInt` and
     /// `kk_string_toInt_radix`).
+    @Test
     func testStringToIntStubsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let links = externalLinks(for: "toInt", sema: sema, interner: interner)
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_string_toInt"),
             "String.toInt() should link to kk_string_toInt — got: \(links.sorted())"
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_string_toInt_radix"),
             "String.toInt(radix) should link to kk_string_toInt_radix — got: \(links.sorted())"
         )
@@ -48,6 +50,7 @@ final class StringToIntFunctionTests: XCTestCase {
 
     /// Call expression `"42".toInt()` must resolve through sema to the
     /// `kk_string_toInt` runtime entry and produce an `Int` result.
+    @Test
     func testStringToIntCallResolvesToRuntimeBridge() throws {
         let source = """
         fun parse(value: String): Int {
@@ -58,9 +61,9 @@ final class StringToIntFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "toInt" && args.isEmpty
@@ -68,13 +71,12 @@ final class StringToIntFunctionTests: XCTestCase {
                 "Expected member call to toInt() in AST"
             )
 
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected call binding for toInt"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toInt",
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_toInt",
                 "String.toInt() should resolve to kk_string_toInt"
             )
         }
@@ -82,6 +84,7 @@ final class StringToIntFunctionTests: XCTestCase {
 
     /// Call expression `"ff".toInt(16)` must resolve to the radix-aware
     /// runtime bridge `kk_string_toInt_radix`.
+    @Test
     func testStringToIntRadixCallResolvesToRuntimeBridge() throws {
         let source = """
         fun parseHex(value: String): Int {
@@ -92,9 +95,9 @@ final class StringToIntFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "toInt" && args.count == 1
@@ -102,13 +105,12 @@ final class StringToIntFunctionTests: XCTestCase {
                 "Expected member call to toInt(radix) in AST"
             )
 
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected call binding for toInt(radix)"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toInt_radix",
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_toInt_radix",
                 "String.toInt(16) should resolve to kk_string_toInt_radix"
             )
         }

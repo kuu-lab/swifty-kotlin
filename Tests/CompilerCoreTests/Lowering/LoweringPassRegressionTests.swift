@@ -1,39 +1,44 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LoweringPassRegressionTests: XCTestCase {
+@Suite
+@MainActor
+struct LoweringPassRegressionTests {
+    @Test
     func testLoweringRewritesMainCallSites() throws {
         let fixture = try makeLoweringRewriteFixture()
 
         guard case let .function(loweredMain)? = fixture.module.arena.decl(fixture.mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
 
         let callees = extractCallees(from: loweredMain.body, interner: fixture.interner)
-        XCTAssertTrue(callees.contains("kk_uint_range_iterator"), "Callees: \(callees)")
-        XCTAssertFalse(callees.contains("kk_range_iterator"), "Callees: \(callees)")
-        XCTAssertTrue(callees.contains("kk_range_hasNext"), "Callees: \(callees)")
-        XCTAssertTrue(callees.contains("kk_range_next"), "Callees: \(callees)")
-        XCTAssertFalse(callees.contains("kk_for_lowered"), "Callees: \(callees)")
+        #expect(callees.contains("kk_uint_range_iterator"), "Callees: \(callees)")
+        #expect(!callees.contains("kk_range_iterator"), "Callees: \(callees)")
+        #expect(callees.contains("kk_range_hasNext"), "Callees: \(callees)")
+        #expect(callees.contains("kk_range_next"), "Callees: \(callees)")
+        #expect(!callees.contains("kk_for_lowered"), "Callees: \(callees)")
         // kk_when_select removed; select is now control flow (jumpIfEqual + copy + jump + label)
-        XCTAssertFalse(callees.contains("kk_when_select"), "Callees: \(callees)")
+        #expect(!callees.contains("kk_when_select"), "Callees: \(callees)")
         // kk_property_access removed — PropertyLowering now emits direct accessor calls.
         // The test fixture uses symbol-less get/set calls, so they remain unchanged.
-        XCTAssertFalse(callees.contains("kk_property_access"), "Callees: \(callees)")
-        XCTAssertTrue(callees.contains("get"), "Callees: \(callees)")
-        XCTAssertTrue(callees.contains("set"), "Callees: \(callees)")
-        XCTAssertTrue(callees.contains("kk_lambda_invoke"), "Callees: \(callees)")
-        XCTAssertFalse(callees.contains("inlineTarget"), "Callees: \(callees)")
-        XCTAssertTrue(callees.contains("kk_coroutine_continuation_new"), "Callees: \(callees)")
-        XCTAssertTrue(callees.contains("kk_suspend_suspendTarget"), "Callees: \(callees)")
+        #expect(!callees.contains("kk_property_access"), "Callees: \(callees)")
+        #expect(callees.contains("get"), "Callees: \(callees)")
+        #expect(callees.contains("set"), "Callees: \(callees)")
+        #expect(callees.contains("kk_lambda_invoke"), "Callees: \(callees)")
+        #expect(!callees.contains("inlineTarget"), "Callees: \(callees)")
+        #expect(callees.contains("kk_coroutine_continuation_new"), "Callees: \(callees)")
+        #expect(callees.contains("kk_suspend_suspendTarget"), "Callees: \(callees)")
 
         let throwFlags = extractThrowFlags(from: loweredMain.body, interner: fixture.interner)
-        XCTAssertEqual(throwFlags["kk_coroutine_continuation_new"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true }, true)
+        #expect(throwFlags["kk_coroutine_continuation_new"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true } == true)
     }
 
+    @Test
     func testRangeRandomCallsKeepRandomArgument() throws {
         let source = """
         import kotlin.random.Random
@@ -58,7 +63,7 @@ final class LoweringPassRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let allCallees = extractCallees(from: body, interner: ctx.interner)
 
@@ -78,26 +83,27 @@ final class LoweringPassRegressionTests: XCTestCase {
                 return (name, arguments.count, canThrow)
             }
 
-            XCTAssertEqual(randomCalls.count, 5, "Expected five range.random calls, got: \(randomCalls); all callees: \(allCallees)")
-            XCTAssertTrue(randomCalls.allSatisfy { _, argumentCount, canThrow in
+            #expect(randomCalls.count == 5, "Expected five range.random calls, got: \(randomCalls); all callees: \(allCallees)")
+            #expect(randomCalls.allSatisfy { _, argumentCount, canThrow in
                 argumentCount == 2 && canThrow
             }, "Expected receiver + Random argument and canThrow=true, got: \(randomCalls); all callees: \(allCallees)")
         }
     }
 
+    @Test
     func testLoweringBuildsSuspendStateMachineAndThrowFlags() throws {
         let fixture = try makeLoweringRewriteFixture()
         let loweredSuspend = try findKIRFunction(named: "kk_suspend_suspendTarget", in: fixture.module, interner: fixture.interner)
 
-        XCTAssertEqual(loweredSuspend.params.count, 1)
-        XCTAssertEqual(loweredSuspend.isSuspend, false)
+        #expect(loweredSuspend.params.count == 1)
+        #expect(loweredSuspend.isSuspend == false)
 
         let loweredSuspendCallees = extractCallees(from: loweredSuspend.body, interner: fixture.interner)
-        XCTAssertTrue(loweredSuspendCallees.contains("kk_coroutine_state_enter"))
-        XCTAssertTrue(loweredSuspendCallees.contains("kk_coroutine_state_set_label"))
-        XCTAssertTrue(loweredSuspendCallees.contains("kk_coroutine_state_set_completion"))
-        XCTAssertTrue(loweredSuspendCallees.contains("kk_coroutine_state_get_completion"))
-        XCTAssertTrue(loweredSuspendCallees.contains("kk_coroutine_state_exit"))
+        #expect(loweredSuspendCallees.contains("kk_coroutine_state_enter"))
+        #expect(loweredSuspendCallees.contains("kk_coroutine_state_set_label"))
+        #expect(loweredSuspendCallees.contains("kk_coroutine_state_set_completion"))
+        #expect(loweredSuspendCallees.contains("kk_coroutine_state_get_completion"))
+        #expect(loweredSuspendCallees.contains("kk_coroutine_state_exit"))
 
         let dispatchJumpCount = loweredSuspend.body.filter { instruction in
             if case .jumpIfEqual = instruction {
@@ -107,7 +113,7 @@ final class LoweringPassRegressionTests: XCTestCase {
         }.count
         // A suspend function with one suspension point needs at least 2 dispatch jumps:
         // one for label 1000 (entry) and one for label 1001 (resume point)
-        XCTAssertGreaterThanOrEqual(dispatchJumpCount, 2)
+        #expect(dispatchJumpCount >= 2)
 
         let dispatchLabels = loweredSuspend.body.compactMap { instruction -> Int32? in
             if case let .label(id) = instruction {
@@ -116,8 +122,8 @@ final class LoweringPassRegressionTests: XCTestCase {
             return nil
         }
         // Coroutine state machine dispatch labels start at coroutineDispatchLabelBase
-        XCTAssertTrue(dispatchLabels.contains(coroutineDispatchLabelBase))
-        XCTAssertTrue(dispatchLabels.contains(coroutineDispatchLabelBase + 1))
+        #expect(dispatchLabels.contains(coroutineDispatchLabelBase))
+        #expect(dispatchLabels.contains(coroutineDispatchLabelBase + 1))
 
         let hasSuspendGuard = loweredSuspend.body.contains { instruction in
             if case .returnIfEqual = instruction {
@@ -125,27 +131,29 @@ final class LoweringPassRegressionTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasSuspendGuard)
+        #expect(hasSuspendGuard)
 
         let throwFlags = extractThrowFlags(from: loweredSuspend.body, interner: fixture.interner)
-        XCTAssertEqual(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_suspended"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_state_set_label"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_state_get_completion"]?.allSatisfy { $0 == false }, true)
+        #expect(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true } == true)
+        #expect(throwFlags["kk_coroutine_suspended"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags["kk_coroutine_state_set_label"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags["kk_coroutine_state_get_completion"]?.allSatisfy { $0 == false } == true)
     }
 
+    @Test
     func testLoweringNormalizesEmptyFunctionBody() throws {
         let fixture = try makeLoweringRewriteFixture()
 
         guard case let .function(loweredEmpty)? = fixture.module.arena.decl(fixture.emptyID) else {
-            XCTFail("expected lowered empty function")
+            Issue.record("expected lowered empty function")
             return
         }
-        XCTAssertEqual(loweredEmpty.body.last, .returnUnit)
-        XCTAssertFalse(loweredEmpty.body.isEmpty)
+        #expect(loweredEmpty.body.last == .returnUnit)
+        #expect(!loweredEmpty.body.isEmpty)
     }
 
+    @Test
     func testCoroutineLoweringRewritesKxMiniLauncherAndDelayBuiltins() throws {
         let source = """
         suspend fun delayedValue(): Int {
@@ -160,25 +168,26 @@ final class LoweringPassRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let suspendBody = try findKIRFunctionBody(named: "kk_suspend_delayedValue", in: module, interner: ctx.interner)
 
             let mainCalls = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(mainCalls.contains("kk_kxmini_run_blocking"))
-            XCTAssertFalse(mainCalls.contains("runBlocking"))
+            #expect(mainCalls.contains("kk_kxmini_run_blocking"))
+            #expect(!mainCalls.contains("runBlocking"))
 
             let delayCalls = extractCallees(from: suspendBody, interner: ctx.interner)
-            XCTAssertTrue(delayCalls.contains("kk_kxmini_delay"))
+            #expect(delayCalls.contains("kk_kxmini_delay"))
 
             let throwFlags = extractThrowFlags(from: suspendBody, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_kxmini_delay"]?.allSatisfy { $0 == false }, true)
+            #expect(throwFlags["kk_kxmini_delay"]?.allSatisfy { $0 == false } == true)
         }
     }
 
     /// CORO-004: `Deferred.await()` and `Job.join()` must be lowered as real suspend
     /// points — rewritten to their runtime callees and preceded by a resume-label
     /// install so the runtime can resume the coroutine without blocking a thread.
+    @Test
     func testCoroutineLoweringTreatsAwaitAndJoinAsSuspendPoints() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -195,23 +204,24 @@ final class LoweringPassRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let suspendBody = try findKIRFunctionBody(named: "kk_suspend_awaitAndJoin", in: module, interner: ctx.interner)
 
             let callees = extractCallees(from: suspendBody, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_kxmini_async_await"), "await should lower to kk_kxmini_async_await")
-            XCTAssertTrue(callees.contains("kk_job_join"), "join should lower to kk_job_join")
-            XCTAssertTrue(
+            #expect(callees.contains("kk_kxmini_async_await"), "await should lower to kk_kxmini_async_await")
+            #expect(callees.contains("kk_job_join"), "join should lower to kk_job_join")
+            #expect(
                 callees.contains("kk_coroutine_state_set_label"),
                 "await/join must be treated as suspend points (resume label install)"
             )
 
             let throwFlags = extractThrowFlags(from: suspendBody, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_kxmini_async_await"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_job_join"]?.allSatisfy { $0 == false }, true)
+            #expect(throwFlags["kk_kxmini_async_await"]?.allSatisfy { $0 == false } == true)
+            #expect(throwFlags["kk_job_join"]?.allSatisfy { $0 == false } == true)
         }
     }
 
+    @Test
     func testCoroutineLoweringRewritesCoroutineScopeToScopeRun() throws {
         let source = """
         suspend fun delayedValue(): Int {
@@ -226,15 +236,16 @@ final class LoweringPassRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let mainCalls = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(mainCalls.contains("kk_coroutine_scope_run"), "Expected coroutineScope to be rewritten to kk_coroutine_scope_run")
-            XCTAssertFalse(mainCalls.contains("coroutineScope"), "coroutineScope should have been rewritten")
+            #expect(mainCalls.contains("kk_coroutine_scope_run"), "Expected coroutineScope to be rewritten to kk_coroutine_scope_run")
+            #expect(!mainCalls.contains("coroutineScope"), "coroutineScope should have been rewritten")
         }
     }
 
+    @Test
     func testCoroutineLoweringRewritesSuspendLocalFunctionCalls() throws {
         let source = """
         suspend fun delayedValue(v: Int): Int = v
@@ -252,7 +263,7 @@ final class LoweringPassRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else {
                     return nil
@@ -260,24 +271,25 @@ final class LoweringPassRegressionTests: XCTestCase {
                 return function
             }
 
-            let loweredOuter = try XCTUnwrap(allFunctions.first(where: { function in
+            let loweredOuter = try #require(allFunctions.first(where: { function in
                 ctx.interner.resolve(function.name) == "kk_suspend_outerSuspendHost"
             }))
-            let loweredLocal = try XCTUnwrap(allFunctions.first(where: { function in
+            let loweredLocal = try #require(allFunctions.first(where: { function in
                 ctx.interner.resolve(function.name) == "kk_suspend_localSuspendBridge"
             }))
 
             let outerCallees = extractCallees(from: loweredOuter.body, interner: ctx.interner)
-            XCTAssertTrue(outerCallees.contains("kk_suspend_localSuspendBridge"))
-            XCTAssertFalse(outerCallees.contains("localSuspendBridge"))
+            #expect(outerCallees.contains("kk_suspend_localSuspendBridge"))
+            #expect(!outerCallees.contains("localSuspendBridge"))
 
             let localCallees = extractCallees(from: loweredLocal.body, interner: ctx.interner)
-            XCTAssertTrue(localCallees.contains("kk_suspend_delayedValue"))
-            XCTAssertTrue(localCallees.contains("kk_coroutine_state_enter"))
-            XCTAssertTrue(localCallees.contains("kk_coroutine_state_exit"))
+            #expect(localCallees.contains("kk_suspend_delayedValue"))
+            #expect(localCallees.contains("kk_coroutine_state_enter"))
+            #expect(localCallees.contains("kk_coroutine_state_exit"))
         }
     }
 
+    @Test
     func testCoroutineLoweringRewritesSuspendCoroutineUninterceptedOrReturnFromImport() throws {
         let source = """
         import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
@@ -295,15 +307,16 @@ final class LoweringPassRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let probeBody = try findKIRFunctionBody(named: "kk_suspend_probe", in: module, interner: ctx.interner)
 
             let callees = extractCallees(from: probeBody, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_coroutine_suspended"), "callees: \(callees)")
-            XCTAssertFalse(callees.contains("suspendCoroutineUninterceptedOrReturn"), "callees: \(callees)")
+            #expect(callees.contains("kk_coroutine_suspended"), "callees: \(callees)")
+            #expect(!callees.contains("suspendCoroutineUninterceptedOrReturn"), "callees: \(callees)")
         }
     }
 
+    @Test
     func testCoroutineLoweringRewritesSuspendFunctionTypeInvokeCalls() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -324,7 +337,7 @@ final class LoweringPassRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendInvokeRewrite", emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let allCallees = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else {
                     return nil
@@ -335,12 +348,13 @@ final class LoweringPassRegressionTests: XCTestCase {
             }
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.severity): \($0.message)" }
 
-            XCTAssertTrue(allCallees.contains("kk_suspend_function_invoke_0"), "Callees: \(allCallees)")
-            XCTAssertTrue(allCallees.contains("kk_suspend_function_invoke"), "Callees: \(allCallees)")
-            XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error }, "Diagnostics: \(diagnostics)")
+            #expect(allCallees.contains("kk_suspend_function_invoke_0"), "Callees: \(allCallees)")
+            #expect(allCallees.contains("kk_suspend_function_invoke"), "Callees: \(allCallees)")
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error }, "Diagnostics: \(diagnostics)")
         }
     }
 
+    @Test
     func testKxMiniRunBlockingDelayExecutableReturnsExpectedExitCode() throws {
         let source = """
         suspend fun delayedValue(): Int {
@@ -366,19 +380,20 @@ final class LoweringPassRegressionTests: XCTestCase {
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            #expect(FileManager.default.fileExists(atPath: outputPath))
             do {
                 _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                XCTFail("Expected non-zero exit")
+                Issue.record("Expected non-zero exit")
                 return
             } catch let CommandRunnerError.nonZeroExit(failed) {
-                XCTAssertEqual(failed.exitCode, 42)
+                #expect(failed.exitCode == 42)
             } catch {
-                XCTFail("Unexpected error: \(error)")
+                Issue.record("Unexpected error: \(error)")
             }
         }
     }
 
+    @Test
     func testCoroutineLoweringRewritesOverloadedSuspendCallsByNameAndArity() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -442,7 +457,7 @@ final class LoweringPassRegressionTests: XCTestCase {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            XCTFail("expected lowered caller function")
+            Issue.record("expected lowered caller function")
             return
         }
 
@@ -452,7 +467,7 @@ final class LoweringPassRegressionTests: XCTestCase {
             }
             return interner.resolve(callee) == "susp"
         }
-        XCTAssertFalse(rawSuspendCalls)
+        #expect(!rawSuspendCalls)
 
         let rewrittenSuspendCalls = loweredCaller.body.compactMap { instruction -> (name: String, arity: Int, canThrow: Bool)? in
             guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction else {
@@ -464,11 +479,13 @@ final class LoweringPassRegressionTests: XCTestCase {
             }
             return (name: name, arity: arguments.count, canThrow: canThrow)
         }
-        XCTAssertEqual(rewrittenSuspendCalls.count, 2)
-        XCTAssertEqual(Set(rewrittenSuspendCalls.map(\.arity)), Set([1, 2]))
-        XCTAssertTrue(rewrittenSuspendCalls.allSatisfy(\.canThrow))
+        #expect(rewrittenSuspendCalls.count == 2)
+        #expect(Set(rewrittenSuspendCalls.map(\.arity)) == Set([1, 2]))
+        let allCanThrow = rewrittenSuspendCalls.allSatisfy(\.canThrow)
+        #expect(allCanThrow)
     }
 
+    @Test
     func testCoroutineLoweringPreservesControlFlowAroundSuspendCalls() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -517,9 +534,9 @@ final class LoweringPassRegressionTests: XCTestCase {
             return nil
         }
         // Coroutine dispatch labels + original user label 20
-        XCTAssertTrue(labels.contains(coroutineDispatchLabelBase))
-        XCTAssertTrue(labels.contains(coroutineDispatchLabelBase + 1))
-        XCTAssertTrue(labels.contains(20))
+        #expect(labels.contains(coroutineDispatchLabelBase))
+        #expect(labels.contains(coroutineDispatchLabelBase + 1))
+        #expect(labels.contains(20))
 
         let hasOriginalBranch = loweredSuspend.body.contains { instruction in
             if case let .jumpIfEqual(_, _, target) = instruction {
@@ -527,7 +544,7 @@ final class LoweringPassRegressionTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasOriginalBranch)
+        #expect(hasOriginalBranch)
     }
 
     // MARK: - Private Helpers
@@ -554,3 +571,4 @@ final class LoweringPassRegressionTests: XCTestCase {
         return ctx
     }
 }
+#endif

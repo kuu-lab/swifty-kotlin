@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ComparisonsNaturalOrderFunctionTests: XCTestCase {
-    func testNaturalOrderFunctionResolvesInSource() throws {
+@Suite
+struct ComparisonsNaturalOrderFunctionTests {
+    @Test func testNaturalOrderFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.naturalOrder
 
@@ -11,6 +13,7 @@ final class ComparisonsNaturalOrderFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

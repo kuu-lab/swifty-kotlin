@@ -1,16 +1,18 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class LockSyntheticMemberLinkTests: XCTestCase {
+@Suite
+struct LockSyntheticMemberLinkTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func externalLinks(
@@ -23,24 +25,29 @@ final class LockSyntheticMemberLinkTests: XCTestCase {
         return sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) }
     }
 
-    func testLockWithLockMemberHasCorrectExternalLink() throws {
+    @Test func testLockWithLockMemberHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 
         let links = externalLinks(for: "Lock", member: "withLock", sema: sema, interner: interner)
-        XCTAssertTrue(links.contains("kk_lock_withLock"), "Lock.withLock() stub missing")
+        let hasLink = links.contains("kk_lock_withLock")
+        #expect(hasLink, "Lock.withLock() stub missing")
     }
 
-    func testReadWriteLockMembersHaveCorrectExternalLinks() throws {
+    @Test func testReadWriteLockMembersHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let factoryFq = ["kotlin", "concurrent", "readWriteLock"].map { interner.intern($0) }
         let factoryLinks = sema.symbols.lookupAll(fqName: factoryFq).compactMap { sema.symbols.externalLinkName(for: $0) }
-        XCTAssertTrue(factoryLinks.contains("kk_read_write_lock_create"), "readWriteLock() stub missing")
+        let hasFactory = factoryLinks.contains("kk_read_write_lock_create")
+        #expect(hasFactory, "readWriteLock() stub missing")
 
         let readLinks = externalLinks(for: "ReentrantReadWriteLock", member: "read", sema: sema, interner: interner)
-        XCTAssertTrue(readLinks.contains("kk_read_write_lock_read"), "ReentrantReadWriteLock.read() stub missing")
+        let hasRead = readLinks.contains("kk_read_write_lock_read")
+        #expect(hasRead, "ReentrantReadWriteLock.read() stub missing")
 
         let writeLinks = externalLinks(for: "ReentrantReadWriteLock", member: "write", sema: sema, interner: interner)
-        XCTAssertTrue(writeLinks.contains("kk_read_write_lock_write"), "ReentrantReadWriteLock.write() stub missing")
+        let hasWrite = writeLinks.contains("kk_read_write_lock_write")
+        #expect(hasWrite, "ReentrantReadWriteLock.write() stub missing")
     }
 }
+#endif

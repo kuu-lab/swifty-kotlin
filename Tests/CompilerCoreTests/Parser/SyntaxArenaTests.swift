@@ -1,7 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class SyntaxArenaTests: XCTestCase {
+@Suite
+struct SyntaxArenaTests {
+    @Test
     func testAppendTokenAndMakeNodeRoundTrip() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -11,44 +14,47 @@ final class SyntaxArenaTests: XCTestCase {
         let tokenIDA = arena.appendToken(tokenA)
         let tokenIDB = arena.appendToken(tokenB)
 
-        XCTAssertEqual(tokenIDA, TokenID(rawValue: 0))
-        XCTAssertEqual(tokenIDB, TokenID(rawValue: 1))
+        #expect(tokenIDA == TokenID(rawValue: 0))
+        #expect(tokenIDB == TokenID(rawValue: 1))
 
         let range = makeRange(start: 0, end: 3)
         let nodeID = arena.appendNode(kind: .callExpr, range: range, [.token(tokenIDA), .token(tokenIDB)])
         let node = arena.node(nodeID)
 
-        XCTAssertEqual(node.kind, .callExpr)
-        XCTAssertEqual(node.range, range)
-        XCTAssertEqual(node.firstChildIndex, 0)
-        XCTAssertEqual(node.childCount, 2)
+        #expect(node.kind == .callExpr)
+        #expect(node.range == range)
+        #expect(node.firstChildIndex == 0)
+        #expect(node.childCount == 2)
 
-        XCTAssertEqual(Array(arena.children(of: nodeID)), [.token(tokenIDA), .token(tokenIDB)])
+        #expect(Array(arena.children(of: nodeID)) == [.token(tokenIDA), .token(tokenIDB)])
     }
 
+    @Test
     func testNodeReturnsSentinelForInvalidIDs() {
         let arena = SyntaxArena()
 
         let negative = arena.node(NodeID(rawValue: -1))
-        XCTAssertEqual(negative.kind, .statement)
-        XCTAssertEqual(negative.range.start.file, .invalid)
-        XCTAssertEqual(negative.childCount, 0)
+        #expect(negative.kind == .statement)
+        #expect(negative.range.start.file == .invalid)
+        #expect(negative.childCount == 0)
 
         let tooLarge = arena.node(NodeID(rawValue: 999))
-        XCTAssertEqual(tooLarge.kind, .statement)
-        XCTAssertEqual(tooLarge.range.end.file, .invalid)
+        #expect(tooLarge.kind == .statement)
+        #expect(tooLarge.range.end.file == .invalid)
     }
 
+    @Test
     func testChildrenReturnsEmptyForNodesWithoutAddressableChildren() {
         let arena = SyntaxArena()
         let emptyNode = arena.appendNode(kind: .block, range: makeRange(), [])
 
-        XCTAssertEqual(Array(arena.children(of: emptyNode)), [])
-        XCTAssertEqual(Array(arena.children(of: NodeID(rawValue: 1234))), [])
+        #expect(Array(arena.children(of: emptyNode)) == [])
+        #expect(Array(arena.children(of: NodeID(rawValue: 1234))) == [])
     }
 
     // MARK: - Edge Cases
 
+    @Test
     func testLargeNumberOfTokenAdditions() throws {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -60,16 +66,17 @@ final class SyntaxArenaTests: XCTestCase {
             tokenIDs.append(arena.appendToken(token))
         }
 
-        XCTAssertEqual(tokenIDs.count, count)
-        XCTAssertEqual(tokenIDs.first, TokenID(rawValue: 0))
-        XCTAssertEqual(tokenIDs.last, TokenID(rawValue: Int32(count - 1)))
-        XCTAssertEqual(arena.tokens.count, count)
+        #expect(tokenIDs.count == count)
+        #expect(tokenIDs.first == TokenID(rawValue: 0))
+        #expect(tokenIDs.last == TokenID(rawValue: Int32(count - 1)))
+        #expect(arena.tokens.count == count)
 
         // Verify first and last tokens are retrievable
-        XCTAssertEqual(try arena.tokens[Int(XCTUnwrap(tokenIDs.first?.rawValue))].range.start.offset, 0)
-        XCTAssertEqual(try arena.tokens[Int(XCTUnwrap(tokenIDs.last?.rawValue))].range.start.offset, count - 1)
+        #expect(try arena.tokens[Int(#require(tokenIDs.first?.rawValue))].range.start.offset == 0)
+        #expect(try arena.tokens[Int(#require(tokenIDs.last?.rawValue))].range.start.offset == count - 1)
     }
 
+    @Test
     func testLargeNumberOfNodeAdditions() throws {
         let arena = SyntaxArena()
         let count = 10000
@@ -80,18 +87,19 @@ final class SyntaxArenaTests: XCTestCase {
             nodeIDs.append(arena.appendNode(kind: .statement, range: range, []))
         }
 
-        XCTAssertEqual(nodeIDs.count, count)
-        XCTAssertEqual(nodeIDs.first, NodeID(rawValue: 0))
-        XCTAssertEqual(nodeIDs.last, NodeID(rawValue: Int32(count - 1)))
-        XCTAssertEqual(arena.nodes.count, count)
+        #expect(nodeIDs.count == count)
+        #expect(nodeIDs.first == NodeID(rawValue: 0))
+        #expect(nodeIDs.last == NodeID(rawValue: Int32(count - 1)))
+        #expect(arena.nodes.count == count)
 
         // Verify retrieval of first and last nodes
-        let firstNode = try arena.node(XCTUnwrap(nodeIDs.first))
-        let lastNode = try arena.node(XCTUnwrap(nodeIDs.last))
-        XCTAssertEqual(firstNode.range.start.offset, 0)
-        XCTAssertEqual(lastNode.range.start.offset, count - 1)
+        let firstNode = try arena.node(#require(nodeIDs.first))
+        let lastNode = try arena.node(#require(nodeIDs.last))
+        #expect(firstNode.range.start.offset == 0)
+        #expect(lastNode.range.start.offset == count - 1)
     }
 
+    @Test
     func testInt32BoundaryTokenID() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -100,17 +108,18 @@ final class SyntaxArenaTests: XCTestCase {
         // Verify that TokenID wraps Int32 correctly at moderate scale
         let token = makeToken(kind: .identifier(interner.intern("boundary")), start: 0, end: 1)
         let id = arena.appendToken(token)
-        XCTAssertEqual(id.rawValue, 0)
+        #expect(id.rawValue == 0)
 
         // Int32.max is 2_147_483_647 — we can't allocate that many, but verify
         // the rawValue type is Int32 and handles typical casting
         let manualID = TokenID(rawValue: Int32.max)
-        XCTAssertEqual(manualID.rawValue, Int32.max)
+        #expect(manualID.rawValue == Int32.max)
 
         let manualNegID = TokenID(rawValue: Int32.min)
-        XCTAssertEqual(manualNegID.rawValue, Int32.min)
+        #expect(manualNegID.rawValue == Int32.min)
     }
 
+    @Test
     func testDeeplyNestedNodeStructure() throws {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -132,34 +141,35 @@ final class SyntaxArenaTests: XCTestCase {
         }
 
         // Verify the outermost node
-        let outermost = try arena.node(XCTUnwrap(allNodeIDs.last))
-        XCTAssertEqual(outermost.kind, .block)
-        XCTAssertEqual(outermost.childCount, 1)
+        let outermost = try arena.node(#require(allNodeIDs.last))
+        #expect(outermost.kind == .block)
+        #expect(outermost.childCount == 1)
 
         // Walk from outermost to innermost
-        var currentNodeID = try XCTUnwrap(allNodeIDs.last)
+        var currentNodeID = try #require(allNodeIDs.last)
         for level in stride(from: depth - 1, through: 0, by: -1) {
             let node = arena.node(currentNodeID)
-            XCTAssertEqual(node.kind, .block)
-            XCTAssertEqual(node.range.start.offset, level)
+            #expect(node.kind == .block)
+            #expect(node.range.start.offset == level)
 
             let nodeChildren = Array(arena.children(of: currentNodeID))
-            XCTAssertEqual(nodeChildren.count, 1)
+            #expect(nodeChildren.count == 1)
 
             if level > 0 {
                 // Child should be a node
                 if case let .node(childNodeID) = nodeChildren[0] {
                     currentNodeID = childNodeID
                 } else {
-                    XCTFail("Expected node child at level \(level), got token")
+                    Issue.record("Expected node child at level \(level), got token")
                 }
             } else {
                 // Innermost level: child should be the leaf token
-                XCTAssertEqual(nodeChildren[0], .token(leafTokenID))
+                #expect(nodeChildren[0] == .token(leafTokenID))
             }
         }
     }
 
+    @Test
     func testTokensArrayDirectAccess() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -173,17 +183,18 @@ final class SyntaxArenaTests: XCTestCase {
         let idC = arena.appendToken(tokenC)
 
         // Direct access to tokens array by index
-        XCTAssertEqual(arena.tokens.count, 3)
-        XCTAssertEqual(arena.tokens[Int(idA.rawValue)], tokenA)
-        XCTAssertEqual(arena.tokens[Int(idB.rawValue)], tokenB)
-        XCTAssertEqual(arena.tokens[Int(idC.rawValue)], tokenC)
+        #expect(arena.tokens.count == 3)
+        #expect(arena.tokens[Int(idA.rawValue)] == tokenA)
+        #expect(arena.tokens[Int(idB.rawValue)] == tokenB)
+        #expect(arena.tokens[Int(idC.rawValue)] == tokenC)
 
         // Verify ordering matches insertion order
-        XCTAssertEqual(arena.tokens[0].range.start.offset, 0)
-        XCTAssertEqual(arena.tokens[1].range.start.offset, 2)
-        XCTAssertEqual(arena.tokens[2].range.start.offset, 4)
+        #expect(arena.tokens[0].range.start.offset == 0)
+        #expect(arena.tokens[1].range.start.offset == 2)
+        #expect(arena.tokens[2].range.start.offset == 4)
     }
 
+    @Test
     func testChildrenArrayDirectAccess() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -199,16 +210,17 @@ final class SyntaxArenaTests: XCTestCase {
         let node2 = arena.appendNode(kind: .block, range: makeRange(start: 0, end: 5), [.node(node1)])
 
         // Direct children array should contain all 3 entries in insertion order
-        XCTAssertEqual(arena.children.count, 3)
-        XCTAssertEqual(arena.children[0], .token(idA))
-        XCTAssertEqual(arena.children[1], .token(idB))
-        XCTAssertEqual(arena.children[2], .node(node1))
+        #expect(arena.children.count == 3)
+        #expect(arena.children[0] == .token(idA))
+        #expect(arena.children[1] == .token(idB))
+        #expect(arena.children[2] == .node(node1))
 
         // Verify node-specific children slice
-        XCTAssertEqual(Array(arena.children(of: node1)), [.token(idA), .token(idB)])
-        XCTAssertEqual(Array(arena.children(of: node2)), [.node(node1)])
+        #expect(Array(arena.children(of: node1)) == [.token(idA), .token(idB)])
+        #expect(Array(arena.children(of: node2)) == [.node(node1)])
     }
 
+    @Test
     func testChildrenSafetyWhenFirstChildIndexExceedsBounds() {
         let arena = SyntaxArena()
 
@@ -218,14 +230,15 @@ final class SyntaxArenaTests: XCTestCase {
         // The sentinel returned for out-of-bounds NodeID has firstChildIndex == 0
         // and childCount == 0, so children(of:) should return empty
         let sentinel = arena.node(NodeID(rawValue: 9999))
-        XCTAssertEqual(sentinel.firstChildIndex, 0)
-        XCTAssertEqual(sentinel.childCount, 0)
-        XCTAssertEqual(Array(arena.children(of: NodeID(rawValue: 9999))), [])
+        #expect(sentinel.firstChildIndex == 0)
+        #expect(sentinel.childCount == 0)
+        #expect(Array(arena.children(of: NodeID(rawValue: 9999))) == [])
 
         // Valid node with no children
-        XCTAssertEqual(Array(arena.children(of: nodeID)), [])
+        #expect(Array(arena.children(of: nodeID)) == [])
     }
 
+    @Test
     func testChildrenSafetyClampingEndBeyondArray() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -236,17 +249,18 @@ final class SyntaxArenaTests: XCTestCase {
         let nodeID = arena.appendNode(kind: .callExpr, range: makeRange(), [.token(tokenID)])
 
         // Verify normal access works
-        XCTAssertEqual(Array(arena.children(of: nodeID)), [.token(tokenID)])
+        #expect(Array(arena.children(of: nodeID)) == [.token(tokenID)])
 
         // Manually verify the clamping logic in children(of:)
         // The node's firstChildIndex=0, childCount=1
         // end = 0 + 1 = 1 which equals children.count — this is the boundary case
         let node = arena.node(nodeID)
-        XCTAssertEqual(node.firstChildIndex, 0)
-        XCTAssertEqual(node.childCount, 1)
-        XCTAssertEqual(arena.children.count, 1)
+        #expect(node.firstChildIndex == 0)
+        #expect(node.childCount == 1)
+        #expect(arena.children.count == 1)
     }
 
+    @Test
     func testMultipleNodesShareChildrenArray() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -261,21 +275,22 @@ final class SyntaxArenaTests: XCTestCase {
         let n2 = arena.appendNode(kind: .statement, range: makeRange(start: 4, end: 5), [.token(t3)])
 
         // Total children count is 3
-        XCTAssertEqual(arena.children.count, 3)
+        #expect(arena.children.count == 3)
 
         // Each node's children are independent slices
-        XCTAssertEqual(Array(arena.children(of: n1)), [.token(t1), .token(t2)])
-        XCTAssertEqual(Array(arena.children(of: n2)), [.token(t3)])
+        #expect(Array(arena.children(of: n1)) == [.token(t1), .token(t2)])
+        #expect(Array(arena.children(of: n2)) == [.token(t3)])
 
         // Verify firstChildIndex assignments
         let node1 = arena.node(n1)
         let node2 = arena.node(n2)
-        XCTAssertEqual(node1.firstChildIndex, 0)
-        XCTAssertEqual(node1.childCount, 2)
-        XCTAssertEqual(node2.firstChildIndex, 2)
-        XCTAssertEqual(node2.childCount, 1)
+        #expect(node1.firstChildIndex == 0)
+        #expect(node1.childCount == 2)
+        #expect(node2.firstChildIndex == 2)
+        #expect(node2.childCount == 1)
     }
 
+    @Test
     func testNodeWithManyChildren() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -291,15 +306,16 @@ final class SyntaxArenaTests: XCTestCase {
         let nodeID = arena.appendNode(kind: .block, range: makeRange(start: 0, end: childCount), childEntries)
         let node = arena.node(nodeID)
 
-        XCTAssertEqual(node.childCount, Int16(childCount))
-        XCTAssertEqual(node.firstChildIndex, 0)
+        #expect(node.childCount == Int16(childCount))
+        #expect(node.firstChildIndex == 0)
 
         let retrievedChildren = Array(arena.children(of: nodeID))
-        XCTAssertEqual(retrievedChildren.count, childCount)
-        XCTAssertEqual(retrievedChildren.first, childEntries.first)
-        XCTAssertEqual(retrievedChildren.last, childEntries.last)
+        #expect(retrievedChildren.count == childCount)
+        #expect(retrievedChildren.first == childEntries.first)
+        #expect(retrievedChildren.last == childEntries.last)
     }
 
+    @Test
     func testNodeInvalidIDSentinelDoesNotCorruptArena() {
         let arena = SyntaxArena()
         let interner = StringInterner()
@@ -317,9 +333,10 @@ final class SyntaxArenaTests: XCTestCase {
 
         // Verify original data is still intact
         let node = arena.node(nodeID)
-        XCTAssertEqual(node.kind, .callExpr)
-        XCTAssertEqual(Array(arena.children(of: nodeID)), [.token(tokenID)])
-        XCTAssertEqual(arena.tokens.count, 1)
-        XCTAssertEqual(arena.nodes.count, 1)
+        #expect(node.kind == .callExpr)
+        #expect(Array(arena.children(of: nodeID)) == [.token(tokenID)])
+        #expect(arena.tokens.count == 1)
+        #expect(arena.nodes.count == 1)
     }
 }
+#endif

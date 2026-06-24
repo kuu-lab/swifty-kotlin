@@ -1,11 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension CompilerCoreTests {
     // MARK: - P5-40 Regression: Strict unresolved reference / type diagnostics
 
-    func testUnresolvedIdentifierInBlockEmitsDiagnostic() throws {
+    @Test func testUnresolvedIdentifierInBlockEmitsDiagnostic() throws {
         let source = """
         fun test(): Int {
             val x = missingIdent
@@ -18,7 +19,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
     }
 
-    func testUnresolvedIdentifierInBinaryExprEmitsDiagnostic() throws {
+    @Test func testUnresolvedIdentifierInBinaryExprEmitsDiagnostic() throws {
         let source = """
         fun test(): Int = 1 + noSuchVar
         """
@@ -28,7 +29,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
     }
 
-    func testUnresolvedFunctionCallWithMultipleArgsEmitsDiagnostic() throws {
+    @Test func testUnresolvedFunctionCallWithMultipleArgsEmitsDiagnostic() throws {
         let source = """
         fun test() = missingFun(1, 2, 3)
         """
@@ -38,7 +39,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testUnresolvedFunctionCallInNestedExprEmitsDiagnostic() throws {
+    @Test func testUnresolvedFunctionCallInNestedExprEmitsDiagnostic() throws {
         let source = """
         fun known(x: Int): Int = x
         fun test(): Int = known(unknownFn())
@@ -49,7 +50,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testUnresolvedMemberCallEmitsDiagnostic() throws {
+    @Test func testUnresolvedMemberCallEmitsDiagnostic() throws {
         let source = """
         class Foo
         fun test(f: Foo) = f.missing()
@@ -60,7 +61,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testUnresolvedSafeMemberCallEmitsDiagnostic() throws {
+    @Test func testUnresolvedSafeMemberCallEmitsDiagnostic() throws {
         let source = """
         class Foo
         fun test(f: Foo?) = f?.missing()
@@ -71,7 +72,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testUnresolvedBinaryOperatorEmitsDiagnostic() throws {
+    @Test func testUnresolvedBinaryOperatorEmitsDiagnostic() throws {
         let source = """
         class Foo
         fun test(f: Foo): Foo = f + f
@@ -82,7 +83,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testUnresolvedTypeAnnotationOnLocalVarEmitsDiagnostic() throws {
+    @Test func testUnresolvedTypeAnnotationOnLocalVarEmitsDiagnostic() throws {
         let source = """
         fun test() {
             val x: NoSuchType = 42
@@ -94,7 +95,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testUnresolvedReturnTypeAnnotationEmitsDiagnostic() throws {
+    @Test func testUnresolvedReturnTypeAnnotationEmitsDiagnostic() throws {
         let source = """
         fun test(): MissingReturn = 1
         """
@@ -104,7 +105,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testUnresolvedPropertyTypeAnnotationEmitsDiagnostic() throws {
+    @Test func testUnresolvedPropertyTypeAnnotationEmitsDiagnostic() throws {
         let source = """
         class Holder {
             val x: GhostType = 0
@@ -116,7 +117,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testResolvedIdentifierDoesNotEmitUnresolvedDiagnostic() throws {
+    @Test func testResolvedIdentifierDoesNotEmitUnresolvedDiagnostic() throws {
         let source = """
         fun test(): Int {
             val x = 10
@@ -130,7 +131,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testResolvedFunctionCallDoesNotEmitUnresolvedDiagnostic() throws {
+    @Test func testResolvedFunctionCallDoesNotEmitUnresolvedDiagnostic() throws {
         let source = """
         fun helper(x: Int): Int = x
         fun test(): Int = helper(42)
@@ -141,7 +142,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testResolvedTypeAnnotationDoesNotEmitUnresolvedDiagnostic() throws {
+    @Test func testResolvedTypeAnnotationDoesNotEmitUnresolvedDiagnostic() throws {
         let source = """
         fun test(x: Int): String = "ok"
         """
@@ -151,7 +152,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testUnresolvedLocalFunParamTypeEmitsDiagnostic() throws {
+    @Test func testUnresolvedLocalFunParamTypeEmitsDiagnostic() throws {
         let source = """
         fun outer() {
             fun inner(p: Phantom): Int = 0
@@ -163,7 +164,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testUnresolvedLocalFunReturnTypeEmitsDiagnostic() throws {
+    @Test func testUnresolvedLocalFunReturnTypeEmitsDiagnostic() throws {
         let source = """
         fun outer() {
             fun inner(): Ghost = 0
@@ -177,7 +178,7 @@ extension CompilerCoreTests {
 
     // MARK: - P5-40 Cascading diagnostic suppression
 
-    func testCascadingBinaryAddOnUnresolvedIdentifierEmitsOnlyOneError() throws {
+    @Test func testCascadingBinaryAddOnUnresolvedIdentifierEmitsOnlyOneError() throws {
         let source = """
         fun test(): Int = noSuchVar + 1
         """
@@ -188,7 +189,7 @@ extension CompilerCoreTests {
         assertDiagnosticCount("KSWIFTK-SEMA-0002", expected: 0, in: ctx)
     }
 
-    func testCascadingMemberCallOnUnresolvedReceiverEmitsOnlyOneError() throws {
+    @Test func testCascadingMemberCallOnUnresolvedReceiverEmitsOnlyOneError() throws {
         let source = """
         fun test(): Int = unknownObj.method()
         """
@@ -199,7 +200,7 @@ extension CompilerCoreTests {
         assertDiagnosticCount("KSWIFTK-SEMA-0024", expected: 0, in: ctx)
     }
 
-    func testCascadingSafeMemberCallOnUnresolvedReceiverEmitsOnlyOneError() throws {
+    @Test func testCascadingSafeMemberCallOnUnresolvedReceiverEmitsOnlyOneError() throws {
         let source = """
         fun test() = missingVar?.call()
         """
@@ -210,7 +211,7 @@ extension CompilerCoreTests {
         assertDiagnosticCount("KSWIFTK-SEMA-0024", expected: 0, in: ctx)
     }
 
-    func testCascadingBinarySubtractOnUnresolvedIdentifierEmitsOnlyOneError() throws {
+    @Test func testCascadingBinarySubtractOnUnresolvedIdentifierEmitsOnlyOneError() throws {
         let source = """
         fun test(): Int = noSuchVar - 1
         """
@@ -221,7 +222,7 @@ extension CompilerCoreTests {
         assertDiagnosticCount("KSWIFTK-SEMA-0002", expected: 0, in: ctx)
     }
 
-    func testCascadingBinaryMultiplyOnUnresolvedIdentifierEmitsOnlyOneError() throws {
+    @Test func testCascadingBinaryMultiplyOnUnresolvedIdentifierEmitsOnlyOneError() throws {
         let source = """
         fun test(): Int = noSuchVar * 2
         """
@@ -234,7 +235,7 @@ extension CompilerCoreTests {
 
     // MARK: - P5-40 Resolved negative tests (no spurious diagnostics)
 
-    func testResolvedMemberCallDoesNotEmitUnresolvedDiagnostic() throws {
+    @Test func testResolvedMemberCallDoesNotEmitUnresolvedDiagnostic() throws {
         let source = """
         class Foo {
             fun bar(): Int = 42
@@ -247,7 +248,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testResolvedSafeMemberCallDoesNotEmitUnresolvedDiagnostic() throws {
+    @Test func testResolvedSafeMemberCallDoesNotEmitUnresolvedDiagnostic() throws {
         let source = """
         class Foo {
             fun bar(): Int = 42
@@ -260,7 +261,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testResolvedBinaryAddDoesNotEmitOperatorDiagnostic() throws {
+    @Test func testResolvedBinaryAddDoesNotEmitOperatorDiagnostic() throws {
         let source = """
         fun test(): Int = 1 + 2
         """
@@ -270,7 +271,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testResolvedBinaryComparisonDoesNotEmitOperatorDiagnostic() throws {
+    @Test func testResolvedBinaryComparisonDoesNotEmitOperatorDiagnostic() throws {
         let source = """
         fun test(): Boolean = 1 == 2
         """
@@ -280,7 +281,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testResolvedStringConcatDoesNotEmitOperatorDiagnostic() throws {
+    @Test func testResolvedStringConcatDoesNotEmitOperatorDiagnostic() throws {
         let source = """
         fun test(): String = "a" + "b"
         """
@@ -292,7 +293,7 @@ extension CompilerCoreTests {
 
     // MARK: - Additional unresolved-reference cases
 
-    func testUnresolvedPropertyReadEmitsDiagnostic() throws {
+    @Test func testUnresolvedPropertyReadEmitsDiagnostic() throws {
         let source = """
         class Foo
         fun test(f: Foo): Int = f.missingProp
@@ -303,7 +304,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testResolvedPropertyReadDoesNotEmitDiagnostic() throws {
+    @Test func testResolvedPropertyReadDoesNotEmitDiagnostic() throws {
         let source = """
         class Foo(val x: Int)
         fun test(f: Foo): Int = f.x
@@ -314,7 +315,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testUnresolvedConstructorCallEmitsDiagnostic() throws {
+    @Test func testUnresolvedConstructorCallEmitsDiagnostic() throws {
         let source = """
         fun test() {
             val x = NoSuchClass()
@@ -323,13 +324,13 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertTrue(
+        #expect(
             ctx.diagnostics.diagnostics.contains(where: { ["KSWIFTK-SEMA-0022", "KSWIFTK-SEMA-0023"].contains($0.code) }),
             "Expected unresolved-reference diagnostic for unknown constructor, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
-    func testResolvedConstructorCallDoesNotEmitUnresolvedDiagnostic() throws {
+    @Test func testResolvedConstructorCallDoesNotEmitUnresolvedDiagnostic() throws {
         let source = """
         class Point(val x: Int, val y: Int)
         fun test(): Point = Point(1, 2)
@@ -341,7 +342,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testCascadingFromUnresolvedTypeAnnotationDoesNotDoubleReport() throws {
+    @Test func testCascadingFromUnresolvedTypeAnnotationDoesNotDoubleReport() throws {
         // The unresolved type `Ghost` should produce SEMA-0025 once; using the
         // variable afterward should not produce a second SEMA-0022 for `x`.
         let source = """
@@ -357,7 +358,7 @@ extension CompilerCoreTests {
         assertDiagnosticCount("KSWIFTK-SEMA-0022", expected: 0, in: ctx)
     }
 
-    func testMultipleUnresolvedIdentifiersEachEmitDiagnostic() throws {
+    @Test func testMultipleUnresolvedIdentifiersEachEmitDiagnostic() throws {
         let source = """
         fun test() {
             val a = missingA
@@ -370,3 +371,4 @@ extension CompilerCoreTests {
         assertDiagnosticCount("KSWIFTK-SEMA-0022", expected: 2, in: ctx)
     }
 }
+#endif

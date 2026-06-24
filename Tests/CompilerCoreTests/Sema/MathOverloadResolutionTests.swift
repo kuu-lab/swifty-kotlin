@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // STDLIB-MATH-001 / STDLIB-MATH-002
 // Sema-level overload resolution tests for kotlin.math.
@@ -8,7 +9,8 @@ import XCTest
 // (Double, Float, Int, Long) across every overload family.
 // No runtime edits; these tests only exercise the sema pipeline.
 
-final class MathOverloadResolutionTests: XCTestCase {
+@Suite
+struct MathOverloadResolutionTests {
 
     // MARK: - Helpers
 
@@ -31,9 +33,9 @@ final class MathOverloadResolutionTests: XCTestCase {
         try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Unexpected sema error for '\(callName)'", file: file, line: line)
-            let ast = try XCTUnwrap(ctx.ast, file: file, line: line)
-            let sema = try XCTUnwrap(ctx.sema, file: file, line: line)
+            #expect(!(ctx.diagnostics.hasError), "Unexpected sema error for '\(callName)'")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID) else { continue }
@@ -69,9 +71,9 @@ final class MathOverloadResolutionTests: XCTestCase {
         try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Unexpected sema error", file: file, line: line)
-            let ast = try XCTUnwrap(ctx.ast, file: file, line: line)
-            let sema = try XCTUnwrap(ctx.sema, file: file, line: line)
+            #expect(!(ctx.diagnostics.hasError), "Unexpected sema error")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID) else { continue }
@@ -92,53 +94,53 @@ final class MathOverloadResolutionTests: XCTestCase {
 
     // MARK: - abs family (Int / Long / Double / Float)
 
-    func testAbsIntOverload() throws {
+    @Test func testAbsIntOverload() throws {
         let source = "fun f(x: Int): Int = abs(x)"
         let link = try resolvedLink(forCall: "abs", withSource: source)
-        XCTAssertEqual(link, "kk_math_abs_int")
+        #expect(link == "kk_math_abs_int")
     }
 
-    func testAbsLongOverload() throws {
+    @Test func testAbsLongOverload() throws {
         let source = "fun f(x: Long): Long = abs(x)"
         let link = try resolvedLink(forCall: "abs", withSource: source)
-        XCTAssertEqual(link, "kk_math_abs_long")
+        #expect(link == "kk_math_abs_long")
     }
 
-    func testAbsDoubleOverload() throws {
+    @Test func testAbsDoubleOverload() throws {
         let source = "fun f(x: Double): Double = abs(x)"
         let link = try resolvedLink(forCall: "abs", withSource: source)
-        XCTAssertEqual(link, "kk_math_abs")
+        #expect(link == "kk_math_abs")
     }
 
-    func testAbsFloatOverload() throws {
+    @Test func testAbsFloatOverload() throws {
         let source = "fun f(x: Float): Float = abs(x)"
         let link = try resolvedLink(forCall: "abs", withSource: source)
-        XCTAssertEqual(link, "kk_math_abs_float")
+        #expect(link == "kk_math_abs_float")
     }
 
     // MARK: - sqrt family (Double / Float)
 
-    func testSqrtDoubleOverload() throws {
+    @Test func testSqrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = sqrt(x)"
         let link = try resolvedLink(forCall: "sqrt", withSource: source)
-        XCTAssertEqual(link, "kk_math_sqrt")
+        #expect(link == "kk_math_sqrt")
     }
 
-    func testSqrtFloatOverload() throws {
+    @Test func testSqrtFloatOverload() throws {
         let source = "fun f(x: Float): Float = sqrt(x)"
         let link = try resolvedLink(forCall: "sqrt", withSource: source)
-        XCTAssertEqual(link, "kk_math_sqrt_float")
+        #expect(link == "kk_math_sqrt_float")
     }
 
     // MARK: - pow family (Double / Float, floating and Int exponents)
 
-    func testPowDoubleOverload() throws {
+    @Test func testPowDoubleOverload() throws {
         let source = "fun f(x: Double, y: Double): Double = pow(x, y)"
         let link = try resolvedLink(forCall: "pow", withSource: source)
-        XCTAssertEqual(link, "kk_math_pow")
+        #expect(link == "kk_math_pow")
     }
 
-    func testPowRemainingOverloads() throws {
+    @Test func testPowRemainingOverloads() throws {
         let cases: [(source: String, expectedLink: String)] = [
             ("fun f(x: Float, y: Float): Float = pow(x, y)", "kk_math_pow_float"),
             ("fun f(x: Double, n: Int): Double = pow(x, n)", "kk_math_pow_int"),
@@ -147,11 +149,11 @@ final class MathOverloadResolutionTests: XCTestCase {
 
         for testCase in cases {
             let link = try resolvedLink(forCall: "pow", withSource: testCase.source)
-            XCTAssertEqual(link, testCase.expectedLink)
+            #expect(link == testCase.expectedLink)
         }
     }
 
-    func testIEEEremNextTowardsAndWithSignOverloads() throws {
+    @Test func testIEEEremNextTowardsAndWithSignOverloads() throws {
         let cases: [(name: String, source: String, expectedLink: String)] = [
             ("IEEErem", "fun f(x: Double, y: Double): Double = x.IEEErem(y)", "kk_math_IEEErem"),
             ("IEEErem", "fun f(x: Float, y: Float): Float = x.IEEErem(y)", "kk_math_IEEErem_float"),
@@ -165,11 +167,11 @@ final class MathOverloadResolutionTests: XCTestCase {
 
         for testCase in cases {
             let link = try resolvedLink(forCall: testCase.name, withSource: testCase.source)
-            XCTAssertEqual(link, testCase.expectedLink)
+            #expect(link == testCase.expectedLink)
         }
     }
 
-    func testFloatingMemberOnlyMathFunctionsRejectTopLevelCalls() throws {
+    @Test func testFloatingMemberOnlyMathFunctionsRejectTopLevelCalls() throws {
         let source = """
         import kotlin.math.*
 
@@ -188,51 +190,51 @@ final class MathOverloadResolutionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertTrue(ctx.diagnostics.hasError, "Expected member-only math helpers to reject top-level calls.")
+            #expect(ctx.diagnostics.hasError, "Expected member-only math helpers to reject top-level calls.")
         }
     }
 
     // MARK: - round / ceil / floor family (Double / Float)
 
-    func testRoundDoubleOverload() throws {
+    @Test func testRoundDoubleOverload() throws {
         let source = "fun f(x: Double): Double = round(x)"
         let link = try resolvedLink(forCall: "round", withSource: source)
-        XCTAssertEqual(link, "kk_math_round")
+        #expect(link == "kk_math_round")
     }
 
-    func testRoundFloatOverload() throws {
+    @Test func testRoundFloatOverload() throws {
         let source = "fun f(x: Float): Float = round(x)"
         let link = try resolvedLink(forCall: "round", withSource: source)
-        XCTAssertEqual(link, "kk_math_round_float")
+        #expect(link == "kk_math_round_float")
     }
 
-    func testCeilDoubleOverload() throws {
+    @Test func testCeilDoubleOverload() throws {
         let source = "fun f(x: Double): Double = ceil(x)"
         let link = try resolvedLink(forCall: "ceil", withSource: source)
-        XCTAssertEqual(link, "kk_math_ceil")
+        #expect(link == "kk_math_ceil")
     }
 
-    func testCeilFloatOverload() throws {
+    @Test func testCeilFloatOverload() throws {
         let source = "fun f(x: Float): Float = ceil(x)"
         let link = try resolvedLink(forCall: "ceil", withSource: source)
-        XCTAssertEqual(link, "kk_math_ceil_float")
+        #expect(link == "kk_math_ceil_float")
     }
 
-    func testFloorDoubleOverload() throws {
+    @Test func testFloorDoubleOverload() throws {
         let source = "fun f(x: Double): Double = floor(x)"
         let link = try resolvedLink(forCall: "floor", withSource: source)
-        XCTAssertEqual(link, "kk_math_floor")
+        #expect(link == "kk_math_floor")
     }
 
-    func testFloorFloatOverload() throws {
+    @Test func testFloorFloatOverload() throws {
         let source = "fun f(x: Float): Float = floor(x)"
         let link = try resolvedLink(forCall: "floor", withSource: source)
-        XCTAssertEqual(link, "kk_math_floor_float")
+        #expect(link == "kk_math_floor_float")
     }
 
     // MARK: - Trig family (Double / Float): sin / cos / tan / asin / acos / atan
 
-    func testTrigDoubleFamilyOverloads() throws {
+    @Test func testTrigDoubleFamilyOverloads() throws {
         let source = """
         fun f(x: Double): Double {
             val a = sin(x)
@@ -248,15 +250,15 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["sin", "cos", "tan", "asin", "acos", "atan"],
             withSource: source
         )
-        XCTAssertEqual(links["sin"], "kk_math_sin")
-        XCTAssertEqual(links["cos"], "kk_math_cos")
-        XCTAssertEqual(links["tan"], "kk_math_tan")
-        XCTAssertEqual(links["asin"], "kk_math_asin")
-        XCTAssertEqual(links["acos"], "kk_math_acos")
-        XCTAssertEqual(links["atan"], "kk_math_atan")
+        #expect(links["sin"] == "kk_math_sin")
+        #expect(links["cos"] == "kk_math_cos")
+        #expect(links["tan"] == "kk_math_tan")
+        #expect(links["asin"] == "kk_math_asin")
+        #expect(links["acos"] == "kk_math_acos")
+        #expect(links["atan"] == "kk_math_atan")
     }
 
-    func testTrigFloatFamilyOverloads() throws {
+    @Test func testTrigFloatFamilyOverloads() throws {
         let source = """
         fun f(x: Float): Float {
             val a = sin(x)
@@ -272,31 +274,31 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["sin", "cos", "tan", "asin", "acos", "atan"],
             withSource: source
         )
-        XCTAssertEqual(links["sin"], "kk_math_sin_float")
-        XCTAssertEqual(links["cos"], "kk_math_cos_float")
-        XCTAssertEqual(links["tan"], "kk_math_tan_float")
-        XCTAssertEqual(links["asin"], "kk_math_asin_float")
-        XCTAssertEqual(links["acos"], "kk_math_acos_float")
-        XCTAssertEqual(links["atan"], "kk_math_atan_float")
+        #expect(links["sin"] == "kk_math_sin_float")
+        #expect(links["cos"] == "kk_math_cos_float")
+        #expect(links["tan"] == "kk_math_tan_float")
+        #expect(links["asin"] == "kk_math_asin_float")
+        #expect(links["acos"] == "kk_math_acos_float")
+        #expect(links["atan"] == "kk_math_atan_float")
     }
 
     // MARK: - atan2 family (Double / Float)
 
-    func testAtan2DoubleOverload() throws {
+    @Test func testAtan2DoubleOverload() throws {
         let source = "fun f(y: Double, x: Double): Double = atan2(y, x)"
         let link = try resolvedLink(forCall: "atan2", withSource: source)
-        XCTAssertEqual(link, "kk_math_atan2")
+        #expect(link == "kk_math_atan2")
     }
 
-    func testAtan2FloatOverload() throws {
+    @Test func testAtan2FloatOverload() throws {
         let source = "fun f(y: Float, x: Float): Float = atan2(y, x)"
         let link = try resolvedLink(forCall: "atan2", withSource: source)
-        XCTAssertEqual(link, "kk_math_atan2_float")
+        #expect(link == "kk_math_atan2_float")
     }
 
     // MARK: - Hyperbolic family (Double / Float): sinh / cosh / tanh
 
-    func testHyperbolicDoubleFamilyOverloads() throws {
+    @Test func testHyperbolicDoubleFamilyOverloads() throws {
         let source = """
         fun f(x: Double): Double {
             val a = sinh(x)
@@ -309,12 +311,12 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["sinh", "cosh", "tanh"],
             withSource: source
         )
-        XCTAssertEqual(links["sinh"], "kk_math_sinh")
-        XCTAssertEqual(links["cosh"], "kk_math_cosh")
-        XCTAssertEqual(links["tanh"], "kk_math_tanh")
+        #expect(links["sinh"] == "kk_math_sinh")
+        #expect(links["cosh"] == "kk_math_cosh")
+        #expect(links["tanh"] == "kk_math_tanh")
     }
 
-    func testHyperbolicFloatFamilyOverloads() throws {
+    @Test func testHyperbolicFloatFamilyOverloads() throws {
         let source = """
         fun f(x: Float): Float {
             val a = sinh(x)
@@ -327,14 +329,14 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["sinh", "cosh", "tanh"],
             withSource: source
         )
-        XCTAssertEqual(links["sinh"], "kk_math_sinh_float")
-        XCTAssertEqual(links["cosh"], "kk_math_cosh_float")
-        XCTAssertEqual(links["tanh"], "kk_math_tanh_float")
+        #expect(links["sinh"] == "kk_math_sinh_float")
+        #expect(links["cosh"] == "kk_math_cosh_float")
+        #expect(links["tanh"] == "kk_math_tanh_float")
     }
 
     // MARK: - Inverse hyperbolic family (Double / Float): acosh / asinh / atanh
 
-    func testInverseHyperbolicDoubleFamilyOverloads() throws {
+    @Test func testInverseHyperbolicDoubleFamilyOverloads() throws {
         let source = """
         fun f(x: Double): Double {
             val a = acosh(x)
@@ -347,12 +349,12 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["acosh", "asinh", "atanh"],
             withSource: source
         )
-        XCTAssertEqual(links["acosh"], "kk_math_acosh")
-        XCTAssertEqual(links["asinh"], "kk_math_asinh")
-        XCTAssertEqual(links["atanh"], "kk_math_atanh")
+        #expect(links["acosh"] == "kk_math_acosh")
+        #expect(links["asinh"] == "kk_math_asinh")
+        #expect(links["atanh"] == "kk_math_atanh")
     }
 
-    func testInverseHyperbolicFloatFamilyOverloads() throws {
+    @Test func testInverseHyperbolicFloatFamilyOverloads() throws {
         let source = """
         fun f(x: Float): Float {
             val a = acosh(x)
@@ -365,14 +367,14 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["acosh", "asinh", "atanh"],
             withSource: source
         )
-        XCTAssertEqual(links["acosh"], "kk_math_acosh_float")
-        XCTAssertEqual(links["asinh"], "kk_math_asinh_float")
-        XCTAssertEqual(links["atanh"], "kk_math_atanh_float")
+        #expect(links["acosh"] == "kk_math_acosh_float")
+        #expect(links["asinh"] == "kk_math_asinh_float")
+        #expect(links["atanh"] == "kk_math_atanh_float")
     }
 
     // MARK: - log / exp family (Double / Float)
 
-    func testLogExpDoubleFamilyOverloads() throws {
+    @Test func testLogExpDoubleFamilyOverloads() throws {
         let source = """
         fun f(x: Double): Double {
             val a = exp(x)
@@ -388,15 +390,15 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["exp", "ln", "log2", "log10", "expm1", "ln1p"],
             withSource: source
         )
-        XCTAssertEqual(links["exp"], "kk_math_exp")
-        XCTAssertEqual(links["ln"], "kk_math_ln")
-        XCTAssertEqual(links["log2"], "kk_math_log2")
-        XCTAssertEqual(links["log10"], "kk_math_log10")
-        XCTAssertEqual(links["expm1"], "kk_math_expm1")
-        XCTAssertEqual(links["ln1p"], "kk_math_ln1p")
+        #expect(links["exp"] == "kk_math_exp")
+        #expect(links["ln"] == "kk_math_ln")
+        #expect(links["log2"] == "kk_math_log2")
+        #expect(links["log10"] == "kk_math_log10")
+        #expect(links["expm1"] == "kk_math_expm1")
+        #expect(links["ln1p"] == "kk_math_ln1p")
     }
 
-    func testLogExpFloatFamilyOverloads() throws {
+    @Test func testLogExpFloatFamilyOverloads() throws {
         let source = """
         fun f(x: Float): Float {
             val a = exp(x)
@@ -412,43 +414,43 @@ final class MathOverloadResolutionTests: XCTestCase {
             names: ["exp", "ln", "log2", "log10", "expm1", "ln1p"],
             withSource: source
         )
-        XCTAssertEqual(links["exp"], "kk_math_exp_float")
-        XCTAssertEqual(links["ln"], "kk_math_ln_float")
-        XCTAssertEqual(links["log2"], "kk_math_log2_float")
-        XCTAssertEqual(links["log10"], "kk_math_log10_float")
-        XCTAssertEqual(links["expm1"], "kk_math_expm1_float")
-        XCTAssertEqual(links["ln1p"], "kk_math_ln1p_float")
+        #expect(links["exp"] == "kk_math_exp_float")
+        #expect(links["ln"] == "kk_math_ln_float")
+        #expect(links["log2"] == "kk_math_log2_float")
+        #expect(links["log10"] == "kk_math_log10_float")
+        #expect(links["expm1"] == "kk_math_expm1_float")
+        #expect(links["ln1p"] == "kk_math_ln1p_float")
     }
 
-    func testLogTwoArgDoubleOverload() throws {
+    @Test func testLogTwoArgDoubleOverload() throws {
         let source = "fun f(x: Double, base: Double): Double = log(x, base)"
         let link = try resolvedLink(forCall: "log", withSource: source)
-        XCTAssertEqual(link, "kk_math_log")
+        #expect(link == "kk_math_log")
     }
 
-    func testLogTwoArgFloatOverload() throws {
+    @Test func testLogTwoArgFloatOverload() throws {
         let source = "fun f(x: Float, base: Float): Float = log(x, base)"
         let link = try resolvedLink(forCall: "log", withSource: source)
-        XCTAssertEqual(link, "kk_math_log_float")
+        #expect(link == "kk_math_log_float")
     }
 
     // MARK: - hypot family (Double / Float)
 
-    func testHypotDoubleOverload() throws {
+    @Test func testHypotDoubleOverload() throws {
         let source = "fun f(x: Double, y: Double): Double = hypot(x, y)"
         let link = try resolvedLink(forCall: "hypot", withSource: source)
-        XCTAssertEqual(link, "kk_math_hypot")
+        #expect(link == "kk_math_hypot")
     }
 
-    func testHypotFloatOverload() throws {
+    @Test func testHypotFloatOverload() throws {
         let source = "fun f(x: Float, y: Float): Float = hypot(x, y)"
         let link = try resolvedLink(forCall: "hypot", withSource: source)
-        XCTAssertEqual(link, "kk_math_hypot_float")
+        #expect(link == "kk_math_hypot_float")
     }
 
     // MARK: - min / max family (Double / Float / Int / Long / UInt / ULong)
 
-    func testMinMaxOverloadMatrix() throws {
+    @Test func testMinMaxOverloadMatrix() throws {
         let cases: [(name: String, type: String, expectedLink: String)] = [
             ("max", "Double", "kk_math_max"),
             ("max", "Float", "kk_math_max_float"),
@@ -467,9 +469,8 @@ final class MathOverloadResolutionTests: XCTestCase {
         for testCase in cases {
             let source = "fun f(a: \(testCase.type), b: \(testCase.type)): \(testCase.type) = \(testCase.name)(a, b)"
             let link = try resolvedLink(forCall: testCase.name, withSource: source)
-            XCTAssertEqual(
-                link,
-                testCase.expectedLink,
+            #expect(
+                link == testCase.expectedLink,
                 "\(testCase.name)(\(testCase.type), \(testCase.type)) should resolve to \(testCase.expectedLink)"
             )
         }
@@ -477,75 +478,75 @@ final class MathOverloadResolutionTests: XCTestCase {
 
     // MARK: - cbrt family (Double / Float)
 
-    func testCbrtDoubleOverload() throws {
+    @Test func testCbrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = cbrt(x)"
         let link = try resolvedLink(forCall: "cbrt", withSource: source)
-        XCTAssertEqual(link, "kk_math_cbrt")
+        #expect(link == "kk_math_cbrt")
     }
 
-    func testCbrtFloatOverload() throws {
+    @Test func testCbrtFloatOverload() throws {
         let source = "fun f(x: Float): Float = cbrt(x)"
         let link = try resolvedLink(forCall: "cbrt", withSource: source)
-        XCTAssertEqual(link, "kk_math_cbrt_float")
+        #expect(link == "kk_math_cbrt_float")
     }
 
     // MARK: - sign family (Double / Float)
 
-    func testSignDoubleOverload() throws {
+    @Test func testSignDoubleOverload() throws {
         let source = "fun f(x: Double): Double = sign(x)"
         let link = try resolvedLink(forCall: "sign", withSource: source)
-        XCTAssertEqual(link, "kk_math_sign")
+        #expect(link == "kk_math_sign")
     }
 
-    func testSignFloatOverload() throws {
+    @Test func testSignFloatOverload() throws {
         let source = "fun f(x: Float): Float = sign(x)"
         let link = try resolvedLink(forCall: "sign", withSource: source)
-        XCTAssertEqual(link, "kk_math_sign_float")
+        #expect(link == "kk_math_sign_float")
     }
 
     // MARK: - truncate family (Double / Float)
 
-    func testTruncateDoubleOverload() throws {
+    @Test func testTruncateDoubleOverload() throws {
         let source = "fun f(x: Double): Double = truncate(x)"
         let link = try resolvedLink(forCall: "truncate", withSource: source)
-        XCTAssertEqual(link, "kk_math_truncate")
+        #expect(link == "kk_math_truncate")
     }
 
-    func testTruncateFloatOverload() throws {
+    @Test func testTruncateFloatOverload() throws {
         let source = "fun f(x: Float): Float = truncate(x)"
         let link = try resolvedLink(forCall: "truncate", withSource: source)
-        XCTAssertEqual(link, "kk_math_truncate_float")
+        #expect(link == "kk_math_truncate_float")
     }
 
     // MARK: - roundToInt / roundToLong (Double / Float)
 
-    func testRoundToIntDoubleOverload() throws {
+    @Test func testRoundToIntDoubleOverload() throws {
         let source = "fun f(x: Double): Int = roundToInt(x)"
         let link = try resolvedLink(forCall: "roundToInt", withSource: source)
-        XCTAssertEqual(link, "kk_double_roundToInt")
+        #expect(link == "kk_double_roundToInt")
     }
 
-    func testRoundToIntFloatOverload() throws {
+    @Test func testRoundToIntFloatOverload() throws {
         let source = "fun f(x: Float): Int = roundToInt(x)"
         let link = try resolvedLink(forCall: "roundToInt", withSource: source)
-        XCTAssertEqual(link, "kk_float_roundToInt")
+        #expect(link == "kk_float_roundToInt")
     }
 
-    func testRoundToLongDoubleOverload() throws {
+    @Test func testRoundToLongDoubleOverload() throws {
         let source = "fun f(x: Double): Long = roundToLong(x)"
         let link = try resolvedLink(forCall: "roundToLong", withSource: source)
-        XCTAssertEqual(link, "kk_double_roundToLong")
+        #expect(link == "kk_double_roundToLong")
     }
 
-    func testRoundToLongFloatOverload() throws {
+    @Test func testRoundToLongFloatOverload() throws {
         let source = "fun f(x: Float): Long = roundToLong(x)"
         let link = try resolvedLink(forCall: "roundToLong", withSource: source)
-        XCTAssertEqual(link, "kk_float_roundToLong")
+        #expect(link == "kk_float_roundToLong")
     }
 
     // MARK: - Unofficial rounding mode helpers
 
-    func testUnofficialRoundingModeHelpersAreNotResolvedFromKotlinMath() throws {
+    @Test func testUnofficialRoundingModeHelpersAreNotResolvedFromKotlinMath() throws {
         let source = """
         fun f(x: Double): Double {
             val a = roundUp(x)
@@ -559,9 +560,9 @@ final class MathOverloadResolutionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.hasError)
-            XCTAssertTrue(
-                ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") },
+            #expect(ctx.diagnostics.hasError)
+            let v = ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") }
+            #expect(v,
                 "Expected sema diagnostics for unofficial rounding helpers"
             )
         }
@@ -569,7 +570,7 @@ final class MathOverloadResolutionTests: XCTestCase {
 
     // MARK: - Mixed-type overload disambiguation (Int vs Double vs Float in same scope)
 
-    func testAbsSelectsDistinctOverloadsForDifferentTypes() throws {
+    @Test func testAbsSelectsDistinctOverloadsForDifferentTypes() throws {
         let source = """
         fun f(i: Int, l: Long, d: Double, flt: Float) {
             val ai = abs(i)
@@ -582,9 +583,9 @@ final class MathOverloadResolutionTests: XCTestCase {
         try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError)
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            #expect(!(ctx.diagnostics.hasError))
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID),
@@ -598,15 +599,15 @@ final class MathOverloadResolutionTests: XCTestCase {
             }
         }
         let links = results.map(\.0)
-        XCTAssertTrue(links.contains("kk_math_abs_int"), "Int abs should resolve to kk_math_abs_int")
-        XCTAssertTrue(links.contains("kk_math_abs_long"), "Long abs should resolve to kk_math_abs_long")
-        XCTAssertTrue(links.contains("kk_math_abs"), "Double abs should resolve to kk_math_abs")
-        XCTAssertTrue(links.contains("kk_math_abs_float"), "Float abs should resolve to kk_math_abs_float")
+        #expect(links.contains("kk_math_abs_int"), "Int abs should resolve to kk_math_abs_int")
+        #expect(links.contains("kk_math_abs_long"), "Long abs should resolve to kk_math_abs_long")
+        #expect(links.contains("kk_math_abs"), "Double abs should resolve to kk_math_abs")
+        #expect(links.contains("kk_math_abs_float"), "Float abs should resolve to kk_math_abs_float")
         // All 4 calls must pick distinct link names
-        XCTAssertEqual(Set(links).count, 4, "Each abs overload should resolve to a different runtime symbol")
+        #expect(Set(links).count == 4, "Each abs overload should resolve to a different runtime symbol")
     }
 
-    func testSqrtSelectsDistinctOverloadsForDoubleAndFloat() throws {
+    @Test func testSqrtSelectsDistinctOverloadsForDoubleAndFloat() throws {
         let source = """
         fun f(d: Double, flt: Float) {
             val sd = sqrt(d)
@@ -617,9 +618,9 @@ final class MathOverloadResolutionTests: XCTestCase {
         try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError)
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            #expect(!(ctx.diagnostics.hasError))
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID),
@@ -632,9 +633,9 @@ final class MathOverloadResolutionTests: XCTestCase {
                 links.append(link)
             }
         }
-        XCTAssertTrue(links.contains("kk_math_sqrt"), "Double sqrt should resolve to kk_math_sqrt")
-        XCTAssertTrue(links.contains("kk_math_sqrt_float"), "Float sqrt should resolve to kk_math_sqrt_float")
-        XCTAssertEqual(links.count, 2)
+        #expect(links.contains("kk_math_sqrt"), "Double sqrt should resolve to kk_math_sqrt")
+        #expect(links.contains("kk_math_sqrt_float"), "Float sqrt should resolve to kk_math_sqrt_float")
+        #expect(links.count == 2)
     }
 
     // MARK: - FQN (fully-qualified) call resolution (PARITY-SEMA-003)
@@ -649,11 +650,10 @@ final class MathOverloadResolutionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError,
-                           "Unexpected sema error for FQN call '\(lastComponent)'",
-                           file: file, line: line)
-            let ast = try XCTUnwrap(ctx.ast, file: file, line: line)
-            let sema = try XCTUnwrap(ctx.sema, file: file, line: line)
+            #expect(!(ctx.diagnostics.hasError),
+                           "Unexpected sema error for FQN call '\(lastComponent)'")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             for exprIndex in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID) else { continue }
@@ -670,21 +670,22 @@ final class MathOverloadResolutionTests: XCTestCase {
         return result
     }
 
-    func testFQNAbsIntOverload() throws {
+    @Test func testFQNAbsIntOverload() throws {
         let source = "fun f(x: Int): Int = kotlin.math.abs(x)"
         let link = try resolvedLinkForFQNCall(lastComponent: "abs", withSource: source)
-        XCTAssertEqual(link, "kk_math_abs_int")
+        #expect(link == "kk_math_abs_int")
     }
 
-    func testFQNAbsDoubleOverload() throws {
+    @Test func testFQNAbsDoubleOverload() throws {
         let source = "fun f(x: Double): Double = kotlin.math.abs(x)"
         let link = try resolvedLinkForFQNCall(lastComponent: "abs", withSource: source)
-        XCTAssertEqual(link, "kk_math_abs")
+        #expect(link == "kk_math_abs")
     }
 
-    func testFQNSqrtDoubleOverload() throws {
+    @Test func testFQNSqrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = kotlin.math.sqrt(x)"
         let link = try resolvedLinkForFQNCall(lastComponent: "sqrt", withSource: source)
-        XCTAssertEqual(link, "kk_math_sqrt")
+        #expect(link == "kk_math_sqrt")
     }
 }
+#endif

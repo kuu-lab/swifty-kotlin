@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class JsConsoleExternalInterfaceTests: XCTestCase {
+@Suite
+struct JsConsoleExternalInterfaceTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -12,51 +14,51 @@ final class JsConsoleExternalInterfaceTests: XCTestCase {
             let diagnostics = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected Console external interface surface to resolve cleanly, got: \(diagnostics)"
             )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testConsoleInterfaceIsRegistered() throws {
+    @Test func testConsoleInterfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "Console"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "kotlin.js.Console must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+        let info = try #require(sema.symbols.symbol(symbol))
 
-        XCTAssertEqual(info.kind, .interface)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
+        #expect(info.kind == .interface)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
     }
 
-    func testConsolePropertyIsRegistered() throws {
+    @Test func testConsolePropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let packageFQName = ["kotlin", "js"].map { interner.intern($0) }
-        let consoleInterface = try XCTUnwrap(
+        let consoleInterface = try #require(
             sema.symbols.lookup(fqName: packageFQName + [interner.intern("Console")])
         )
-        let consoleType = try XCTUnwrap(sema.symbols.propertyType(for: consoleInterface))
-        let property = try XCTUnwrap(
+        let consoleType = try #require(sema.symbols.propertyType(for: consoleInterface))
+        let property = try #require(
             sema.symbols.lookup(fqName: packageFQName + [interner.intern("console")]),
             "kotlin.js.console must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(property))
+        let info = try #require(sema.symbols.symbol(property))
 
-        XCTAssertEqual(info.kind, .property)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: property), sema.symbols.lookup(fqName: packageFQName))
-        XCTAssertEqual(sema.symbols.propertyType(for: property), consoleType)
-        XCTAssertNil(sema.symbols.externalLinkName(for: property))
+        #expect(info.kind == .property)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: property) == sema.symbols.lookup(fqName: packageFQName))
+        #expect(sema.symbols.propertyType(for: property) == consoleType)
+        #expect(sema.symbols.externalLinkName(for: property) == nil)
     }
 
-    func testConsolePropertyCanBeImportedAndUsed() {
+    @Test func testConsolePropertyCanBeImportedAndUsed() {
         let source = """
         import kotlin.js.console
 
@@ -72,10 +74,10 @@ final class JsConsoleExternalInterfaceTests: XCTestCase {
         }
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(errors.isEmpty, "Expected console property usage to type-check, got \(errors)")
+        #expect(errors.isEmpty, "Expected console property usage to type-check, got \(errors)")
     }
 
-    func testDirSignatureIsRegistered() throws {
+    @Test func testDirSignatureIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         try assertMember(
@@ -87,7 +89,7 @@ final class JsConsoleExternalInterfaceTests: XCTestCase {
         )
     }
 
-    func testVarargLoggingSignaturesAreRegistered() throws {
+    @Test func testVarargLoggingSignaturesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let nullableAny = sema.types.makeNullable(sema.types.anyType)
 
@@ -110,10 +112,10 @@ final class JsConsoleExternalInterfaceTests: XCTestCase {
         interner: StringInterner
     ) throws {
         let consoleFQName = ["kotlin", "js", "Console"].map { interner.intern($0) }
-        let consoleSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: consoleFQName))
-        let consoleType = try XCTUnwrap(sema.symbols.propertyType(for: consoleSymbol))
+        let consoleSymbol = try #require(sema.symbols.lookup(fqName: consoleFQName))
+        let consoleType = try #require(sema.symbols.propertyType(for: consoleSymbol))
         let memberFQName = consoleFQName + [interner.intern(name)]
-        let member = try XCTUnwrap(
+        let member = try #require(
             sema.symbols.lookupAll(fqName: memberFQName).first { symbol in
                 guard sema.symbols.symbol(symbol)?.kind == .function,
                       let signature = sema.symbols.functionSignature(for: symbol) else {
@@ -123,16 +125,17 @@ final class JsConsoleExternalInterfaceTests: XCTestCase {
             },
             "Console.\(name) member must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(member))
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: member))
+        let info = try #require(sema.symbols.symbol(member))
+        let signature = try #require(sema.symbols.functionSignature(for: member))
 
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertEqual(signature.receiverType, consoleType)
-        XCTAssertEqual(signature.parameterTypes, [parameterType])
-        XCTAssertEqual(signature.returnType, sema.types.unitType)
-        XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-        XCTAssertEqual(signature.valueParameterIsVararg, [isVararg])
-        XCTAssertNil(sema.symbols.externalLinkName(for: member))
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(signature.receiverType == consoleType)
+        #expect(signature.parameterTypes == [parameterType])
+        #expect(signature.returnType == sema.types.unitType)
+        #expect(signature.valueParameterHasDefaultValues == [false])
+        #expect(signature.valueParameterIsVararg == [isVararg])
+        #expect(sema.symbols.externalLinkName(for: member) == nil)
     }
 }
+#endif

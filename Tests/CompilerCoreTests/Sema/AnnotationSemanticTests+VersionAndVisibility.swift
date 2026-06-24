@@ -1,12 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// `SinceKotlin` / data-class copy-visibility / DSL-marker / and other
 /// version- and visibility-related annotation tests, split out from
 /// `AnnotationSemanticTests` to keep each test source under ~1500 lines.
 extension AnnotationSemanticTests {
-    func testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets() throws {
+    @Test func testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets() throws {
         let source = """
         class Host
         """
@@ -14,58 +15,59 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let sinceKotlinFQName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("SinceKotlin"),
         ]
-        let symbolID = try XCTUnwrap(
+        let symbolID = try #require(
             sema.symbols.lookup(fqName: sinceKotlinFQName),
             "kotlin.SinceKotlin must be registered"
         )
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbolID)
-        XCTAssertTrue(
-            annotations.contains {
-                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                    && $0.arguments == [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.PROPERTY",
-                        "AnnotationTarget.FIELD",
-                        "AnnotationTarget.CONSTRUCTOR",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.TYPEALIAS",
-                    ]
-            },
+        let v0 = annotations.contains {
+            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                && $0.arguments == [
+                    "AnnotationTarget.CLASS",
+                    "AnnotationTarget.PROPERTY",
+                    "AnnotationTarget.FIELD",
+                    "AnnotationTarget.CONSTRUCTOR",
+                    "AnnotationTarget.FUNCTION",
+                    "AnnotationTarget.PROPERTY_GETTER",
+                    "AnnotationTarget.PROPERTY_SETTER",
+                    "AnnotationTarget.TYPEALIAS",
+                ]
+        }
+        #expect(
+            v0,
             "SinceKotlin should carry declaration target metadata, got: \(annotations)"
         )
 
-        let versionSymbol = try XCTUnwrap(
+        let versionSymbol = try #require(
             sema.symbols.lookup(fqName: sinceKotlinFQName + [ctx.interner.intern("version")]),
             "SinceKotlin.version property must be registered"
         )
-        XCTAssertEqual(sema.symbols.propertyType(for: versionSymbol), sema.types.stringType)
+        #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
 
         let constructors = sema.symbols.lookupAll(fqName: sinceKotlinFQName + [ctx.interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(
+        let constructorSignature = try #require(
             constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
                 signature.parameterTypes == [sema.types.stringType]
             },
             "SinceKotlin(version: String) constructor must be registered"
         )
-        XCTAssertEqual(constructorSignature.valueParameterSymbols.count, 1)
-        let parameter = try XCTUnwrap(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-        XCTAssertEqual(ctx.interner.resolve(parameter.name), "version")
+        #expect(constructorSignature.valueParameterSymbols.count == 1)
+        let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
+        #expect(ctx.interner.resolve(parameter.name) == "version")
     }
 
-    func testSinceKotlinAcceptsDocumentedDeclarationTargets() {
+    @Test func testSinceKotlinAcceptsDocumentedDeclarationTargets() {
         let source = """
         @SinceKotlin("1.0")
         class Stable {
@@ -83,10 +85,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected SinceKotlin declaration targets to be accepted, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected SinceKotlin declaration targets to be accepted, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testSinceKotlinRejectsFileTarget() {
+    @Test func testSinceKotlinRejectsFileTarget() {
         let source = """
         @file:SinceKotlin("1.0")
 
@@ -96,57 +98,62 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected SinceKotlin to reject file target, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected SinceKotlin to reject file target, got: \(ctx.diagnostics.diagnostics)")
+        let v1 = diagnostics.allSatisfy(isError)
+        #expect(v1, "Annotation-target diagnostics should be errors")
     }
 
-    func testDslMarkerSurfaceHasDocumentedMetadata() throws {
+    @Test func testDslMarkerSurfaceHasDocumentedMetadata() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let dslMarkerFQName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("DslMarker"),
         ]
-        let symbolID = try XCTUnwrap(
+        let symbolID = try #require(
             sema.symbols.lookup(fqName: dslMarkerFQName),
             "kotlin.DslMarker must be registered"
         )
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbolID)
-        XCTAssertTrue(
-            annotations.contains {
-                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-            },
+        let v2 = annotations.contains {
+            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+        }
+        #expect(
+            v2,
             "DslMarker should target annotation classes, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains {
-                $0.annotationFQName == "kotlin.annotation.Retention"
-                    && $0.arguments == ["AnnotationRetention.BINARY"]
-            },
+        let v3 = annotations.contains {
+            $0.annotationFQName == "kotlin.annotation.Retention"
+                && $0.arguments == ["AnnotationRetention.BINARY"]
+        }
+        #expect(
+            v3,
             "DslMarker should carry binary retention, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" },
+        let v4 = annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" }
+        #expect(
+            v4,
             "DslMarker should carry MustBeDocumented, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains {
-                KnownCompilerAnnotation.sinceKotlin.matches($0.annotationFQName)
-                    && $0.arguments == ["1.1"]
-            },
+        let v5 = annotations.contains {
+            KnownCompilerAnnotation.sinceKotlin.matches($0.annotationFQName)
+                && $0.arguments == ["1.1"]
+        }
+        #expect(
+            v5,
             "DslMarker should carry SinceKotlin(1.1), got: \(annotations)"
         )
     }
 
-    func testDslMarkerAcceptsAnnotationClassTarget() {
+    @Test func testDslMarkerAcceptsAnnotationClassTarget() {
         let source = """
         @DslMarker
         annotation class HtmlDsl
@@ -155,10 +162,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected DslMarker to be accepted on annotation classes, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected DslMarker to be accepted on annotation classes, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testDslMarkerRejectsRegularClassTarget() {
+    @Test func testDslMarkerRejectsRegularClassTarget() {
         let source = """
         @DslMarker
         class BadMarker
@@ -167,11 +174,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected annotation-class-only target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected annotation-class-only target diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v6 = diagnostics.allSatisfy(isError)
+        #expect(v6, "Annotation-target diagnostics should be errors")
     }
 
-    func testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget() throws {
+    @Test func testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget() throws {
         let source = """
         class Host
         """
@@ -179,59 +187,62 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let introducedAtFQName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("IntroducedAt"),
         ]
-        let symbolID = try XCTUnwrap(
+        let symbolID = try #require(
             sema.symbols.lookup(fqName: introducedAtFQName),
             "kotlin.IntroducedAt must be registered"
         )
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbolID)
-        XCTAssertTrue(
-            annotations.contains {
-                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                    && $0.arguments == ["AnnotationTarget.VALUE_PARAMETER"]
-            },
+        let v7 = annotations.contains {
+            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                && $0.arguments == ["AnnotationTarget.VALUE_PARAMETER"]
+        }
+        #expect(
+            v7,
             "IntroducedAt should target value parameters, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" },
+        let v8 = annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" }
+        #expect(
+            v8,
             "IntroducedAt should be documented in the public API, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains {
-                KnownCompilerAnnotation.experimentalVersionOverloading.matches($0.annotationFQName)
-            },
+        let v9 = annotations.contains {
+            KnownCompilerAnnotation.experimentalVersionOverloading.matches($0.annotationFQName)
+        }
+        #expect(
+            v9,
             "IntroducedAt should require ExperimentalVersionOverloading opt-in, got: \(annotations)"
         )
 
-        let versionSymbol = try XCTUnwrap(
+        let versionSymbol = try #require(
             sema.symbols.lookup(fqName: introducedAtFQName + [ctx.interner.intern("version")]),
             "IntroducedAt.version property must be registered"
         )
-        XCTAssertEqual(sema.symbols.propertyType(for: versionSymbol), sema.types.stringType)
+        #expect(sema.symbols.propertyType(for: versionSymbol) == sema.types.stringType)
 
         let constructors = sema.symbols.lookupAll(fqName: introducedAtFQName + [ctx.interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(
+        let constructorSignature = try #require(
             constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
                 signature.parameterTypes == [sema.types.stringType]
             },
             "IntroducedAt(version: String) constructor must be registered"
         )
-        XCTAssertEqual(constructorSignature.valueParameterSymbols.count, 1)
-        let parameter = try XCTUnwrap(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-        XCTAssertEqual(ctx.interner.resolve(parameter.name), "version")
+        #expect(constructorSignature.valueParameterSymbols.count == 1)
+        let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
+        #expect(ctx.interner.resolve(parameter.name) == "version")
     }
 
-    func testIntroducedAtAllowsValueParameterUse() {
+    @Test func testIntroducedAtAllowsValueParameterUse() {
         let source = """
         fun sample(@IntroducedAt("1.1") value: Int = 0): Int = value
         """
@@ -239,10 +250,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected IntroducedAt value-parameter target to be accepted, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected IntroducedAt value-parameter target to be accepted, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testIntroducedAtRejectsClassTarget() {
+    @Test func testIntroducedAtRejectsClassTarget() {
         let source = """
         @IntroducedAt("1.1")
         class Bad
@@ -251,11 +262,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected IntroducedAt to reject class target, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected IntroducedAt to reject class target, got: \(ctx.diagnostics.diagnostics)")
+        let v10 = diagnostics.allSatisfy(isError)
+        #expect(v10, "Annotation-target diagnostics should be errors")
     }
 
-    func testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental() throws {
+    @Test func testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental() throws {
         let source = """
         class Host
         """
@@ -263,36 +275,38 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let optionalExpectationFQName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("OptionalExpectation"),
         ]
-        let symbolID = try XCTUnwrap(
+        let symbolID = try #require(
             sema.symbols.lookup(fqName: optionalExpectationFQName),
             "kotlin.OptionalExpectation must be registered"
         )
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbolID)
-        XCTAssertTrue(
-            annotations.contains {
-                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-            },
+        let v11 = annotations.contains {
+            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+        }
+        #expect(
+            v11,
             "OptionalExpectation should target annotation classes, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains { $0.annotationFQName == "kotlin.ExperimentalMultiplatform" },
+        let v12 = annotations.contains { $0.annotationFQName == "kotlin.ExperimentalMultiplatform" }
+        #expect(
+            v12,
             "OptionalExpectation should require ExperimentalMultiplatform opt-in, got: \(annotations)"
         )
     }
 
-    func testOptionalExpectationAcceptsAnnotationClassTarget() {
+    @Test func testOptionalExpectationAcceptsAnnotationClassTarget() {
         let source = """
         @OptionalExpectation
         annotation class PlatformMarker
@@ -301,10 +315,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected OptionalExpectation annotation-class target to be accepted, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected OptionalExpectation annotation-class target to be accepted, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testOptionalExpectationRejectsFunctionTarget() {
+    @Test func testOptionalExpectationRejectsFunctionTarget() {
         let source = """
         @OptIn(ExperimentalMultiplatform::class)
         @OptionalExpectation
@@ -314,11 +328,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected OptionalExpectation to reject function target, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected OptionalExpectation to reject function target, got: \(ctx.diagnostics.diagnostics)")
+        let v13 = diagnostics.allSatisfy(isError)
+        #expect(v13, "Annotation-target diagnostics should be errors")
     }
 
-    func testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets() throws {
+    @Test func testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets() throws {
         let source = """
         class Host
         """
@@ -326,44 +341,45 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let throwsFQName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("Throws"),
         ]
-        let symbolID = try XCTUnwrap(
+        let symbolID = try #require(
             sema.symbols.lookup(fqName: throwsFQName),
             "kotlin.Throws must be registered"
         )
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbolID)
-        XCTAssertTrue(
-            annotations.contains {
-                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
-                    && $0.arguments == [
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.CONSTRUCTOR",
-                    ]
-            },
+        let v14 = annotations.contains {
+            $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                && $0.arguments == [
+                    "AnnotationTarget.FUNCTION",
+                    "AnnotationTarget.PROPERTY_GETTER",
+                    "AnnotationTarget.PROPERTY_SETTER",
+                    "AnnotationTarget.CONSTRUCTOR",
+                ]
+        }
+        #expect(
+            v14,
             "Throws should carry function/getter/setter/constructor target metadata, got: \(annotations)"
         )
 
-        let exceptionClassesSymbol = try XCTUnwrap(
+        let exceptionClassesSymbol = try #require(
             sema.symbols.lookup(fqName: throwsFQName + [ctx.interner.intern("exceptionClasses")]),
             "Throws.exceptionClasses property must be registered"
         )
-        let exceptionClassesType = try XCTUnwrap(sema.symbols.propertyType(for: exceptionClassesSymbol))
+        let exceptionClassesType = try #require(sema.symbols.propertyType(for: exceptionClassesSymbol))
         try assertArrayOfOutThrowableKClass(exceptionClassesType, in: sema, interner: ctx.interner)
 
         let constructors = sema.symbols.lookupAll(fqName: throwsFQName + [ctx.interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(
+        let constructorSignature = try #require(
             constructors.lazy.compactMap { sema.symbols.functionSignature(for: $0) }.first { signature in
                 signature.valueParameterIsVararg == [true]
                     && signature.valueParameterSymbols.count == 1
@@ -371,11 +387,11 @@ extension AnnotationSemanticTests {
             "Throws(vararg exceptionClasses: KClass<out Throwable>) constructor must be registered"
         )
         try assertThrowableKClass(constructorSignature.parameterTypes[0], in: sema, interner: ctx.interner)
-        let parameter = try XCTUnwrap(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
-        XCTAssertEqual(ctx.interner.resolve(parameter.name), "exceptionClasses")
+        let parameter = try #require(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0]))
+        #expect(ctx.interner.resolve(parameter.name) == "exceptionClasses")
     }
 
-    func testRootThrowsAcceptsDocumentedDeclarationTargets() {
+    @Test func testRootThrowsAcceptsDocumentedDeclarationTargets() {
         let source = """
         class Host @Throws(Throwable::class) constructor() {
             @get:Throws(Throwable::class)
@@ -392,10 +408,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected Throws declaration targets to be accepted, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected Throws declaration targets to be accepted, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testRootThrowsRejectsClassTarget() {
+    @Test func testRootThrowsRejectsClassTarget() {
         let source = """
         @Throws(Throwable::class)
         class Bad
@@ -404,11 +420,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected Throws to reject class target, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected Throws to reject class target, got: \(ctx.diagnostics.diagnostics)")
+        let v15 = diagnostics.allSatisfy(isError)
+        #expect(v15, "Annotation-target diagnostics should be errors")
     }
 
-    func testTargetAnnotationIsRejectedOnRegularClass() {
+    @Test func testTargetAnnotationIsRejectedOnRegularClass() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         class BadTarget
@@ -417,11 +434,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one annotation-target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one annotation-target diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v16 = diagnostics.allSatisfy(isError)
+        #expect(v16, "Annotation-target diagnostics should be errors")
     }
 
-    func testTargetAnnotationAllowsAnnotationClassButRejectsFunctionUsage() {
+    @Test func testTargetAnnotationAllowsAnnotationClassButRejectsFunctionUsage() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         annotation class ClassOnly
@@ -436,11 +454,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected exactly one annotation-target diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected exactly one annotation-target diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v17 = diagnostics.allSatisfy(isError)
+        #expect(v17, "Annotation-target diagnostics should be errors")
     }
 
-    func testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses() throws {
+    @Test func testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses() throws {
         let source = """
         annotation class ExperimentalApi
         """
@@ -448,32 +467,33 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let mustBeDocumentedFQName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("annotation"),
             ctx.interner.intern("MustBeDocumented"),
         ]
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: mustBeDocumentedFQName))
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbolID = try #require(sema.symbols.lookup(fqName: mustBeDocumentedFQName))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbol.id)
-        XCTAssertTrue(
-            annotations.contains(
-                where: {
-                    $0.annotationFQName == "kotlin.annotation.Target"
-                        && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-                }
-            ),
+        let v18 = annotations.contains(
+            where: {
+                $0.annotationFQName == "kotlin.annotation.Target"
+                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+            }
+        )
+        #expect(
+            v18,
             "Expected MustBeDocumented to carry @Target(AnnotationTarget.ANNOTATION_CLASS), got: \(annotations)"
         )
     }
 
-    func testAnnotationClassInheritsKotlinAnnotation() throws {
+    @Test func testAnnotationClassInheritsKotlinAnnotation() throws {
         let source = """
         annotation class MyAnnotation
         """
@@ -481,22 +501,23 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let kotlinAnnotationSymbol = try XCTUnwrap(
+        let sema = try #require(ctx.sema)
+        let kotlinAnnotationSymbol = try #require(
             sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Annotation")])
         )
-        let myAnnotationSymbol = try XCTUnwrap(
+        let myAnnotationSymbol = try #require(
             sema.symbols.lookup(fqName: [ctx.interner.intern("MyAnnotation")])
         )
 
-        XCTAssertEqual(sema.symbols.symbol(myAnnotationSymbol)?.kind, .annotationClass)
-        XCTAssertTrue(
-            sema.symbols.directSupertypes(for: myAnnotationSymbol).contains(kotlinAnnotationSymbol),
+        #expect(sema.symbols.symbol(myAnnotationSymbol)?.kind == .annotationClass)
+        let v19 = sema.symbols.directSupertypes(for: myAnnotationSymbol).contains(kotlinAnnotationSymbol)
+        #expect(
+            v19,
             "Annotation classes should implicitly inherit kotlin.Annotation"
         )
     }
 
-    func testExperimentalContractsAnnotationIsSyntheticAnnotationClass() throws {
+    @Test func testExperimentalContractsAnnotationIsSyntheticAnnotationClass() throws {
         let source = """
         annotation class ExperimentalApi
         """
@@ -504,46 +525,48 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let fqName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("contracts"),
             ctx.interner.intern("ExperimentalContracts"),
         ]
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbol.id)
-        XCTAssertTrue(
-            annotations.contains(
-                where: {
-                    $0.annotationFQName == "kotlin.annotation.Target"
-                        && $0.arguments == [
-                            "AnnotationTarget.CLASS",
-                            "AnnotationTarget.FUNCTION",
-                            "AnnotationTarget.PROPERTY",
-                            "AnnotationTarget.TYPEALIAS",
-                        ]
-                }
-            ),
+        let v20 = annotations.contains(
+            where: {
+                $0.annotationFQName == "kotlin.annotation.Target"
+                    && $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+            }
+        )
+        #expect(
+            v20,
             "Expected ExperimentalContracts to carry @Target for class/function/property/typealias, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains(
-                where: {
-                    $0.annotationFQName == "kotlin.annotation.Retention"
-                        && $0.arguments == ["AnnotationRetention.BINARY"]
-                }
-            ),
+        let v21 = annotations.contains(
+            where: {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            }
+        )
+        #expect(
+            v21,
             "Expected ExperimentalContracts to carry @Retention(AnnotationRetention.BINARY), got: \(annotations)"
         )
     }
 
-    func testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker() throws {
+    @Test func testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker() throws {
         let source = """
         fun noop() {}
         """
@@ -551,50 +574,53 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let fqName = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("contracts"),
             ctx.interner.intern("ExperimentalExtendedContracts"),
         ]
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
 
-        XCTAssertEqual(symbol.visibility, .public)
-        XCTAssertTrue(symbol.flags.contains(.synthetic))
-        XCTAssertEqual(symbol.kind, .annotationClass)
+        #expect(symbol.visibility == .public)
+        #expect(symbol.flags.contains(.synthetic))
+        #expect(symbol.kind == .annotationClass)
 
         let annotations = sema.symbols.annotations(for: symbol.id)
-        XCTAssertTrue(
-            annotations.contains { $0.annotationFQName == "kotlin.RequiresOptIn" },
+        let v22 = annotations.contains { $0.annotationFQName == "kotlin.RequiresOptIn" }
+        #expect(
+            v22,
             "Expected ExperimentalExtendedContracts to carry @RequiresOptIn, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains(
-                where: {
-                    $0.annotationFQName == "kotlin.annotation.Target"
-                        && $0.arguments == [
-                            "AnnotationTarget.CLASS",
-                            "AnnotationTarget.FUNCTION",
-                            "AnnotationTarget.PROPERTY",
-                            "AnnotationTarget.TYPEALIAS",
-                        ]
-                }
-            ),
+        let v23 = annotations.contains(
+            where: {
+                $0.annotationFQName == "kotlin.annotation.Target"
+                    && $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+            }
+        )
+        #expect(
+            v23,
             "Expected ExperimentalExtendedContracts to carry @Target for class/function/property/typealias, got: \(annotations)"
         )
-        XCTAssertTrue(
-            annotations.contains(
-                where: {
-                    $0.annotationFQName == "kotlin.annotation.Retention"
-                        && $0.arguments == ["AnnotationRetention.BINARY"]
-                }
-            ),
+        let v24 = annotations.contains(
+            where: {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            }
+        )
+        #expect(
+            v24,
             "Expected ExperimentalExtendedContracts to carry @Retention(AnnotationRetention.BINARY), got: \(annotations)"
         )
     }
 
-    func testExperimentalExtendedContractsRequiresOptIn() {
+    @Test func testExperimentalExtendedContractsRequiresOptIn() {
         let source = """
         import kotlin.contracts.ExperimentalExtendedContracts
 
@@ -607,11 +633,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one ExperimentalExtendedContracts opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "ExperimentalExtendedContracts opt-in diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one ExperimentalExtendedContracts opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v25 = diagnostics.allSatisfy(isError)
+        #expect(v25, "ExperimentalExtendedContracts opt-in diagnostics should be errors")
     }
 
-    func testOverloadResolutionByLambdaReturnTypeRejectsClassTarget() {
+    @Test func testOverloadResolutionByLambdaReturnTypeRejectsClassTarget() {
         let source = """
         import kotlin.OverloadResolutionByLambdaReturnType
         import kotlin.OptIn
@@ -626,11 +653,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 2, "Expected target diagnostics for both @Target and @OverloadResolutionByLambdaReturnType misuse, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 2, "Expected target diagnostics for both @Target and @OverloadResolutionByLambdaReturnType misuse, got: \(ctx.diagnostics.diagnostics)")
+        let v26 = diagnostics.allSatisfy(isError)
+        #expect(v26, "Annotation-target diagnostics should be errors")
     }
 
-    func testExperimentalTypeInferenceAcceptsFunctionTarget() {
+    @Test func testExperimentalTypeInferenceAcceptsFunctionTarget() {
         let source = """
         import kotlin.experimental.ExperimentalTypeInference
 
@@ -641,10 +669,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "ExperimentalTypeInference should be accepted on functions, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "ExperimentalTypeInference should be accepted on functions, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testOverloadResolutionByLambdaReturnTypeRequiresOptIn() {
+    @Test func testOverloadResolutionByLambdaReturnTypeRequiresOptIn() {
         let source = """
         import kotlin.OverloadResolutionByLambdaReturnType
 
@@ -655,11 +683,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPTIN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Opt-in diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v27 = diagnostics.allSatisfy(isError)
+        #expect(v27, "Opt-in diagnostics should be errors")
     }
 
-    func testOverloadResolutionByLambdaReturnTypeAcceptsOptIn() {
+    @Test func testOverloadResolutionByLambdaReturnTypeAcceptsOptIn() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -673,10 +702,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPTIN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected opt-in diagnostic to be suppressed by @OptIn, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected opt-in diagnostic to be suppressed by @OptIn, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testFieldTargetAllowsBackedFieldAndRejectsMissingBackingField() {
+    @Test func testFieldTargetAllowsBackedFieldAndRejectsMissingBackingField() {
         let source = """
         @Target(value = [AnnotationTarget.FIELD])
         annotation class FieldOnly
@@ -694,11 +723,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected exactly one annotation-target diagnostic for the missing backing field, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected exactly one annotation-target diagnostic for the missing backing field, got: \(ctx.diagnostics.diagnostics)")
+        let v28 = diagnostics.allSatisfy(isError)
+        #expect(v28, "Annotation-target diagnostics should be errors")
     }
 
-    func testFieldTargetRejectsExtensionProperty() {
+    @Test func testFieldTargetRejectsExtensionProperty() {
         let source = """
         @Target(value = [AnnotationTarget.FIELD])
         annotation class FieldOnly
@@ -711,11 +741,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one annotation-target diagnostic for the extension property, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one annotation-target diagnostic for the extension property, got: \(ctx.diagnostics.diagnostics)")
+        let v29 = diagnostics.allSatisfy(isError)
+        #expect(v29, "Annotation-target diagnostics should be errors")
     }
 
-    func testAnnotationTargetSuppressionAliasSuppressesDiagnostic() {
+    @Test func testAnnotationTargetSuppressionAliasSuppressesDiagnostic() {
         let source = """
         @Suppress("ANNOTATION_TARGET")
         @Target(AnnotationTarget.CLASS)
@@ -725,10 +756,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected ANNOTATION_TARGET suppression alias to suppress annotation-target diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected ANNOTATION_TARGET suppression alias to suppress annotation-target diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testWasExperimentalAnnotationIsCollectedOnDeclaration() throws {
+    @Test func testWasExperimentalAnnotationIsCollectedOnDeclaration() throws {
         let source = """
         annotation class ExperimentalApi
 
@@ -739,17 +770,17 @@ extension AnnotationSemanticTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let symbolID = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ctx.interner.intern("stabilizedApi")]).first)
+        let sema = try #require(ctx.sema)
+        let symbolID = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("stabilizedApi")]).first)
         let annotations = sema.symbols.annotations(for: symbolID)
-        let annotation = try XCTUnwrap(annotations.first(where: {
+        let annotation = try #require(annotations.first(where: {
             KnownCompilerAnnotation.wasExperimental.matches($0.annotationFQName)
         }))
 
-        XCTAssertEqual(annotation.arguments, ["markerClass=ExperimentalApi::class"])
+        #expect(annotation.arguments == ["markerClass=ExperimentalApi::class"])
     }
 
-    func testExtensionFunctionTypeResolvesInterfacePropertyAndTypeAlias() throws {
+    @Test func testExtensionFunctionTypeResolvesInterfacePropertyAndTypeAlias() throws {
         let source = """
         interface Host {
             val receiverAction: @ExtensionFunctionType Function1<String, Unit>
@@ -759,13 +790,13 @@ extension AnnotationSemanticTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected extension function type source to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected extension function type source to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let file = try XCTUnwrap(ast.files.first)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let file = try #require(ast.files.first)
 
-        let interfaceDeclID = try XCTUnwrap(
+        let interfaceDeclID = try #require(
             file.topLevelDecls.first(where: {
                 if case .interfaceDecl = ast.arena.decl($0) {
                     return true
@@ -774,36 +805,36 @@ extension AnnotationSemanticTests {
             })
         )
         guard case let .interfaceDecl(interfaceDecl) = ast.arena.decl(interfaceDeclID) else {
-            XCTFail("Expected interface declaration")
+            Issue.record("Expected interface declaration")
             return
         }
-        let propertyDeclID = try XCTUnwrap(interfaceDecl.memberProperties.first)
-        let propertySymbol = try XCTUnwrap(sema.bindings.declSymbol(for: propertyDeclID))
-        let propertyType = try XCTUnwrap(sema.symbols.propertyType(for: propertySymbol))
+        let propertyDeclID = try #require(interfaceDecl.memberProperties.first)
+        let propertySymbol = try #require(sema.bindings.declSymbol(for: propertyDeclID))
+        let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
 
         if case let .functionType(functionType) = sema.types.kind(of: propertyType) {
-            XCTAssertEqual(functionType.receiver, sema.types.stringType)
-            XCTAssertTrue(functionType.params.isEmpty)
-            XCTAssertEqual(functionType.returnType, sema.types.unitType)
-            XCTAssertFalse(functionType.isSuspend)
+            #expect(functionType.receiver == sema.types.stringType)
+            #expect(functionType.params.isEmpty)
+            #expect(functionType.returnType == sema.types.unitType)
+            #expect(!functionType.isSuspend)
         } else {
-            XCTFail("Expected interface property type to resolve as functionType")
+            Issue.record("Expected interface property type to resolve as functionType")
         }
 
-        let actionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [ctx.interner.intern("Action")]))
-        let actionUnderlyingType = try XCTUnwrap(sema.symbols.typeAliasUnderlyingType(for: actionSymbol))
+        let actionSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Action")]))
+        let actionUnderlyingType = try #require(sema.symbols.typeAliasUnderlyingType(for: actionSymbol))
 
         if case let .functionType(functionType) = sema.types.kind(of: actionUnderlyingType) {
-            XCTAssertEqual(functionType.receiver, sema.types.stringType)
-            XCTAssertEqual(functionType.params, [sema.types.intType])
-            XCTAssertEqual(functionType.returnType, sema.types.unitType)
-            XCTAssertFalse(functionType.isSuspend)
+            #expect(functionType.receiver == sema.types.stringType)
+            #expect(functionType.params == [sema.types.intType])
+            #expect(functionType.returnType == sema.types.unitType)
+            #expect(!functionType.isSuspend)
         } else {
-            XCTFail("Expected typealias underlying type to resolve as functionType")
+            Issue.record("Expected typealias underlying type to resolve as functionType")
         }
     }
 
-    func testExtensionFunctionTypeRejectsFunction0() {
+    @Test func testExtensionFunctionTypeRejectsFunction0() {
         let source = """
         interface Host {
             val invalid: @ExtensionFunctionType Function0<Unit>
@@ -813,11 +844,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-EXTFN-TYPE", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one extension-function-type diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Extension-function-type diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one extension-function-type diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v30 = diagnostics.allSatisfy(isError)
+        #expect(v30, "Extension-function-type diagnostics should be errors")
     }
 
-    func testExtensionFunctionTypeRejectsNonFunctionNominalType() {
+    @Test func testExtensionFunctionTypeRejectsNonFunctionNominalType() {
         let source = """
         interface Host {
             val invalid: @ExtensionFunctionType List<String>
@@ -827,11 +859,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-EXTFN-TYPE", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one extension-function-type diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Extension-function-type diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one extension-function-type diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v31 = diagnostics.allSatisfy(isError)
+        #expect(v31, "Extension-function-type diagnostics should be errors")
     }
 
-    func testTypeAnnotationTargetValidationRejectsClassOnlyAnnotationOnTypeUsage() {
+    @Test func testTypeAnnotationTargetValidationRejectsClassOnlyAnnotationOnTypeUsage() {
         let source = """
         @Target(AnnotationTarget.CLASS)
         annotation class ClassOnly
@@ -844,11 +877,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one annotation-target diagnostic for type usage, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one annotation-target diagnostic for type usage, got: \(ctx.diagnostics.diagnostics)")
+        let v32 = diagnostics.allSatisfy(isError)
+        #expect(v32, "Annotation-target diagnostics should be errors")
     }
 
-    func testTypeAnnotationRejectsUseSiteTarget() {
+    @Test func testTypeAnnotationRejectsUseSiteTarget() {
         let source = """
         interface Host {
             val invalid: @field:ExtensionFunctionType Function1<String, Unit>
@@ -858,11 +892,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-PARSE-TYPE-ANNOTATION", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one parse diagnostic for type annotation use-site target, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Type-annotation parse diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one parse diagnostic for type annotation use-site target, got: \(ctx.diagnostics.diagnostics)")
+        let v33 = diagnostics.allSatisfy(isError)
+        #expect(v33, "Type-annotation parse diagnostics should be errors")
     }
 
-    func testCompilerMetadataAutoAttachedToNominalDeclarations() throws {
+    @Test func testCompilerMetadataAutoAttachedToNominalDeclarations() throws {
         let source = """
         class Plain
         interface Face
@@ -872,24 +907,25 @@ extension AnnotationSemanticTests {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected metadata attachment smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected metadata attachment smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        XCTAssertNotNil(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Metadata")]))
+        #expect(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Metadata")]) != nil)
 
         for name in ["Plain", "Face", "Singleton", "Color", "Marker"] {
-            let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [interner.intern(name)]))
+            let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(name)]))
             let annotations = sema.symbols.annotations(for: symbol)
-            XCTAssertTrue(
-                annotations.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.metadata.qualifiedName }),
+            let v34 = annotations.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.metadata.qualifiedName })
+            #expect(
+                v34,
                 "Expected \(name) to receive compiler metadata annotation, got: \(annotations)"
             )
         }
     }
 
-    func testOptInAllowsExperimentalStdlibApiUsage() {
+    @Test func testOptInAllowsExperimentalStdlibApiUsage() {
         let source = """
         @OptIn(ExperimentalStdlibApi::class)
         fun hex(): String = 255.toHexString()
@@ -898,10 +934,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected opt-in annotated function to use HexFormat API without diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected opt-in annotated function to use HexFormat API without diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testExperimentalStdlibApiWithoutOptInEmitsDiagnostic() {
+    @Test func testExperimentalStdlibApiWithoutOptInEmitsDiagnostic() {
         let source = """
         fun hex(): String = 255.toHexString()
         """
@@ -909,11 +945,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one opt-in diagnostic for toHexString(), got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Opt-in diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one opt-in diagnostic for toHexString(), got: \(ctx.diagnostics.diagnostics)")
+        let v35 = diagnostics.allSatisfy(isError)
+        #expect(v35, "Opt-in diagnostics should be errors")
     }
 
-    func testExperimentalStdlibApiDefaultPropertyWithoutOptInEmitsDiagnostic() {
+    @Test func testExperimentalStdlibApiDefaultPropertyWithoutOptInEmitsDiagnostic() {
         let source = """
         fun hex(): String = 42.toHexString(HexFormat.Default)
         """
@@ -921,11 +958,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 2, "Expected opt-in diagnostics for HexFormat.Default and toHexString(), got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Opt-in diagnostics should be errors")
+        #expect(diagnostics.count == 2, "Expected opt-in diagnostics for HexFormat.Default and toHexString(), got: \(ctx.diagnostics.diagnostics)")
+        let v36 = diagnostics.allSatisfy(isError)
+        #expect(v36, "Opt-in diagnostics should be errors")
     }
 
-    func testCompilerOptInFlagAllowsExperimentalStdlibApiUsage() {
+    @Test func testCompilerOptInFlagAllowsExperimentalStdlibApiUsage() {
         let source = """
         fun hex(): String = 255.toHexString()
         """
@@ -936,10 +974,10 @@ extension AnnotationSemanticTests {
         )
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress stdlib opt-in diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress stdlib opt-in diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testExperimentalVersionOverloadingAnnotationRequiresOptIn() {
+    @Test func testExperimentalVersionOverloadingAnnotationRequiresOptIn() {
         let source = """
         import kotlin.ExperimentalVersionOverloading
 
@@ -953,11 +991,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one ExperimentalVersionOverloading opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "ExperimentalVersionOverloading opt-in diagnostics should be errors")
+        #expect(diagnostics.count == 1, "Expected one ExperimentalVersionOverloading opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v37 = diagnostics.allSatisfy(isError)
+        #expect(v37, "ExperimentalVersionOverloading opt-in diagnostics should be errors")
     }
 
-    func testExperimentalVersionOverloadingAnnotationAcceptsOptIn() {
+    @Test func testExperimentalVersionOverloadingAnnotationAcceptsOptIn() {
         let source = """
         import kotlin.ExperimentalVersionOverloading
 
@@ -972,10 +1011,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalVersionOverloading diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalVersionOverloading diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testExperimentalVersionOverloadingAnnotationAcceptsCompilerOptInFlag() {
+    @Test func testExperimentalVersionOverloadingAnnotationAcceptsCompilerOptInFlag() {
         let source = """
         import kotlin.ExperimentalVersionOverloading
 
@@ -992,10 +1031,10 @@ extension AnnotationSemanticTests {
         )
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalVersionOverloading diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalVersionOverloading diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testExperimentalContextParametersMarkerRequiresOptIn() {
+    @Test func testExperimentalContextParametersMarkerRequiresOptIn() {
         let source = """
         import kotlin.ExperimentalContextParameters
 
@@ -1008,15 +1047,16 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one ExperimentalContextParameters opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "ExperimentalContextParameters opt-in diagnostics should be errors")
-        XCTAssertTrue(
+        #expect(diagnostics.count == 1, "Expected one ExperimentalContextParameters opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v38 = diagnostics.allSatisfy(isError)
+        #expect(v38, "ExperimentalContextParameters opt-in diagnostics should be errors")
+        #expect(
             diagnostics.first?.message.contains("context parameters") == true,
             "Expected diagnostic to include the ExperimentalContextParameters message, got: \(diagnostics)"
         )
     }
 
-    func testExperimentalContextParametersMarkerAcceptsOptIn() {
+    @Test func testExperimentalContextParametersMarkerAcceptsOptIn() {
         let source = """
         import kotlin.ExperimentalContextParameters
 
@@ -1030,10 +1070,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalContextParameters diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalContextParameters diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testExperimentalContextParametersMarkerAcceptsCompilerOptInFlag() {
+    @Test func testExperimentalContextParametersMarkerAcceptsCompilerOptInFlag() {
         let source = """
         import kotlin.ExperimentalContextParameters
 
@@ -1049,10 +1089,10 @@ extension AnnotationSemanticTests {
         )
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalContextParameters diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected compiler -opt-in flag to suppress ExperimentalContextParameters diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testSubclassOptInRequiredRejectsSubclassWithoutOptIn() {
+    @Test func testSubclassOptInRequiredRejectsSubclassWithoutOptIn() {
         let source = """
         @RequiresOptIn
         annotation class ExperimentalBase
@@ -1066,11 +1106,12 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-SUBCLASS-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected one subclass opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.contains(where: isError), "Subclass opt-in diagnostic should follow ERROR marker severity")
+        #expect(diagnostics.count == 1, "Expected one subclass opt-in diagnostic, got: \(ctx.diagnostics.diagnostics)")
+        let v39 = diagnostics.contains(where: isError)
+        #expect(v39, "Subclass opt-in diagnostic should follow ERROR marker severity")
     }
 
-    func testSubclassOptInRequiredAllowsSubclassWithOptIn() {
+    @Test func testSubclassOptInRequiredAllowsSubclassWithOptIn() {
         let source = """
         @RequiresOptIn
         annotation class ExperimentalBase
@@ -1085,10 +1126,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-SUBCLASS-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected @OptIn to satisfy subclass opt-in requirement, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected @OptIn to satisfy subclass opt-in requirement, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testSubclassOptInRequiredPropagatesThroughSupertypeChain() {
+    @Test func testSubclassOptInRequiredPropagatesThroughSupertypeChain() {
         let source = """
         @RequiresOptIn
         annotation class ExperimentalBase
@@ -1105,10 +1146,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-SUBCLASS-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected inherited subclass opt-in requirement to reach Child, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.count == 1, "Expected inherited subclass opt-in requirement to reach Child, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testSubclassOptInRequiredRejectsNonOptInMarkerClass() {
+    @Test func testSubclassOptInRequiredRejectsNonOptInMarkerClass() {
         let source = """
         annotation class PlainMarker
 
@@ -1121,11 +1162,11 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-SUBCLASS-OPT-IN", in: ctx)
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected misuse diagnostic for non opt-in marker, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(diagnostics.first?.message.contains("markerClass") == true)
+        #expect(diagnostics.count == 1, "Expected misuse diagnostic for non opt-in marker, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.first?.message.contains("markerClass") == true)
     }
 
-    func testFileLevelOptInAllowsExperimentalStdlibApiUsage() {
+    @Test func testFileLevelOptInAllowsExperimentalStdlibApiUsage() {
         let source = """
         @file:OptIn(ExperimentalStdlibApi::class)
 
@@ -1135,10 +1176,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected file-level opt-in to suppress HexFormat diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected file-level opt-in to suppress HexFormat diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testExperimentalAssociatedObjectsMarkerRequiresOptIn() {
+    @Test func testExperimentalAssociatedObjectsMarkerRequiresOptIn() {
         let source = """
         import kotlin.reflect.ExperimentalAssociatedObjects
 
@@ -1151,14 +1192,15 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.contains(where: isError), "Expected ExperimentalAssociatedObjects opt-in error, got: \(ctx.diagnostics.diagnostics)")
-        XCTAssertTrue(
+        let v40 = diagnostics.contains(where: isError)
+        #expect(v40, "Expected ExperimentalAssociatedObjects opt-in error, got: \(ctx.diagnostics.diagnostics)")
+        #expect(
             diagnostics.first?.message.contains("ExperimentalAssociatedObjects") == true,
             "Expected diagnostic to mention ExperimentalAssociatedObjects, got: \(diagnostics)"
         )
     }
 
-    func testExperimentalAssociatedObjectsMarkerAllowsExplicitOptIn() {
+    @Test func testExperimentalAssociatedObjectsMarkerAllowsExplicitOptIn() {
         let source = """
         import kotlin.reflect.ExperimentalAssociatedObjects
 
@@ -1172,10 +1214,10 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalAssociatedObjects diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalAssociatedObjects diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testOptInSuppressionAliasSuppressesDiagnostic() {
+    @Test func testOptInSuppressionAliasSuppressesDiagnostic() {
         let source = """
         @Suppress("OPT_IN_USAGE")
         fun hex(): String = 255.toHexString()
@@ -1184,7 +1226,7 @@ extension AnnotationSemanticTests {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
 
-        XCTAssertTrue(diagnostics.isEmpty, "Expected OPT_IN_USAGE suppression alias to suppress opt-in diagnostics, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.isEmpty, "Expected OPT_IN_USAGE suppression alias to suppress opt-in diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
     func propertyType(
@@ -1195,14 +1237,14 @@ extension AnnotationSemanticTests {
         interner: StringInterner
     ) throws -> TypeID {
         let expectedName = interner.intern(name)
-        let propertyDeclID = try XCTUnwrap(interfaceDecl.memberProperties.first(where: { declID in
+        let propertyDeclID = try #require(interfaceDecl.memberProperties.first(where: { declID in
             guard case let .propertyDecl(propertyDecl) = ast.arena.decl(declID) else {
                 return false
             }
             return propertyDecl.name == expectedName
         }))
-        let propertySymbol = try XCTUnwrap(sema.bindings.declSymbol(for: propertyDeclID))
-        return try XCTUnwrap(sema.symbols.propertyType(for: propertySymbol))
+        let propertySymbol = try #require(sema.bindings.declSymbol(for: propertyDeclID))
+        return try #require(sema.symbols.propertyType(for: propertySymbol))
     }
 
     func runSemaCollectingDiagnostics(
@@ -1248,54 +1290,51 @@ extension AnnotationSemanticTests {
     }
 
     func symbolVisibility(_ path: [String], in ctx: CompilationContext) throws -> Visibility {
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let fqName = path.map(ctx.interner.intern)
-        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+        let symbolID = try #require(sema.symbols.lookup(fqName: fqName))
+        let symbol = try #require(sema.symbols.symbol(symbolID))
         return symbol.visibility
     }
 
     private func assertArrayOfOutThrowableKClass(
         _ type: TypeID,
         in sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws {
         guard case let .classType(arrayType) = sema.types.kind(of: type) else {
-            return XCTFail("Expected Array<out KClass<Throwable>>, got \(sema.types.renderType(type))", file: file, line: line)
+            Issue.record("Expected Array<out KClass<Throwable>>, got \(sema.types.renderType(type))")
+            return
         }
-        let arraySymbol = try XCTUnwrap(
-            sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Array")]),
-            file: file,
-            line: line
+        let arraySymbol = try #require(
+            sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Array")])
         )
-        XCTAssertEqual(arrayType.classSymbol, arraySymbol, file: file, line: line)
-        XCTAssertEqual(arrayType.args.count, 1, file: file, line: line)
+        #expect(arrayType.classSymbol == arraySymbol)
+        #expect(arrayType.args.count == 1)
         guard case let .out(elementType) = arrayType.args[0] else {
-            return XCTFail("Expected covariant Array element, got \(arrayType.args[0])", file: file, line: line)
+            Issue.record("Expected covariant Array element, got \(arrayType.args[0])")
+            return
         }
-        try assertThrowableKClass(elementType, in: sema, interner: interner, file: file, line: line)
+        try assertThrowableKClass(elementType, in: sema, interner: interner)
     }
 
     private func assertThrowableKClass(
         _ type: TypeID,
         in sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws {
         guard case let .kClassType(kClassType) = sema.types.kind(of: type) else {
-            return XCTFail("Expected KClass<Throwable>, got \(sema.types.renderType(type))", file: file, line: line)
+            Issue.record("Expected KClass<Throwable>, got \(sema.types.renderType(type))")
+            return
         }
         guard case let .classType(argumentType) = sema.types.kind(of: kClassType.argument) else {
-            return XCTFail("Expected KClass argument to be Throwable, got \(sema.types.renderType(kClassType.argument))", file: file, line: line)
+            Issue.record("Expected KClass argument to be Throwable, got \(sema.types.renderType(kClassType.argument))")
+            return
         }
-        let throwableSymbol = try XCTUnwrap(
-            sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Throwable")]),
-            file: file,
-            line: line
+        let throwableSymbol = try #require(
+            sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Throwable")])
         )
-        XCTAssertEqual(argumentType.classSymbol, throwableSymbol, file: file, line: line)
+        #expect(argumentType.classSymbol == throwableSymbol)
     }
 }
+#endif

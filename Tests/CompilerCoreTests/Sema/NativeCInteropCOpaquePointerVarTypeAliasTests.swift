@@ -1,39 +1,38 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCOpaquePointerVarTypeAliasTests: XCTestCase {
-    func testCOpaquePointerVarTypeAliasSurface() throws {
+@Suite
+struct NativeCInteropCOpaquePointerVarTypeAliasTests {
+    @Test func testCOpaquePointerVarTypeAliasSurface() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected COpaquePointerVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected COpaquePointerVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPackage = ["kotlinx", "cinterop"].map { interner.intern($0) }
-        let aliasSymbol = try XCTUnwrap(
+        let aliasSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPackage + [interner.intern("COpaquePointerVar")])
         )
-        let cPointerVarOfSymbol = try XCTUnwrap(
+        let cPointerVarOfSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPackage + [interner.intern("CPointerVarOf")])
         )
-        let cOpaquePointerAlias = try XCTUnwrap(
+        let cOpaquePointerAlias = try #require(
             sema.symbols.lookup(fqName: cinteropPackage + [interner.intern("COpaquePointer")])
         )
-        let cOpaquePointerType = try XCTUnwrap(sema.symbols.typeAliasUnderlyingType(for: cOpaquePointerAlias))
+        let cOpaquePointerType = try #require(sema.symbols.typeAliasUnderlyingType(for: cOpaquePointerAlias))
         let expectedUnderlying = sema.types.make(.classType(ClassType(
             classSymbol: cPointerVarOfSymbol,
             args: [.invariant(cOpaquePointerType)],
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.symbol(aliasSymbol)?.kind, .typeAlias)
-        XCTAssertEqual(sema.symbols.typeAliasTypeParameters(for: aliasSymbol), [])
-        XCTAssertEqual(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol), expectedUnderlying)
+        #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
+        #expect(sema.symbols.typeAliasTypeParameters(for: aliasSymbol) == [])
+        #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == expectedUnderlying)
     }
 
-    func testCOpaquePointerVarResolvesInSource() throws {
+    @Test func testCOpaquePointerVarResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.COpaquePointerVar
 
@@ -43,9 +42,7 @@ final class NativeCInteropCOpaquePointerVarTypeAliasTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected COpaquePointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected COpaquePointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

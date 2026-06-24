@@ -1,21 +1,22 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropByteVarTypeAliasTests: XCTestCase {
+@Suite
+struct NativeCInteropByteVarTypeAliasTests {
+    @Test
     func testByteVarTypeAliasSurface() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected ByteVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
         )
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func symbol(_ fqPath: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) }),
-                "\(fqPath.joined(separator: ".")) must be registered"
-            )
+            let found = sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) })
+            return try #require(found, "\(fqPath.joined(separator: ".")) must be registered")
         }
 
         let aliasSymbol = try symbol(["kotlinx", "cinterop", "ByteVar"])
@@ -27,29 +28,28 @@ final class NativeCInteropByteVarTypeAliasTests: XCTestCase {
         )))
         let typeParameters = sema.types.nominalTypeParameterSymbols(for: byteVarOfSymbol)
 
-        XCTAssertEqual(sema.symbols.symbol(aliasSymbol)?.kind, .typeAlias)
-        XCTAssertEqual(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol), expectedUnderlying)
-        XCTAssertEqual(sema.symbols.symbol(byteVarOfSymbol)?.kind, .class)
-        XCTAssertEqual(typeParameters.count, 1)
-        let typeParameter = try XCTUnwrap(typeParameters.first)
-        XCTAssertEqual(sema.symbols.symbol(typeParameter)?.name, interner.intern("T"))
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [sema.types.intType])
+        #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
+        #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == expectedUnderlying)
+        #expect(sema.symbols.symbol(byteVarOfSymbol)?.kind == .class)
+        #expect(typeParameters.count == 1)
+        let typeParameter = try #require(typeParameters.first)
+        #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [sema.types.intType])
     }
 
+    @Test
     func testByteVarOfClassSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) }),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let byteVarOfSymbol = try cinteropSymbol("ByteVarOf")
-        let typeParameter = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: byteVarOfSymbol).first)
+        let typeParameter = try #require(sema.types.nominalTypeParameterSymbols(for: byteVarOfSymbol).first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -65,24 +65,25 @@ final class NativeCInteropByteVarTypeAliasTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.directSupertypes(for: byteVarOfSymbol), [try cinteropSymbol("CPrimitiveVar")])
-        XCTAssertEqual(sema.symbols.directSupertypes(for: try cinteropSymbol("CPrimitiveVar")), [try cinteropSymbol("CVariable")])
-        XCTAssertEqual(sema.symbols.directSupertypes(for: try cinteropSymbol("CVariable")), [try cinteropSymbol("CPointed")])
+        #expect(sema.symbols.directSupertypes(for: byteVarOfSymbol) == [try cinteropSymbol("CPrimitiveVar")])
+        #expect(sema.symbols.directSupertypes(for: try cinteropSymbol("CPrimitiveVar")) == [try cinteropSymbol("CVariable")])
+        #expect(sema.symbols.directSupertypes(for: try cinteropSymbol("CVariable")) == [try cinteropSymbol("CPointed")])
 
-        let fqName = try XCTUnwrap(sema.symbols.symbol(byteVarOfSymbol)?.fqName)
+        let fqName = try #require(sema.symbols.symbol(byteVarOfSymbol)?.fqName)
         let constructors = sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
+        let constructorSignature = try #require(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
             $0.parameterTypes == [nativePtrType] && $0.returnType == byteVarOfType
         })
-        XCTAssertEqual(constructorSignature.typeParameterSymbols, [typeParameter])
-        XCTAssertEqual(constructorSignature.classTypeParameterCount, 1)
+        #expect(constructorSignature.typeParameterSymbols == [typeParameter])
+        #expect(constructorSignature.classTypeParameterCount == 1)
 
-        let valueSymbol = try XCTUnwrap(
+        let valueSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlinx", "cinterop", "ByteVarOf", "value"].map { interner.intern($0) })
         )
-        XCTAssertEqual(sema.symbols.propertyType(for: valueSymbol), typeParameterType)
+        #expect(sema.symbols.propertyType(for: valueSymbol) == typeParameterType)
     }
 
+    @Test
     func testByteVarResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.ByteVar
@@ -93,12 +94,13 @@ final class NativeCInteropByteVarTypeAliasTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected ByteVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
+    @Test
     func testByteVarOfValuePropertyResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.ByteVarOf
@@ -109,9 +111,10 @@ final class NativeCInteropByteVarTypeAliasTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected ByteVarOf.value to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 }
+#endif

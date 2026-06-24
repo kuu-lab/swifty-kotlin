@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// CODE-001: Tests ensuring that exceptions thrown inside inlined finally
 /// blocks are routed *outward* (via rethrow) rather than being caught by
@@ -8,7 +9,8 @@ import XCTest
 /// In Kotlin, when a finally block throws, the new exception replaces the
 /// original and propagates to the next outer exception handler, NOT to the
 /// catch clauses of the try statement the finally belongs to.
-final class FinallyExceptionRouteTests: XCTestCase {
+@Suite @MainActor
+struct FinallyExceptionRouteTests {
 
     // MARK: - Exception routing through inlined finally (return path)
 
@@ -33,7 +35,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
     /// Expected: The inlined `cleanup()` call for the return path should
     /// have `canThrow: true` with a `thrownResult` that routes to a rethrow,
     /// NOT to the catch clause's dispatch label.
-    func testReturnInTryCatchFinallyRoutesExceptionOutward() throws {
+    @Test func testReturnInTryCatchFinallyRoutesExceptionOutward() throws {
         let source = """
         fun cleanup(): Unit {}
         fun compute(): Int {
@@ -50,7 +52,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
             // Find all cleanup() calls and check their throw routing
@@ -62,8 +64,8 @@ final class FinallyExceptionRouteTests: XCTestCase {
             }
 
             // There should be cleanup calls (inlined finally)
-            XCTAssertGreaterThanOrEqual(
-                cleanupCalls.count, 1,
+            #expect(
+                cleanupCalls.count >= 1,
                 "Expected at least one inlined cleanup() call"
             )
 
@@ -89,15 +91,15 @@ final class FinallyExceptionRouteTests: XCTestCase {
 
             // At least one inlined cleanup should have canThrow: true
             let hasThrowAwareInlinedCleanup = inlinedCleanupCalls.contains { $0.canThrow }
-            XCTAssertTrue(
+            #expect(
                 hasThrowAwareInlinedCleanup,
                 "Inlined finally cleanup() should be wrapped with throw-aware handling (canThrow: true)"
             )
 
             // Verify a rethrow exists in the body (for the inlined finally's
             // exception path)
-            XCTAssertGreaterThanOrEqual(
-                rethrowIndices.count, 1,
+            #expect(
+                rethrowIndices.count >= 1,
                 "Expected at least one rethrow instruction for inlined finally exception routing"
             )
         }
@@ -107,7 +109,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
 
     /// Verifies that when a `break` inside try-finally inlines the finally
     /// block, exceptions from the inlined finally propagate outward.
-    func testBreakInTryCatchFinallyRoutesExceptionOutward() throws {
+    @Test func testBreakInTryCatchFinallyRoutesExceptionOutward() throws {
         let source = """
         fun cleanup(): Unit {}
         fun loopWithBreak(): Unit {
@@ -126,7 +128,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "loopWithBreak", in: module, interner: ctx.interner)
 
             // Find all cleanup() calls
@@ -137,8 +139,8 @@ final class FinallyExceptionRouteTests: XCTestCase {
                 return (index: index, canThrow: canThrow)
             }
 
-            XCTAssertGreaterThanOrEqual(
-                cleanupCalls.count, 1,
+            #expect(
+                cleanupCalls.count >= 1,
                 "Expected at least one inlined cleanup() call for finally on break"
             )
 
@@ -150,14 +152,14 @@ final class FinallyExceptionRouteTests: XCTestCase {
 
             // Verify at least one cleanup call is throw-aware
             let hasThrowAwareCleanup = cleanupCalls.contains { $0.canThrow }
-            XCTAssertTrue(
+            #expect(
                 hasThrowAwareCleanup,
                 "Inlined finally cleanup() should be throw-aware for break path"
             )
 
             // Verify a rethrow exists for the inlined finally's exception path
-            XCTAssertGreaterThanOrEqual(
-                rethrowIndices.count, 1,
+            #expect(
+                rethrowIndices.count >= 1,
                 "Expected at least one rethrow for inlined finally exception routing on break"
             )
         }
@@ -167,7 +169,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
 
     /// Verifies that when a finally block contains no throwable calls,
     /// no extra exception handling infrastructure is emitted.
-    func testInlinedFinallyWithNoCallsSkipsExceptionWrapping() throws {
+    @Test func testInlinedFinallyWithNoCallsSkipsExceptionWrapping() throws {
         let source = """
         var x: Int = 0
         fun compute(): Int {
@@ -182,7 +184,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
             // The finally block only has `x = 1` (a store), which cannot
@@ -199,10 +201,10 @@ final class FinallyExceptionRouteTests: XCTestCase {
             // exception path, but the inlined copy before returnValue
             // should not have extra rethrows.
             let hasReturnValue = !returnValueIndices.isEmpty
-            XCTAssertTrue(hasReturnValue, "Expected at least one returnValue instruction")
+            #expect(hasReturnValue, "Expected at least one returnValue instruction")
 
             // The body should compile without errors
-            XCTAssertFalse(body.isEmpty, "Expected non-empty function body")
+            #expect(!body.isEmpty, "Expected non-empty function body")
         }
     }
 
@@ -210,7 +212,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
 
     /// Verifies that nested try-finally blocks with returns inline
     /// correctly, with each finally getting its own exception routing.
-    func testNestedTryFinallyExceptionRouting() throws {
+    @Test func testNestedTryFinallyExceptionRouting() throws {
         let source = """
         fun outer(): Unit {}
         fun inner(): Unit {}
@@ -230,7 +232,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
             // Both inner() and outer() should appear as calls
@@ -243,12 +245,12 @@ final class FinallyExceptionRouteTests: XCTestCase {
                 return ctx.interner.resolve(callee) == "outer"
             }
 
-            XCTAssertGreaterThanOrEqual(
-                innerCalls.count, 1,
+            #expect(
+                innerCalls.count >= 1,
                 "Expected at least one inner() call"
             )
-            XCTAssertGreaterThanOrEqual(
-                outerCalls.count, 1,
+            #expect(
+                outerCalls.count >= 1,
                 "Expected at least one outer() call"
             )
 
@@ -258,8 +260,8 @@ final class FinallyExceptionRouteTests: XCTestCase {
                 return false
             }.count
 
-            XCTAssertGreaterThanOrEqual(
-                rethrowCount, 1,
+            #expect(
+                rethrowCount >= 1,
                 "Expected rethrow instructions for nested finally exception routing"
             )
         }
@@ -269,7 +271,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
 
     /// Verifies that when a `continue` inside try-finally inlines the finally
     /// block, exceptions from the inlined finally propagate outward.
-    func testContinueInTryCatchFinallyRoutesExceptionOutward() throws {
+    @Test func testContinueInTryCatchFinallyRoutesExceptionOutward() throws {
         let source = """
         fun cleanup(): Unit {}
         fun counter(): Boolean = false
@@ -289,7 +291,7 @@ final class FinallyExceptionRouteTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "loopWithContinue", in: module, interner: ctx.interner)
 
             // Find all cleanup() calls
@@ -300,14 +302,14 @@ final class FinallyExceptionRouteTests: XCTestCase {
                 return (index: index, canThrow: canThrow)
             }
 
-            XCTAssertGreaterThanOrEqual(
-                cleanupCalls.count, 1,
+            #expect(
+                cleanupCalls.count >= 1,
                 "Expected at least one inlined cleanup() call for finally on continue"
             )
 
             // Verify at least one cleanup call is throw-aware
             let hasThrowAwareCleanup = cleanupCalls.contains { $0.canThrow }
-            XCTAssertTrue(
+            #expect(
                 hasThrowAwareCleanup,
                 "Inlined finally cleanup() should be throw-aware for continue path"
             )
@@ -318,10 +320,11 @@ final class FinallyExceptionRouteTests: XCTestCase {
                 return false
             }.count
 
-            XCTAssertGreaterThanOrEqual(
-                rethrowCount, 1,
+            #expect(
+                rethrowCount >= 1,
                 "Expected at least one rethrow for inlined finally exception routing on continue"
             )
         }
     }
 }
+#endif

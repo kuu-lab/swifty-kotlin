@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class KotlinCompilationAdvancedTests: XCTestCase {
-    func testCompile_extension_function() throws {
+@Suite struct KotlinCompilationAdvancedTests {
+    @Test func testCompile_extension_function() throws {
         try assertKotlinCompilesToKIR("""
         fun Int.isEven(): Boolean = this % 2 == 0
         fun main() {
@@ -12,7 +13,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_extension_property() throws {
+    @Test func testCompile_extension_property() throws {
         try assertKotlinCompilesToKIR("""
         val String.lastChar: Char
             get() = this[this.length - 1]
@@ -22,7 +23,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_extension_onCustomClass() throws {
+    @Test func testCompile_extension_onCustomClass() throws {
         try assertKotlinCompilesToKIR("""
         class Box(val value: Int)
         fun Box.doubled(): Int = this.value * 2
@@ -33,7 +34,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_lambda_basic() throws {
+    @Test func testCompile_lambda_basic() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val square = { x: Int -> x * x }
@@ -42,7 +43,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_lambda_it() throws {
+    @Test func testCompile_lambda_it() throws {
         try assertKotlinCompilesToKIR("""
         fun applyToTen(f: (Int) -> Int): Int = f(10)
         fun main() {
@@ -51,7 +52,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_higherOrder_function() throws {
+    @Test func testCompile_higherOrder_function() throws {
         try assertKotlinCompilesToKIR("""
         fun operate(a: Int, b: Int, op: (Int, Int) -> Int): Int = op(a, b)
         fun main() {
@@ -60,7 +61,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_lambda_trailingLambda() throws {
+    @Test func testCompile_lambda_trailingLambda() throws {
         try assertKotlinCompilesToKIR("""
         fun repeat(times: Int, action: (Int) -> Unit) {
             for (i in 0..times - 1) {
@@ -75,7 +76,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_operator_plus() throws {
+    @Test func testCompile_operator_plus() throws {
         try assertKotlinCompilesToKIR("""
         data class Vec(val x: Int, val y: Int) {
             operator fun plus(other: Vec): Vec = Vec(x + other.x, y + other.y)
@@ -86,7 +87,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_operator_compareTo() throws {
+    @Test func testCompile_operator_compareTo() throws {
         try assertKotlinCompilesToKIR("""
         class Weight(val grams: Int) : Comparable<Weight> {
             override operator fun compareTo(other: Weight): Int = grams - other.grams
@@ -97,7 +98,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_operator_invoke() throws {
+    @Test func testCompile_operator_invoke() throws {
         try assertKotlinCompilesToKIR("""
         class Multiplier(val factor: Int) {
             operator fun invoke(x: Int): Int = x * factor
@@ -109,7 +110,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_delegate_lazy() throws {
+    @Test func testCompile_delegate_lazy() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val x: Int by lazy { 42 }
@@ -117,7 +118,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_destructuring_dataClass() throws {
+    @Test func testCompile_destructuring_dataClass() throws {
         try assertKotlinCompilesToKIR("""
         data class Point(val x: Int, val y: Int)
         fun main() {
@@ -126,7 +127,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_destructuring_genericDataClass() throws {
+    @Test func testCompile_destructuring_genericDataClass() throws {
         try assertKotlinCompilesToKIR("""
         data class Box<T>(val value: T)
         fun main() {
@@ -135,7 +136,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_tryCatch_basic() throws {
+    @Test func testCompile_tryCatch_basic() throws {
         try assertKotlinCompilesToKIR("""
         fun safeDivide(a: Int, b: Int): Int {
             return try {
@@ -148,7 +149,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_tryCatch_finally() throws {
+    @Test func testCompile_tryCatch_finally() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             var result = 0
@@ -163,7 +164,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_throw_nothing() throws {
+    @Test func testCompile_throw_nothing() throws {
         try assertKotlinCompilesToKIR("""
         fun fail(msg: String): Nothing {
             throw RuntimeException(msg)
@@ -177,7 +178,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_scope_let() throws {
+    @Test func testCompile_scope_let() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result = "Hello".let { it.length }
@@ -185,7 +186,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_scope_run() throws {
+    @Test func testCompile_scope_run() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result = "Hello".run { length }
@@ -193,7 +194,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_scope_apply() throws {
+    @Test func testCompile_scope_apply() throws {
         try assertKotlinCompilesToKIR("""
         class Builder {
             var x: Int = 0
@@ -208,7 +209,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_scope_also() throws {
+    @Test func testCompile_scope_also() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result = "Hello".also { val len = it.length }
@@ -216,7 +217,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_listOf() throws {
+    @Test func testCompile_collection_listOf() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val list = listOf(1, 2, 3, 4, 5)
@@ -224,7 +225,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_arrayOf() throws {
+    @Test func testCompile_collection_arrayOf() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -233,7 +234,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_mapOf() throws {
+    @Test func testCompile_collection_mapOf() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val map = mapOf("a" to 1, "b" to 2, "c" to 3)
@@ -241,7 +242,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_range_intRange() throws {
+    @Test func testCompile_range_intRange() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val r = 1..10
@@ -250,7 +251,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_range_downTo() throws {
+    @Test func testCompile_range_downTo() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             for (i in 10 downTo 1) {
@@ -260,7 +261,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_range_step() throws {
+    @Test func testCompile_range_step() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             for (i in 0..20 step 2) {
@@ -270,7 +271,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_uintRange_step() throws {
+    @Test func testCompile_uintRange_step() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             for (i in 1u..10u step 2) {
@@ -280,7 +281,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_uintRange_rangeUntil() throws {
+    @Test func testCompile_uintRange_rangeUntil() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val r = 1u..<10u
@@ -289,7 +290,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_ulongRange_downTo_step() throws {
+    @Test func testCompile_ulongRange_downTo_step() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             for (i in 10UL downTo 1UL step 3) {
@@ -299,7 +300,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_ulongRange_rangeUntil() throws {
+    @Test func testCompile_ulongRange_rangeUntil() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val r = 1UL..<10UL
@@ -308,7 +309,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_infix_function() throws {
+    @Test func testCompile_infix_function() throws {
         try assertKotlinCompilesToKIR("""
         infix fun Int.power(exp: Int): Int {
             var result = 1
@@ -323,7 +324,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_tailrec_function() throws {
+    @Test func testCompile_tailrec_function() throws {
         try assertKotlinCompilesToKIR("""
         tailrec fun gcd(a: Int, b: Int): Int {
             if (b == 0) return a
@@ -333,7 +334,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_topLevel_property() throws {
+    @Test func testCompile_topLevel_property() throws {
         try assertKotlinCompilesToKIR("""
         val PI = 3.14159
         val TAU = PI * 2.0
@@ -343,7 +344,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_constVal() throws {
+    @Test func testCompile_constVal() throws {
         try assertKotlinCompilesToKIR("""
         const val MAX_SIZE = 100
         fun main() {
@@ -352,7 +353,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_namedArguments() throws {
+    @Test func testCompile_namedArguments() throws {
         try assertKotlinCompilesToKIR("""
         fun createUser(name: String, age: Int, active: Boolean = true): String {
             return name
@@ -364,7 +365,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_vararg() throws {
+    @Test func testCompile_vararg() throws {
         try assertKotlinCompilesToKIR("""
         fun sum(vararg numbers: Int): Int {
             var total = 0
@@ -377,7 +378,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_typeAlias() throws {
+    @Test func testCompile_typeAlias() throws {
         try assertKotlinCompilesToKIR("""
         typealias StringList = List<String>
         fun first(list: StringList): String = list[0]
@@ -387,7 +388,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_overload() throws {
+    @Test func testCompile_overload() throws {
         try assertKotlinCompilesToKIR("""
         fun display(value: Int): String = "int"
         fun display(value: String): String = "string"
@@ -400,7 +401,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_multiFile() throws {
+    @Test func testCompile_multiFile() throws {
         try assertKotlinSourcesToKIR(
             [
                 """
@@ -416,7 +417,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         )
     }
 
-    func testCompile_complex_linkedList() throws {
+    @Test func testCompile_complex_linkedList() throws {
         try assertKotlinCompilesToKIR("""
         class Node<T>(val value: T, var next: Node<T>?)
 
@@ -434,7 +435,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_complex_strategyPattern() throws {
+    @Test func testCompile_complex_strategyPattern() throws {
         try assertKotlinCompilesToKIR("""
         interface SortStrategy {
             fun sort(data: List<Int>): List<Int>
@@ -455,7 +456,7 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 
-    func testCompile_complex_builderPattern() throws {
+    @Test func testCompile_complex_builderPattern() throws {
         try assertKotlinCompilesToKIR("""
         class Config(
             val host: String,
@@ -484,3 +485,4 @@ final class KotlinCompilationAdvancedTests: XCTestCase {
         """)
     }
 }
+#endif

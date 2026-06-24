@@ -1,28 +1,30 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class ReflectKPropertyIsInitializedSyntheticTests: XCTestCase {
-    func testKProperty0IsInitializedRootExtensionPropertyIsRegistered() throws {
+@Suite
+struct ReflectKPropertyIsInitializedSyntheticTests {
+    @Test func testKProperty0IsInitializedRootExtensionPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let propertyName = interner.intern("isInitialized")
-        let propertySymbol = try XCTUnwrap(
+        let propertySymbol = try #require(
             sema.symbols.lookupAll(fqName: [interner.intern("kotlin"), propertyName]).first { symbolID in
                 sema.symbols.symbol(symbolID)?.kind == .property
             }
         )
 
-        XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), sema.types.booleanType)
-        let receiverType = try XCTUnwrap(sema.symbols.extensionPropertyReceiverType(for: propertySymbol))
+        #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.booleanType)
+        let receiverType = try #require(sema.symbols.extensionPropertyReceiverType(for: propertySymbol))
         guard case let .classType(classType) = sema.types.kind(of: receiverType) else {
-            XCTFail("Expected KProperty0 receiver type, got \(sema.types.kind(of: receiverType))")
+            Issue.record(Comment(rawValue: "Expected KProperty0 receiver type, got \(sema.types.kind(of: receiverType))"))
             return
         }
-        let receiverSymbol = try XCTUnwrap(sema.symbols.symbol(classType.classSymbol))
-        XCTAssertEqual(receiverSymbol.fqName.map { interner.resolve($0) }, ["kotlin", "reflect", "KProperty0"])
+        let receiverSymbol = try #require(sema.symbols.symbol(classType.classSymbol))
+        #expect(receiverSymbol.fqName.map { interner.resolve($0) } == ["kotlin", "reflect", "KProperty0"])
     }
 
-    func testLateinitPropertyReferenceStillUsesSpecialRestriction() {
+    @Test func testLateinitPropertyReferenceStillUsesSpecialRestriction() {
         let source = """
         class Box {
             var name: String = "value"
@@ -33,7 +35,7 @@ final class ReflectKPropertyIsInitializedSyntheticTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-LATEINIT" }
 
-        XCTAssertEqual(diagnostics.count, 1, "Expected non-lateinit property reference to be rejected, got: \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.count == 1, Comment(rawValue: "Expected non-lateinit property reference to be rejected, got: \(ctx.diagnostics.diagnostics)"))
     }
 
     private func makeSema() throws -> (SemaModule, StringInterner) {
@@ -41,10 +43,10 @@ final class ReflectKPropertyIsInitializedSyntheticTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -60,3 +62,4 @@ final class ReflectKPropertyIsInitializedSyntheticTests: XCTestCase {
         return ctx
     }
 }
+#endif

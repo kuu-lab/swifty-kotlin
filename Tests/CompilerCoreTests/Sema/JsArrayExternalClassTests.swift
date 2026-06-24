@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class JsArrayExternalClassTests: XCTestCase {
+@Suite
+struct JsArrayExternalClassTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -12,35 +14,33 @@ final class JsArrayExternalClassTests: XCTestCase {
             let diagnostics = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected JsArray external class surface to resolve cleanly, got: \(diagnostics)"
             )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testJsArrayClassIsRegistered() throws {
+    @Test func testJsArrayClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "JsArray"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "kotlin.js.JsArray must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+        let info = try #require(sema.symbols.symbol(symbol))
 
-        XCTAssertEqual(info.kind, .class)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertNotNil(sema.symbols.propertyType(for: symbol))
+        #expect(info.kind == .class)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.propertyType(for: symbol) != nil)
     }
-
-
 
     private func arrayType(element: TypeID, sema: SemaModule, interner: StringInterner) throws -> TypeID {
         let arrayFQName = ["kotlin", "Array"].map { interner.intern($0) }
-        let arraySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: arrayFQName))
+        let arraySymbol = try #require(sema.symbols.lookup(fqName: arrayFQName))
         return sema.types.make(.classType(ClassType(
             classSymbol: arraySymbol,
             args: [.invariant(element)],
@@ -48,3 +48,4 @@ final class JsArrayExternalClassTests: XCTestCase {
         )))
     }
 }
+#endif

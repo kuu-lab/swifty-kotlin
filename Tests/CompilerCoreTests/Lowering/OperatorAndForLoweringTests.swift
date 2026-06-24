@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // swiftformat:disable trailingCommas
 
-final class OperatorAndForLoweringTests: XCTestCase {
+@Suite
+struct OperatorAndForLoweringTests {
     // MARK: - Helper
 
     private func makeKIRContext(interner: StringInterner, sema: SemaModule? = nil) -> KIRContext {
@@ -56,6 +58,7 @@ final class OperatorAndForLoweringTests: XCTestCase {
 
     // MARK: - OperatorLoweringPass: println
 
+    @Test
     func testOperatorLoweringKeepsPrintlnWhenNoTypeInfo() throws {
         // Without sema type info, println is not rewritten (no typed variant can be selected).
         let interner = StringInterner()
@@ -77,9 +80,10 @@ final class OperatorAndForLoweringTests: XCTestCase {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         // Without type info println stays as-is (no specific typed variant selected)
-        XCTAssertTrue(callees.contains("println"), "println should remain when no type info is available")
+        #expect(callees.contains("println"), "println should remain when no type info is available")
     }
 
+    @Test
     func testOperatorLoweringRewritesCharPrintlnAndPreservesUnitResult() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -107,23 +111,26 @@ final class OperatorAndForLoweringTests: XCTestCase {
         try OperatorLoweringPass().run(module: module, ctx: ctx)
 
         let body = bodyInDecl(declID, module: module)
-        XCTAssertGreaterThanOrEqual(body.count, 2)
+        #expect(body.count >= 2)
 
         guard case let .call(_, loweredCallee, _, loweredResult, _, _, _, _) = body[0] else {
-            return XCTFail("Expected first lowered instruction to be a call")
+            Issue.record("Expected first lowered instruction to be a call")
+            return
         }
-        XCTAssertEqual(interner.resolve(loweredCallee), "kk_println_char")
-        XCTAssertNil(loweredResult, "Lowered primitive println call should be side-effect only")
+        #expect(interner.resolve(loweredCallee) == "kk_println_char")
+        #expect(loweredResult == nil, "Lowered primitive println call should be side-effect only")
 
         guard case let .constValue(unitResult, value) = body[1] else {
-            return XCTFail("Expected second lowered instruction to synthesize Unit")
+            Issue.record("Expected second lowered instruction to synthesize Unit")
+            return
         }
-        XCTAssertEqual(unitResult, result)
-        XCTAssertEqual(value, .unit)
+        #expect(unitResult == result)
+        #expect(value == .unit)
     }
 
     // MARK: - OperatorLoweringPass: binary ops
 
+    @Test
     func testOperatorLoweringRewritesIntBinaryAddToRuntimeCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -148,13 +155,14 @@ final class OperatorAndForLoweringTests: XCTestCase {
             if case .binary(.add, _, _, _) = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasBinaryAdd, "Binary .add should be rewritten to runtime call")
+        #expect(!hasBinaryAdd, "Binary .add should be rewritten to runtime call")
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         let hasAddCall = callees.contains { $0 == "kk_op_add" }
-        XCTAssertTrue(hasAddCall, "Binary add should produce kk_op_add, got callees: \(callees)")
+        #expect(hasAddCall, "Binary add should produce kk_op_add, got callees: \(callees)")
     }
 
+    @Test
     func testOperatorLoweringRewritesNullAssertToRuntimeCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -178,14 +186,15 @@ final class OperatorAndForLoweringTests: XCTestCase {
             if case .nullAssert = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasNullAssert, "nullAssert should be rewritten to runtime call")
+        #expect(!hasNullAssert, "nullAssert should be rewritten to runtime call")
         let callees = calleesInDecl(declID, module: module, interner: interner)
         let hasNullCheckCall = callees.contains { $0 == "kk_op_notnull" }
-        XCTAssertTrue(hasNullCheckCall, "nullAssert should produce kk_op_notnull, got callees: \(callees)")
+        #expect(hasNullCheckCall, "nullAssert should produce kk_op_notnull, got callees: \(callees)")
     }
 
     // MARK: - OperatorLoweringPass: shouldRun
 
+    @Test
     func testOperatorLoweringShouldRunReturnsFalseForEmptyModule() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -202,9 +211,10 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
-        XCTAssertFalse(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
+        #expect(!OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
+    @Test
     func testOperatorLoweringShouldRunReturnsTrueForBinaryInstruction() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -224,9 +234,10 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
-        XCTAssertTrue(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
+        #expect(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
+    @Test
     func testOperatorLoweringShouldRunReturnsTrueForPrintlnCall() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -245,11 +256,12 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
-        XCTAssertTrue(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
+        #expect(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
     // MARK: - ForLoweringPass
 
+    @Test
     func testForLoweringRewritesKkForLoweredToHasNextNextLoop() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -271,13 +283,14 @@ final class OperatorAndForLoweringTests: XCTestCase {
         try ForLoweringPass().run(module: module, ctx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("kk_for_lowered"), "kk_for_lowered should be rewritten")
-        XCTAssertTrue(
+        #expect(!callees.contains("kk_for_lowered"), "kk_for_lowered should be rewritten")
+        #expect(
             callees.contains("kk_range_hasNext") || callees.contains("kk_list_iterator_hasNext"),
             "For loop should use hasNext pattern, got callees: \(callees)"
         )
     }
 
+    @Test
     func testForLoweringShouldRunReturnsFalseWithNoForMarker() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -300,9 +313,10 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
-        XCTAssertFalse(ForLoweringPass().shouldRun(module: module, ctx: ctx))
+        #expect(!ForLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
+    @Test
     func testForLoweringShouldRunReturnsTrueForKkForLoweredCall() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -323,11 +337,12 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
-        XCTAssertTrue(ForLoweringPass().shouldRun(module: module, ctx: ctx))
+        #expect(ForLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
     // MARK: - NormalizeBlocksPass
 
+    @Test
     func testNormalizeBlocksShouldRunReturnsFalseForNoBlocks() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -344,9 +359,10 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
-        XCTAssertFalse(NormalizeBlocksPass().shouldRun(module: module, ctx: ctx))
+        #expect(!NormalizeBlocksPass().shouldRun(module: module, ctx: ctx))
     }
 
+    @Test
     func testNormalizeBlocksShouldRunReturnsTrueForBeginBlock() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -363,9 +379,10 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
-        XCTAssertTrue(NormalizeBlocksPass().shouldRun(module: module, ctx: ctx))
+        #expect(NormalizeBlocksPass().shouldRun(module: module, ctx: ctx))
     }
 
+    @Test
     func testNormalizeBlocksRemovesBeginAndEndBlock() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -389,9 +406,10 @@ final class OperatorAndForLoweringTests: XCTestCase {
         let body = bodyInDecl(declID, module: module)
         let hasBeginBlock = body.contains { if case .beginBlock = $0 { return true }; return false }
         let hasEndBlock = body.contains { if case .endBlock = $0 { return true }; return false }
-        XCTAssertFalse(hasBeginBlock, "beginBlock should be removed by NormalizeBlocksPass")
-        XCTAssertFalse(hasEndBlock, "endBlock should be removed by NormalizeBlocksPass")
+        #expect(!hasBeginBlock, "beginBlock should be removed by NormalizeBlocksPass")
+        #expect(!hasEndBlock, "endBlock should be removed by NormalizeBlocksPass")
     }
 
     // swiftformat:enable trailingCommas
 }
+#endif

@@ -1,10 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class TailrecLoweringTests: XCTestCase {
-    /// Thrown after `XCTFail` in helpers that need to stop execution.
-    private struct TestFailure: Error {}
+@Suite
+struct TailrecLoweringTests {
 
     // MARK: - Test Helpers
 
@@ -46,8 +46,7 @@ final class TailrecLoweringTests: XCTestCase {
         let ctx = makeKIRContext(moduleName: moduleName, interner: interner)
         try TailrecLoweringPass().run(module: module, ctx: ctx)
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected lowered function")
-            throw TestFailure()
+            throw NSError(domain: "Test", code: 1, userInfo: [NSLocalizedDescriptionKey: "expected lowered function"])
         }
         return lowered
     }
@@ -56,6 +55,7 @@ final class TailrecLoweringTests: XCTestCase {
 
     /// Verify that a tailrec function's self-recursive call + returnValue
     /// is replaced by parameter copy + jump to loop head.
+    @Test
     func testTailrecRewritesSelfRecursiveCallToLoop() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -117,7 +117,7 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasLoopLabel, "Expected loop-head label L\(tailrecLoopLabelBase)")
+        #expect(hasLoopLabel, "Expected loop-head label L\(tailrecLoopLabelBase)")
 
         // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
@@ -126,7 +126,7 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasJumpBack, "Expected jump back to loop head")
+        #expect(hasJumpBack, "Expected jump back to loop head")
 
         // The self-recursive call should be gone.
         let hasSelfCall = lowered.body.contains { instruction in
@@ -135,16 +135,17 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertFalse(hasSelfCall, "Self-recursive call should have been eliminated")
+        #expect(!hasSelfCall, "Self-recursive call should have been eliminated")
 
         // There should be copy instructions for parameter reassignment.
         let copyCount = lowered.body.filter { instruction in
             if case .copy = instruction { return true }
             return false
         }.count
-        XCTAssertGreaterThanOrEqual(copyCount, 2, "Expected parameter reassignment copies")
+        #expect(copyCount >= 2, "Expected parameter reassignment copies")
     }
 
+    @Test
     func testTailrecDoesNotReuseBranchLocalCanonicalParameterExprs() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -204,13 +205,14 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return to == lateParamExpr || to == lateAccExpr
         }
-        XCTAssertFalse(
-            reusedLateBranchExpr,
+        #expect(
+            !reusedLateBranchExpr,
             "Tailrec lowering must not reuse canonical parameter exprs that appear after the loop header."
         )
     }
 
     /// Verify that non-tailrec functions are NOT rewritten.
+    @Test
     func testNonTailrecFunctionIsNotModified() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -250,7 +252,7 @@ final class TailrecLoweringTests: XCTestCase {
         let ctx = makeKIRContext(moduleName: "NonTailrecTest", interner: interner)
 
         // shouldRun should return false.
-        XCTAssertFalse(TailrecLoweringPass().shouldRun(module: module, ctx: ctx))
+        #expect(!TailrecLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
     /// LOWER-005: Verify that a tailrec function's self-recursive call
@@ -258,6 +260,7 @@ final class TailrecLoweringTests: XCTestCase {
     /// into a loop.  Because we cannot inline default expressions at the
     /// lowering stage, the `$default` stub call must be preserved so that
     /// the default values are correctly evaluated on each recursive call.
+    @Test
     func testTailrecPreservesDefaultStubCallWithNonZeroMask() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -328,7 +331,7 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasDefaultStubCall, "$default stub call with non-zero mask should be preserved (cannot inline default expressions)")
+        #expect(hasDefaultStubCall, "$default stub call with non-zero mask should be preserved (cannot inline default expressions)")
 
         // No tailrec loop should have been created for this call.
         let hasJumpToLoop = lowered.body.contains { instruction in
@@ -337,11 +340,12 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertFalse(hasJumpToLoop, "No tailrec loop jump expected when $default mask is non-zero")
+        #expect(!hasJumpToLoop, "No tailrec loop jump expected when $default mask is non-zero")
     }
 
     /// LOWER-005: Verify that a `$default` stub call with mask=0 (all
     /// arguments explicitly provided) IS optimized into a loop.
+    @Test
     func testTailrecRewritesDefaultStubCallWithZeroMask() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -409,7 +413,7 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertFalse(hasDefaultStubCall, "$default stub call with mask=0 should be eliminated by tailrec lowering")
+        #expect(!hasDefaultStubCall, "$default stub call with mask=0 should be eliminated by tailrec lowering")
 
         // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
@@ -418,7 +422,7 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasLoopLabel, "Expected loop-head label for mask=0 $default call")
+        #expect(hasLoopLabel, "Expected loop-head label for mask=0 $default call")
 
         // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
@@ -427,7 +431,7 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasJumpBack, "Expected jump back to loop head for mask=0 $default call")
+        #expect(hasJumpBack, "Expected jump back to loop head for mask=0 $default call")
     }
 
     /// LOWER-005: Verify that the slow-path in `extractDefaultMask` correctly
@@ -435,6 +439,7 @@ final class TailrecLoweringTests: XCTestCase {
     /// inline `.intLiteral` arena expression).  With a non-zero mask, the
     /// call should be preserved (not optimized) because we cannot inline
     /// default expressions at the lowering stage.
+    @Test
     func testTailrecPreservesDefaultStubCallWithTemporaryNonZeroMask() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -508,7 +513,7 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(hasDefaultStubCall, "$default stub call with non-zero mask should be preserved (slow-path mask test)")
+        #expect(hasDefaultStubCall, "$default stub call with non-zero mask should be preserved (slow-path mask test)")
 
         // No tailrec loop should have been created for this call.
         let hasJumpToLoop = lowered.body.contains { instruction in
@@ -517,12 +522,13 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertFalse(hasJumpToLoop, "No tailrec loop jump expected when $default mask is non-zero (slow-path mask test)")
+        #expect(!hasJumpToLoop, "No tailrec loop jump expected when $default mask is non-zero (slow-path mask test)")
     }
 
     /// LOWER-005: Verify that the slow-path in `extractDefaultMask` correctly
     /// resolves a mask=0 via a preceding `.constValue` instruction and the
     /// call IS optimized into a loop (since mask=0 means all args provided).
+    @Test
     func testTailrecRewritesDefaultStubCallWithTemporaryZeroMask() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -592,26 +598,27 @@ final class TailrecLoweringTests: XCTestCase {
             }
             return false
         }
-        XCTAssertFalse(hasDefaultStubCall, "$default stub call with mask=0 should be eliminated (slow-path mask test)")
+        #expect(!hasDefaultStubCall, "$default stub call with mask=0 should be eliminated (slow-path mask test)")
 
         // The loop-head label and jump should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction { return id >= tailrecLoopLabelBase }
             return false
         }
-        XCTAssertTrue(hasLoopLabel, "Expected loop-head label (slow-path zero-mask test)")
+        #expect(hasLoopLabel, "Expected loop-head label (slow-path zero-mask test)")
 
         let hasJumpBack = lowered.body.contains { instruction in
             if case let .jump(target) = instruction { return target >= tailrecLoopLabelBase }
             return false
         }
-        XCTAssertTrue(hasJumpBack, "Expected jump back to loop head (slow-path zero-mask test)")
+        #expect(hasJumpBack, "Expected jump back to loop head (slow-path zero-mask test)")
     }
 
     // MARK: - Sema warning test
 
     /// Verify that KSWIFTK-SEMA-TAILREC warning is emitted when the last
     /// expression is not a self-recursive call.
+    @Test
     func testSemaTailrecWarningOnNonRecursiveBody() throws {
         let source = """
         tailrec fun notRecursive(n: Int): Int {
@@ -627,7 +634,7 @@ final class TailrecLoweringTests: XCTestCase {
             let hasTailrecWarning = ctx.diagnostics.diagnostics.contains { diag in
                 diag.code == "KSWIFTK-SEMA-TAILREC" && diag.severity == .warning
             }
-            XCTAssertTrue(hasTailrecWarning, "Expected KSWIFTK-SEMA-TAILREC warning for non-recursive tailrec function")
+            #expect(hasTailrecWarning, "Expected KSWIFTK-SEMA-TAILREC warning for non-recursive tailrec function")
         }
     }
 
@@ -636,6 +643,7 @@ final class TailrecLoweringTests: XCTestCase {
     /// Compile a tailrec factorial function and verify that tailrec lowering
     /// transforms the recursion into a loop in KIR (no self-recursive calls
     /// remain and control flow uses a loop-head label with jump).
+    @Test
     func testTailrecFactorialLoweredToLoop() throws {
         let source = """
         tailrec fun fact(n: Int, acc: Int = 1): Int {
@@ -650,7 +658,7 @@ final class TailrecLoweringTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
 
             // Find the fact function and verify it was optimized.
             let factFunction = try findKIRFunction(
@@ -658,7 +666,7 @@ final class TailrecLoweringTests: XCTestCase {
             )
 
             // The function should have the tailrec flag.
-            XCTAssertTrue(factFunction.isTailrec)
+            #expect(factFunction.isTailrec)
 
             // Should have a loop-head label.
             let hasLoopLabel = factFunction.body.contains { instruction in
@@ -667,7 +675,7 @@ final class TailrecLoweringTests: XCTestCase {
                 }
                 return false
             }
-            XCTAssertTrue(hasLoopLabel, "Expected loop-head label in tailrec function")
+            #expect(hasLoopLabel, "Expected loop-head label in tailrec function")
 
             // Should have a jump back to the loop head.
             let hasJumpBack = factFunction.body.contains { instruction in
@@ -676,7 +684,7 @@ final class TailrecLoweringTests: XCTestCase {
                 }
                 return false
             }
-            XCTAssertTrue(hasJumpBack, "Expected jump back to loop head in tailrec function")
+            #expect(hasJumpBack, "Expected jump back to loop head in tailrec function")
 
             // Self-recursive calls to 'fact' should have been eliminated.
             let factName = ctx.interner.intern("fact")
@@ -686,10 +694,11 @@ final class TailrecLoweringTests: XCTestCase {
                 }
                 return false
             }
-            XCTAssertFalse(hasSelfCall, "Self-recursive call should have been eliminated by tailrec lowering")
+            #expect(!hasSelfCall, "Self-recursive call should have been eliminated by tailrec lowering")
 
             // No errors in diagnostics.
-            XCTAssertFalse(ctx.diagnostics.hasError, "Compilation should succeed without errors")
+            #expect(!ctx.diagnostics.hasError, "Compilation should succeed without errors")
         }
     }
 }
+#endif

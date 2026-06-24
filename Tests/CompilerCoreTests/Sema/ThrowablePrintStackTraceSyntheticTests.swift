@@ -1,7 +1,8 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ThrowablePrintStackTraceSyntheticTests: XCTestCase {
+@Suite
+struct ThrowablePrintStackTraceSyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,16 +11,17 @@ final class ThrowablePrintStackTraceSyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected Throwable surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), "Expected Throwable surface to resolve cleanly, got: \(diagnostics)")
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
+    @Test
     func testPrintStackTraceMemberFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let kotlinPackage = ["kotlin"].map { interner.intern($0) }
-        let throwableSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let throwableSymbol = try #require(sema.symbols.lookup(
             fqName: kotlinPackage + [interner.intern("Throwable")]
         ))
         let throwableType = sema.types.make(.classType(ClassType(
@@ -28,17 +30,18 @@ final class ThrowablePrintStackTraceSyntheticTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        let printStackTraceSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let printStackTraceSymbol = try #require(sema.symbols.lookup(
             fqName: kotlinPackage + [interner.intern("Throwable"), interner.intern("printStackTrace")]
         ))
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: printStackTraceSymbol))
+        let signature = try #require(sema.symbols.functionSignature(for: printStackTraceSymbol))
 
-        XCTAssertEqual(sema.symbols.externalLinkName(for: printStackTraceSymbol), "kk_throwable_printStackTrace")
-        XCTAssertEqual(signature.receiverType, throwableType)
-        XCTAssertEqual(signature.parameterTypes, [])
-        XCTAssertEqual(signature.returnType, sema.types.unitType)
+        #expect(sema.symbols.externalLinkName(for: printStackTraceSymbol) == "kk_throwable_printStackTrace")
+        #expect(signature.receiverType == throwableType)
+        #expect(signature.parameterTypes == [])
+        #expect(signature.returnType == sema.types.unitType)
     }
 
+    @Test
     func testPrintStackTraceResolvesAsUnitReturningMemberCall() throws {
         let source = """
         fun sample(e: Throwable) {
@@ -47,10 +50,10 @@ final class ThrowablePrintStackTraceSyntheticTests: XCTestCase {
         """
 
         let (sema, interner) = try makeSema(source: source)
-        let sampleSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let sampleSymbol = try #require(sema.symbols.lookup(
             fqName: [interner.intern("sample")]
         ))
 
-        XCTAssertNotNil(sema.symbols.functionSignature(for: sampleSymbol))
+        #expect(sema.symbols.functionSignature(for: sampleSymbol) != nil)
     }
 }

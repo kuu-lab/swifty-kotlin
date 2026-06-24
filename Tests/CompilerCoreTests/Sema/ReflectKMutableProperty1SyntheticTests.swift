@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectKMutableProperty1SyntheticTests: XCTestCase {
+@Suite
+struct ReflectKMutableProperty1SyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,37 +12,37 @@ final class ReflectKMutableProperty1SyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected KMutableProperty1 surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KMutableProperty1 surface to resolve cleanly, got: \(diagnostics)"))
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testKMutableProperty1SurfaceIsRegistered() throws {
+    @Test func testKMutableProperty1SurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
         let functionPackage = ["kotlin", "Function"].map { interner.intern($0) }
 
-        let kProperty1Symbol = try XCTUnwrap(sema.symbols.lookup(
+        let kProperty1Symbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KProperty1")]
         ))
-        let kMutablePropertySymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kMutablePropertySymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty")]
         ))
-        let kMutableProperty1Symbol = try XCTUnwrap(sema.symbols.lookup(
+        let kMutableProperty1Symbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty1")]
         ))
-        let function1Symbol = try XCTUnwrap(sema.symbols.lookup(
+        let function1Symbol = try #require(sema.symbols.lookup(
             fqName: functionPackage + [interner.intern("Function1")]
         ))
 
-        let kMutableProperty1Info = try XCTUnwrap(sema.symbols.symbol(kMutableProperty1Symbol))
-        XCTAssertEqual(kMutableProperty1Info.kind, .interface)
-        XCTAssertTrue(kMutableProperty1Info.flags.contains(.synthetic))
+        let kMutableProperty1Info = try #require(sema.symbols.symbol(kMutableProperty1Symbol))
+        #expect(kMutableProperty1Info.kind == .interface)
+        #expect(kMutableProperty1Info.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutableProperty1Symbol)
-        XCTAssertEqual(typeParams.count, 2)
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: kMutableProperty1Symbol), [.invariant, .invariant])
+        #expect(typeParams.count == 2)
+        #expect(sema.types.nominalTypeParameterVariances(for: kMutableProperty1Symbol) == [.invariant, .invariant])
 
         let receiverTypeParam = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParams[0],
@@ -51,39 +53,36 @@ final class ReflectKMutableProperty1SyntheticTests: XCTestCase {
             nullability: .nonNull
         )))
         let supertypes = sema.symbols.directSupertypes(for: kMutableProperty1Symbol)
-        XCTAssertTrue(supertypes.contains(kProperty1Symbol))
-        XCTAssertTrue(supertypes.contains(kMutablePropertySymbol))
-        XCTAssertTrue(supertypes.contains(function1Symbol))
-        XCTAssertEqual(
-            sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: kProperty1Symbol),
-            [.invariant(receiverTypeParam), .invariant(valueType)]
+        #expect(supertypes.contains(kProperty1Symbol))
+        #expect(supertypes.contains(kMutablePropertySymbol))
+        #expect(supertypes.contains(function1Symbol))
+        #expect(
+            sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: kProperty1Symbol) == [.invariant(receiverTypeParam), .invariant(valueType)]
         )
-        XCTAssertEqual(
-            sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: kMutablePropertySymbol),
-            [.invariant(valueType)]
+        #expect(
+            sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: kMutablePropertySymbol) == [.invariant(valueType)]
         )
-        XCTAssertEqual(
-            sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: function1Symbol),
-            [.out(valueType), .in(receiverTypeParam)]
+        #expect(
+            sema.symbols.supertypeTypeArgs(for: kMutableProperty1Symbol, supertype: function1Symbol) == [.out(valueType), .in(receiverTypeParam)]
         )
 
-        let setSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let setSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty1"), interner.intern("set")]
         ))
-        let setSignature = try XCTUnwrap(sema.symbols.functionSignature(for: setSymbol))
+        let setSignature = try #require(sema.symbols.functionSignature(for: setSymbol))
         let receiverType = sema.types.make(.classType(ClassType(
             classSymbol: kMutableProperty1Symbol,
             args: [.invariant(receiverTypeParam), .invariant(valueType)],
             nullability: .nonNull
         )))
-        XCTAssertEqual(setSignature.receiverType, receiverType)
-        XCTAssertEqual(setSignature.parameterTypes, [receiverTypeParam, valueType])
-        XCTAssertEqual(setSignature.returnType, sema.types.unitType)
-        XCTAssertEqual(setSignature.typeParameterSymbols, typeParams)
-        XCTAssertEqual(setSignature.classTypeParameterCount, 2)
+        #expect(setSignature.receiverType == receiverType)
+        #expect(setSignature.parameterTypes == [receiverTypeParam, valueType])
+        #expect(setSignature.returnType == sema.types.unitType)
+        #expect(setSignature.typeParameterSymbols == typeParams)
+        #expect(setSignature.classTypeParameterCount == 2)
     }
 
-    func testKMutableProperty1SetResolvesInSource() throws {
+    @Test func testKMutableProperty1SetResolvesInSource() throws {
         let source = """
         import kotlin.reflect.KMutableProperty1
 
@@ -95,3 +94,4 @@ final class ReflectKMutableProperty1SyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

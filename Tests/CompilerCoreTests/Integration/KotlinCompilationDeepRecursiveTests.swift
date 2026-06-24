@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class KotlinCompilationDeepRecursiveTests: XCTestCase {
-    func testCompileDeepRecursiveFunctionBasicUsage() throws {
+@Suite struct KotlinCompilationDeepRecursiveTests {
+    @Test func testCompileDeepRecursiveFunctionBasicUsage() throws {
         try assertKotlinCompilesToKIR("""
         class Node(val next: Node?)
 
@@ -16,7 +17,7 @@ final class KotlinCompilationDeepRecursiveTests: XCTestCase {
         """)
     }
 
-    func testCompileDeepRecursiveFunctionExplicitParamName() throws {
+    @Test func testCompileDeepRecursiveFunctionExplicitParamName() throws {
         try assertKotlinCompilesToKIR("""
         class Node(val next: Node?)
 
@@ -29,7 +30,7 @@ final class KotlinCompilationDeepRecursiveTests: XCTestCase {
         """)
     }
 
-    func testCompileDeepRecursiveFunctionBasicObjectEmission() throws {
+    @Test func testCompileDeepRecursiveFunctionBasicObjectEmission() throws {
         try assertKotlinCompilesToObject("""
         class Node(val next: Node?)
 
@@ -42,3 +43,4 @@ final class KotlinCompilationDeepRecursiveTests: XCTestCase {
         """)
     }
 }
+#endif

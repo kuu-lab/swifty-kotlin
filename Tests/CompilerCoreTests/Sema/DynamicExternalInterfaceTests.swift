@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class DynamicExternalInterfaceTests: XCTestCase {
+@Suite
+struct DynamicExternalInterfaceTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -12,40 +14,40 @@ final class DynamicExternalInterfaceTests: XCTestCase {
             let diagnostics = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected Dynamic external interface surface to resolve cleanly, got: \(diagnostics)"
             )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testDynamicInterfaceIsRegistered() throws {
+    @Test func testDynamicInterfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "Dynamic"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "kotlin.js.Dynamic must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+        let info = try #require(sema.symbols.symbol(symbol))
 
-        XCTAssertEqual(info.kind, .interface)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertNotNil(sema.symbols.propertyType(for: symbol))
+        #expect(info.kind == .interface)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.propertyType(for: symbol) != nil)
     }
 
-    func testDynamicIteratorIsRegistered() throws {
+    @Test func testDynamicIteratorIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let dynamicFQName = ["kotlin", "js", "Dynamic"].map { interner.intern($0) }
-        let dynamicSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: dynamicFQName))
-        let dynamicType = try XCTUnwrap(sema.symbols.propertyType(for: dynamicSymbol))
-        let iteratorSymbol = try XCTUnwrap(
+        let dynamicSymbol = try #require(sema.symbols.lookup(fqName: dynamicFQName))
+        let dynamicType = try #require(sema.symbols.propertyType(for: dynamicSymbol))
+        let iteratorSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "collections", "Iterator"].map { interner.intern($0) })
         )
 
-        let iteratorFunction = try XCTUnwrap(
+        let iteratorFunction = try #require(
             sema.symbols.lookupAll(fqName: dynamicFQName + [interner.intern("iterator")]).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID),
                       case let .classType(returnType) = sema.types.kind(of: signature.returnType)
@@ -59,15 +61,15 @@ final class DynamicExternalInterfaceTests: XCTestCase {
             },
             "Dynamic.iterator() member must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(iteratorFunction))
+        let info = try #require(sema.symbols.symbol(iteratorFunction))
 
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertTrue(info.flags.contains(.operatorFunction))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: iteratorFunction), "kk_dynamic_iterator")
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(info.flags.contains(.operatorFunction))
+        #expect(sema.symbols.externalLinkName(for: iteratorFunction) == "kk_dynamic_iterator")
     }
 
-    func testDynamicIteratorResolvesFromSource() throws {
+    @Test func testDynamicIteratorResolvesFromSource() throws {
         let source = """
         import kotlin.js.Dynamic
         import kotlin.collections.Iterator
@@ -76,10 +78,11 @@ final class DynamicExternalInterfaceTests: XCTestCase {
         """
         let (sema, interner) = try makeSema(source: source)
 
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [interner.intern("iteratorOf")]))
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+        let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern("iteratorOf")]))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
         guard case .classType = sema.types.kind(of: signature.returnType) else {
-            return XCTFail("iteratorOf should return Iterator<Dynamic>, got \(sema.types.renderType(signature.returnType))")
+            Issue.record("iteratorOf should return Iterator<Dynamic>, got \(sema.types.renderType(signature.returnType))"); return
         }
     }
 }
+#endif

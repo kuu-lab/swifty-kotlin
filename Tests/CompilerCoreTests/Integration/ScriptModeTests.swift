@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// TEST-SCRIPT-002: Script-mode (.kts) test coverage expansion.
 ///
@@ -8,11 +9,11 @@ import XCTest
 /// with no non-property declarations. The parser sets the root CST kind to
 /// `.script` and the BuildASTPhase wraps all top-level expressions into a
 /// synthetic `main` function body.
-final class ScriptModeTests: XCTestCase {
+@Suite struct ScriptModeTests {
 
     // MARK: - 1. Top-level statements compile to KIR
 
-    func testScriptTopLevelStatementsCompileToKIR() throws {
+    @Test func testScriptTopLevelStatementsCompileToKIR() throws {
         // A file that consists entirely of top-level statements (no fun/class)
         // must be parsed as `.script`, synthesise a `main`, and compile through
         // to KIR without errors.
@@ -26,7 +27,7 @@ final class ScriptModeTests: XCTestCase {
 
     // MARK: - 2. Top-level val/var properties in script mode
 
-    func testScriptTopLevelValVarPropertiesCompileToKIR() throws {
+    @Test func testScriptTopLevelValVarPropertiesCompileToKIR() throws {
         // In script mode val/var at the top level are treated as script-body
         // expressions, not top-level property declarations.
         let source = """
@@ -40,17 +41,17 @@ final class ScriptModeTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             // Script mode: scriptBody should be populated
             let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            XCTAssertNotNil(scriptFile, "Script file must have a non-empty scriptBody for top-level val/var")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Top-level val/var in script mode should not produce errors")
+            #expect(scriptFile != nil, "Script file must have a non-empty scriptBody for top-level val/var")
+            #expect(!(ctx.diagnostics.hasError), "Top-level val/var in script mode should not produce errors")
         }
     }
 
     // MARK: - 3. Script-level function definition alongside statements
 
-    func testScriptLevelFunctionDefinitionAlongsideStatements() throws {
+    @Test func testScriptLevelFunctionDefinitionAlongsideStatements() throws {
         // In Kotlin script mode a local fun can appear alongside statements.
         // The synthesised `main` wraps all top-level content; the pipeline must
         // not crash or emit errors for this mix.
@@ -73,7 +74,7 @@ final class ScriptModeTests: XCTestCase {
 
     // MARK: - 4. Parser root kind is `.script` for expression statements
 
-    func testParserRootKindIsScriptForExpressionStatements() throws {
+    @Test func testParserRootKindIsScriptForExpressionStatements() throws {
         // The parser sets the root CST kind to `.script` when the file contains
         // at least one top-level *statement* (i.e. something that is not a
         // declaration) and no non-property declarations.
@@ -91,14 +92,14 @@ final class ScriptModeTests: XCTestCase {
             try ParsePhase().run(ctx)
 
             let rootKinds = ctx.syntaxTrees.map { $0.1.node($0.2).kind }
-            XCTAssertTrue(rootKinds.contains(.script),
+            #expect(rootKinds.contains(.script),
                           "A file with top-level expression statements must parse as .script, got: \(rootKinds)")
         }
     }
 
     // MARK: - 5. BuildAST synthesises a `main` function for script bodies
 
-    func testBuildASTSynthesisesMainForScriptBody() throws {
+    @Test func testBuildASTSynthesisesMainForScriptBody() throws {
         // The BuildASTPhase should wrap script expressions into a synthetic
         // `main` entry point.  After building the AST, at least one top-level
         // declaration whose interned name resolves to "main" must exist in the
@@ -111,23 +112,23 @@ final class ScriptModeTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            XCTAssertNotNil(scriptFile, "scriptBody must be populated after BuildASTPhase for a script file")
+            #expect(scriptFile != nil, "scriptBody must be populated after BuildASTPhase for a script file")
 
             let topLevelDeclNames: [String] = (scriptFile?.topLevelDecls ?? []).compactMap { declID in
                 guard let decl = ast.arena.decl(declID) else { return nil }
                 if case let .funDecl(f) = decl { return ctx.interner.resolve(f.name) }
                 return nil
             }
-            XCTAssertTrue(topLevelDeclNames.contains("main"),
+            #expect(topLevelDeclNames.contains("main"),
                           "BuildASTPhase must synthesise a 'main' entry for script content, got: \(topLevelDeclNames)")
         }
     }
 
     // MARK: - 6. Arithmetic expression as last statement (last-expression-is-result)
 
-    func testScriptArithmeticExpressionCompilesToKIR() throws {
+    @Test func testScriptArithmeticExpressionCompilesToKIR() throws {
         // A script whose last top-level statement is a pure arithmetic
         // expression must compile to KIR without errors.
         let source = """
@@ -140,7 +141,7 @@ final class ScriptModeTests: XCTestCase {
 
     // MARK: - 7. String concatenation in script body
 
-    func testScriptStringConcatenationCompilesToKIR() throws {
+    @Test func testScriptStringConcatenationCompilesToKIR() throws {
         // Top-level string concatenation via `+` operator in script mode must
         // compile through the full frontend pipeline without errors.
         let source = """
@@ -153,7 +154,7 @@ final class ScriptModeTests: XCTestCase {
 
     // MARK: - 8. Mixed val and expression statements in script body
 
-    func testScriptMixedValAndExpressionStatementsCompileToKIR() throws {
+    @Test func testScriptMixedValAndExpressionStatementsCompileToKIR() throws {
         // A script body interleaving val declarations and arbitrary expression
         // statements must produce a KIR file without semantic errors.
         let source = """
@@ -169,7 +170,7 @@ final class ScriptModeTests: XCTestCase {
 
     // MARK: - 9. Script body populates ASTFile.scriptBody with multiple exprs
 
-    func testScriptBodyContainsMultipleExpressions() throws {
+    @Test func testScriptBodyContainsMultipleExpressions() throws {
         // After BuildASTPhase the `scriptBody` of the ASTFile must contain more
         // than one expression when the source has multiple statements.
         let source = """
@@ -182,17 +183,17 @@ final class ScriptModeTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
             let count = scriptFile?.scriptBody.count ?? 0
-            XCTAssertGreaterThan(count, 1,
+            #expect(count > 1,
                                  "scriptBody should contain multiple expressions for a multi-statement script")
         }
     }
 
     // MARK: - 10. Script-mode file coexists with a regular .kt file in one module
 
-    func testScriptFileCoexistsWithRegularKotlinFileInModule() throws {
+    @Test func testScriptFileCoexistsWithRegularKotlinFileInModule() throws {
         // When a module contains both a regular Kotlin file (with fun/class) and
         // a script file (with top-level statements only), the BuildASTPhase must
         // produce two ASTFiles: one with an empty scriptBody (regular) and one
@@ -210,18 +211,19 @@ final class ScriptModeTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: paths)
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             // 2 user files + 2 bundled stdlib files (collections + text)
-            XCTAssertEqual(ast.files.count, 4, "Both user files + bundled stdlib must produce an ASTFile")
+            #expect(ast.files.count == 4, "Both user files + bundled stdlib must produce an ASTFile")
 
             let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            XCTAssertNotNil(scriptFile, "One ASTFile must have a non-empty scriptBody")
+            #expect(scriptFile != nil, "One ASTFile must have a non-empty scriptBody")
 
             let regularFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 2 })
-            XCTAssertNotNil(regularFile, "One ASTFile must have an empty scriptBody")
+            #expect(regularFile != nil, "One ASTFile must have an empty scriptBody")
 
-            XCTAssertFalse(ctx.diagnostics.hasError,
+            #expect(!(ctx.diagnostics.hasError),
                            "Mixed script+regular module must compile without errors")
         }
     }
 }
+#endif

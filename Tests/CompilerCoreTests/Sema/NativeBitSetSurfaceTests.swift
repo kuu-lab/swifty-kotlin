@@ -1,16 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class NativeBitSetSurfaceTests: XCTestCase {
+private struct _TestHelperFailure: Error {}
+
+@Suite
+struct NativeBitSetSurfaceTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -30,11 +34,9 @@ final class NativeBitSetSurfaceTests: XCTestCase {
         line: UInt = #line
     ) throws -> SymbolID {
         let fqName = ["kotlin", "native", "BitSet"].map { interner.intern($0) }
-        return try XCTUnwrap(
+        return try #require(
             sema.symbols.lookup(fqName: fqName),
-            "kotlin.native.BitSet must be registered",
-            file: file,
-            line: line
+            "kotlin.native.BitSet must be registered"
         )
     }
 
@@ -46,11 +48,9 @@ final class NativeBitSetSurfaceTests: XCTestCase {
         line: UInt = #line
     ) throws -> TypeID {
         let fqName = fqPath.map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
-            "\(fqPath.joined(separator: ".")) must be registered",
-            file: file,
-            line: line
+            "\(fqPath.joined(separator: ".")) must be registered"
         )
         return sema.types.make(.classType(ClassType(
             classSymbol: symbol,
@@ -83,7 +83,7 @@ final class NativeBitSetSurfaceTests: XCTestCase {
         line: UInt = #line
     ) throws -> (SymbolID, FunctionSignature) {
         let ownerSymbol = try bitSetSymbol(in: sema, interner: interner, file: file, line: line)
-        let ownerFQName = try XCTUnwrap(sema.symbols.symbol(ownerSymbol)?.fqName, file: file, line: line)
+        let ownerFQName = try #require(sema.symbols.symbol(ownerSymbol)?.fqName)
         let ownerType = try bitSetType(in: sema, interner: interner, file: file, line: line)
         let memberFQName = ownerFQName + [interner.intern(name)]
         let candidates = sema.symbols.lookupAll(fqName: memberFQName)
@@ -99,89 +99,85 @@ final class NativeBitSetSurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail(
-            "Expected BitSet.\(name)(\(parameters.count) params) -> \(returnType), got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })",
-            file: file,
-            line: line
-        )
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected BitSet.\(name)(\(parameters.count) params) -> \(returnType), got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw _TestHelperFailure()
     }
 
-    func testBitSetClassAndCompanionAreRegistered() throws {
+    @Test func testBitSetClassAndCompanionAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let bitSet = try bitSetSymbol(in: sema, interner: interner)
         let companionFQName = ["kotlin", "native", "BitSet", "Companion"].map { interner.intern($0) }
-        let companion = try XCTUnwrap(
+        let companion = try #require(
             sema.symbols.lookup(fqName: companionFQName),
             "kotlin.native.BitSet.Companion must be registered"
         )
 
-        XCTAssertEqual(sema.symbols.symbol(bitSet)?.kind, .class)
-        XCTAssertEqual(sema.symbols.symbol(companion)?.kind, .object)
-        XCTAssertEqual(sema.symbols.parentSymbol(for: companion), bitSet)
+        #expect(sema.symbols.symbol(bitSet)?.kind == .class)
+        #expect(sema.symbols.symbol(companion)?.kind == .object)
+        #expect(sema.symbols.parentSymbol(for: companion) == bitSet)
     }
 
-    func testBitSetCarriesObsoleteNativeApiMarker() throws {
+    @Test func testBitSetCarriesObsoleteNativeApiMarker() throws {
         let (sema, interner) = try makeSema()
         let bitSet = try bitSetSymbol(in: sema, interner: interner)
         let annotations = sema.symbols.annotations(for: bitSet)
 
-        XCTAssertTrue(
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlin.native.ObsoleteNativeApi" },
             "BitSet must carry @ObsoleteNativeApi metadata"
         )
     }
 
-    func testBitSetConstructorsAreRegistered() throws {
+    @Test func testBitSetConstructorsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let bitSet = try bitSetSymbol(in: sema, interner: interner)
         let bitSetType = try bitSetType(in: sema, interner: interner)
-        let ownerFQName = try XCTUnwrap(sema.symbols.symbol(bitSet)?.fqName)
+        let ownerFQName = try #require(sema.symbols.symbol(bitSet)?.fqName)
         let constructors = sema.symbols.lookupAll(fqName: ownerFQName + [interner.intern("<init>")])
         let initializerType = sema.types.make(.functionType(FunctionType(
             params: [sema.types.intType],
             returnType: sema.types.booleanType
         )))
 
-        let sizeConstructor = try XCTUnwrap(constructors.first { candidate in
+        let sizeConstructor = try #require(constructors.first { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return false
             }
             return signature.parameterTypes == [sema.types.intType] && signature.returnType == bitSetType
         })
-        let sizeSignature = try XCTUnwrap(sema.symbols.functionSignature(for: sizeConstructor))
-        XCTAssertEqual(sizeSignature.valueParameterHasDefaultValues, [true])
+        let sizeSignature = try #require(sema.symbols.functionSignature(for: sizeConstructor))
+        #expect(sizeSignature.valueParameterHasDefaultValues == [true])
 
-        let initializerConstructor = try XCTUnwrap(constructors.first { candidate in
+        let initializerConstructor = try #require(constructors.first { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return false
             }
             return signature.parameterTypes == [sema.types.intType, initializerType]
                 && signature.returnType == bitSetType
         })
-        let initializerSignature = try XCTUnwrap(sema.symbols.functionSignature(for: initializerConstructor))
-        XCTAssertEqual(initializerSignature.valueParameterHasDefaultValues, [false, false])
+        let initializerSignature = try #require(sema.symbols.functionSignature(for: initializerConstructor))
+        #expect(initializerSignature.valueParameterHasDefaultValues == [false, false])
     }
 
-    func testBitSetPropertiesAreRegistered() throws {
+    @Test func testBitSetPropertiesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let bitSet = try bitSetSymbol(in: sema, interner: interner)
-        let ownerFQName = try XCTUnwrap(sema.symbols.symbol(bitSet)?.fqName)
+        let ownerFQName = try #require(sema.symbols.symbol(bitSet)?.fqName)
 
-        let isEmpty = try XCTUnwrap(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("isEmpty")]))
-        let lastTrueIndex = try XCTUnwrap(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("lastTrueIndex")]))
-        let size = try XCTUnwrap(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("size")]))
+        let isEmpty = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("isEmpty")]))
+        let lastTrueIndex = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("lastTrueIndex")]))
+        let size = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("size")]))
 
-        XCTAssertEqual(sema.symbols.propertyType(for: isEmpty), sema.types.booleanType)
-        XCTAssertEqual(sema.symbols.propertyType(for: lastTrueIndex), sema.types.intType)
-        XCTAssertEqual(sema.symbols.propertyType(for: size), sema.types.intType)
-        XCTAssertTrue(
+        #expect(sema.symbols.propertyType(for: isEmpty) == sema.types.booleanType)
+        #expect(sema.symbols.propertyType(for: lastTrueIndex) == sema.types.intType)
+        #expect(sema.symbols.propertyType(for: size) == sema.types.intType)
+        #expect(
             sema.symbols.symbol(size)?.flags.contains(.mutable) == true,
             "BitSet.size must be mutable"
         )
     }
 
-    func testBitSetMemberGroupsAreRegistered() throws {
+    @Test func testBitSetMemberGroupsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let bitSetType = try bitSetType(in: sema, interner: interner)
         let intRangeType = try classType(["kotlin", "ranges", "IntRange"], sema: sema, interner: interner)
@@ -204,19 +200,19 @@ final class NativeBitSetSurfaceTests: XCTestCase {
         _ = try memberSignature(named: "flip", parameters: [int, int], returnType: unit, sema: sema, interner: interner)
 
         let (getSymbol, _) = try memberSignature(named: "get", parameters: [int], returnType: bool, sema: sema, interner: interner)
-        XCTAssertTrue(sema.symbols.symbol(getSymbol)?.flags.contains(.operatorFunction) == true)
+        #expect(sema.symbols.symbol(getSymbol)?.flags.contains(.operatorFunction) == true)
 
         let (_, setIndexSignature) = try memberSignature(named: "set", parameters: [int, bool], returnType: unit, sema: sema, interner: interner)
         let (_, setRangeSignature) = try memberSignature(named: "set", parameters: [intRangeType, bool], returnType: unit, sema: sema, interner: interner)
         let (_, setBoundsSignature) = try memberSignature(named: "set", parameters: [int, int, bool], returnType: unit, sema: sema, interner: interner)
-        XCTAssertEqual(setIndexSignature.valueParameterHasDefaultValues, [false, true])
-        XCTAssertEqual(setRangeSignature.valueParameterHasDefaultValues, [false, true])
-        XCTAssertEqual(setBoundsSignature.valueParameterHasDefaultValues, [false, false, true])
+        #expect(setIndexSignature.valueParameterHasDefaultValues == [false, true])
+        #expect(setRangeSignature.valueParameterHasDefaultValues == [false, true])
+        #expect(setBoundsSignature.valueParameterHasDefaultValues == [false, false, true])
 
         let (_, nextClearSignature) = try memberSignature(named: "nextClearBit", parameters: [int], returnType: int, sema: sema, interner: interner)
         let (_, nextSetSignature) = try memberSignature(named: "nextSetBit", parameters: [int], returnType: int, sema: sema, interner: interner)
-        XCTAssertEqual(nextClearSignature.valueParameterHasDefaultValues, [true])
-        XCTAssertEqual(nextSetSignature.valueParameterHasDefaultValues, [true])
+        #expect(nextClearSignature.valueParameterHasDefaultValues == [true])
+        #expect(nextSetSignature.valueParameterHasDefaultValues == [true])
 
         _ = try memberSignature(named: "previousBit", parameters: [int, bool], returnType: int, sema: sema, interner: interner)
         _ = try memberSignature(named: "previousClearBit", parameters: [int], returnType: int, sema: sema, interner: interner)
@@ -228,7 +224,7 @@ final class NativeBitSetSurfaceTests: XCTestCase {
         _ = try memberSignature(named: "toString", parameters: [], returnType: sema.types.stringType, sema: sema, interner: interner)
     }
 
-    func testUsingBitSetWithoutOptInProducesErrorDiagnostic() {
+    @Test func testUsingBitSetWithoutOptInProducesErrorDiagnostic() {
         let source = """
         import kotlin.native.BitSet
 
@@ -239,13 +235,13 @@ final class NativeBitSetSurfaceTests: XCTestCase {
             $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .error
         }
 
-        XCTAssertFalse(
-            optInErrors.isEmpty,
+        #expect(
+            !(optInErrors.isEmpty),
             "Expected BitSet usage to require ObsoleteNativeApi opt-in"
         )
     }
 
-    func testBitSetSurfaceResolvesWithObsoleteNativeApiOptIn() {
+    @Test func testBitSetSurfaceResolvesWithObsoleteNativeApiOptIn() {
         let source = """
         @file:OptIn(kotlin.native.ObsoleteNativeApi::class)
         import kotlin.native.BitSet
@@ -279,9 +275,10 @@ final class NativeBitSetSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected BitSet surface to type-check with ObsoleteNativeApi opt-in, got \(errors)"
         )
     }
 }
+#endif

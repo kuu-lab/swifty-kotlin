@@ -1,20 +1,18 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
-final class NativeCInteropBetaInteropApiTests: XCTestCase {
+@Suite
+struct NativeCInteropBetaInteropApiTests {
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected BetaInteropApi surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
-            result = (try XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), "Expected BetaInteropApi surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+            result = (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -28,23 +26,20 @@ final class NativeCInteropBetaInteropApiTests: XCTestCase {
     }
 
     private func betaInteropApiSymbol(sema: SemaModule, interner: StringInterner) throws -> SymbolID {
-        try XCTUnwrap(
-            sema.symbols.lookup(fqName: ["kotlinx", "cinterop", "BetaInteropApi"].map { interner.intern($0) }),
-            "kotlinx.cinterop.BetaInteropApi must be registered"
-        )
+        try #require(sema.symbols.lookup(fqName: ["kotlinx", "cinterop", "BetaInteropApi"].map { interner.intern($0) }), "kotlinx.cinterop.BetaInteropApi must be registered")
     }
 
-    func testBetaInteropApiAnnotationIsRegistered() throws {
+    @Test func testBetaInteropApiAnnotationIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let symbol = try betaInteropApiSymbol(sema: sema, interner: interner)
 
-        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .annotationClass)
+        #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
     }
 
-    func testBetaInteropApiCarriesOfficialTargets() throws {
+    @Test func testBetaInteropApiCarriesOfficialTargets() throws {
         let (sema, interner) = try makeSema()
         let symbol = try betaInteropApiSymbol(sema: sema, interner: interner)
-        let target = try XCTUnwrap(
+        let target = try #require(
             sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" },
             "BetaInteropApi must carry @Target metadata"
         )
@@ -56,24 +51,24 @@ final class NativeCInteropBetaInteropApiTests: XCTestCase {
             "AnnotationTarget.CLASS",
         ]
 
-        XCTAssertEqual(Set(target.arguments), Set(expectedTargets))
+        #expect(Set(target.arguments) == Set(expectedTargets))
     }
 
-    func testBetaInteropApiCarriesRequiresOptInWarning() throws {
+    @Test func testBetaInteropApiCarriesRequiresOptInWarning() throws {
         let (sema, interner) = try makeSema()
         let symbol = try betaInteropApiSymbol(sema: sema, interner: interner)
-        let requiresOptIn = try XCTUnwrap(
+        let requiresOptIn = try #require(
             sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.RequiresOptIn" },
             "BetaInteropApi must carry @RequiresOptIn"
         )
 
-        XCTAssertTrue(
+        #expect(
             requiresOptIn.arguments.contains("level=RequiresOptIn.Level.WARNING"),
             "BetaInteropApi must be a warning-level opt-in marker; got \(requiresOptIn.arguments)"
         )
     }
 
-    func testBetaInteropApiIsAcceptedOnOfficialTargets() throws {
+    @Test func testBetaInteropApiIsAcceptedOnOfficialTargets() throws {
         _ = try makeSema(source: """
         import kotlinx.cinterop.BetaInteropApi
 
@@ -94,7 +89,7 @@ final class NativeCInteropBetaInteropApiTests: XCTestCase {
         """)
     }
 
-    func testUsingBetaInteropApiWithoutOptInProducesWarningDiagnostic() {
+    @Test func testUsingBetaInteropApiWithoutOptInProducesWarningDiagnostic() {
         let source = """
         import kotlinx.cinterop.BetaInteropApi
 
@@ -110,9 +105,7 @@ final class NativeCInteropBetaInteropApiTests: XCTestCase {
             $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .warning
         }
 
-        XCTAssertFalse(
-            optInWarnings.isEmpty,
-            "Expected warning-level opt-in diagnostic for BetaInteropApi usage"
-        )
+        #expect(!(optInWarnings.isEmpty), "Expected warning-level opt-in diagnostic for BetaInteropApi usage")
     }
 }
+#endif

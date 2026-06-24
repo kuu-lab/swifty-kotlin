@@ -1,14 +1,15 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // STDLIB-002: Scope function edge case coverage.
 // Covers: let / run / with / apply / also / takeIf / takeUnless
-final class ScopeFunctionEdgeCaseTests: XCTestCase {
+@Suite struct ScopeFunctionEdgeCaseTests {
 
     // MARK: - STDLIB-002-01: let returns block result (not receiver)
 
-    func testLetReturnsBlockResult() throws {
+    @Test func testLetReturnsBlockResult() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val n: Int = "hello".let { it.length }
@@ -19,7 +20,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-02: run (extension) returns block result; this == receiver
 
-    func testExtensionRunReturnsBlockResult() throws {
+    @Test func testExtensionRunReturnsBlockResult() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val len: Int = "world".run { length }
@@ -30,7 +31,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-03: with returns block result; receiver exposed as this
 
-    func testWithReturnsBlockResult() throws {
+    @Test func testWithReturnsBlockResult() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val upper: String = with("hello") { uppercase() }
@@ -41,7 +42,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-04: apply returns receiver (not block result)
 
-    func testApplyReturnsReceiver() throws {
+    @Test func testApplyReturnsReceiver() throws {
         try assertKotlinCompilesToKIR("""
         class Cfg { var x: Int = 0 }
         fun main() {
@@ -53,7 +54,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-05: also returns receiver (block receives it)
 
-    func testAlsoReturnsReceiver() throws {
+    @Test func testAlsoReturnsReceiver() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s: String = "kotlin".also { println(it) }
@@ -64,7 +65,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-06: takeIf returns receiver when predicate true; null otherwise
 
-    func testTakeIfReturnsReceiverOnTrue() throws {
+    @Test func testTakeIfReturnsReceiverOnTrue() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val pos: Int? = 5.takeIf { it > 0 }
@@ -77,7 +78,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-07: takeUnless returns receiver when predicate false; null otherwise
 
-    func testTakeUnlessReturnsReceiverOnFalse() throws {
+    @Test func testTakeUnlessReturnsReceiverOnFalse() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val blankStr: String? = "".takeUnless { it.isEmpty() }
@@ -90,7 +91,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-08: null receiver short-circuit with ?.let
 
-    func testNullReceiverLetShortCircuits() throws {
+    @Test func testNullReceiverLetShortCircuits() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s: String? = null
@@ -102,7 +103,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-09: ?.let on non-null value executes block
 
-    func testNonNullReceiverLetExecutesBlock() throws {
+    @Test func testNonNullReceiverLetExecutesBlock() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s: String? = "hello"
@@ -114,7 +115,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-10: nested scope functions (let inside run)
 
-    func testNestedScopeFunctions() throws {
+    @Test func testNestedScopeFunctions() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result: Int = run {
@@ -127,7 +128,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-11: takeIf chained with let
 
-    func testTakeIfChainedWithLet() throws {
+    @Test func testTakeIfChainedWithLet() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val value: String? = "kotlin"
@@ -140,7 +141,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-12: takeUnless chained with takeIf
 
-    func testTakeUnlessChainedWithTakeIf() throws {
+    @Test func testTakeUnlessChainedWithTakeIf() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val value: String? = "kotlin"
@@ -153,7 +154,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-13: top-level run returns block result
 
-    func testTopLevelRunReturnsBlockResult() throws {
+    @Test func testTopLevelRunReturnsBlockResult() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val v: Int = run { 42 }
@@ -164,7 +165,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-14: apply used for builder pattern (mutation + return)
 
-    func testApplyBuilderPattern() throws {
+    @Test func testApplyBuilderPattern() throws {
         try assertKotlinCompilesToKIR("""
         class Builder {
             var name: String = ""
@@ -183,7 +184,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-15: also for logging side-effect without mutating chain
 
-    func testAlsoForSideEffect() throws {
+    @Test func testAlsoForSideEffect() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val doubled = 21
@@ -197,7 +198,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-16: with used for multi-statement block on object
 
-    func testWithMultiStatementBlock() throws {
+    @Test func testWithMultiStatementBlock() throws {
         try assertKotlinCompilesToKIR("""
         class Point(var x: Int, var y: Int)
         fun main() {
@@ -213,7 +214,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-17: run extension — this-qualified member access
 
-    func testExtensionRunThisQualifiedMember() throws {
+    @Test func testExtensionRunThisQualifiedMember() throws {
         try assertKotlinCompilesToKIR("""
         class Counter(var count: Int = 0) {
             fun inc() { count++ }
@@ -232,7 +233,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-18: takeIf with false predicate produces null (no receiver)
 
-    func testTakeIfFalsePredicateProducesNull() throws {
+    @Test func testTakeIfFalsePredicateProducesNull() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val r: Int? = 0.takeIf { it != 0 }
@@ -243,7 +244,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-19: takeUnless with true predicate produces null
 
-    func testTakeUnlessTruePredicateProducesNull() throws {
+    @Test func testTakeUnlessTruePredicateProducesNull() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val r: Int? = 0.takeUnless { it == 0 }
@@ -254,7 +255,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-20: let block with explicit it parameter name shadowing
 
-    func testLetExplicitItParameterName() throws {
+    @Test func testLetExplicitItParameterName() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val len: Int = "hello".let { s -> s.length }
@@ -265,7 +266,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-21: apply returns receiver type (not Unit)
 
-    func testApplyTypeIsReceiver() throws {
+    @Test func testApplyTypeIsReceiver() throws {
         try assertKotlinCompilesToKIR("""
         class Box(var v: Int)
         fun mutate(b: Box): Box = b.apply { v = v * 2 }
@@ -279,7 +280,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-22: also receives it (not this); explicit it reference
 
-    func testAlsoReceivesItNotThis() throws {
+    @Test func testAlsoReceivesItNotThis() throws {
         try assertKotlinCompilesToKIR("""
         class Wrapper(val value: Int)
         fun main() {
@@ -293,7 +294,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-23: scope function inside if expression
 
-    func testScopeFunctionInsideIfExpression() throws {
+    @Test func testScopeFunctionInsideIfExpression() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val flag = true
@@ -309,7 +310,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-24: let returns null-typed result (block returns null)
 
-    func testLetBlockReturnsNull() throws {
+    @Test func testLetBlockReturnsNull() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val r: String? = "hello".let { null }
@@ -320,7 +321,7 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
 
     // MARK: - STDLIB-002-25: run (top-level) in a loop accumulator
 
-    func testTopLevelRunInLoop() throws {
+    @Test func testTopLevelRunInLoop() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             var sum = 0
@@ -332,3 +333,4 @@ final class ScopeFunctionEdgeCaseTests: XCTestCase {
         """, moduleName: "STDLIB002_25")
     }
 }
+#endif

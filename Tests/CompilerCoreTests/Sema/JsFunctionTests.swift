@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class JsFunctionTests: XCTestCase {
+@Suite
+struct JsFunctionTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -10,19 +12,19 @@ final class JsFunctionTests: XCTestCase {
             let diagnostics = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected js synthetic function surface to resolve cleanly, got: \(diagnostics)"
             )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testJsFunctionIsRegistered() throws {
+    @Test func testJsFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let packageFQName = ["kotlin", "js"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             jsSymbol(
                 in: packageFQName,
                 sema: sema,
@@ -30,36 +32,36 @@ final class JsFunctionTests: XCTestCase {
             ),
             "kotlin.js.js(String) must be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+        let info = try #require(sema.symbols.symbol(symbol))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
 
-        XCTAssertEqual(info.kind, .function)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: symbol), sema.symbols.lookup(fqName: packageFQName))
-        XCTAssertNil(sema.symbols.externalLinkName(for: symbol))
-        XCTAssertEqual(signature.parameterTypes, [sema.types.stringType])
-        XCTAssertEqual(signature.returnType, sema.types.anyType)
-        XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-        XCTAssertEqual(signature.valueParameterIsVararg, [false])
+        #expect(info.kind == .function)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: symbol) == sema.symbols.lookup(fqName: packageFQName))
+        #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+        #expect(signature.parameterTypes == [sema.types.stringType])
+        #expect(signature.returnType == sema.types.anyType)
+        #expect(signature.valueParameterHasDefaultValues == [false])
+        #expect(signature.valueParameterIsVararg == [false])
     }
 
-    func testJsParameterIsRegistered() throws {
+    @Test func testJsParameterIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let packageFQName = ["kotlin", "js"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             jsSymbol(
                 in: packageFQName,
                 sema: sema,
                 interner: interner
             )
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-        let parameter = try XCTUnwrap(signature.valueParameterSymbols.first)
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        let parameter = try #require(signature.valueParameterSymbols.first)
 
-        XCTAssertEqual(sema.symbols.symbol(parameter)?.name, interner.intern("code"))
-        XCTAssertEqual(sema.symbols.propertyType(for: parameter), sema.types.stringType)
-        XCTAssertEqual(sema.symbols.parentSymbol(for: parameter), symbol)
+        #expect(sema.symbols.symbol(parameter)?.name == interner.intern("code"))
+        #expect(sema.symbols.propertyType(for: parameter) == sema.types.stringType)
+        #expect(sema.symbols.parentSymbol(for: parameter) == symbol)
     }
 
     private func jsSymbol(
@@ -75,3 +77,4 @@ final class JsFunctionTests: XCTestCase {
         }
     }
 }
+#endif

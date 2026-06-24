@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LibraryMetadataCacheBehaviorTests {
-    func testLoadImportedSymbolsWithNilCacheMatchesWithoutCache() throws {
+    @Test func testLoadImportedSymbolsWithNilCacheMatchesWithoutCache() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -67,14 +68,17 @@ extension LibraryMetadataCacheBehaviorTests {
                 .sorted()
         }
 
-        XCTAssertEqual(symbolNames1, symbolNames2, "cache=nil should produce identical symbols as no cache parameter")
-        XCTAssertTrue(symbolNames1.contains("add"), "Should contain function 'add'")
-        XCTAssertTrue(symbolNames1.contains("version"), "Should contain property 'version'")
-        XCTAssertTrue(symbolNames1.contains("noop"), "Should contain function 'noop'")
+        #expect(symbolNames1 == symbolNames2, "cache=nil should produce identical symbols as no cache parameter")
+        let hasAdd = symbolNames1.contains("add")
+        #expect(hasAdd, "Should contain function 'add'")
+        let hasVersion = symbolNames1.contains("version")
+        #expect(hasVersion, "Should contain property 'version'")
+        let hasNoop = symbolNames1.contains("noop")
+        #expect(hasNoop, "Should contain function 'noop'")
     }
 
     /// B2: cache provided → correct symbols on first load + correct cache population
-    func testCachePopulatedCorrectlyOnFirstLoad() throws {
+    @Test func testCachePopulatedCorrectlyOnFirstLoad() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -96,9 +100,9 @@ extension LibraryMetadataCacheBehaviorTests {
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
 
         let cache = LibraryMetadataCache()
-        XCTAssertEqual(cache.manifestCacheCount, 0, "Cache should start empty")
-        XCTAssertEqual(cache.metadataCacheCount, 0)
-        XCTAssertEqual(cache.signatureCacheCount, 0)
+        #expect(cache.manifestCacheCount == 0, "Cache should start empty")
+        #expect(cache.metadataCacheCount == 0)
+        #expect(cache.signatureCacheCount == 0)
 
         try withTemporaryFile(contents: "fun main() = 0") { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "PopApp", emit: .kirDump, searchPaths: [libDir.path])
@@ -116,35 +120,35 @@ extension LibraryMetadataCacheBehaviorTests {
 
             // Verify symbols
             let calcSymbol = symbols.allSymbols().first { interner.resolve($0.name) == "calc" && $0.kind == .function }
-            XCTAssertNotNil(calcSymbol, "Function 'calc' should be imported")
+            #expect(calcSymbol != nil, "Function 'calc' should be imported")
             let valSymbol = symbols.allSymbols().first { interner.resolve($0.name) == "val" && $0.kind == .property }
-            XCTAssertNotNil(valSymbol, "Property 'val' should be imported")
+            #expect(valSymbol != nil, "Property 'val' should be imported")
 
             // Verify function signature is correct
             if let calcID = calcSymbol?.id {
                 let sig = symbols.functionSignature(for: calcID)
-                XCTAssertNotNil(sig)
-                XCTAssertEqual(sig?.parameterTypes.count, 1)
-                XCTAssertEqual(types.kind(of: sig!.parameterTypes[0]), .primitive(.int, .nonNull))
-                XCTAssertEqual(types.kind(of: sig!.returnType), .primitive(.int, .nonNull))
+                #expect(sig != nil)
+                #expect(sig?.parameterTypes.count == 1)
+                #expect(types.kind(of: sig!.parameterTypes[0]) == .primitive(.int, .nonNull))
+                #expect(types.kind(of: sig!.returnType) == .primitive(.int, .nonNull))
             }
 
             // Verify property type is correct
             if let valID = valSymbol?.id {
                 let propType = symbols.propertyType(for: valID)
-                XCTAssertNotNil(propType)
-                XCTAssertEqual(types.kind(of: propType!), .primitive(.int, .nonNull))
+                #expect(propType != nil)
+                #expect(types.kind(of: propType!) == .primitive(.int, .nonNull))
             }
         }
 
         // Verify cache was populated
-        XCTAssertEqual(cache.manifestCacheCount, 1, "Should have cached 1 manifest")
-        XCTAssertEqual(cache.metadataCacheCount, 1, "Should have cached 1 metadata")
-        XCTAssertGreaterThan(cache.signatureCacheCount, 0, "Should have cached signatures")
+        #expect(cache.manifestCacheCount == 1, "Should have cached 1 manifest")
+        #expect(cache.metadataCacheCount == 1, "Should have cached 1 metadata")
+        #expect(cache.signatureCacheCount > 0, "Should have cached signatures")
     }
 
     /// B3: Properties and typeAliases also cache correctly (not just functions)
-    func testCacheWorksForPropertyAndTypeAliasSignatures() throws {
+    @Test func testCacheWorksForPropertyAndTypeAliasSignatures() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -185,18 +189,18 @@ extension LibraryMetadataCacheBehaviorTests {
             let fnSym = symbols.allSymbols().first { interner.resolve($0.name) == "fn" && $0.kind == .function }
             let propSym = symbols.allSymbols().first { interner.resolve($0.name) == "prop" && $0.kind == .property }
             let taSym = symbols.allSymbols().first { interner.resolve($0.name) == "MyInt" && $0.kind == .typeAlias }
-            XCTAssertNotNil(fnSym, "Function should be imported")
-            XCTAssertNotNil(propSym, "Property should be imported")
-            XCTAssertNotNil(taSym, "TypeAlias should be imported")
+            #expect(fnSym != nil, "Function should be imported")
+            #expect(propSym != nil, "Property should be imported")
+            #expect(taSym != nil, "TypeAlias should be imported")
 
             // The signature "I" is shared by property and typeAlias — verify dedup in cache
             // F1<I,I> is one signature, I is another (shared by prop and typeAlias)
-            XCTAssertEqual(cache.signatureCacheCount, 2, "Should have 2 distinct signatures: F1<I,I> and I")
+            #expect(cache.signatureCacheCount == 2, "Should have 2 distinct signatures: F1<I,I> and I")
         }
     }
 
     /// B4: Invalid manifest is still cached (avoids re-reading invalid manifest)
-    func testInvalidManifestIsCached() throws {
+    @Test func testInvalidManifestIsCached() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -233,13 +237,13 @@ extension LibraryMetadataCacheBehaviorTests {
 
             // No symbols should be imported from invalid manifest
             let syntheticFns = symbols.allSymbols().filter { $0.flags.contains(.synthetic) && $0.kind == .function }
-            XCTAssertEqual(syntheticFns.count, 0, "Invalid manifest should skip library")
+            #expect(syntheticFns.count == 0, "Invalid manifest should skip library")
         }
 
         // The manifest should still be cached (with isValid=false)
-        XCTAssertEqual(cache.manifestCacheCount, 1, "Invalid manifest should be cached too")
+        #expect(cache.manifestCacheCount == 1, "Invalid manifest should be cached too")
         // Metadata should NOT be cached (skipped due to invalid manifest)
-        XCTAssertEqual(cache.metadataCacheCount, 0, "Metadata should not be cached when manifest is invalid")
+        #expect(cache.metadataCacheCount == 0, "Metadata should not be cached when manifest is invalid")
 
         // Second load should reuse cached invalid manifest (no re-read)
         try withTemporaryFile(contents: "fun main() = 0") { path in
@@ -257,12 +261,13 @@ extension LibraryMetadataCacheBehaviorTests {
 
             // Still no symbols
             let syntheticFns = symbols.allSymbols().filter { $0.flags.contains(.synthetic) && $0.kind == .function }
-            XCTAssertEqual(syntheticFns.count, 0)
+            #expect(syntheticFns.count == 0)
         }
 
         // Cache count should not have increased
-        XCTAssertEqual(cache.manifestCacheCount, 1, "Manifest cache should have been reused")
+        #expect(cache.manifestCacheCount == 1, "Manifest cache should have been reused")
     }
 
     // B5: Multiple libraries → all manifests and metadata cached correctly
 }
+#endif

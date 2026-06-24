@@ -1,13 +1,14 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-106: Sema coverage for `kotlin.sequences.Sequence<T>.shuffled`.
 ///
 /// Verifies that both `shuffled()` and `shuffled(random: Random)` resolve to
 /// their runtime entries and preserve the receiver's `Sequence<T>` return type.
-final class SequenceShuffledFunctionTests: XCTestCase {
-    func testSequenceShuffledResolvesToRuntimeABI() throws {
+@Suite
+struct SequenceShuffledFunctionTests {
+    @Test func testSequenceShuffledResolvesToRuntimeABI() throws {
         try assertSequenceMemberResolves(
             source: """
             fun shuffledValues(): Sequence<Int> {
@@ -20,7 +21,7 @@ final class SequenceShuffledFunctionTests: XCTestCase {
         )
     }
 
-    func testSequenceShuffledWithRandomResolvesToRuntimeABI() throws {
+    @Test func testSequenceShuffledWithRandomResolvesToRuntimeABI() throws {
         try assertSequenceMemberResolves(
             source: """
             import kotlin.random.Random
@@ -35,7 +36,7 @@ final class SequenceShuffledFunctionTests: XCTestCase {
         )
     }
 
-    func testSequenceShuffledReturnsSequenceOfReceiverElement() throws {
+    @Test func testSequenceShuffledReturnsSequenceOfReceiverElement() throws {
         let source = """
         fun shuffled(values: Sequence<String>): Sequence<String> = values.shuffled()
         """
@@ -47,43 +48,44 @@ final class SequenceShuffledFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected Sequence.shuffled to type-check, got: \(diagnosticSummary)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let functionSymbol = try XCTUnwrap(
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let functionSymbol = try #require(
                 sema.symbols.lookup(fqName: [ctx.interner.intern("shuffled")])
             )
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
-            let sequenceSymbol = try XCTUnwrap(sema.symbols.lookup(
+            let signature = try #require(sema.symbols.functionSignature(for: functionSymbol))
+            let sequenceSymbol = try #require(sema.symbols.lookup(
                 fqName: ["kotlin", "sequences", "Sequence"].map { ctx.interner.intern($0) }
             ))
 
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
-                return XCTFail("Expected shuffled() to return Sequence<String>")
+                Issue.record("Expected shuffled() to return Sequence<String>")
+                return
             }
-            XCTAssertEqual(returnClassType.classSymbol, sequenceSymbol)
+            #expect(returnClassType.classSymbol == sequenceSymbol)
             let returnArg: TypeID
-            switch try XCTUnwrap(returnClassType.args.first) {
+            switch try #require(returnClassType.args.first) {
             case let .invariant(arg), let .out(arg):
                 returnArg = arg
             case .in, .star:
-                return XCTFail("Expected shuffled() to return Sequence<String>")
+                Issue.record("Expected shuffled() to return Sequence<String>")
+                return
             }
-            XCTAssertEqual(returnArg, sema.types.stringType)
+            #expect(returnArg == sema.types.stringType)
 
             // Also verify that the chosen callee links to kk_sequence_shuffled.
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "shuffled"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_sequence_shuffled"
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_shuffled"
             )
         }
     }

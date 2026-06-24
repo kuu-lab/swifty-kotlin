@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - DataFlow + Sema Regression Tests
 
@@ -9,7 +10,7 @@ import XCTest
 //          TypeCheck/TypeCheckSemaPhase.swift (51.4%)
 
 extension DataFlowAndSemaRegressionTests {
-    func testFunctionTypeParameterWithUpperBound() throws {
+    @Test func testFunctionTypeParameterWithUpperBound() throws {
         let source = """
         fun <T : Any> wrap(value: T): T = value
         fun main() = wrap(42)
@@ -17,20 +18,21 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let wrapSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "wrap"
             }
-            XCTAssertNotNil(wrapSymbol)
+            #expect(wrapSymbol != nil)
             if let sym = wrapSymbol,
                let sig = sema.symbols.functionSignature(for: sym.id)
             {
-                XCTAssertFalse(sig.typeParameterSymbols.isEmpty)
+                let typeParamEmpty = sig.typeParameterSymbols.isEmpty
+                #expect(!typeParamEmpty)
             }
         }
     }
 
-    func testReifiedInlineFunctionSupportsUnsafeCastAndBoundedTypeParameter() throws {
+    @Test func testReifiedInlineFunctionSupportsUnsafeCastAndBoundedTypeParameter() throws {
         let source = """
         inline fun <reified T> castOrThrow(value: Any): T = value as T
         inline fun <reified T : Comparable<T>> boundedTypeName(): String = T::class.simpleName ?: "unknown"
@@ -44,43 +46,43 @@ extension DataFlowAndSemaRegressionTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
-            let castSymbol = try XCTUnwrap(sema.symbols.allSymbols().first { symbol in
+            let castSymbol = try #require(sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "castOrThrow"
             })
-            let castSignature = try XCTUnwrap(sema.symbols.functionSignature(for: castSymbol.id))
-            XCTAssertEqual(castSignature.reifiedTypeParameterIndices, Set([0]))
-            XCTAssertEqual(castSignature.typeParameterSymbols.count, 1)
+            let castSignature = try #require(sema.symbols.functionSignature(for: castSymbol.id))
+            #expect(castSignature.reifiedTypeParameterIndices == Set([0]))
+            #expect(castSignature.typeParameterSymbols.count == 1)
 
-            let boundedSymbol = try XCTUnwrap(sema.symbols.allSymbols().first { symbol in
+            let boundedSymbol = try #require(sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "boundedTypeName"
             })
-            let boundedSignature = try XCTUnwrap(sema.symbols.functionSignature(for: boundedSymbol.id))
-            XCTAssertEqual(boundedSignature.reifiedTypeParameterIndices, Set([0]))
-            XCTAssertEqual(boundedSignature.typeParameterSymbols.count, 1)
+            let boundedSignature = try #require(sema.symbols.functionSignature(for: boundedSymbol.id))
+            #expect(boundedSignature.reifiedTypeParameterIndices == Set([0]))
+            #expect(boundedSignature.typeParameterSymbols.count == 1)
 
-            let boundedTypeParameter = try XCTUnwrap(boundedSignature.typeParameterSymbols.first)
+            let boundedTypeParameter = try #require(boundedSignature.typeParameterSymbols.first)
             let upperBounds = sema.symbols.typeParameterUpperBounds(for: boundedTypeParameter)
-            XCTAssertEqual(upperBounds.count, 1)
+            #expect(upperBounds.count == 1)
             if let upperBound = upperBounds.first {
                 guard case let .classType(classType) = sema.types.kind(of: upperBound) else {
-                    XCTFail("Expected Comparable upper bound")
+                    Issue.record("Expected Comparable upper bound")
                     return
                 }
                 let comparableFQName = [
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("Comparable"),
                 ]
-                let comparableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: comparableFQName))
-                XCTAssertEqual(classType.classSymbol, comparableSymbol)
+                let comparableSymbol = try #require(sema.symbols.lookup(fqName: comparableFQName))
+                #expect(classType.classSymbol == comparableSymbol)
             }
         }
     }
 
     // MARK: - ExprInference: try-catch expression
 
-    func testTryCatchExpressionInference() throws {
+    @Test func testTryCatchExpressionInference() throws {
         let source = """
         fun risky(): Int {
             return try {
@@ -94,12 +96,13 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testTryCatchClauseBindingsResolvePrimitiveAndNominalTypes() throws {
+    @Test func testTryCatchClauseBindingsResolvePrimitiveAndNominalTypes() throws {
         let source = """
         class MyError
 
@@ -119,54 +122,54 @@ extension DataFlowAndSemaRegressionTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let tryExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let tryExprID = try #require(firstExprID(in: ast) { _, expr in
                 if case .tryExpr = expr {
                     return true
                 }
                 return false
             })
             guard case let .tryExpr(_, catchClauses, _, _)? = ast.arena.expr(tryExprID) else {
-                XCTFail("Expected try expression")
+                Issue.record("Expected try expression")
                 return
             }
-            XCTAssertEqual(catchClauses.count, 2)
+            #expect(catchClauses.count == 2)
 
-            let firstBinding = try XCTUnwrap(sema.bindings.catchClauseBinding(for: catchClauses[0].body))
-            let secondBinding = try XCTUnwrap(sema.bindings.catchClauseBinding(for: catchClauses[1].body))
-            XCTAssertNotEqual(firstBinding.parameterSymbol, .invalid)
-            XCTAssertNotEqual(secondBinding.parameterSymbol, .invalid)
-            XCTAssertNotEqual(firstBinding.parameterSymbol, secondBinding.parameterSymbol)
+            let firstBinding = try #require(sema.bindings.catchClauseBinding(for: catchClauses[0].body))
+            let secondBinding = try #require(sema.bindings.catchClauseBinding(for: catchClauses[1].body))
+            #expect(firstBinding.parameterSymbol != .invalid)
+            #expect(secondBinding.parameterSymbol != .invalid)
+            #expect(firstBinding.parameterSymbol != secondBinding.parameterSymbol)
 
             let intType = sema.types.make(.primitive(.int, .nonNull))
-            XCTAssertEqual(firstBinding.parameterType, intType)
-            XCTAssertEqual(sema.symbols.propertyType(for: firstBinding.parameterSymbol), intType)
+            #expect(firstBinding.parameterType == intType)
+            #expect(sema.symbols.propertyType(for: firstBinding.parameterSymbol) == intType)
 
             let customErrorSymbol = sema.symbols.allSymbols().first { symbol in
                 symbol.kind == .class && ctx.interner.resolve(symbol.name) == "MyError"
             }
-            let resolvedCustomErrorSymbol = try XCTUnwrap(customErrorSymbol)
+            let resolvedCustomErrorSymbol = try #require(customErrorSymbol)
             guard case let .classType(customErrorType) = sema.types.kind(of: secondBinding.parameterType) else {
-                XCTFail("Expected nominal catch parameter type")
+                Issue.record("Expected nominal catch parameter type")
                 return
             }
-            XCTAssertEqual(customErrorType.classSymbol, resolvedCustomErrorSymbol.id)
-            XCTAssertEqual(sema.symbols.propertyType(for: secondBinding.parameterSymbol), secondBinding.parameterType)
+            #expect(customErrorType.classSymbol == resolvedCustomErrorSymbol.id)
+            #expect(sema.symbols.propertyType(for: secondBinding.parameterSymbol) == secondBinding.parameterType)
 
-            let catchNameRef = try XCTUnwrap(firstExprID(in: ast) { exprID, expr in
+            let catchNameRef = try #require(firstExprID(in: ast) { exprID, expr in
                 guard case let .nameRef(name, _) = expr else {
                     return false
                 }
                 return ctx.interner.resolve(name) == "e"
                     && sema.bindings.identifierSymbol(for: exprID) == firstBinding.parameterSymbol
             })
-            XCTAssertEqual(sema.bindings.identifierSymbol(for: catchNameRef), firstBinding.parameterSymbol)
-            XCTAssertEqual(sema.bindings.exprType(for: catchNameRef), intType)
+            #expect(sema.bindings.identifierSymbol(for: catchNameRef) == firstBinding.parameterSymbol)
+            #expect(sema.bindings.exprType(for: catchNameRef) == intType)
         }
     }
 
-    func testTryCatchClauseBindingWithoutParameterDefaultsToAny() throws {
+    @Test func testTryCatchClauseBindingWithoutParameterDefaultsToAny() throws {
         let source = """
         fun risky(): Int {
             return try {
@@ -181,25 +184,25 @@ extension DataFlowAndSemaRegressionTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let tryExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let tryExprID = try #require(firstExprID(in: ast) { _, expr in
                 if case .tryExpr = expr {
                     return true
                 }
                 return false
             })
             guard case let .tryExpr(_, catchClauses, _, _)? = ast.arena.expr(tryExprID) else {
-                XCTFail("Expected try expression")
+                Issue.record("Expected try expression")
                 return
             }
-            let binding = try XCTUnwrap(sema.bindings.catchClauseBinding(for: catchClauses[0].body))
-            XCTAssertEqual(binding.parameterSymbol, .invalid)
-            XCTAssertEqual(binding.parameterType, sema.types.anyType)
+            let binding = try #require(sema.bindings.catchClauseBinding(for: catchClauses[0].body))
+            #expect(binding.parameterSymbol == .invalid)
+            #expect(binding.parameterType == sema.types.anyType)
         }
     }
 
-    func testTryCatchExpressionMatchesCompletionCriteriaExample() throws {
+    @Test func testTryCatchExpressionMatchesCompletionCriteriaExample() throws {
         let source = """
         fun f(): String {
             val x: String = try {
@@ -220,7 +223,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testTryCatchDefiniteInitializationMergesNormalBranches() throws {
+    @Test func testTryCatchDefiniteInitializationMergesNormalBranches() throws {
         let source = """
         class Handled
 
@@ -242,7 +245,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testTryPartialCatchRethrowMergesOnlyNormalPaths() throws {
+    @Test func testTryPartialCatchRethrowMergesOnlyNormalPaths() throws {
         let source = """
         class Handled
         class Unhandled
@@ -264,7 +267,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testTryFinallyReturnValueDoesNotPolluteTypeInference() throws {
+    @Test func testTryFinallyReturnValueDoesNotPolluteTypeInference() throws {
         let source = """
         fun f(): String {
             val x: String = try {
@@ -284,7 +287,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: uninitialized variable use
 
-    func testUninitializedVariableUseEmitsDiagnostic() throws {
+    @Test func testUninitializedVariableUseEmitsDiagnostic() throws {
         let source = """
         fun main(): Int {
             var x: Int
@@ -300,7 +303,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: compound assign on uninitialized variable
 
-    func testCompoundAssignOnUninitializedVariableEmitsDiagnostic() throws {
+    @Test func testCompoundAssignOnUninitializedVariableEmitsDiagnostic() throws {
         let source = """
         fun main(): Int {
             var x: Int
@@ -317,7 +320,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: local variable deferred initialization via if-else
 
-    func testDeferredInitializationViaIfElse() throws {
+    @Test func testDeferredInitializationViaIfElse() throws {
         let source = """
         fun main(): Int {
             var x: Int = 0
@@ -338,7 +341,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - HeaderCollection: suspend function
 
-    func testSuspendFunctionSignature() throws {
+    @Test func testSuspendFunctionSignature() throws {
         let source = """
         suspend fun delayed(v: Int): Int = v
         fun main(): Int = 0
@@ -346,22 +349,22 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let delayedSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "delayed"
             }
-            XCTAssertNotNil(delayedSymbol)
+            #expect(delayedSymbol != nil)
             if let sym = delayedSymbol,
                let sig = sema.symbols.functionSignature(for: sym.id)
             {
-                XCTAssertTrue(sig.isSuspend)
+                #expect(sig.isSuspend)
             }
         }
     }
 
     // MARK: - ExprInference: println builtin
 
-    func testPrintlnBuiltinInfersUnit() throws {
+    @Test func testPrintlnBuiltinInfersUnit() throws {
         let source = """
         fun main() {
             println("hello")
@@ -371,12 +374,13 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testStringSplitMarksCollectionForFallbackMembers() throws {
+    @Test func testStringSplitMarksCollectionForFallbackMembers() throws {
         let source = """
         fun main() {
             val parts = "1,2,3".split(",")
@@ -396,7 +400,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: local variable with var and reassignment
 
-    func testVarLocalReassignment() throws {
+    @Test func testVarLocalReassignment() throws {
         let source = """
         fun main(): Int {
             var x = 1
@@ -413,7 +417,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: is check with erased generic type emits warning
 
-    func testIsCheckWithErasedGenericTypeEmitsWarning() throws {
+    @Test func testIsCheckWithErasedGenericTypeEmitsWarning() throws {
         let source = """
         fun f(x: Any): Boolean = x is List<String>
         fun main(): Int = 0
@@ -425,7 +429,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testIsCheckWithStarProjectionDoesNotEmitErasureWarning() throws {
+    @Test func testIsCheckWithStarProjectionDoesNotEmitErasureWarning() throws {
         let source = """
         fun f(x: Any): Boolean = x is List<*>
         fun main(): Int = 0
@@ -437,7 +441,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testIsCheckWithNonReifiedTypeParameterEmitsDiagnostic() throws {
+    @Test func testIsCheckWithNonReifiedTypeParameterEmitsDiagnostic() throws {
         let source = """
         fun <T> f(x: Any): Boolean = x is T
         fun main(): Int = 0
@@ -449,7 +453,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testIsCheckWithReifiedTypeParameterDoesNotEmitNonReifiedDiagnostic() throws {
+    @Test func testIsCheckWithReifiedTypeParameterDoesNotEmitNonReifiedDiagnostic() throws {
         let source = """
         inline fun <reified T> f(x: Any): Boolean = x is T
         fun main(): Int = if (f<Int>(1)) 1 else 0
@@ -463,7 +467,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - Const property validation
 
-    func testConstValRejectsNullablePrimitiveTypeAnnotation() throws {
+    @Test func testConstValRejectsNullablePrimitiveTypeAnnotation() throws {
         let source = """
         const val maybeInt: Int? = 1
         fun main(): Int = 0
@@ -475,7 +479,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testConstValRejectsNullableStringTypeAnnotation() throws {
+    @Test func testConstValRejectsNullableStringTypeAnnotation() throws {
         let source = """
         const val maybeName: String? = "ok"
         fun main(): Int = 0
@@ -487,7 +491,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testConstValAcceptsNonNullableStringTypeAnnotation() throws {
+    @Test func testConstValAcceptsNonNullableStringTypeAnnotation() throws {
         let source = """
         const val name: String = "ok"
         fun main(): Int = 0
@@ -499,3 +503,4 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 }
+#endif

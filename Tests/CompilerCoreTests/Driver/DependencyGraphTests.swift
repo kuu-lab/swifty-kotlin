@@ -1,53 +1,64 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Foundation
+import Testing
 
-final class DependencyGraphTests: XCTestCase {
+@Suite
+struct DependencyGraphTests {
     // MARK: - Basic mutation and query
 
+    @Test
     func testRecordProvidedAndQuery() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["Foo", "Bar"])
-        XCTAssertEqual(graph.provided(by: "a.kt"), ["Foo", "Bar"])
+        #expect(graph.provided(by: "a.kt") == ["Foo", "Bar"])
     }
 
+    @Test
     func testRecordDependedAndQuery() {
         let graph = DependencyGraph()
         graph.recordDepended(filePath: "b.kt", symbols: ["Baz"])
-        XCTAssertEqual(graph.depended(by: "b.kt"), ["Baz"])
+        #expect(graph.depended(by: "b.kt") == ["Baz"])
     }
 
+    @Test
     func testProvidedReturnsEmptyForUnknownFile() {
         let graph = DependencyGraph()
-        XCTAssertEqual(graph.provided(by: "unknown.kt"), [])
+        #expect(graph.provided(by: "unknown.kt") == [])
     }
 
+    @Test
     func testDependedReturnsEmptyForUnknownFile() {
         let graph = DependencyGraph()
-        XCTAssertEqual(graph.depended(by: "unknown.kt"), [])
+        #expect(graph.depended(by: "unknown.kt") == [])
     }
 
     // MARK: - trackedFiles
 
+    @Test
     func testTrackedFilesReturnsSortedUnion() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "b.kt", symbols: ["B"])
         graph.recordDepended(filePath: "a.kt", symbols: ["A"])
-        XCTAssertEqual(graph.trackedFiles, ["a.kt", "b.kt"])
+        #expect(graph.trackedFiles == ["a.kt", "b.kt"])
     }
 
+    @Test
     func testTrackedFilesReturnsEmptyWhenEmpty() {
         let graph = DependencyGraph()
-        XCTAssertEqual(graph.trackedFiles, [])
+        #expect(graph.trackedFiles == [])
     }
 
     // MARK: - recompilationSet
 
+    @Test
     func testRecompilationSetWithEmptyChangedFiles() {
         let graph = DependencyGraph()
         let result = graph.recompilationSet(changedFiles: [], allFiles: ["a.kt"])
-        XCTAssertEqual(result, [])
+        #expect(result == [])
     }
 
+    @Test
     func testRecompilationSetIncludesChangedFiles() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["Foo"])
@@ -55,9 +66,10 @@ final class DependencyGraphTests: XCTestCase {
             changedFiles: ["a.kt"],
             allFiles: ["a.kt", "b.kt"]
         )
-        XCTAssertTrue(result.contains("a.kt"))
+        #expect(result.contains("a.kt"))
     }
 
+    @Test
     func testRecompilationSetIncludesDependentFiles() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["Foo"])
@@ -66,9 +78,10 @@ final class DependencyGraphTests: XCTestCase {
             changedFiles: ["a.kt"],
             allFiles: ["a.kt", "b.kt"]
         )
-        XCTAssertEqual(result, ["a.kt", "b.kt"])
+        #expect(result == ["a.kt", "b.kt"])
     }
 
+    @Test
     func testRecompilationSetTransitiveDependencies() {
         let graph = DependencyGraph()
         // a provides Foo, b depends on Foo and provides Bar, c depends on Bar
@@ -81,9 +94,10 @@ final class DependencyGraphTests: XCTestCase {
             changedFiles: ["a.kt"],
             allFiles: ["a.kt", "b.kt", "c.kt"]
         )
-        XCTAssertEqual(Set(result), Set(["a.kt", "b.kt", "c.kt"]))
+        #expect(Set(result) == Set(["a.kt", "b.kt", "c.kt"]))
     }
 
+    @Test
     func testRecompilationSetDoesNotIncludeUnrelatedFiles() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["Foo"])
@@ -93,9 +107,10 @@ final class DependencyGraphTests: XCTestCase {
             changedFiles: ["a.kt"],
             allFiles: ["a.kt", "b.kt"]
         )
-        XCTAssertEqual(result, ["a.kt"])
+        #expect(result == ["a.kt"])
     }
 
+    @Test
     func testRecompilationSetPreservesAllFilesOrder() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["X"])
@@ -106,11 +121,12 @@ final class DependencyGraphTests: XCTestCase {
             allFiles: ["c.kt", "b.kt", "a.kt"]
         )
         // Should preserve allFiles order
-        XCTAssertEqual(result, ["c.kt", "a.kt"])
+        #expect(result == ["c.kt", "a.kt"])
     }
 
     // MARK: - Serialization
 
+    @Test
     func testSerializeAndDeserializeRoundTrip() throws {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["Foo", "Bar"])
@@ -119,20 +135,23 @@ final class DependencyGraphTests: XCTestCase {
         let data = try graph.serialize()
         let restored = try DependencyGraph.deserialize(from: data)
 
-        XCTAssertEqual(restored.provided(by: "a.kt"), ["Foo", "Bar"])
-        XCTAssertEqual(restored.depended(by: "b.kt"), ["Foo"])
-        XCTAssertEqual(restored.trackedFiles, ["a.kt", "b.kt"])
+        #expect(restored.provided(by: "a.kt") == ["Foo", "Bar"])
+        #expect(restored.depended(by: "b.kt") == ["Foo"])
+        #expect(restored.trackedFiles == ["a.kt", "b.kt"])
     }
 
+    @Test
     func testSerializeEmptyGraph() throws {
         let graph = DependencyGraph()
         let data = try graph.serialize()
         let restored = try DependencyGraph.deserialize(from: data)
-        XCTAssertEqual(restored.trackedFiles, [])
+        #expect(restored.trackedFiles == [])
     }
 
+    @Test
     func testDeserializeInvalidDataThrows() {
         let invalidData = Data("not json".utf8)
-        XCTAssertThrowsError(try DependencyGraph.deserialize(from: invalidData))
+        #expect(throws: (any Error).self) { try DependencyGraph.deserialize(from: invalidData) }
     }
 }
+#endif

@@ -1,7 +1,9 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class TypeCheckDelegateCoverageTests: XCTestCase {
+@Suite
+struct TypeCheckDelegateCoverageTests {
+    @Test
     func testInferIndexedCompoundAssignResolvesOperatorGetPath() {
         let fixture = makeTypeCheckFixture()
         let ctx = fixture.makeInferenceContext()
@@ -68,11 +70,12 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             locals: &locals
         )
 
-        XCTAssertEqual(inferred, fixture.types.unitType)
-        XCTAssertEqual(fixture.bindings.exprType(for: targetExpr), fixture.types.unitType)
-        XCTAssertEqual(fixture.bindings.callBinding(for: targetExpr)?.chosenCallee, getSymbol)
+        #expect(inferred == fixture.types.unitType)
+        #expect(fixture.bindings.exprType(for: targetExpr) == fixture.types.unitType)
+        #expect(fixture.bindings.callBinding(for: targetExpr)?.chosenCallee == getSymbol)
     }
 
+    @Test
     func testInferIndexedCompoundAssignFallbackAndMultipleIndicesError() {
         let fixture = makeTypeCheckFixture()
         let ctx = fixture.makeInferenceContext()
@@ -123,7 +126,7 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             ctx: ctx,
             locals: &locals
         )
-        XCTAssertEqual(inferredOK, fixture.types.unitType)
+        #expect(inferredOK == fixture.types.unitType)
 
         let targetError = fixture.astArena.appendExpr(
             .indexedCompoundAssign(
@@ -144,10 +147,11 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             ctx: ctx,
             locals: &locals
         )
-        XCTAssertEqual(inferredError, fixture.types.errorType)
-        XCTAssertEqual(fixture.bindings.exprType(for: targetError), fixture.types.errorType)
+        #expect(inferredError == fixture.types.errorType)
+        #expect(fixture.bindings.exprType(for: targetError) == fixture.types.errorType)
     }
 
+    @Test
     func testInferCustomArithmeticOperatorOverloadsResolvesMemberCandidates() {
         let fixture = makeTypeCheckFixture()
         let ctx = fixture.makeInferenceContext()
@@ -322,12 +326,13 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
 
         for (exprID, expectedSymbol, expectedName, expectedType) in operatorCases {
             let inferred = fixture.driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            XCTAssertEqual(inferred, expectedType, "Unexpected type for \(expectedName)")
-            XCTAssertEqual(fixture.bindings.exprType(for: exprID), expectedType, "Unexpected bound type for \(expectedName)")
-            XCTAssertEqual(fixture.bindings.callBinding(for: exprID)?.chosenCallee, expectedSymbol, "Unexpected callee for \(expectedName)")
+            #expect(inferred == expectedType, "Unexpected type for \(expectedName)")
+            #expect(fixture.bindings.exprType(for: exprID) == expectedType, "Unexpected bound type for \(expectedName)")
+            #expect(fixture.bindings.callBinding(for: exprID)?.chosenCallee == expectedSymbol, "Unexpected callee for \(expectedName)")
         }
     }
 
+    @Test
     func testInferLocalFunDeclExprBindsFunctionForAllBodyKinds() {
         let fixture = makeTypeCheckFixture()
         let ctx = fixture.makeInferenceContext()
@@ -353,8 +358,8 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             ctx: ctx,
             locals: &locals
         )
-        XCTAssertEqual(exprResult, fixture.types.unitType)
-        XCTAssertEqual(fixture.bindings.exprType(for: exprFunID), fixture.types.unitType)
+        #expect(exprResult == fixture.types.unitType)
+        #expect(fixture.bindings.exprType(for: exprFunID) == fixture.types.unitType)
 
         let blockFunID = ExprID(rawValue: 501)
         let blockResult = fixture.driver.localDeclChecker.inferLocalFunDeclExpr(
@@ -368,7 +373,7 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             ctx: ctx,
             locals: &locals
         )
-        XCTAssertEqual(blockResult, fixture.types.unitType)
+        #expect(blockResult == fixture.types.unitType)
 
         let unitFunID = ExprID(rawValue: 502)
         let unitResult = fixture.driver.localDeclChecker.inferLocalFunDeclExpr(
@@ -382,18 +387,19 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             ctx: ctx,
             locals: &locals
         )
-        XCTAssertEqual(unitResult, fixture.types.unitType)
+        #expect(unitResult == fixture.types.unitType)
 
-        XCTAssertNotNil(locals[fixture.interner.intern("exprFun")])
-        XCTAssertNotNil(locals[fixture.interner.intern("blockFun")])
-        XCTAssertNotNil(locals[fixture.interner.intern("unitFun")])
+        #expect(locals[fixture.interner.intern("exprFun")] != nil)
+        #expect(locals[fixture.interner.intern("blockFun")] != nil)
+        #expect(locals[fixture.interner.intern("unitFun")] != nil)
 
         let exprFunSymbol = fixture.bindings.identifierSymbol(for: exprFunID)
-        XCTAssertEqual(fixture.symbols.symbol(exprFunSymbol ?? .invalid)?.kind, .function)
-        XCTAssertTrue(fixture.symbols.symbol(exprFunSymbol ?? .invalid)?.flags.contains(.suspendFunction) ?? false)
-        XCTAssertTrue(fixture.symbols.functionSignature(for: exprFunSymbol ?? .invalid)?.isSuspend ?? false)
+        #expect(fixture.symbols.symbol(exprFunSymbol ?? .invalid)?.kind == .function)
+        #expect(fixture.symbols.symbol(exprFunSymbol ?? .invalid)?.flags.contains(.suspendFunction) ?? false)
+        #expect(fixture.symbols.functionSignature(for: exprFunSymbol ?? .invalid)?.isSuspend ?? false)
     }
 
+    @Test
     func testInferDestructuringDeclUsesMemberAndFallbackComponents() {
         let fixture = makeTypeCheckFixture()
         let ctx = fixture.makeInferenceContext()
@@ -457,9 +463,9 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             locals: &locals
         )
 
-        XCTAssertEqual(inferred, fixture.types.unitType)
-        XCTAssertEqual(locals[fixture.interner.intern("a")]?.type, fixture.types.intType)
-        XCTAssertEqual(locals[fixture.interner.intern("b")]?.type, fixture.types.stringType)
+        #expect(inferred == fixture.types.unitType)
+        #expect(locals[fixture.interner.intern("a")]?.type == fixture.types.intType)
+        #expect(locals[fixture.interner.intern("b")]?.type == fixture.types.stringType)
 
         let otherClass = fixture.symbols.define(
             kind: .class,
@@ -502,9 +508,10 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             locals: &locals
         )
 
-        XCTAssertEqual(locals[fixture.interner.intern("c")]?.type, fixture.types.booleanType)
+        #expect(locals[fixture.interner.intern("c")]?.type == fixture.types.booleanType)
     }
 
+    @Test
     func testInferForDestructuringExprAndRangeDetection() {
         let fixture = makeTypeCheckFixture()
         let ctx = fixture.makeInferenceContext()
@@ -526,20 +533,21 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             ctx: ctx,
             locals: &locals
         )
-        XCTAssertEqual(inferred, fixture.types.unitType)
-        XCTAssertEqual(fixture.bindings.exprType(for: loopID), fixture.types.unitType)
-        XCTAssertTrue(ControlFlowTypeChecker.isRangeExpression(rangeExpr, ast: fixture.ast))
+        #expect(inferred == fixture.types.unitType)
+        #expect(fixture.bindings.exprType(for: loopID) == fixture.types.unitType)
+        #expect(ControlFlowTypeChecker.isRangeExpression(rangeExpr, ast: fixture.ast))
         let rangeUntilExpr = fixture.astArena.appendExpr(.binary(op: .rangeUntil, lhs: lhs, rhs: rhs, range: range))
         let downToExpr = fixture.astArena.appendExpr(.binary(op: .downTo, lhs: lhs, rhs: rhs, range: range))
         let stepExpr = fixture.astArena.appendExpr(.binary(op: .step, lhs: lhs, rhs: rhs, range: range))
         let addExpr = fixture.astArena.appendExpr(.binary(op: .add, lhs: lhs, rhs: rhs, range: range))
-        XCTAssertTrue(ControlFlowTypeChecker.isRangeExpression(rangeUntilExpr, ast: fixture.ast))
-        XCTAssertTrue(ControlFlowTypeChecker.isRangeExpression(downToExpr, ast: fixture.ast))
-        XCTAssertTrue(ControlFlowTypeChecker.isRangeExpression(stepExpr, ast: fixture.ast))
-        XCTAssertFalse(ControlFlowTypeChecker.isRangeExpression(addExpr, ast: fixture.ast))
-        XCTAssertFalse(ControlFlowTypeChecker.isRangeExpression(ExprID(rawValue: 9999), ast: fixture.ast))
+        #expect(ControlFlowTypeChecker.isRangeExpression(rangeUntilExpr, ast: fixture.ast))
+        #expect(ControlFlowTypeChecker.isRangeExpression(downToExpr, ast: fixture.ast))
+        #expect(ControlFlowTypeChecker.isRangeExpression(stepExpr, ast: fixture.ast))
+        #expect(!(ControlFlowTypeChecker.isRangeExpression(addExpr, ast: fixture.ast)))
+        #expect(!(ControlFlowTypeChecker.isRangeExpression(ExprID(rawValue: 9999), ast: fixture.ast)))
     }
 
+    @Test
     func testEmitSubtypeConstraintEmitsPlatformWarningWithRange() {
         let fixture = makeTypeCheckFixture()
         let range = makeRange(start: 10, end: 20)
@@ -553,10 +561,11 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             diagnostics: fixture.diagnostics
         )
         let warning = fixture.diagnostics.diagnostics.first { $0.code == "KSWIFTK-SEMA-PLATFORM" }
-        XCTAssertNotNil(warning)
-        XCTAssertEqual(warning?.primaryRange, range)
+        #expect(warning != nil)
+        #expect(warning?.primaryRange == range)
     }
 
+    @Test
     func testEmitSubtypeConstraintSuppressesPlatformWarningWhenFlagIsSet() {
         let fixture = makeTypeCheckFixture()
         let range = makeRange(start: 30, end: 40)
@@ -570,9 +579,10 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             diagnostics: fixture.diagnostics,
             suppressPlatformWarning: true
         )
-        XCTAssertFalse(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" })
+        #expect(!(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" }))
     }
 
+    @Test
     func testEmitSubtypeConstraintSkipsPlatformWarningWithoutRange() {
         let fixture = makeTypeCheckFixture()
         let platformAny = fixture.types.withNullability(.platformType, for: fixture.types.anyType)
@@ -584,7 +594,7 @@ final class TypeCheckDelegateCoverageTests: XCTestCase {
             sema: fixture.sema,
             diagnostics: fixture.diagnostics
         )
-        XCTAssertFalse(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" })
+        #expect(!(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" }))
     }
 }
 

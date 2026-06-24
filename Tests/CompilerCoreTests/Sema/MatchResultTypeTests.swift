@@ -1,12 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-TYPE-010: Validates that the synthetic `kotlin.text.MatchResult`
 /// sealed interface and its nested `MatchResult.Destructured` class are correctly
 /// registered in the symbol table after sema, with all expected properties and
 /// functions wired to their runtime ABI link names.
-final class MatchResultTypeTests: XCTestCase {
+@Suite
+struct MatchResultTypeTests {
 
     // MARK: - Shared sema fixture
 
@@ -15,34 +17,34 @@ final class MatchResultTypeTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     // MARK: - 1. MatchResult class symbol
 
-    func testMatchResultClassSymbolIsRegistered() throws {
+    @Test func testMatchResultClassSymbolIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: fq),
             "kotlin.text.MatchResult class symbol must be registered by sema"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(sym))
-        XCTAssertEqual(info.kind, .class,
+        let info = try #require(sema.symbols.symbol(sym))
+        #expect(info.kind == .class,
                        "MatchResult should be registered with kind=class")
     }
 
     // MARK: - 2. MatchResult.value: String
 
-    func testMatchResultValuePropertyIsRegistered() throws {
+    @Test func testMatchResultValuePropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "value"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_match_result_value"),
             "MatchResult.value must link to kk_match_result_value; found: \(links)"
         )
@@ -50,12 +52,12 @@ final class MatchResultTypeTests: XCTestCase {
 
     // MARK: - 3. MatchResult.range: IntRange
 
-    func testMatchResultRangePropertyIsRegistered() throws {
+    @Test func testMatchResultRangePropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "range"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_match_result_range"),
             "MatchResult.range must link to kk_match_result_range; found: \(links)"
         )
@@ -63,102 +65,97 @@ final class MatchResultTypeTests: XCTestCase {
 
     // MARK: - 4. MatchResult.groupValues: List<String>
 
-    func testMatchResultGroupValuesPropertyIsRegistered() throws {
+    @Test func testMatchResultGroupValuesPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "groupValues"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: fq),
             "MatchResult.groupValues property must be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            "kk_match_result_groupValues",
+        #expect(
+            sema.symbols.externalLinkName(for: sym) == "kk_match_result_groupValues",
             "MatchResult.groupValues must link to kk_match_result_groupValues"
         )
     }
 
     // MARK: - 5. MatchResult.groups: MatchGroupCollection
 
-    func testMatchResultGroupsPropertyIsRegistered() throws {
+    @Test func testMatchResultGroupsPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "groups"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: fq),
             "MatchResult.groups property must be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            "kk_match_result_groups",
+        #expect(
+            sema.symbols.externalLinkName(for: sym) == "kk_match_result_groups",
             "MatchResult.groups must link to kk_match_result_groups"
         )
     }
 
     // MARK: - 6. MatchResult.next(): MatchResult?
 
-    func testMatchResultNextFunctionIsRegistered() throws {
+    @Test func testMatchResultNextFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "next"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: fq),
             "MatchResult.next() function must be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            "kk_match_result_next",
+        #expect(
+            sema.symbols.externalLinkName(for: sym) == "kk_match_result_next",
             "MatchResult.next() must link to kk_match_result_next"
         )
     }
 
     // MARK: - 7. MatchResult.destructured: MatchResult.Destructured
 
-    func testMatchResultDestructuredPropertyIsRegistered() throws {
+    @Test func testMatchResultDestructuredPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "destructured"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: fq),
             "MatchResult.destructured property must be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            "kk_match_result_destructured",
+        #expect(
+            sema.symbols.externalLinkName(for: sym) == "kk_match_result_destructured",
             "MatchResult.destructured must link to kk_match_result_destructured"
         )
     }
 
     // MARK: - 8. MatchResult.Destructured nested class
 
-    func testMatchResultDestructuredClassSymbolIsRegistered() throws {
+    @Test func testMatchResultDestructuredClassSymbolIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "Destructured"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: fq),
             "kotlin.text.MatchResult.Destructured nested class must be registered by sema"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(sym))
-        XCTAssertEqual(info.kind, .class,
+        let info = try #require(sema.symbols.symbol(sym))
+        #expect(info.kind == .class,
                        "MatchResult.Destructured should be registered with kind=class")
     }
 
     // MARK: - 9. MatchResult.Destructured.match: MatchResult
 
-    func testMatchResultDestructuredMatchPropertyIsRegistered() throws {
+    @Test func testMatchResultDestructuredMatchPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "Destructured", "match"]
             .map { interner.intern($0) }
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             sema.symbols.lookup(fqName: fq),
             "MatchResult.Destructured.match property must be registered"
         )
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            "kk_match_result_destructured_match",
+        #expect(
+            sema.symbols.externalLinkName(for: sym) == "kk_match_result_destructured_match",
             "MatchResult.Destructured.match must link to kk_match_result_destructured_match"
         )
     }
 
     // MARK: - 10. MatchResult.Destructured.component1()..component9()
 
-    func testMatchResultDestructuredComponentFunctionsAreRegistered() throws {
+    @Test func testMatchResultDestructuredComponentFunctionsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         for index in 1...9 {
             let fq = ["kotlin", "text", "MatchResult", "Destructured", "component\(index)"]
@@ -166,7 +163,7 @@ final class MatchResultTypeTests: XCTestCase {
             let syms = sema.symbols.lookupAll(fqName: fq)
             let expectedLink = "kk_match_result_destructured_component\(index)"
             let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-            XCTAssertTrue(
+            #expect(
                 links.contains(expectedLink),
                 "MatchResult.Destructured.component\(index)() must link to \(expectedLink); found: \(links)"
             )
@@ -175,7 +172,7 @@ final class MatchResultTypeTests: XCTestCase {
 
     // MARK: - 11. Source-level usage: basic MatchResult access type-checks
 
-    func testBasicMatchResultAccessTypeChecks() throws {
+    @Test func testBasicMatchResultAccessTypeChecks() throws {
         let ctx = makeContextFromSource("""
         fun extractFirstNumber(input: String): String? {
             val regex = Regex("(\\\\d+)")
@@ -185,7 +182,7 @@ final class MatchResultTypeTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Basic MatchResult access should type-check without errors: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -193,7 +190,7 @@ final class MatchResultTypeTests: XCTestCase {
 
     // MARK: - 12. Source-level usage: MatchResult.destructured access type-checks
 
-    func testDestructuredPropertyAccessTypeChecks() throws {
+    @Test func testDestructuredPropertyAccessTypeChecks() throws {
         let ctx = makeContextFromSource("""
         fun extractGroups(input: String): String? {
             val regex = Regex("(\\\\w+)\\\\s+(\\\\w+)")
@@ -204,7 +201,7 @@ final class MatchResultTypeTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "MatchResult.destructured access should type-check without errors: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -212,7 +209,7 @@ final class MatchResultTypeTests: XCTestCase {
 
     // MARK: - 13. Source-level usage: MatchResult.next() chaining type-checks
 
-    func testMatchResultNextChainingTypeChecks() throws {
+    @Test func testMatchResultNextChainingTypeChecks() throws {
         let ctx = makeContextFromSource("""
         fun allMatches(input: String): List<String> {
             val regex = Regex("\\\\d+")
@@ -227,9 +224,10 @@ final class MatchResultTypeTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "MatchResult.next() chaining should type-check without errors: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
+#endif

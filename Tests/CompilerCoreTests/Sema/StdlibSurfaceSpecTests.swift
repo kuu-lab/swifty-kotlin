@@ -1,9 +1,10 @@
 @testable import CompilerCore
 import RuntimeABI
-import XCTest
+import Testing
 
-final class StdlibSurfaceSpecTests: XCTestCase {
-    func testCollectionHOFSpecKeysAreUnique() {
+@Suite
+struct StdlibSurfaceSpecTests {
+    @Test func testCollectionHOFSpecKeysAreUnique() {
         var seen: Set<SpecKey> = []
 
         for spec in StdlibSurfaceSpec.collectionHOFMembers {
@@ -13,34 +14,34 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                 arityMinimum: spec.arity.minimum,
                 arityMaximum: spec.arity.maximum
             )
-            XCTAssertTrue(
+            #expect(
                 seen.insert(key).inserted,
                 "Duplicate stdlib surface spec for \(key)"
             )
         }
     }
 
-    func testCollectionHOFSpecRuntimeLinksAreNonEmpty() {
+    @Test func testCollectionHOFSpecRuntimeLinksAreNonEmpty() {
         for spec in StdlibSurfaceSpec.collectionHOFMembers {
-            XCTAssertFalse(
-                spec.runtimeLinkName.isEmpty,
+            #expect(
+                !spec.runtimeLinkName.isEmpty,
                 "Expected runtime link for \(spec.ownerKind.rawValue).\(spec.memberName)/\(spec.arity.minimum)"
             )
         }
     }
 
-    func testCollectionHOFSpecRuntimeLinksAreRegisteredInRuntimeABI() {
+    @Test func testCollectionHOFSpecRuntimeLinksAreRegisteredInRuntimeABI() {
         let abiNames = Set(RuntimeABISpec.allFunctions.map(\.name))
 
         for spec in StdlibSurfaceSpec.collectionHOFMembers {
-            XCTAssertTrue(
+            #expect(
                 abiNames.contains(spec.runtimeLinkName),
                 "Expected RuntimeABISpec to register \(spec.runtimeLinkName) for \(spec.ownerKind.rawValue).\(spec.memberName)"
             )
         }
     }
 
-    func testCollectionHOFSpecContainsV1Surface() {
+    @Test func testCollectionHOFSpecContainsV1Surface() {
         let expected: Set<SpecKey> = [
             list("map", 1),
             list("filter", 1),
@@ -202,17 +203,17 @@ final class StdlibSurfaceSpecTests: XCTestCase {
         ]
 
         let actual = Set(StdlibSurfaceSpec.collectionHOFMembers.map(SpecKey.init(spec:)))
-        XCTAssertTrue(
+        #expect(
             expected.isSubset(of: actual),
             "Missing expected stdlib surface specs: \(expected.subtracting(actual))"
         )
     }
 
-    func testCollectionHOFSpecRuntimeLinksMatchRegisteredSyntheticMembers() throws {
+    @Test func testCollectionHOFSpecRuntimeLinksMatchRegisteredSyntheticMembers() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             let cases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
                 (.list, ["kotlin", "collections", "List"], "filterIndexedTo", 2),
@@ -261,7 +262,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             ]
 
             for testCase in cases {
-                let spec = try XCTUnwrap(
+                let spec = try #require(
                     StdlibSurfaceSpec.collectionHOFMember(
                         ownerKind: testCase.ownerKind,
                         memberName: testCase.memberName,
@@ -274,7 +275,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                     sema.symbols.lookupAll(fqName: fqName)
                         .compactMap { sema.symbols.externalLinkName(for: $0) }
                 )
-                XCTAssertTrue(
+                #expect(
                     links.contains(spec.runtimeLinkName),
                     "Expected \(testCase.memberName) to register \(spec.runtimeLinkName), got \(links)"
                 )
@@ -282,7 +283,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
         }
     }
 
-    func testSpecDrivenCollectionFallbackMembersKeepLambdaAndReturnTypes() throws {
+    @Test func testSpecDrivenCollectionFallbackMembersKeepLambdaAndReturnTypes() throws {
         let source = """
         fun filterIndexedToSpec(values: List<Int>, destination: MutableList<Int>): MutableList<Int> {
             return values.filterIndexedTo(destination) { index, value -> index == value }
@@ -317,13 +318,13 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = diagnosticSummary(in: ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected spec-backed collection fallback cases to type-check cleanly, got: \(diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let expectedTypes: [(memberName: String, className: String)] = [
                 ("filterIndexedTo", "MutableList"),
                 ("mapIndexedTo", "MutableList"),
@@ -335,16 +336,15 @@ final class StdlibSurfaceSpecTests: XCTestCase {
 
             for (memberName, expectedClassName) in expectedTypes {
                 let callExpr = try memberCall(named: memberName, in: ast, interner: ctx.interner)
-                let type = try XCTUnwrap(sema.bindings.exprType(for: callExpr))
-                XCTAssertEqual(
-                    stdlibSurfaceClassName(of: type, sema: sema, interner: ctx.interner),
-                    expectedClassName,
+                let type = try #require(sema.bindings.exprType(for: callExpr))
+                #expect(
+                    stdlibSurfaceClassName(of: type, sema: sema, interner: ctx.interner) == expectedClassName,
                     "Expected \(memberName) to return \(expectedClassName)"
                 )
             }
 
             let firstNotNullOfCall = try memberCall(named: "firstNotNullOf", in: ast, interner: ctx.interner)
-            XCTAssertEqual(sema.bindings.exprType(for: firstNotNullOfCall), sema.types.stringType)
+            #expect(sema.bindings.exprType(for: firstNotNullOfCall) == sema.types.stringType)
         }
     }
 }
@@ -403,7 +403,7 @@ private func memberCall(
     in ast: ASTModule,
     interner: StringInterner
 ) throws -> ExprID {
-    try XCTUnwrap(firstExprID(in: ast) { _, expr in
+    try #require(firstExprID(in: ast) { _, expr in
         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
         return interner.resolve(callee) == memberName
     }, "Expected member call to \(memberName)")

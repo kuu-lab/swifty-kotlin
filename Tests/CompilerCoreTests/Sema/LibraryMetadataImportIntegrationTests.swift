@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LibraryMetadataImportIntegrationTests: XCTestCase {
-    func testSemaLoadsSymbolsFromKklibSearchPath() throws {
+@Suite
+struct LibraryMetadataImportIntegrationTests {
+    @Test func testSemaLoadsSymbolsFromKklibSearchPath() throws {
         let librarySource = """
         package extdemo
         fun plus(v: Int) = v + 1
@@ -33,23 +35,24 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
                 )
                 try runToKIR(appCtx)
 
-                let sema = try XCTUnwrap(appCtx.sema)
+                let sema = try #require(appCtx.sema)
                 let importedPlus = sema.symbols.allSymbols().first { symbol in
                     appCtx.interner.resolve(symbol.name) == "plus" &&
                         symbol.kind == .function &&
                         symbol.flags.contains(.synthetic)
                 }
-                XCTAssertNotNil(importedPlus)
+                #expect(importedPlus != nil)
                 let appFileDiagnostics = appCtx.diagnostics.diagnostics.filter { diag in
                     guard let range = diag.primaryRange else { return false }
                     return appCtx.sourceManager.path(of: range.start.file) == appPath
                 }
-                XCTAssertFalse(appFileDiagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+                let hasSema0002 = appFileDiagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" }
+                #expect(!hasSema0002)
             }
         }
     }
 
-    func testInlineLoweringExpandsImportedInlineFunctionFromKklib() throws {
+    @Test func testInlineLoweringExpandsImportedInlineFunctionFromKklib() throws {
         let librarySource = """
         package extdemo
         inline fun plus1(v: Int) = v + 1
@@ -80,17 +83,17 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
                 try runToKIR(appCtx)
                 try LoweringPhase().run(appCtx)
 
-                let sema = try XCTUnwrap(appCtx.sema)
+                let sema = try #require(appCtx.sema)
                 let importedInline = sema.symbols.allSymbols().first { symbol in
                     appCtx.interner.resolve(symbol.name) == "plus1" &&
                         symbol.kind == .function &&
                         symbol.flags.contains(.inlineFunction)
                 }
-                XCTAssertNotNil(importedInline)
-                XCTAssertFalse(sema.importedInlineFunctions.isEmpty)
+                #expect(importedInline != nil)
+                #expect(!sema.importedInlineFunctions.isEmpty)
 
-                let kir = try XCTUnwrap(appCtx.kir)
-                let mainFunction = try XCTUnwrap(
+                let kir = try #require(appCtx.kir)
+                let mainFunction = try #require(
                     kir.arena.declarations.compactMap { decl -> KIRFunction? in
                         guard case let .function(function) = decl else { return nil }
                         return appCtx.interner.resolve(function.name) == "main" ? function : nil
@@ -104,13 +107,15 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
                     }
                     return appCtx.interner.resolve(callee)
                 }
-                XCTAssertFalse(calls.contains("plus1"))
-                XCTAssertTrue(calls.contains("kk_op_add"))
+                let callsPlus1 = calls.contains("plus1")
+                #expect(!callsPlus1)
+                let callsAdd = calls.contains("kk_op_add")
+                #expect(callsAdd)
             }
         }
     }
 
-    func testSemaSynthesizesNominalLayoutsAndLibraryMetadataContainsLayoutFields() throws {
+    @Test func testSemaSynthesizesNominalLayoutsAndLibraryMetadataContainsLayoutFields() throws {
         let source = """
         package layoutdemo
         class Base
@@ -121,21 +126,21 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
             let semaCtx = makeCompilationContext(inputs: [path], moduleName: "LayoutSema", emit: .kirDump)
             try runToKIR(semaCtx)
 
-            let sema = try XCTUnwrap(semaCtx.sema)
-            let base = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+            let sema = try #require(semaCtx.sema)
+            let base = try #require(sema.symbols.allSymbols().first(where: { symbol in
                 semaCtx.interner.resolve(symbol.name) == "Base" && symbol.kind == .class
             }))
-            let derived = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+            let derived = try #require(sema.symbols.allSymbols().first(where: { symbol in
                 semaCtx.interner.resolve(symbol.name) == "Derived" && symbol.kind == .class
             }))
 
             let baseLayout = sema.symbols.nominalLayout(for: base.id)
             let derivedLayout = sema.symbols.nominalLayout(for: derived.id)
-            XCTAssertNotNil(baseLayout)
-            XCTAssertNotNil(derivedLayout)
-            XCTAssertEqual(baseLayout?.objectHeaderWords, 2)
-            XCTAssertGreaterThanOrEqual(baseLayout?.instanceSizeWords ?? 0, 2)
-            XCTAssertEqual(derivedLayout?.superClass, base.id)
+            #expect(baseLayout != nil)
+            #expect(derivedLayout != nil)
+            #expect(baseLayout?.objectHeaderWords == 2)
+            #expect((baseLayout?.instanceSizeWords ?? 0) >= 2)
+            #expect(derivedLayout?.superClass == base.id)
 
             let libBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let libCtx = makeCompilationContext(
@@ -150,14 +155,18 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
 
             let metadataPath = libBase + ".kklib/metadata.bin"
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
-            XCTAssertTrue(metadata.contains("layoutWords="))
-            XCTAssertTrue(metadata.contains("vtable="))
-            XCTAssertTrue(metadata.contains("itable="))
-            XCTAssertTrue(metadata.contains("superFq=layoutdemo.Base"))
+            let hasLayoutWords = metadata.contains("layoutWords=")
+            #expect(hasLayoutWords)
+            let hasVtable = metadata.contains("vtable=")
+            #expect(hasVtable)
+            let hasItable = metadata.contains("itable=")
+            #expect(hasItable)
+            let hasSuperFq = metadata.contains("superFq=layoutdemo.Base")
+            #expect(hasSuperFq)
         }
     }
 
-    func testSemaAllocatesVtableSlotsFromImportedNominalMetadata() throws {
+    @Test func testSemaAllocatesVtableSlotsFromImportedNominalMetadata() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -189,20 +198,20 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let classSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+            let sema = try #require(ctx.sema)
+            let classSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
                 ctx.interner.resolve(symbol.name) == "C" && symbol.kind == .class
             }))
             let layout = sema.symbols.nominalLayout(for: classSymbol.id)
-            XCTAssertNotNil(layout)
-            XCTAssertEqual(layout?.vtableSlots.count, 1)
-            XCTAssertEqual(layout?.vtableSize, 1)
-            XCTAssertEqual(layout?.itableSlots.count, 0)
-            XCTAssertEqual(layout?.itableSize, 0)
+            #expect(layout != nil)
+            #expect(layout?.vtableSlots.count == 1)
+            #expect(layout?.vtableSize == 1)
+            #expect(layout?.itableSlots.count == 0)
+            #expect(layout?.itableSize == 0)
         }
     }
 
-    func testSemaReusesVtableSlotForImportedOverrideMethods() throws {
+    @Test func testSemaReusesVtableSlotForImportedOverrideMethods() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -235,22 +244,22 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let baseClass = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Base")]).first)
-            let derivedClass = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Derived")]).first)
-            let baseMethod = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Base"), ctx.interner.intern("m")]).first)
-            let derivedMethod = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Derived"), ctx.interner.intern("m")]).first)
+            let sema = try #require(ctx.sema)
+            let baseClass = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Base")]).first)
+            let derivedClass = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Derived")]).first)
+            let baseMethod = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Base"), ctx.interner.intern("m")]).first)
+            let derivedMethod = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Derived"), ctx.interner.intern("m")]).first)
 
-            let baseLayout = try XCTUnwrap(sema.symbols.nominalLayout(for: baseClass))
-            let derivedLayout = try XCTUnwrap(sema.symbols.nominalLayout(for: derivedClass))
-            XCTAssertEqual(derivedLayout.superClass, baseClass)
-            XCTAssertEqual(baseLayout.vtableSize, 1)
-            XCTAssertEqual(derivedLayout.vtableSize, 1)
-            XCTAssertEqual(derivedLayout.vtableSlots[baseMethod], derivedLayout.vtableSlots[derivedMethod])
+            let baseLayout = try #require(sema.symbols.nominalLayout(for: baseClass))
+            let derivedLayout = try #require(sema.symbols.nominalLayout(for: derivedClass))
+            #expect(derivedLayout.superClass == baseClass)
+            #expect(baseLayout.vtableSize == 1)
+            #expect(derivedLayout.vtableSize == 1)
+            #expect(derivedLayout.vtableSlots[baseMethod] == derivedLayout.vtableSlots[derivedMethod])
         }
     }
 
-    func testSemaInheritsImportedFieldLayoutFromMetadataHints() throws {
+    @Test func testSemaInheritsImportedFieldLayoutFromMetadataHints() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -284,21 +293,21 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let baseClass = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Base")]).first)
-            let derivedClass = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Derived")]).first)
-            let baseLayout = try XCTUnwrap(sema.symbols.nominalLayout(for: baseClass))
-            let derivedLayout = try XCTUnwrap(sema.symbols.nominalLayout(for: derivedClass))
+            let sema = try #require(ctx.sema)
+            let baseClass = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("ext"), ctx.interner.intern("Base")]).first)
+            let derivedClass = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Derived")]).first)
+            let baseLayout = try #require(sema.symbols.nominalLayout(for: baseClass))
+            let derivedLayout = try #require(sema.symbols.nominalLayout(for: derivedClass))
 
-            XCTAssertEqual(baseLayout.instanceFieldCount, 1)
-            XCTAssertEqual(baseLayout.instanceSizeWords, 4)
-            XCTAssertEqual(derivedLayout.superClass, baseClass)
-            XCTAssertEqual(derivedLayout.instanceFieldCount, 1)
-            XCTAssertEqual(derivedLayout.instanceSizeWords, 4)
+            #expect(baseLayout.instanceFieldCount == 1)
+            #expect(baseLayout.instanceSizeWords == 4)
+            #expect(derivedLayout.superClass == baseClass)
+            #expect(derivedLayout.instanceFieldCount == 1)
+            #expect(derivedLayout.instanceSizeWords == 4)
         }
     }
 
-    func testLibraryMetadataExportsTypeSignatures() throws {
+    @Test func testLibraryMetadataExportsTypeSignatures() throws {
         let source = """
         package metaexport
         fun id(v: Int): Int = v
@@ -318,14 +327,18 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
 
             let metadataPath = libBase + ".kklib/metadata.bin"
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
-            XCTAssertTrue(metadata.contains("function "))
-            XCTAssertTrue(metadata.contains("property "))
-            XCTAssertTrue(metadata.contains("sig=F1<I,I>"))
-            XCTAssertTrue(metadata.contains("sig=I"))
+            let hasFunction = metadata.contains("function ")
+            #expect(hasFunction)
+            let hasProperty = metadata.contains("property ")
+            #expect(hasProperty)
+            let hasFunctionSig = metadata.contains("sig=F1<I,I>")
+            #expect(hasFunctionSig)
+            let hasIntSig = metadata.contains("sig=I")
+            #expect(hasIntSig)
         }
     }
 
-    func testLibraryMetadataRoundTripsContextFunctionTypeSignatures() throws {
+    @Test func testLibraryMetadataRoundTripsContextFunctionTypeSignatures() throws {
         let source = """
         package metaexport
         class A
@@ -349,10 +362,14 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
 
             let metadataPath = libBase + ".kklib/metadata.bin"
             let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
-            XCTAssertTrue(metadata.contains("typeAlias "))
-            XCTAssertTrue(metadata.contains("fq=metaexport.Handler"))
-            XCTAssertTrue(metadata.contains("sig=Q<Lmetaexport.Handler;>"))
-            XCTAssertTrue(metadata.contains("fq=metaexport.handler"))
+            let hasTypeAlias = metadata.contains("typeAlias ")
+            #expect(hasTypeAlias)
+            let hasHandlerFq = metadata.contains("fq=metaexport.Handler")
+            #expect(hasHandlerFq)
+            let hasHandlerSig = metadata.contains("sig=Q<Lmetaexport.Handler;>")
+            #expect(hasHandlerSig)
+            let hasHandlerProp = metadata.contains("fq=metaexport.handler")
+            #expect(hasHandlerProp)
 
             let appSource = """
             import metaexport.handler
@@ -367,29 +384,30 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
                 )
                 try runSema(importCtx)
 
-                let sema = try XCTUnwrap(importCtx.sema)
-                let handlerProperty = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+                let sema = try #require(importCtx.sema)
+                let handlerProperty = try #require(sema.symbols.allSymbols().first(where: { symbol in
                     importCtx.interner.resolve(symbol.name) == "handler" &&
                         symbol.kind == .property &&
                         symbol.flags.contains(.synthetic)
                 }))
-                let propertyType = try XCTUnwrap(sema.symbols.propertyType(for: handlerProperty.id))
+                let propertyType = try #require(sema.symbols.propertyType(for: handlerProperty.id))
                 let nonNullPropertyType = sema.types.makeNonNullable(propertyType)
                 switch sema.types.kind(of: nonNullPropertyType) {
                 case .any(.nonNull):
                     let rendered = sema.types.renderType(nonNullPropertyType)
-                    XCTAssertTrue(rendered.contains("Any"))
+                    let containsAny = rendered.contains("Any")
+                    #expect(containsAny)
                 case let .functionType(functionType):
-                    XCTAssertEqual(functionType.contextReceivers.count, 2)
-                    XCTAssertNotNil(functionType.receiver)
+                    #expect(functionType.contextReceivers.count == 2)
+                    #expect(functionType.receiver != nil)
                 default:
-                    XCTFail("Expected imported handler to be Any or a context-receiver function type, got \(sema.types.renderType(nonNullPropertyType))")
+                    Issue.record("Expected imported handler to be Any or a context-receiver function type, got \(sema.types.renderType(nonNullPropertyType))")
                 }
             }
         }
     }
 
-    func testPlatformWarningEmittedForImportedMissingSignatureInExplicitNonNullContext() throws {
+    @Test func testPlatformWarningEmittedForImportedMissingSignatureInExplicitNonNullContext() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -429,12 +447,13 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
 
             assertHasDiagnostic("KSWIFTK-SEMA-PLATFORM", in: ctx)
             let warnings = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-PLATFORM" }
-            XCTAssertFalse(warnings.isEmpty)
-            XCTAssertTrue(warnings.allSatisfy { $0.primaryRange != nil })
+            #expect(!warnings.isEmpty)
+            let allHaveRange = warnings.allSatisfy { $0.primaryRange != nil }
+            #expect(allHaveRange)
         }
     }
 
-    func testPlatformWarningSuppressedForInferredReturnTypeFromImportedMissingSignature() throws {
+    @Test func testPlatformWarningSuppressedForInferredReturnTypeFromImportedMissingSignature() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -473,7 +492,7 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
         }
     }
 
-    func testPlatformValueAssignsToExplicitNullableContextWithoutWarning() throws {
+    @Test func testPlatformValueAssignsToExplicitNullableContextWithoutWarning() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -512,13 +531,13 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
             try runSema(ctx)
 
             assertNoDiagnostic("KSWIFTK-SEMA-PLATFORM", in: ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError)
+            #expect(!ctx.diagnostics.hasError)
         }
     }
 
     /// Regression: when metadata provides Collection.contains, listOf(...).contains must not emit VAR-OUT.
     /// Verifies metadata import and synthetic stub interaction for variance relaxation.
-    func testMetadataCollectionContainsDoesNotCauseVarOutWithListOf() throws {
+    @Test func testMetadataCollectionContainsDoesNotCauseVarOutWithListOf() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -556,7 +575,8 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
             )
             try runSema(ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError)
+            #expect(!ctx.diagnostics.hasError)
         }
     }
 }
+#endif
