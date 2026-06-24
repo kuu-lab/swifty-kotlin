@@ -15,8 +15,7 @@ import Foundation
 //   ABI-005  @SharedImmutable       — kk_shared_immutable_init
 //   ABI-006  Worker.executeAfter    — kk_worker_execute_after
 //
-// Deferred / known limitations
-// ----------------------------
+// Deferred / known limitations:
 //   • TransferMode SAFE: full cycle-detection DFS over the managed object graph
 //     is not yet implemented.  The current implementation freezes the root
 //     object (consistent with Kotlin/Native semantics) but does not recursively
@@ -26,9 +25,7 @@ import Foundation
 //     spin-wait with Thread.sleep to avoid importing Dispatch semaphores into
 //     hot paths.  A later revision should use DispatchSemaphore for efficiency.
 
-// ---------------------------------------------------------------------------
 // MARK: - ABI-001  Worker.id
-// ---------------------------------------------------------------------------
 
 /// Global monotonic counter for Worker IDs.
 private let workerIDCounter = WorkerIDCounter()
@@ -85,9 +82,7 @@ public func kk_worker_id(_ workerHandle: Int) -> Int {
     return workerIDRegistry.id(for: UInt(bitPattern: ptr))
 }
 
-// ---------------------------------------------------------------------------
 // MARK: - ABI-002  Future<T>
-// ---------------------------------------------------------------------------
 
 /// Runtime backing for `kotlin.native.concurrent.Future<T>`.
 ///
@@ -204,9 +199,7 @@ public func kk_future_consume(_ futureHandle: Int) -> Int {
     return box.consume()
 }
 
-// ---------------------------------------------------------------------------
 // MARK: - ABI-003  TransferMode
-// ---------------------------------------------------------------------------
 
 // TransferMode raw values (mirrors Kotlin/Native enum ordinal):
 //   SAFE   = 0  — freeze the object before transfer; enforce immutability
@@ -231,9 +224,7 @@ public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
     return objectRaw
 }
 
-// ---------------------------------------------------------------------------
 // MARK: - ABI-004  FreezableAtomicReference<T>
-// ---------------------------------------------------------------------------
 
 /// Runtime backing for `kotlin.native.concurrent.FreezableAtomicReference<T>`.
 ///
@@ -357,9 +348,7 @@ public func kk_freezable_atomic_ref_is_frozen(_ refHandle: Int) -> Int {
     return box.isFrozen ? 1 : 0
 }
 
-// ---------------------------------------------------------------------------
 // MARK: - ABI-005  @SharedImmutable
-// ---------------------------------------------------------------------------
 
 /// Initializer lowering hook for `@SharedImmutable` annotated globals.
 ///
@@ -377,9 +366,7 @@ public func kk_shared_immutable_init(_ objectRaw: Int) -> Int {
     return objectRaw
 }
 
-// ---------------------------------------------------------------------------
 // MARK: - ABI-006  Worker.executeAfter(delayNs, op)
-// ---------------------------------------------------------------------------
 
 /// Schedule a closure to run on a Worker after `delayNs` nanoseconds.
 ///
