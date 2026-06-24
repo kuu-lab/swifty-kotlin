@@ -8,20 +8,6 @@ import XCTest
 /// returns `java.io.BufferedWriter`, and binds them to the documented
 /// `kk_writer_buffered_default` / `kk_writer_buffered` runtime symbols.
 final class WriterBufferedFunctionTests: XCTestCase {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Writer.buffered surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     func testWriterBufferedFunctionsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let writerSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [

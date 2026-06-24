@@ -11,22 +11,6 @@ import XCTest
 /// helper `kk_url_readText` listed in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 final class URLReadTextFunctionTests: XCTestCase {
-    private func memberCallExprIDs(
-        named name: String,
-        in ast: ASTModule,
-        interner: StringInterner
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == name
-            else {
-                return nil
-            }
-            return exprID
-        }
-    }
 
     // MARK: - readText() resolves cleanly on a URL receiver
 
