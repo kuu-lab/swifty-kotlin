@@ -40,22 +40,22 @@
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
 - [x] STDLIB-TEXT-FN-019: `indent` 関数の実装
-- [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
+- [x] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-022: `indexOfFirst` 関数の実装
 - [x] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-024: `insert` 関数の実装
 - [x] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
 - [x] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
-- [ ] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
+- [x] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
 - [x] STDLIB-TEXT-FN-033: `iterator` 関数の実装
-- [ ] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
+- [x] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
 - [x] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-038: `minus` 関数の実装
 - [ ] STDLIB-TEXT-FN-039: `onEach` 関数の実装
 - [ ] STDLIB-TEXT-FN-040: `onEachIndexed` 関数の実装
 - [x] STDLIB-TEXT-FN-042: `padStart` 関数の実装
-- [ ] STDLIB-TEXT-FN-043: `plus` 関数の実装
+- [x] STDLIB-TEXT-FN-043: `plus` 関数の実装
 - [ ] STDLIB-TEXT-FN-044: `random` 関数の実装
 - [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
@@ -125,7 +125,7 @@
 
 #### kotlin.random 関数の実装
 
-- [ ] STDLIB-ANNO-002: annotation sema / diagnostics を整える
+- [x] STDLIB-ANNO-002: annotation sema / diagnostics を整える
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
 
 ### Phase 5: 非スコープ/高度領域
@@ -186,7 +186,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/collections/`
 
 - [ ] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
-- [ ] MIGRATION-COL-004: List 集約 HOF を Kotlin source に移行する（`fold`, `foldRight`, `reduce`, `reduceOrNull`, `scan`, `runningFold`）
+- [x] MIGRATION-COL-004: List 集約 HOF を Kotlin source に移行する（`fold`, `foldRight`, `reduce`, `reduceOrNull`, `scan`, `runningFold`）
 - [x] MIGRATION-COL-005: List 検索 HOF を Kotlin source に移行する（`first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `singleOrNull`, `find`, `findLast`, `indexOf`, `indexOfFirst`, `indexOfLast`）
 - [x] MIGRATION-COL-006: List ソート・比較 HOF を Kotlin source に移行する（`sorted`, `sortedBy`, `sortedByDescending`, `sortedWith`, `reversed`, `shuffled`）
 - [x] MIGRATION-COL-007: List グルーピング・関連付け HOF を Kotlin source に移行する（`groupBy`, `groupByTo`, `associate`, `associateBy`, `associateWith`, `partition`）
@@ -195,7 +195,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] MIGRATION-COL-010: List 部分取得 HOF を Kotlin source に移行する（`take`, `takeLast`, `takeWhile`, `takeLastWhile`, `drop`, `dropLast`, `dropWhile`, `dropLastWhile`, `distinct`, `distinctBy`）
 - [x] MIGRATION-COL-011: List ビルダー関数を Kotlin source に移行する（`buildList`, `buildSet`, `buildMap`）
 - [x] MIGRATION-COL-012: Map HOF を Kotlin source に移行する（`map.filter`, `filterKeys`, `filterValues`, `mapKeys`, `mapValues`, `mapNotNull`, `flatMap`, `forEach`, `getOrElse`, `getOrDefault`）
-- [ ] MIGRATION-COL-013: Set HOF を Kotlin source に移行する（`set.filter`, `map`, `flatMap`, `forEach`, `sorted`, `first`, `last`, `count`, `any`, `all`, `none`）
+- [x] MIGRATION-COL-013: Set HOF を Kotlin source に移行する（`set.filter`, `map`, `flatMap`, `forEach`, `sorted`, `first`, `last`, `count`, `any`, `all`, `none`）
 
 ### Phase M4: kotlin.sequences
 > 移行元: `Sources/Runtime/RuntimeSequence.swift` (105), `RuntimeSequenceBuilders.swift` (20), `RuntimeSequenceAssociation.swift` (25), `RuntimeSequenceFoldScan.swift` (9)
@@ -241,14 +241,14 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/io/`
 
 - [ ] MIGRATION-IO-001: File 読み書き関数を Kotlin source に移行する（`readText`, `writeText`, `readBytes`, `writeBytes`, `appendText`, `appendBytes`）
-- [ ] MIGRATION-IO-002: File ストリーム・バッファ関数を Kotlin source に移行する（`bufferedReader`, `bufferedWriter`, `inputStream`, `outputStream`, `reader`, `writer`）
+- [x] MIGRATION-IO-002: File ストリーム・バッファ関数を Kotlin source に移行する（`bufferedReader`, `bufferedWriter`, `inputStream`, `outputStream`, `reader`, `writer`）
 - [ ] MIGRATION-IO-003: File 走査・操作関数を Kotlin source に移行する（`walk`, `walkTopDown`, `walkBottomUp`, `copyTo`, `copyRecursively`, `deleteRecursively`, `forEachLine`, `useLines`）
 
 ### Phase M10: kotlin.io.encoding
 > 移行元: `Sources/Runtime/RuntimeBase64.swift` (26), `RuntimeHexFormat.swift` (18)
 > 移行先: `Stdlib/kotlin/io/encoding/`
 
-- [ ] MIGRATION-ENC-001: Base64 encode/decode を Kotlin source に移行する（`Base64.encode`, `Base64.decode`, `Base64.UrlSafe`, `Base64.Mime`）
+- [x] MIGRATION-ENC-001: Base64 encode/decode を Kotlin source に移行する（`Base64.encode`, `Base64.decode`, `Base64.UrlSafe`, `Base64.Mime`）
 - [ ] MIGRATION-ENC-002: HexFormat を Kotlin source に移行する（`HexFormat`, `toHexString`, `hexToByteArray`）
 
 ### Phase M11: kotlin.text Regex
@@ -273,14 +273,14 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeDelegates.swift` (41 @_cdecl)
 > 移行先: `Stdlib/kotlin/properties/`
 
-- [ ] MIGRATION-PROP-001: Delegate プロパティを Kotlin source に移行する（`Delegates.observable`, `Delegates.vetoable`, `Delegates.notNull`）
+- [x] MIGRATION-PROP-001: Delegate プロパティを Kotlin source に移行する（`Delegates.observable`, `Delegates.vetoable`, `Delegates.notNull`）
 - [ ] MIGRATION-PROP-002: `lazy` 関数を Kotlin source に移行する（`lazy {}`, `LazyThreadSafetyMode` 各モード）
 
 ### Phase M15: kotlin.reflect
 > 移行元: `Sources/Runtime/RuntimeReflection.swift` (55 @_cdecl)
 > 移行先: `Stdlib/kotlin/reflect/`
 
-- [ ] MIGRATION-REFLECT-001: `KClass` 基本 API を Kotlin source に移行する（`simpleName`, `qualifiedName`, `isInstance`, `isAbstract`, `isSealed`, `isFinal`）
+- [x] MIGRATION-REFLECT-001: `KClass` 基本 API を Kotlin source に移行する（`simpleName`, `qualifiedName`, `isInstance`, `isAbstract`, `isSealed`, `isFinal`）
 - [ ] MIGRATION-REFLECT-002: `KClass` メンバ introspection を Kotlin source に移行する（`members`, `constructors`, `nestedClasses`, `supertypes`）
 
 ### Phase M16: kotlin.concurrent.atomics
@@ -293,7 +293,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeSetAndMap.swift` (53 @_cdecl)
 > 移行先: `Stdlib/kotlin/collections/`
 
-- [ ] MIGRATION-SETMAP-001: Set/Map ファクトリ・基本操作を Kotlin source に移行する（`contains`, `containsKey`, `containsValue`, `get`, `getOrDefault`, `keys`, `values`, `entries`, `size`, `isEmpty`）
+- [x] MIGRATION-SETMAP-001: Set/Map ファクトリ・基本操作を Kotlin source に移行する（`contains`, `containsKey`, `containsValue`, `get`, `getOrDefault`, `keys`, `values`, `entries`, `size`, `isEmpty`）
 
 ## ターゲット外バックログ（本体非追跡）
 ### JS/Wasm/JVM固有のstub削除（Nativeターゲット専用コンパイラのため不要）
@@ -450,7 +450,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [x] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt` と `Tests/CompilerCoreTests/Codegen/CodegenBackendIntegrationTests+NumericDivisionByZero.swift`。
 - [x] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
 - [x] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現を `java.lang.*.toString` と一致させる。Swift の最短表現と Java の FloatingDecimal の差は `runtimeFormatFloatingPoint` 側で吸収済み。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`。
-- [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
+- [x] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
 
 ## 全体リファクタリング計画（RF0–RF9）
 
