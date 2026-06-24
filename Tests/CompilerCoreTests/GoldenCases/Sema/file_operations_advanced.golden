@@ -1645,49 +1645,43 @@ expr e1336 name(nestedDir) type=Class#58 ref=s336
 expr e1337 memberCall recv=e1336 callee=mkdirs args=[] type=Boolean call=s61
 expr e1338 localDecl mkdirsResult mutable=0 type=_ init=e1337 type=Unit ref=s337
 expr e1340 name(mkdirsResult) type=Boolean ref=s337
-expr e1341 stringTemplate[lit(mkdirs nested: ),expr(e1340)] type=String
-expr e1342 call callee=e1339 args=[_:e1341] type=Unit call=s57
-expr e1343 name(baseDir) type=Class#58 ref=s334
-expr e1344 memberCall recv=e1343 callee=walk args=[] type=Class#64 call=s63
-expr e1345 localDecl walkedFiles mutable=0 type=_ init=e1344 type=Unit ref=s338
-expr e1347 name(walkedFiles) type=Class#64 ref=s338
-expr e1348 memberCall recv=e1347 callee=toList args=[] type=Class#6<out Class#58> call=s65
-expr e1349 memberCall recv=e1348 callee=size args=[] type=Int ref=s5
-expr e1350 stringTemplate[lit(walk count: ),expr(e1349)] type=String
-expr e1351 call callee=e1346 args=[_:e1350] type=Unit call=s57
-expr e1352 name(baseDir) type=Class#58 ref=s334
-expr e1353 memberCall recv=e1352 callee=listFiles args=[] type=Class#6<out Class#58>? call=s62
-expr e1354 localDecl baseFiles mutable=0 type=_ init=e1353 type=Unit ref=s339
-expr e1356 name(baseFiles) type=Class#6<out Class#58>? ref=s339
-expr e1357 safeMemberCall recv=e1356 callee=toList args=[] type=Class#6<Class#58>? call=s19
-expr e1358 safeMemberCall recv=e1357 callee=size args=[] type=Int? ref=s5
-expr e1359 stringTemplate[lit(baseDir listFiles count: ),expr(e1358)] type=String
-expr e1360 call callee=e1355 args=[_:e1359] type=Unit call=s57
-expr e1361 name(subDir) type=Class#58 ref=s335
-expr e1362 memberCall recv=e1361 callee=listFiles args=[] type=Class#6<out Class#58>? call=s62
-expr e1363 localDecl subFiles mutable=0 type=_ init=e1362 type=Unit ref=s340
-expr e1365 name(subFiles) type=Class#6<out Class#58>? ref=s340
-expr e1366 safeMemberCall recv=e1365 callee=toList args=[] type=Class#6<Class#58>? call=s19
-expr e1367 safeMemberCall recv=e1366 callee=size args=[] type=Int? ref=s5
-expr e1368 stringTemplate[lit(subDir listFiles count: ),expr(e1367)] type=String
-expr e1369 call callee=e1364 args=[_:e1368] type=Unit call=s57
-expr e1370 name(baseDir) type=Class#58 ref=s334
-expr e1371 memberCall recv=e1370 callee=delete args=[] type=Boolean call=s60
-expr e1372 localDecl deleteBaseResult mutable=0 type=_ init=e1371 type=Unit ref=s341
-expr e1374 name(deleteBaseResult) type=Boolean ref=s341
-expr e1375 stringTemplate[lit(delete base (should be false due to contents): ),expr(e1374)] type=String
-expr e1376 call callee=e1373 args=[_:e1375] type=Unit call=s57
-expr e1378 string(/tmp/advanced_test/file1.txt) type=String
-expr e1379 call callee=e1377 args=[_:e1378] type=Class#58 call=s59
-expr e1380 memberCall recv=e1379 callee=delete args=[] type=Boolean call=s60
-expr e1382 string(/tmp/advanced_test/subdir/file2.txt) type=String
-expr e1383 call callee=e1381 args=[_:e1382] type=Class#58 call=s59
-expr e1384 memberCall recv=e1383 callee=delete args=[] type=Boolean call=s60
-expr e1385 name(subDir) type=Class#58 ref=s335
-expr e1386 memberCall recv=e1385 callee=delete args=[] type=Boolean call=s60
-expr e1387 name(baseDir) type=Class#58 ref=s334
-expr e1388 memberCall recv=e1387 callee=delete args=[] type=Boolean call=s60
-expr e1389 localDecl finalDeleteResult mutable=0 type=_ init=e1388 type=Unit ref=s342
-expr e1391 name(finalDeleteResult) type=Boolean ref=s342
-expr e1392 stringTemplate[lit(final delete result: ),expr(e1391)] type=String
-expr e1393 call callee=e1390 args=[_:e1392] type=Unit call=s57
+expr e1341 call callee=e1339 args=[_:e1340] type=Unit call=s57
+expr e1342 name(baseDir) type=Class#58 ref=s334
+expr e1343 memberCall recv=e1342 callee=walk args=[] type=Class#64 call=s63
+expr e1344 localDecl walkedFiles mutable=0 type=_ init=e1343 type=Unit ref=s338
+expr e1346 name(walkedFiles) type=Class#64 ref=s338
+expr e1347 memberCall recv=e1346 callee=toList args=[] type=Class#6<out Class#58> call=s65
+expr e1348 memberCall recv=e1347 callee=size args=[] type=Int ref=s5
+expr e1349 call callee=e1345 args=[_:e1348] type=Unit call=s57
+expr e1350 name(baseDir) type=Class#58 ref=s334
+expr e1351 memberCall recv=e1350 callee=listFiles args=[] type=Class#6<out Class#58>? call=s62
+expr e1352 localDecl baseFiles mutable=0 type=_ init=e1351 type=Unit ref=s339
+expr e1354 name(baseFiles) type=Class#6<out Class#58>? ref=s339
+expr e1355 safeMemberCall recv=e1354 callee=toList args=[] type=Class#6<Class#58>? call=s19
+expr e1356 safeMemberCall recv=e1355 callee=size args=[] type=Int? ref=s5
+expr e1357 call callee=e1353 args=[_:e1356] type=Unit call=s57
+expr e1358 name(subDir) type=Class#58 ref=s335
+expr e1359 memberCall recv=e1358 callee=listFiles args=[] type=Class#6<out Class#58>? call=s62
+expr e1360 localDecl subFiles mutable=0 type=_ init=e1359 type=Unit ref=s340
+expr e1362 name(subFiles) type=Class#6<out Class#58>? ref=s340
+expr e1363 safeMemberCall recv=e1362 callee=toList args=[] type=Class#6<Class#58>? call=s19
+expr e1364 safeMemberCall recv=e1363 callee=size args=[] type=Int? ref=s5
+expr e1365 call callee=e1361 args=[_:e1364] type=Unit call=s57
+expr e1366 name(baseDir) type=Class#58 ref=s334
+expr e1367 memberCall recv=e1366 callee=delete args=[] type=Boolean call=s60
+expr e1368 localDecl deleteBaseResult mutable=0 type=_ init=e1367 type=Unit ref=s341
+expr e1370 name(deleteBaseResult) type=Boolean ref=s341
+expr e1371 call callee=e1369 args=[_:e1370] type=Unit call=s57
+expr e1373 string(/tmp/advanced_test/file1.txt) type=String
+expr e1374 call callee=e1372 args=[_:e1373] type=Class#58 call=s59
+expr e1375 memberCall recv=e1374 callee=delete args=[] type=Boolean call=s60
+expr e1377 string(/tmp/advanced_test/subdir/file2.txt) type=String
+expr e1378 call callee=e1376 args=[_:e1377] type=Class#58 call=s59
+expr e1379 memberCall recv=e1378 callee=delete args=[] type=Boolean call=s60
+expr e1380 name(subDir) type=Class#58 ref=s335
+expr e1381 memberCall recv=e1380 callee=delete args=[] type=Boolean call=s60
+expr e1382 name(baseDir) type=Class#58 ref=s334
+expr e1383 memberCall recv=e1382 callee=delete args=[] type=Boolean call=s60
+expr e1384 localDecl finalDeleteResult mutable=0 type=_ init=e1383 type=Unit ref=s342
+expr e1386 name(finalDeleteResult) type=Boolean ref=s342
+expr e1387 call callee=e1385 args=[_:e1386] type=Unit call=s57

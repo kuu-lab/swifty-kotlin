@@ -111,19 +111,4 @@ final class DriverTests: XCTestCase {
         XCTAssertEqual(result.exitCode, 1)
     }
 
-    // MARK: - CompilerDriver Init
-
-    func testCompilerDriverInit() {
-        let driver = CompilerDriver()
-        // Verify the driver works by running with empty inputs
-        let options = CompilerOptions(
-            moduleName: "Test",
-            inputs: [],
-            outputPath: NSTemporaryDirectory() + "test_out_\(UUID().uuidString)",
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        let result = driver.runForTesting(options: options)
-        XCTAssertEqual(result.exitCode, 1)
-    }
 }

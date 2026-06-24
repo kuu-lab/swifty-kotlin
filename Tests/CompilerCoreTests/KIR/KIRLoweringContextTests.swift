@@ -9,8 +9,6 @@ final class KIRLoweringContextTests: XCTestCase {
         ctx = KIRLoweringContext()
     }
 
-    // MARK: - Scope Management: saveScope / restoreScope
-
     func testSaveScopeReturnsSnapshotOfCurrentState() {
         ctx.localValuesBySymbol[SymbolID(rawValue: 1)] = KIRExprID(rawValue: 10)
         ctx.currentImplicitReceiverExprID = KIRExprID(rawValue: 5)
@@ -60,8 +58,6 @@ final class KIRLoweringContextTests: XCTestCase {
         XCTAssertEqual(ctx.nextLoopLabel, 15000)
     }
 
-    // MARK: - Scope Management: withNewScope
-
     func testWithNewScopeResetsAndRestoresAfterBlock() {
         ctx.localValuesBySymbol[SymbolID(rawValue: 5)] = KIRExprID(rawValue: 5)
         ctx.nextLoopLabel = 20000
@@ -102,8 +98,6 @@ final class KIRLoweringContextTests: XCTestCase {
         )
     }
 
-    // MARK: - Scope Management: resetScopeForFunction
-
     func testResetScopeForFunctionClearsAllScopeProperties() {
         ctx.localValuesBySymbol[SymbolID(rawValue: 1)] = KIRExprID(rawValue: 1)
         ctx.currentImplicitReceiverExprID = KIRExprID(rawValue: 3)
@@ -119,8 +113,6 @@ final class KIRLoweringContextTests: XCTestCase {
         XCTAssertTrue(ctx.loopControlStack.isEmpty)
         XCTAssertEqual(ctx.nextLoopLabel, 10000)
     }
-
-    // MARK: - Label Allocation
 
     func testMakeLoopLabelStartsAt10000() {
         XCTAssertEqual(ctx.makeLoopLabel(), 10000)
@@ -156,8 +148,6 @@ final class KIRLoweringContextTests: XCTestCase {
         XCTAssertEqual(labelInsideScope, 10000, "Labels inside withNewScope should start at 10000")
         XCTAssertEqual(ctx.nextLoopLabel, 10002, "Labels should be restored after withNewScope")
     }
-
-    // MARK: - Callable Lowering Scope
 
     func testBeginCallableLoweringScopeClearsPendingDecls() {
         ctx.pendingGeneratedCallableDeclIDs = [KIRDeclID(rawValue: 1), KIRDeclID(rawValue: 2)]
@@ -204,8 +194,6 @@ final class KIRLoweringContextTests: XCTestCase {
 
         XCTAssertEqual(ctx.callableValueInfoByExprID[exprID]?.callee, callee2)
     }
-
-    // MARK: - Synthetic Symbol Management
 
     func testSyntheticLambdaSymbolReturnsSameIDForSameExprID() {
         let semaModule = makeSemaModule().ctx
@@ -259,8 +247,6 @@ final class KIRLoweringContextTests: XCTestCase {
         ctx.initializeSyntheticLambdaSymbolAllocator(sema: semaModule)
         XCTAssertLessThanOrEqual(ctx.nextSyntheticLambdaSymbolRawValue, -60_000_000)
     }
-
-    // MARK: - Module State Reset
 
     func testResetModuleStateClearsAllModuleLevelCollections() {
         let interner = StringInterner()

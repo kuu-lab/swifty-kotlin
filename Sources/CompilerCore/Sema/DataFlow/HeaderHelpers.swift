@@ -20,8 +20,8 @@ extension DataFlowSemaPhase {
             propertyDecl.annotations
         case let .typeAliasDecl(typeAliasDecl):
             typeAliasDecl.annotations
-        default:
-            []
+        case let .enumEntryDecl(enumEntryDecl):
+            enumEntryDecl.annotations
         }
     }
 
@@ -1053,7 +1053,6 @@ extension DataFlowSemaPhase {
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsParseFloatStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)

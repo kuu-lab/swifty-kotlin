@@ -337,6 +337,20 @@ symbol s335 kind=local fq=__local_115.j vis=private flags=_ type=UInt
 symbol s336 kind=local fq=__local_116.k vis=private flags=_ type=UInt
 symbol s337 kind=local fq=__local_117.l vis=private flags=_ type=UInt
 symbol s338 kind=local fq=__local_118.m vis=private flags=_ type=UInt
+symbol s339 kind=local fq=__local_119.nf vis=private flags=_ type=Float
+symbol s340 kind=local fq=__local_120.nd vis=private flags=_ type=Double
+symbol s341 kind=local fq=__local_121.pf vis=private flags=_ type=Float
+symbol s342 kind=local fq=__local_122.pd vis=private flags=_ type=Double
+symbol s343 kind=local fq=__local_123.ub vis=private flags=_ type=UByte
+symbol s344 kind=local fq=__local_124.us vis=private flags=_ type=UShort
+symbol s345 kind=local fq=__local_125.ubf vis=private flags=_ type=Float
+symbol s346 kind=local fq=__local_126.ubd vis=private flags=_ type=Double
+symbol s347 kind=local fq=__local_127.usf vis=private flags=_ type=Float
+symbol s348 kind=local fq=__local_128.usd vis=private flags=_ type=Double
+symbol s349 kind=local fq=__local_129.ubToUs vis=private flags=_ type=UShort
+symbol s350 kind=local fq=__local_130.usToBub vis=private flags=_ type=UByte
+symbol s351 kind=local fq=__local_131.ubId vis=private flags=_ type=UByte
+symbol s352 kind=local fq=__local_132.usId vis=private flags=_ type=UShort
 file f0 package=kotlin.collections
   decl d0 fun first sym=s56
   decl d1 fun first sym=s58
@@ -1680,29 +1694,95 @@ expr e1372 uint(240) type=UInt
 expr e1373 int(2) type=Int
 expr e1374 memberCall recv=e1372 callee=shr args=[_:e1373] type=UInt
 expr e1375 localDecl m mutable=0 type=_ init=e1374 type=Unit ref=s338
-expr e1377 name(a) type=Int ref=s326
-expr e1378 call callee=e1376 args=[_:e1377] type=Unit call=s55
-expr e1380 name(b) type=UInt ref=s327
-expr e1381 call callee=e1379 args=[_:e1380] type=Unit call=s55
-expr e1383 name(c) type=Long ref=s328
-expr e1384 call callee=e1382 args=[_:e1383] type=Unit call=s55
-expr e1386 name(d) type=ULong ref=s329
-expr e1387 call callee=e1385 args=[_:e1386] type=Unit call=s55
-expr e1389 name(e) type=Int ref=s330
-expr e1390 call callee=e1388 args=[_:e1389] type=Unit call=s55
-expr e1392 name(h) type=Class#17 ref=s331
-expr e1393 call callee=e1391 args=[_:e1392] type=Unit call=s55
-expr e1395 name(f) type=UInt ref=s332
-expr e1396 call callee=e1394 args=[_:e1395] type=Unit call=s55
-expr e1398 name(g) type=UInt ref=s333
-expr e1399 call callee=e1397 args=[_:e1398] type=Unit call=s55
-expr e1401 name(i) type=UInt ref=s334
-expr e1402 call callee=e1400 args=[_:e1401] type=Unit call=s55
-expr e1404 name(j) type=UInt ref=s335
-expr e1405 call callee=e1403 args=[_:e1404] type=Unit call=s55
-expr e1407 name(k) type=UInt ref=s336
-expr e1408 call callee=e1406 args=[_:e1407] type=Unit call=s55
-expr e1410 name(l) type=UInt ref=s337
-expr e1411 call callee=e1409 args=[_:e1410] type=Unit call=s55
-expr e1413 name(m) type=UInt ref=s338
-expr e1414 call callee=e1412 args=[_:e1413] type=Unit call=s55
+expr e1376 name(x) type=UInt ref=s324
+expr e1377 memberCall recv=e1376 callee=toFloat args=[] type=Float
+expr e1378 localDecl nf mutable=0 type=_ init=e1377 type=Unit ref=s339
+expr e1379 name(x) type=UInt ref=s324
+expr e1380 memberCall recv=e1379 callee=toDouble args=[] type=Double
+expr e1381 localDecl nd mutable=0 type=_ init=e1380 type=Unit ref=s340
+expr e1382 name(y) type=ULong ref=s325
+expr e1383 memberCall recv=e1382 callee=toFloat args=[] type=Float
+expr e1384 localDecl pf mutable=0 type=_ init=e1383 type=Unit ref=s341
+expr e1385 name(y) type=ULong ref=s325
+expr e1386 memberCall recv=e1385 callee=toDouble args=[] type=Double
+expr e1387 localDecl pd mutable=0 type=_ init=e1386 type=Unit ref=s342
+expr e1388 uint(200) type=UInt
+expr e1389 memberCall recv=e1388 callee=toUByte args=[] type=UByte
+expr e1390 localDecl ub mutable=0 type=_ init=e1389 type=Unit ref=s343
+expr e1391 uint(1000) type=UInt
+expr e1392 memberCall recv=e1391 callee=toUShort args=[] type=UShort
+expr e1393 localDecl us mutable=0 type=_ init=e1392 type=Unit ref=s344
+expr e1394 name(ub) type=UByte ref=s343
+expr e1395 memberCall recv=e1394 callee=toFloat args=[] type=Float
+expr e1396 localDecl ubf mutable=0 type=_ init=e1395 type=Unit ref=s345
+expr e1397 name(ub) type=UByte ref=s343
+expr e1398 memberCall recv=e1397 callee=toDouble args=[] type=Double
+expr e1399 localDecl ubd mutable=0 type=_ init=e1398 type=Unit ref=s346
+expr e1400 name(us) type=UShort ref=s344
+expr e1401 memberCall recv=e1400 callee=toFloat args=[] type=Float
+expr e1402 localDecl usf mutable=0 type=_ init=e1401 type=Unit ref=s347
+expr e1403 name(us) type=UShort ref=s344
+expr e1404 memberCall recv=e1403 callee=toDouble args=[] type=Double
+expr e1405 localDecl usd mutable=0 type=_ init=e1404 type=Unit ref=s348
+expr e1406 name(ub) type=UByte ref=s343
+expr e1407 memberCall recv=e1406 callee=toUShort args=[] type=UShort
+expr e1408 localDecl ubToUs mutable=0 type=_ init=e1407 type=Unit ref=s349
+expr e1409 name(us) type=UShort ref=s344
+expr e1410 memberCall recv=e1409 callee=toUByte args=[] type=UByte
+expr e1411 localDecl usToBub mutable=0 type=_ init=e1410 type=Unit ref=s350
+expr e1412 name(ub) type=UByte ref=s343
+expr e1413 memberCall recv=e1412 callee=toUByte args=[] type=UByte
+expr e1414 localDecl ubId mutable=0 type=_ init=e1413 type=Unit ref=s351
+expr e1415 name(us) type=UShort ref=s344
+expr e1416 memberCall recv=e1415 callee=toUShort args=[] type=UShort
+expr e1417 localDecl usId mutable=0 type=_ init=e1416 type=Unit ref=s352
+expr e1419 name(a) type=Int ref=s326
+expr e1420 call callee=e1418 args=[_:e1419] type=Unit call=s55
+expr e1422 name(b) type=UInt ref=s327
+expr e1423 call callee=e1421 args=[_:e1422] type=Unit call=s55
+expr e1425 name(c) type=Long ref=s328
+expr e1426 call callee=e1424 args=[_:e1425] type=Unit call=s55
+expr e1428 name(d) type=ULong ref=s329
+expr e1429 call callee=e1427 args=[_:e1428] type=Unit call=s55
+expr e1431 name(e) type=Int ref=s330
+expr e1432 call callee=e1430 args=[_:e1431] type=Unit call=s55
+expr e1434 name(h) type=Class#17 ref=s331
+expr e1435 call callee=e1433 args=[_:e1434] type=Unit call=s55
+expr e1437 name(f) type=UInt ref=s332
+expr e1438 call callee=e1436 args=[_:e1437] type=Unit call=s55
+expr e1440 name(g) type=UInt ref=s333
+expr e1441 call callee=e1439 args=[_:e1440] type=Unit call=s55
+expr e1443 name(i) type=UInt ref=s334
+expr e1444 call callee=e1442 args=[_:e1443] type=Unit call=s55
+expr e1446 name(j) type=UInt ref=s335
+expr e1447 call callee=e1445 args=[_:e1446] type=Unit call=s55
+expr e1449 name(k) type=UInt ref=s336
+expr e1450 call callee=e1448 args=[_:e1449] type=Unit call=s55
+expr e1452 name(l) type=UInt ref=s337
+expr e1453 call callee=e1451 args=[_:e1452] type=Unit call=s55
+expr e1455 name(m) type=UInt ref=s338
+expr e1456 call callee=e1454 args=[_:e1455] type=Unit call=s55
+expr e1458 name(nf) type=Float ref=s339
+expr e1459 call callee=e1457 args=[_:e1458] type=Unit call=s55
+expr e1461 name(nd) type=Double ref=s340
+expr e1462 call callee=e1460 args=[_:e1461] type=Unit call=s55
+expr e1464 name(pf) type=Float ref=s341
+expr e1465 call callee=e1463 args=[_:e1464] type=Unit call=s55
+expr e1467 name(pd) type=Double ref=s342
+expr e1468 call callee=e1466 args=[_:e1467] type=Unit call=s55
+expr e1470 name(ubf) type=Float ref=s345
+expr e1471 call callee=e1469 args=[_:e1470] type=Unit call=s55
+expr e1473 name(ubd) type=Double ref=s346
+expr e1474 call callee=e1472 args=[_:e1473] type=Unit call=s55
+expr e1476 name(usf) type=Float ref=s347
+expr e1477 call callee=e1475 args=[_:e1476] type=Unit call=s55
+expr e1479 name(usd) type=Double ref=s348
+expr e1480 call callee=e1478 args=[_:e1479] type=Unit call=s55
+expr e1482 name(ubToUs) type=UShort ref=s349
+expr e1483 call callee=e1481 args=[_:e1482] type=Unit call=s55
+expr e1485 name(usToBub) type=UByte ref=s350
+expr e1486 call callee=e1484 args=[_:e1485] type=Unit call=s55
+expr e1488 name(ubId) type=UByte ref=s351
+expr e1489 call callee=e1487 args=[_:e1488] type=Unit call=s55
+expr e1491 name(usId) type=UShort ref=s352
+expr e1492 call callee=e1490 args=[_:e1491] type=Unit call=s55
