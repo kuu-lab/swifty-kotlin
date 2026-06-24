@@ -466,6 +466,14 @@ public func kk_set_to_mutable_set(_ setRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
 }
 
+@_cdecl("kk_js_readonly_set_toMutableSet")
+public func kk_js_readonly_set_toMutableSet(_ setRaw: Int) -> Int {
+    guard let set = runtimeSetBox(from: setRaw) else {
+        return registerRuntimeObject(RuntimeSetBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
+}
+
 // MARK: - List intersect / union / subtract / toHashSet (STDLIB-510)
 
 @_cdecl("kk_list_intersect")

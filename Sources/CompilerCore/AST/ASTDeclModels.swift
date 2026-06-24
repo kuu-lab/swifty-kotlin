@@ -62,6 +62,7 @@ public struct ConstructorDelegationCall: Equatable, Codable {
 public struct ConstructorDecl: Codable {
     public let range: SourceRange
     public let modifiers: Modifiers
+    public let annotations: [AnnotationNode]
     public let valueParams: [ValueParamDecl]
     public let delegationCall: ConstructorDelegationCall?
     public let body: FunctionBody
@@ -69,12 +70,14 @@ public struct ConstructorDecl: Codable {
     public init(
         range: SourceRange,
         modifiers: Modifiers = [],
+        annotations: [AnnotationNode] = [],
         valueParams: [ValueParamDecl] = [],
         delegationCall: ConstructorDelegationCall? = nil,
         body: FunctionBody = .unit
     ) {
         self.range = range
         self.modifiers = modifiers
+        self.annotations = annotations
         self.valueParams = valueParams
         self.delegationCall = delegationCall
         self.body = body
@@ -119,6 +122,9 @@ public struct ClassDecl: Codable {
     /// Modifiers attached specifically to the primary constructor declaration,
     /// e.g. `class Foo private constructor()`.
     public let primaryConstructorModifiers: Modifiers
+    /// Annotations placed on the primary constructor declaration,
+    /// e.g. `class Foo @Throws(IOException::class) constructor()`.
+    public let primaryConstructorAnnotations: [AnnotationNode]
     /// `true` when the class header contains explicit constructor parentheses,
     /// distinguishing `class Foo()` (has primary ctor) from `class Foo` (no primary ctor).
     public let hasPrimaryConstructorSyntax: Bool
@@ -149,6 +155,7 @@ public struct ClassDecl: Codable {
         typeParams: [TypeParamDecl] = [],
         primaryConstructorParams: [ValueParamDecl] = [],
         primaryConstructorModifiers: Modifiers = [],
+        primaryConstructorAnnotations: [AnnotationNode] = [],
         hasPrimaryConstructorSyntax: Bool = false,
         superTypeEntries: [SuperTypeEntry] = [],
         nestedTypeAliases: [TypeAliasDecl] = [],
@@ -170,6 +177,7 @@ public struct ClassDecl: Codable {
         self.typeParams = typeParams
         self.primaryConstructorParams = primaryConstructorParams
         self.primaryConstructorModifiers = primaryConstructorModifiers
+        self.primaryConstructorAnnotations = primaryConstructorAnnotations
         self.hasPrimaryConstructorSyntax = hasPrimaryConstructorSyntax
         self.superTypeEntries = superTypeEntries
         self.nestedTypeAliases = nestedTypeAliases
@@ -455,6 +463,13 @@ public struct TypeAliasDecl: Codable {
 public struct EnumEntryDecl: Codable {
     public let range: SourceRange
     public let name: InternedString
+    public let annotations: [AnnotationNode]
+
+    public init(range: SourceRange, name: InternedString, annotations: [AnnotationNode] = []) {
+        self.range = range
+        self.name = name
+        self.annotations = annotations
+    }
 }
 
 public struct ImportDecl: Sendable, Codable {
@@ -509,6 +524,7 @@ public struct ValueParamDecl: Equatable, Codable {
     public let hasDefaultValue: Bool
     public let isVararg: Bool
     public let defaultValue: ExprID?
+    public let annotations: [AnnotationNode]
 
     public init(
         name: InternedString,
@@ -517,7 +533,8 @@ public struct ValueParamDecl: Equatable, Codable {
         isMutableProperty: Bool = false,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
-        defaultValue: ExprID? = nil
+        defaultValue: ExprID? = nil,
+        annotations: [AnnotationNode] = []
     ) {
         self.name = name
         self.type = type
@@ -526,5 +543,6 @@ public struct ValueParamDecl: Equatable, Codable {
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
         self.defaultValue = defaultValue
+        self.annotations = annotations
     }
 }

@@ -49,6 +49,7 @@ extension CallLowerer {
         }
 
         // 3. Emit the runtime call.
+        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         let runtimeFuncName = propertyName == "qualifiedName"
             ? "kk_type_token_qualified_name"
             : "kk_type_token_simple_name"
@@ -226,6 +227,8 @@ extension CallLowerer {
             return result
         }
 
+        // NOTE: Kotlin source for isInstance/isFinal/isAbstract/isSealed exists at
+        // Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         switch memberName {
         case "isInstance":
             return emitRuntimeCall(
