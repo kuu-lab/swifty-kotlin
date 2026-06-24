@@ -309,7 +309,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### JS型変換関連stub
 - [x] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
 - [x] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
-- [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
+- [x] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
 - [x] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
 #### Wasm Export stub
 #### Wasm Import stub
