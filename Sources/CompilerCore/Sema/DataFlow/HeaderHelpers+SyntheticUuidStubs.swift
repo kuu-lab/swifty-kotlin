@@ -2,6 +2,10 @@
 /// Synthetic stdlib stubs for kotlin.uuid.Uuid.
 /// Registers the Uuid class, companion factories/properties (random, parse, parseOrNull, parseHex, parseHexOrNull, parseHexDash, parseHexDashOrNull, NIL, SIZE_BITS, SIZE_BYTES, LEXICAL_ORDER),
 /// and instance methods (toString, toHexString, toLongs, toByteArray).
+///
+/// NOTE: Kotlin source exists at Stdlib/kotlin/uuid/Uuid.kt (MIGRATION-UUID-001).
+/// These stubs remain active and set external link names on the class members so that
+/// every call site dispatches directly to the kk_uuid_* runtime functions.
 extension DataFlowSemaPhase {
     func registerSyntheticUuidStubs(
         symbols: SymbolTable,

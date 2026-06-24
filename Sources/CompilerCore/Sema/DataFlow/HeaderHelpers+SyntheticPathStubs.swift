@@ -347,6 +347,7 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        symbols.setPropertyType(pathWalkOptionType, for: pathWalkOptionSymbol)
         setPathEnumEntryTypes(
             enumSymbol: pathWalkOptionSymbol,
             enumType: pathWalkOptionType,

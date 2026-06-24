@@ -1,5 +1,16 @@
 
 /// Synthetic stubs for Result<T>, runCatching, and related member functions (STDLIB-280/281/282/283).
+///
+/// NOTE: Kotlin source exists at Stdlib/kotlin/Result.kt (MIGRATION-RESULT-001).
+/// These stubs remain active:
+///   - The Result class and all member functions are registered synthetically here because
+///     class definitions cannot coexist with synthetic stubs in the bundled pipeline
+///     (stubs run before header collection, which would cause duplicate-declaration errors).
+///   - isSuccess / isFailure properties use idempotent registration and will have their
+///     externalLinkName updated to kk_result_isSuccess / kk_result_isFailure.
+///   - runCatching is also bundled as a Kotlin-source top-level function; the synthetic
+///     symbol registered here carries externalLinkName = "kk_runCatching" and, because it
+///     is registered first, symbols.lookup returns it so dispatch still goes to the runtime.
 extension DataFlowSemaPhase {
     func registerSyntheticResultStubs(
         symbols: SymbolTable,
