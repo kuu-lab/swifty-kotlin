@@ -1,6 +1,6 @@
 symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
 symbol s1 kind=property fq=kotlin.random.Random.Default vis=public flags=synthetic type=Class#0
-symbol s2 kind=function fq=kotlin.random.Random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int] ret=Int
+symbol s2 kind=function fq=kotlin.random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int] ret=Int
 symbol s3 kind=property fq=kotlin.collections.Collection.size vis=public flags=synthetic type=Int
 symbol s4 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
 symbol s5 kind=typeParameter fq=kotlin.collections.List.E vis=private flags=_
