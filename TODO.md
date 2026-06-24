@@ -71,7 +71,7 @@
 - [ ] STDLIB-TEXT-FN-068: `slice` 関数の実装
 - [ ] STDLIB-TEXT-FN-070: `splitToSequence` 関数の実装
 - [ ] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
-- [ ] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
+- [x] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [x] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
 - [x] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
 - [x] STDLIB-TEXT-FN-084: `toBigDecimalOrNull` 関数の実装
