@@ -60,6 +60,11 @@ extension KotlinParser {
             return parsePackageHeader(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
         case .keyword(.import):
             return parseImportHeader(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+        case .keyword(.constructor), .softKeyword(.constructor):
+            return parseConstructorDeclaration(
+                leadingChildren: modifierChildren,
+                leadingRange: modifierRange.value
+            )
         case .keyword(.companion):
             _ = consumeToken(into: &modifierChildren, range: &modifierRange)
             if case .keyword(.object) = stream.peek().kind {
@@ -380,9 +385,12 @@ extension KotlinParser {
         )
     }
 
-    func parseConstructorDeclaration() -> NodeID {
-        var children: [SyntaxChild] = []
-        var range = RangeAccumulator()
+    func parseConstructorDeclaration(
+        leadingChildren: [SyntaxChild] = [],
+        leadingRange: SourceRange? = nil
+    ) -> NodeID {
+        var children: [SyntaxChild] = leadingChildren
+        var range = RangeAccumulator(value: leadingRange)
 
         _ = consumeToken(into: &children, range: &range)
 
