@@ -150,6 +150,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 .contains("kk_string_replaceBeforeLast_char"),
             "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
         )
+        // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+        XCTAssertTrue(
+            externalLinks(for: "plus", sema: sema, interner: interner)
+                .contains("kk_string_plus"),
+            "String?.plus(other: Any?) should link to kk_string_plus"
+        )
         // STDLIB-TEXT-FN-055: replace overloads
         XCTAssertTrue(
             externalLinks(for: "replace", sema: sema, interner: interner)
@@ -1990,6 +1996,43 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             XCTAssertEqual(
                 externalLinks,
                 ["kk_string_zip", "kk_string_zipTransform"]
+            )
+        }
+    }
+
+    // MARK: - STDLIB-TEXT-FN-019: indent
+
+    func testIndentOverloadsResolveToDifferentExternalLinks() throws {
+        let source = """
+        fun indentDefault(value: String): String {
+            return value.indent()
+        }
+
+        fun indentWithN(value: String): String {
+            return value.indent(4)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let callExprs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "indent"
+            }
+            XCTAssertEqual(callExprs.count, 2)
+            let links = try callExprs.map { callExpr -> String in
+                let chosenCallee = try XCTUnwrap(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected call binding for indent"
+                )
+                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
+            }
+            XCTAssertEqual(
+                Set(links),
+                ["kk_string_indent_default", "kk_string_indent"]
             )
         }
     }

@@ -223,14 +223,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerAtomicAsKotlinAtomicFunctions(
-            packageFQName: atomicsPkg,
-            receiverPackageFQName: concurrentPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
         registerAtomicArrayFamily(
             packageFQName: atomicsPkg,
             className: "AtomicIntArray",
