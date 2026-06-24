@@ -1,7 +1,6 @@
 import Foundation
 @testable import LSPServer
 
-/// An in-memory input stream that replays preloaded chunks and then signals EOF.
 final class MemoryInputStream: ByteInputStream {
     private var chunks: [Data]
 
@@ -18,7 +17,6 @@ final class MemoryInputStream: ByteInputStream {
     }
 }
 
-/// An in-memory output stream that accumulates everything written to it.
 final class MemoryOutputStream: ByteOutputStream {
     private(set) var data = Data()
 
@@ -28,7 +26,6 @@ final class MemoryOutputStream: ByteOutputStream {
 }
 
 enum LSPTestSupport {
-    /// Assembles a JSON-RPC message dictionary.
     static func message(id: Int? = nil, method: String? = nil, params: Any? = nil) -> [String: Any] {
         var message: [String: Any] = ["jsonrpc": "2.0"]
         if let id { message["id"] = id }
@@ -37,7 +34,6 @@ enum LSPTestSupport {
         return message
     }
 
-    /// Frames a JSON object using the LSP base protocol header.
     static func frame(_ object: [String: Any]) -> Data {
         // swiftlint:disable:next force_try
         let body = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
@@ -46,7 +42,6 @@ enum LSPTestSupport {
         return framed
     }
 
-    /// Frames and concatenates a sequence of JSON objects.
     static func frame(_ objects: [[String: Any]]) -> Data {
         var data = Data()
         for object in objects {
@@ -55,7 +50,6 @@ enum LSPTestSupport {
         return data
     }
 
-    /// Reads every framed message produced on an output stream's buffer.
     static func decodeMessages(from output: MemoryOutputStream) -> [[String: Any]] {
         let connection = JSONRPCConnection(input: MemoryInputStream(output.data), output: MemoryOutputStream())
         var messages: [[String: Any]] = []

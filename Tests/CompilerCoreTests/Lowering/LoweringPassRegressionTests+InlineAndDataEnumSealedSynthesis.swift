@@ -275,10 +275,8 @@ extension LoweringPassRegressionTests {
             return interner.resolve(function.name)
         }
 
-        // Verify count helper still exists
         XCTAssertTrue(functionNames.contains("Color$enumValuesCount"), "Missing Color$enumValuesCount, got: \(functionNames)")
 
-        // Verify per-entry ordinal helpers
         XCTAssertTrue(functionNames.contains("RED$enumOrdinal"), "Missing RED$enumOrdinal, got: \(functionNames)")
         XCTAssertTrue(functionNames.contains("GREEN$enumOrdinal"), "Missing GREEN$enumOrdinal, got: \(functionNames)")
         XCTAssertTrue(functionNames.contains("BLUE$enumOrdinal"), "Missing BLUE$enumOrdinal, got: \(functionNames)")
@@ -892,8 +890,6 @@ extension LoweringPassRegressionTests {
 
     // MARK: - DATA-001: copy() edge cases
 
-    /// When a data class has no primary constructor, copy() should fall back to
-    /// returning self and emit a KSWIFTK-DATA-0001 warning.
     func testDataCopyNoPrimaryCtorEmitsWarningAndReturnsSelf() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -963,8 +959,6 @@ extension LoweringPassRegressionTests {
         XCTAssertTrue(dataWarnings.first?.message.contains("Point") ?? false)
     }
 
-    /// When a data class has a proper primary constructor, copy() should include
-    /// parameters matching the constructor and call it.
     func testDataCopyWithPrimaryCtorIncludesCtorParams() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -1066,9 +1060,6 @@ extension LoweringPassRegressionTests {
         XCTAssertEqual(dataWarnings.count, 0, "No DATA warnings expected for normal data class copy")
     }
 
-    /// When a data class constructor has a signature mismatch between
-    /// parameterTypes and valueParameterSymbols, copy() should emit
-    /// KSWIFTK-DATA-0002 warning and use the shorter count.
     func testDataCopySignatureMismatchEmitsWarning() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -1161,8 +1152,6 @@ extension LoweringPassRegressionTests {
         XCTAssertTrue(mismatchWarnings.first?.message.contains("Person") ?? false)
     }
 
-    /// When a data class constructor has zero value parameters, copy()
-    /// should produce a function with only the self parameter.
     func testDataCopyZeroCtorParams() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -1246,8 +1235,6 @@ extension LoweringPassRegressionTests {
         XCTAssertEqual(dataWarnings.count, 0, "No DATA warnings expected for zero-param data class copy")
     }
 
-    /// When a data class constructor has a function signature but the symbol
-    /// lookup returns no constructor kind, copy() should fall back to self.
     func testDataCopyCtorWithoutConstructorKindFallsBack() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()

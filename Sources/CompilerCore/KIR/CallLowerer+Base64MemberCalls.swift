@@ -1,6 +1,10 @@
 /// Base64 member-call lowerings (kotlin.io.encoding.Base64.* helpers).
 ///
 /// Split out from `CallLowerer+MemberCalls.swift`.
+///
+/// NOTE: Kotlin source exists at Stdlib/kotlin/io/encoding/Base64.kt (MIGRATION-ENC-001).
+/// This lowerer still dispatches directly to kk_base64_* ABI functions; wiring to the
+/// Kotlin source and removal of this special-case lowerer happens in RF-STDLIB-004+.
 extension CallLowerer {
     func tryLowerBase64MemberCall(
         receiverExpr: ExprID,
