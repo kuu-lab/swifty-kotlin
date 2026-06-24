@@ -30,9 +30,6 @@ public extension RuntimeABISpec {
             p("p0", .intptr),
             p("p1", .intptr),
         ]),
-        abiParitySpec("kk_kclass_js", parameters: [
-            p("kclassRaw", .intptr),
-        ]),
         abiParitySpec("kk_annotation_class_name", parameters: [
             p("p0", .intptr),
         ]),
