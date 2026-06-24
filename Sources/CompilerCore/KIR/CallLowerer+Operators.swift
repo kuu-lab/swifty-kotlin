@@ -886,7 +886,6 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        // Step 1: get current value
         let getResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
@@ -896,7 +895,6 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-        // Step 2: apply binary op
         let opResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
         guard let expr = ast.arena.expr(exprID),
               case let .indexedCompoundAssign(op, _, _, _, _) = expr
@@ -952,7 +950,6 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-        // Step 3: set new value
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),

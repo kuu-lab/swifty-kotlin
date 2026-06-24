@@ -83,8 +83,6 @@ extension ExprLowerer {
         return true
     }
 
-    // MARK: - Finally Block Inlining Helper (CODE-001)
-
     /// Inline enclosing finally blocks before a control-flow transfer.
     ///
     /// For `return`, all enclosing finally blocks are inlined (a return always

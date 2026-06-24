@@ -500,8 +500,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - Private Helpers
-
     private func ensureKotlinTextPackage(
         symbols: SymbolTable,
         interner: StringInterner
