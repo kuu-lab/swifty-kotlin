@@ -1,6 +1,5 @@
 package golden.sema
 
-// Test interface properties - abstract and concrete
 interface InterfaceProperties {
     val abstractVal: String
     var abstractVar: Int
@@ -32,7 +31,6 @@ class WithSuperCall : LeftSuper, RightSuper {
     override fun greet(): String = super<LeftSuper>.greet() + " and " + super<RightSuper>.greet()
 }
 
-// Test interface companion object
 interface WithCompanion {
     companion object {
         val CONSTANT = "test"

@@ -197,14 +197,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticAnnotationClass(
-            named: "PublishedApi",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticAnnotationClass(
             named: "IgnorableReturnValue",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,

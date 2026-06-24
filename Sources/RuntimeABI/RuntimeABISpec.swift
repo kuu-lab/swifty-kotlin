@@ -459,23 +459,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_jsclass_kotlin",
-            parameters: [
-                RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_boolean_toJsBoolean",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
