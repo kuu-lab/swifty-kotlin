@@ -10,7 +10,7 @@ import XCTest
 final class ASTEquivalenceRegressionTests: XCTestCase {
     // MARK: - Helpers
 
-    private let bundledStdlibDeclarationCount = 31
+    private let bundledStdlibDeclarationCount = 54
 
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
         let ctx: CompilationContext = makeContextFromSource(source)
@@ -46,11 +46,10 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 31 bundled stdlib functions (7 collections + 24 text)
         XCTAssertEqual(
             ast.declarationCount,
             2 + bundledStdlibDeclarationCount,
-            "Expected 33 top-level declarations (2 user + 31 bundled stdlib)"
+            "Expected \(2 + bundledStdlibDeclarationCount) top-level declarations (2 user + \(bundledStdlibDeclarationCount) bundled stdlib)"
         )
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 2, "Expected at least 2 expressions")
 
@@ -78,7 +77,6 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 31 bundled stdlib functions (7 collections + 24 text)
         XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
         // At least: localDecl(a), localDecl(b), compoundAssign, returnExpr, + body expressions
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
@@ -102,7 +100,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // classDecl + funDecl(main) + 31 bundled stdlib functions (7 collections + 24 text)
+        // classDecl + funDecl(main) + bundled stdlib functions
         XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
 
         let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
@@ -137,7 +135,6 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 31 bundled stdlib functions (7 collections + 24 text)
         XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
         // localDecl(a), localDecl(b), forExpr, localDecl(tmp), localAssign(a), localAssign(b), returnExpr etc.
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 8)
@@ -168,7 +165,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 3 user declarations + 31 bundled stdlib functions (7 collections + 24 text)
+        // 3 user declarations + bundled stdlib functions
         XCTAssertEqual(ast.declarationCount, 3 + bundledStdlibDeclarationCount)
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
 
@@ -192,7 +189,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // interface + class + fun(main) + 31 bundled stdlib functions (7 collections + 24 text)
+        // interface + class + fun(main) + bundled stdlib functions
         XCTAssertEqual(ast.declarationCount, 3 + bundledStdlibDeclarationCount)
 
         let interfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
@@ -215,7 +212,6 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 31 bundled stdlib functions (7 collections + 24 text)
         XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
 
         for i in ast.arena.exprs.indices {
@@ -248,7 +244,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // class + factorial + main + 31 bundled stdlib functions (7 collections + 24 text)
+        // class + factorial + main + bundled stdlib functions
         XCTAssertEqual(ast.declarationCount, 3 + bundledStdlibDeclarationCount)
 
         // Verify ALL decl ranges are valid
