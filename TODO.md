@@ -119,7 +119,7 @@
 - [ ] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
 - [ ] STDLIB-COMP-FN-059: `nullsFirst` 関数の実装（Comparable版）
 - [ ] STDLIB-COMP-FN-061: `nullsLast` 関数の実装（Comparable版）
-- [ ] STDLIB-COMP-FN-062: `nullsLast` 関数の実装（Comparator版）
+- [x] STDLIB-COMP-FN-062: `nullsLast` 関数の実装（Comparator版）
 
 #### kotlin.random 型の実装
 

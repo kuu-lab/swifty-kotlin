@@ -740,6 +740,14 @@ public func kk_comparator_nulls_last(_ cFn: Int, _ cClosure: Int) -> Int {
     return raw
 }
 
+@_cdecl("kk_comparator_nulls_last_of")
+public func kk_comparator_nulls_last_of(_ cFn: Int, _ cClosure: Int) -> Int {
+    let pair = RuntimePairBox(first: cFn, second: cClosure)
+    let raw = registerRuntimeObject(pair)
+    runtimeRegisterComparatorCompareMethod(raw, kk_comparator_nulls_last_trampoline)
+    return raw
+}
+
 @inline(__always)
 private func runtimeCompareNullableOrder(
     a: Int,
