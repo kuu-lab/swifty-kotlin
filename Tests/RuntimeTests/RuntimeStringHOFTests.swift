@@ -474,6 +474,67 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(result, 97 + 0xD83D + 0xDC3B)
     }
 
+    // MARK: - STDLIB-TEXT-FN-046: kk_string_reduce
+
+    func testReduceWalksLeftToRight() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_reduce(
+            source,
+            unsafeBitCast(reduceOrNullPickB, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+    }
+
+    func testReduceThrowsOnEmptyString() {
+        let source = registerRuntimeObject(RuntimeStringBox(""))
+        var thrown = 0
+
+        let _ = kk_string_reduce(
+            source,
+            unsafeBitCast(reduceOrNullPickB, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testReduceUsesFirstCharAsInitialAccumulator() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_reduce(
+            source,
+            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 294)
+    }
+
+    func testReduceReturnsSingleCharForOneCharString() {
+        let source = registerRuntimeObject(RuntimeStringBox("x"))
+        var thrown = 0
+
+        let result = kk_string_reduce(
+            source,
+            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, Int(Unicode.Scalar("x").value))
+    }
+
     func testSumByAppliesSelectorToEveryCharacter() {
         let source = registerRuntimeObject(RuntimeStringBox("aba"))
         var thrown = 0

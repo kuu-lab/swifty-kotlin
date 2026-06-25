@@ -695,6 +695,7 @@ extension CallLowerer {
                     let runtimeCallee = switch calleeStr {
                     case "firstNotNullOf": "kk_string_firstNotNullOf"
                     case "firstNotNullOfOrNull": "kk_string_firstNotNullOfOrNull"
+                    case "reduce": "kk_string_reduce"
                     case "reduceOrNull": "kk_string_reduceOrNull"
                     case "reduceRightIndexed": "kk_string_reduceRightIndexed"
                     case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"

@@ -2523,6 +2523,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-046: CharSequence.reduce(operation) ---
+        registerSyntheticStringExtensionFunction(
+            named: "reduce",
+            externalLinkName: "kk_string_reduce",
+            receiverType: charSequenceType,
+            parameters: [("operation", charCharToCharType, false, false)],
+            returnType: charType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-FN-049: CharSequence.reduceOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceOrNull",
