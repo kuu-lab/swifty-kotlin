@@ -278,5 +278,50 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "StringBuilder"
         ),
+        // STDLIB-TEXT-FN-024: Typed insert overloads
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_insert_char",
+            parameters: [
+                RuntimeABIParameter(name: "sbRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "charValue", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_insert_bool",
+            parameters: [
+                RuntimeABIParameter(name: "sbRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_insert_float",
+            parameters: [
+                RuntimeABIParameter(name: "sbRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_insert_double",
+            parameters: [
+                RuntimeABIParameter(name: "sbRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
+        ),
     ]
 }

@@ -183,7 +183,6 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: classSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: classSymbol)
 
-        // Register constructor: WeakReference<T>(value: T)
         registerWeakReferenceConstructor(
             ownerSymbol: classSymbol,
             ownerFQName: classFQName,
@@ -194,7 +193,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Register get() member: WeakReference<T>.get(): T?
         let nullableTType = types.makeNullable(tType)
         registerSimpleMember(
             named: "get",
@@ -209,7 +207,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Register clear() member: WeakReference<T>.clear(): Unit
         registerSimpleMember(
             named: "clear",
             ownerSymbol: classSymbol,
@@ -805,8 +802,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - Helpers
 
     /// Attaches `@RequiresOptIn` to `ExperimentalNativeApi` so the opt-in
     /// machinery treats it as an opt-in marker.  Safe to call multiple times.

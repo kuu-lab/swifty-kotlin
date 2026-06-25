@@ -23,22 +23,6 @@ import XCTest
 /// expected to bind to the runtime helper `kk_bytearray_inputStream` declared in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 final class ByteArrayInputStreamFunctionTests: XCTestCase {
-    private func memberCallExprIDs(
-        named name: String,
-        in ast: ASTModule,
-        interner: StringInterner
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == name
-            else {
-                return nil
-            }
-            return exprID
-        }
-    }
 
     // MARK: - STDLIB-IO-FN-020: ByteArray.inputStream() (zero-arg)
 

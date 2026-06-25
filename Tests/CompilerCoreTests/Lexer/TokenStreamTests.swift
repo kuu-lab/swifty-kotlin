@@ -61,27 +61,20 @@ final class TokenStreamTests: XCTestCase {
         XCTAssertEqual(stream.index, 1)
     }
 
-    // MARK: - Additional Coverage
-
     func testPeekConsecutivePositiveOffsetsOutOfRange() {
         let interner = StringInterner()
         let token = makeToken(kind: .identifier(interner.intern("only")))
         let stream = TokenStream([token])
 
-        // offset 0 is valid
         XCTAssertEqual(stream.peek(0), token)
-        // offsets 1..5 are all out of range → synthetic EOF
         for offset in 1 ... 5 {
-            XCTAssertEqual(stream.peek(offset).kind, .eof,
-                           "peek(\(offset)) should return EOF for a single-element stream")
+            XCTAssertEqual(stream.peek(offset).kind, .eof)
         }
     }
 
     func testConsecutiveAdvanceOnEmptyStream() {
         let stream = TokenStream([])
 
-        // Calling advance() repeatedly on an empty stream should always
-        // return synthetic EOF and never move the index past 0.
         for _ in 0 ..< 5 {
             let token = stream.advance()
             XCTAssertEqual(token.kind, .eof)
@@ -96,7 +89,6 @@ final class TokenStreamTests: XCTestCase {
         let num = makeToken(kind: .intLiteral("42"), start: 6, end: 8)
         let stream = TokenStream([id, plus, num])
 
-        // Complex predicate: identifier AND the interned name resolves to "hello"
         let matched = stream.consumeIf { token in
             if case let .identifier(interned) = token.kind {
                 return interner.resolve(interned) == "hello"
@@ -106,7 +98,6 @@ final class TokenStreamTests: XCTestCase {
         XCTAssertEqual(matched, id)
         XCTAssertEqual(stream.index, 1)
 
-        // Complex predicate: symbol that is either plus or minus
         let matchedSymbol = stream.consumeIf { token in
             if case let .symbol(sym) = token.kind {
                 return sym == .plus || sym == .minus
@@ -116,7 +107,6 @@ final class TokenStreamTests: XCTestCase {
         XCTAssertEqual(matchedSymbol, plus)
         XCTAssertEqual(stream.index, 2)
 
-        // Complex predicate that does NOT match: intLiteral with value > 100
         let noMatch = stream.consumeIf { token in
             if case let .intLiteral(value) = token.kind,
                let intValue = Int(value)

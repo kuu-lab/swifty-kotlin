@@ -1,21 +1,17 @@
-// Function parameter type
 fun processLinkedMap(map: LinkedHashMap<String, Int>) {
     println(map.size)
 }
 
-// Return type
 fun createLinkedMap(): LinkedHashMap<Int, String> {
     return LinkedHashMap<Int, String>()
 }
 
-// Property type
 class OrderedMapHolder {
     val scores: LinkedHashMap<String, Int> = LinkedHashMap()
     val labels: LinkedHashMap<Int, String> = LinkedHashMap<Int, String>()
 }
 
 fun main() {
-    // Basic LinkedHashMap type alias test
     val lhm: MutableMap<String, Int> = LinkedHashMap()
     lhm["z"] = 26
     lhm["a"] = 1
@@ -31,7 +27,6 @@ fun main() {
     println(lhm.containsKey("m"))
     println(lhm.containsValue(99))
 
-    // Type alias compatibility tests
     val lhm2: LinkedHashMap<String, String> = LinkedHashMap()
     lhm2["key1"] = "value1"
     lhm2["key2"] = "value2"
@@ -58,7 +53,6 @@ fun main() {
     println(mutable.values)
     println(mutable.entries)
 
-    // Test generic type preservation
     val generic: LinkedHashMap<Double, Boolean> = LinkedHashMap()
     generic[1.5] = true
     generic[2.7] = false

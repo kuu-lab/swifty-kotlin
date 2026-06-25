@@ -1,98 +1,4 @@
-/// Synthetic stubs for kotlin.io.path.Path type.
-///
-/// Covers:
-/// - `Path(pathString: String)` constructor
-/// - `name: String`, `parent: Path?`, `fileName: Path?`, `root: Path?` properties
-/// - `nameCount: Int`, `isAbsolute: Boolean` properties
-/// - `toString(): String`
-/// - `resolve(other: String): Path`, `resolve(other: Path): Path`
-/// - `relativize(other: Path): Path`, `normalize(): Path`
-/// - `exists(): Boolean`
-/// - `Path.isDirectory(vararg options: LinkOption): Boolean` extension function
-/// - `Path.isRegularFile(vararg options: LinkOption): Boolean` extension function
-/// - `Path.exists(vararg options: LinkOption): Boolean` extension function
-/// - `startsWith(other: Path): Boolean`, `startsWith(other: String): Boolean`
-/// - `endsWith(other: Path): Boolean`, `endsWith(other: String): Boolean`
-/// - `toFile(): File`, `toUri(): URI`, `toAbsolutePath(): Path`
-/// - `URI.toPath(): Path` extension function
-/// - `getName(index: Int): Path`
-/// - `Path.name: String` extension property
-/// - `Path.appendText(text: CharSequence, charset)` extension function
-/// - `Path.copyTo(target: Path, options)` extension function
-/// - `Path.copyTo(target: Path, overwrite: Boolean)` extension function
-/// - `Path.extension: String` extension property
-/// - `Path.nameWithoutExtension: String` extension property
-/// - `Path.invariantSeparatorsPath: String` extension property
-/// - `Path.absolute(): Path` extension function
-/// - `Path.relativeToOrSelf(base: Path): Path` extension function
-/// - `Path.relativeTo(base: Path): Path` extension function
-/// - `Path.relativeToOrNull(base: Path): Path?` extension function
-/// - `Path.readSymbolicLink(): Path` extension function
-/// - `Path.readAttributes(attributes, vararg options: LinkOption): Map<String, Any?>` extension function
-/// - `Path.readAttributes<A : BasicFileAttributes>(vararg options: LinkOption): A` extension function
-/// - `Path.invariantSeparatorsPathString: String` extension property
-/// - `Path.pathString: String` extension property
-/// - `Path.writeBytes(array: ByteArray, vararg options: OpenOption)` extension function
-/// - `Path.writer(charset, options)` extension function
-/// - `Path.outputStream(vararg options: OpenOption): OutputStream` extension function
-/// - `Path.moveTo(target: Path, vararg options: CopyOption): Path` extension function
-/// - `Path.inputStream(vararg options: OpenOption): InputStream` extension function
-/// - `Path.reader(charset, vararg options: OpenOption): BufferedReader` extension function
-/// - `Path.inputStream(vararg options: OpenOption): InputStream` extension function
-/// - `Path.appendLines(lines: Iterable<CharSequence>, charset)` extension function
-/// - `Path.writeLines(lines: Iterable<CharSequence>, charset, options)` extension function
-/// - `Path.writeLines(lines: Sequence<CharSequence>, charset, options)` extension function
-/// - `Path.absolutePathString(): String` extension function
-/// - `Path.appendBytes(array: ByteArray)` extension function
-/// - `readBytes(): ByteArray`, `readText(): String`, `writeText(text: String)`, `readLines(): List<String>`
-/// - `Path.writeText(text, charset, options)` extension function
-/// - `createDirectories(): Path`, `createLinkPointingTo(target): Path`, `Path.deleteIfExists(): Boolean`
-/// - `Path.createDirectories(vararg attributes: FileAttribute<*>): Path` extension function
-/// - `Path.createDirectory(vararg attributes: FileAttribute<*>): Path` extension function
-/// - `Path.createFile(vararg attributes: FileAttribute<*>): Path` extension function
-/// - `Path.createParentDirectories(vararg attributes: FileAttribute<*>): Path` extension function
-/// - `Path.createSymbolicLinkPointingTo(target: Path, vararg attributes: FileAttribute<*>): Path` extension function
-/// - `createTempDirectory(directory: Path?, prefix: String?, vararg attributes: FileAttribute<*>): Path` top-level function
-/// - `createTempDirectory(prefix: String?, vararg attributes: FileAttribute<*>): Path` top-level function
-/// - `createTempFile(directory: Path?, prefix: String?, suffix: String?, vararg attributes: FileAttribute<*>): Path` top-level function
-/// - `createTempFile(prefix: String?, suffix: String?, vararg attributes: FileAttribute<*>): Path` top-level function
-/// - `deleteExisting()`, `deleteRecursively()`
-/// - `Path.fileStore(): FileStore` extension function
-/// - `Path.fileAttributesViewOrNull<V : FileAttributeView>(vararg options: LinkOption): V?` extension function
-/// - `Path.getAttribute(attribute: String, vararg options: LinkOption): Any` extension function
-/// - `Path.fileAttributesView<V : FileAttributeView>(vararg options: LinkOption): V` extension function
-/// - `Path.copyToRecursively(target, onError, followLinks, overwrite): Path` extension function
-/// - `Path.copyToRecursively(target, onError, followLinks, copyAction): Path` extension function
-/// - `Path.getOwner(vararg options: LinkOption): UserPrincipal` extension function
-/// - `Path.getLastModifiedTime(vararg options: LinkOption): FileTime` extension function
-/// - `Path.setOwner(value: UserPrincipal): Path` extension function
-/// - `Path.getPosixFilePermissions(vararg options: LinkOption): Set<PosixFilePermission>` extension function
-/// - `Path.setAttribute(attribute, value, vararg options: LinkOption): Path` extension function
-/// - `Path.fileSize(): Long` extension function
-/// - `Path.forEachDirectoryEntry(glob, action)` extension function
-/// - `Path.forEachLine(charset, action)` extension function
-/// - `Path.setPosixFilePermissions(value: Set<PosixFilePermission>): Path` extension function
-/// - `Path.useLines(charset, block)` extension function
-/// - `Path.listDirectoryEntries(glob: String = "*"): List<Path>` extension function
-/// - `Path.walk(options)` extension function
-/// - `Path.useDirectoryEntries(glob, block)` extension function
-/// - `Path.isExecutable()`, `isHidden()`, `isReadable()`, `isSameFileAs()`, `isSymbolicLink()`, `isWritable()`
-/// - `Path.notExists(vararg options: LinkOption): Boolean`
-/// - Top-level `Path(pathString: String)` factory (kotlin.io.path.Path)
-/// - Top-level `Path(base: String, vararg subpaths: String)` factory (kotlin.io.path.Path)
-/// - `Paths.get(pathString: String)` factory (java.nio.file.Paths)
-/// - `CopyActionContext` type surface
-/// - `CopyActionResult` enum surface
-/// - `ExperimentalPathApi` marker annotation surface
-/// - `FileVisitorBuilder` type surface
-/// - `fileVisitor(builderAction)` top-level function
-/// - `Path.visitFileTree(visitor, maxDepth, followLinks)` extension function
-/// - `OnErrorResult` enum surface
-/// - `PathWalkOption` enum surface
-///
-/// Each stub registers the kotlin.io.path.Path class, its constructor, member
-/// properties, and member functions in the symbol table so that name resolution
-/// and type checking succeed without requiring a full kotlin.io.path runtime.
+/// Synthetic stubs for `kotlin.io.path.Path` and related types.
 extension DataFlowSemaPhase {
     func registerSyntheticPathStubs(
         symbols: SymbolTable,
@@ -403,7 +309,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(copyActionContextType, for: copyActionContextSymbol)
 
-        // List<Path> type for listDirectoryEntries return
         let listSymbol = resolvePathListSymbol(symbols: symbols, interner: interner)
         if listSymbol == nil {
             assertionFailure("kotlin.collections.List symbol not found; Path stubs will use Any as fallback")
@@ -445,7 +350,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // List<String> type for readLines return
         let listOfStringType: TypeID = if let listSym = listSymbol {
             types.make(.classType(ClassType(
                 classSymbol: listSym,
@@ -455,7 +359,6 @@ extension DataFlowSemaPhase {
         } else {
             types.anyType
         }
-        // Resolve java.io.File type for toFile() return
         let javaIOPkg = ensurePackage(path: ["java", "io"], symbols: symbols, interner: interner)
         let javaIOPkgSymbol = symbols.lookup(fqName: javaIOPkg)
         let fileSymbol = symbols.lookup(fqName: javaIOPkg + [interner.intern("File")])
@@ -692,8 +595,6 @@ extension DataFlowSemaPhase {
         } else {
             types.anyType
         }
-
-        // MARK: - Path(pathString: String) constructor
 
         registerPathConstructor(
             ownerSymbol: pathSymbol,
@@ -1032,8 +933,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Path.toString()
-
         registerPathMemberFunction(
             named: "toString",
             externalLinkName: "kk_path_toString",
@@ -1044,8 +943,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // MARK: - Path.resolve(other: String) and Path.resolve(other: Path)
 
         registerPathMemberFunction(
             named: "resolve",
@@ -1069,8 +966,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Path.relativize(other: Path)
-
         registerPathMemberFunction(
             named: "relativize",
             externalLinkName: "kk_path_relativize",
@@ -1081,8 +976,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // MARK: - Path.normalize()
 
         registerPathMemberFunction(
             named: "normalize",
@@ -2127,8 +2020,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Paths.get() (java.nio.file.Paths)
-
         let pathsSymbol = ensureClassSymbol(
             named: "Paths",
             in: javaNioFilePkg,
@@ -2143,7 +2034,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(pathsType, for: pathsSymbol)
 
-        // Paths.get(pathString: String): Path
         registerPathMemberFunction(
             named: "get",
             externalLinkName: "kk_path_get",

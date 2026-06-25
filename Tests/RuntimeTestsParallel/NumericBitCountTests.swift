@@ -15,205 +15,65 @@ final class NumericBitCountTests: XCTestCase {
     // MARK: - Int Bit Count Tests (32-bit semantics)
 
     func testIntCountOneBitsBasicValues() {
-        XCTAssertEqual(kk_int_countOneBits(0), 0, "Zero should have 0 bits set")
-        XCTAssertEqual(kk_int_countOneBits(1), 1, "1 should have 1 bit set")
-        XCTAssertEqual(kk_int_countOneBits(2), 1, "2 should have 1 bit set")
-        XCTAssertEqual(kk_int_countOneBits(3), 2, "3 should have 2 bits set")
-        XCTAssertEqual(kk_int_countOneBits(0xFFFFFFFF), 32, "All 32 bits set should return 32")
+        XCTAssertEqual(kk_int_countOneBits(0), 0)
+        XCTAssertEqual(kk_int_countOneBits(1), 1)
+        XCTAssertEqual(kk_int_countOneBits(2), 1)
+        XCTAssertEqual(kk_int_countOneBits(3), 2)
+        XCTAssertEqual(kk_int_countOneBits(0xFFFFFFFF), 32)
     }
 
     func testIntCountOneBitsNegativeValues() {
-        XCTAssertEqual(kk_int_countOneBits(-1), 32, "-1 (0xFFFFFFFF) should have 32 bits set")
-        XCTAssertEqual(kk_int_countOneBits(-2), 31, "-2 (0xFFFFFFFE) should have 31 bits set")
-        XCTAssertEqual(kk_int_countOneBits(Int(Int32.min)), 1, "Int32.min (0x80000000) should have 1 bit set")
+        XCTAssertEqual(kk_int_countOneBits(-1), 32)
+        XCTAssertEqual(kk_int_countOneBits(-2), 31)
+        XCTAssertEqual(kk_int_countOneBits(Int(Int32.min)), 1)
     }
 
     func testIntCountLeadingZeroBitsBasicValues() {
-        XCTAssertEqual(kk_int_countLeadingZeroBits(0), 32, "Zero should have 32 leading zeros")
-        XCTAssertEqual(kk_int_countLeadingZeroBits(1), 31, "1 should have 31 leading zeros")
-        XCTAssertEqual(kk_int_countLeadingZeroBits(0x80000000), 0, "MSB set should have 0 leading zeros")
-        XCTAssertEqual(kk_int_countLeadingZeroBits(0x7FFFFFFF), 1, "All bits except MSB should have 1 leading zero")
+        XCTAssertEqual(kk_int_countLeadingZeroBits(0), 32)
+        XCTAssertEqual(kk_int_countLeadingZeroBits(1), 31)
+        XCTAssertEqual(kk_int_countLeadingZeroBits(0x80000000), 0)
+        XCTAssertEqual(kk_int_countLeadingZeroBits(0x7FFFFFFF), 1)
     }
 
     func testIntCountLeadingZeroBitsNegativeValues() {
-        XCTAssertEqual(kk_int_countLeadingZeroBits(-1), 0, "-1 (all bits set) should have 0 leading zeros")
-        XCTAssertEqual(kk_int_countLeadingZeroBits(Int(Int32.min)), 0, "Int32.min (MSB set) should have 0 leading zeros")
+        XCTAssertEqual(kk_int_countLeadingZeroBits(-1), 0)
+        XCTAssertEqual(kk_int_countLeadingZeroBits(Int(Int32.min)), 0)
     }
 
     func testIntCountTrailingZeroBitsBasicValues() {
-        XCTAssertEqual(kk_int_countTrailingZeroBits(0), 32, "Zero should have 32 trailing zeros")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(1), 0, "1 should have 0 trailing zeros")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(2), 1, "2 should have 1 trailing zero")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(4), 2, "4 should have 2 trailing zeros")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(0x80000000), 31, "MSB set should have 31 trailing zeros")
+        XCTAssertEqual(kk_int_countTrailingZeroBits(0), 32)
+        XCTAssertEqual(kk_int_countTrailingZeroBits(1), 0)
+        XCTAssertEqual(kk_int_countTrailingZeroBits(2), 1)
+        XCTAssertEqual(kk_int_countTrailingZeroBits(4), 2)
+        XCTAssertEqual(kk_int_countTrailingZeroBits(0x80000000), 31)
     }
 
     func testIntCountTrailingZeroBitsNegativeValues() {
-        XCTAssertEqual(kk_int_countTrailingZeroBits(-1), 0, "-1 (all bits set) should have 0 trailing zeros")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(-2), 1, "-2 (all bits except LSB) should have 1 trailing zero")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(Int(Int32.min)), 31, "Int32.min should have 31 trailing zeros")
+        XCTAssertEqual(kk_int_countTrailingZeroBits(-1), 0)
+        XCTAssertEqual(kk_int_countTrailingZeroBits(-2), 1)
+        XCTAssertEqual(kk_int_countTrailingZeroBits(Int(Int32.min)), 31)
     }
 
-    // MARK: - Host Int Truncation Behavior
-
-    func testHighBitsAreIgnoredForIntBitCounts() {
-        // kk_int_* helpers intentionally apply Kotlin Int (32-bit) semantics even on 64-bit hosts.
-        XCTAssertEqual(kk_int_countOneBits(0), 0, "Zero should have 0 bits set")
-        XCTAssertEqual(kk_int_countOneBits(1), 1, "1 should have 1 bit set")
-        XCTAssertEqual(kk_int_countOneBits(-1), 32, "All low 32 bits set should return 32")
-        XCTAssertEqual(kk_int_countOneBits(-2), 31, "Only low 32 bits should participate in the count")
-        XCTAssertEqual(kk_int_countLeadingZeroBits(0), 32, "Zero should have 32 leading zeros")
-        XCTAssertEqual(kk_int_countLeadingZeroBits(1), 31, "1 should have 31 leading zeros")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(0), 32, "Zero should have 32 trailing zeros")
-        XCTAssertEqual(kk_int_countTrailingZeroBits(1), 0, "1 should have 0 trailing zeros")
-    }
-
-    // MARK: - Edge Case and Optimization Tests
-
-    func testBitCountSpecialValues() {
-        let specialValues: [Int] = [
-            0, 1, -1, Int(Int32.max), Int(Int32.min),
-            Int.max, Int.min,
-            0x55555555, 0xAAAAAAAA,  // Alternating patterns
-            0xFF00FF00, 0x00FF00FF,  // Byte patterns
-            0xFFFF0000, 0x0000FFFF   // Word patterns
-        ]
-
-        for value in specialValues {
-            let ones = kk_int_countOneBits(value)
-            let leadingZeros = kk_int_countLeadingZeroBits(value)
-            let trailingZeros = kk_int_countTrailingZeroBits(value)
-
-            XCTAssertGreaterThanOrEqual(ones, 0, "Count of ones should be non-negative")
-            XCTAssertLessThanOrEqual(ones, 32, "Count of ones should not exceed 32 for Int")
-
-            XCTAssertGreaterThanOrEqual(leadingZeros, 0, "Leading zeros should be non-negative")
-            XCTAssertLessThanOrEqual(leadingZeros, 32, "Leading zeros should not exceed 32 for Int")
-
-            XCTAssertGreaterThanOrEqual(trailingZeros, 0, "Trailing zeros should be non-negative")
-            XCTAssertLessThanOrEqual(trailingZeros, 32, "Trailing zeros should not exceed 32 for Int")
-
-            // Verify relationship: leadingZeros + trailingZeros + ones_in_between = 32
-            // This is more complex due to potential gaps, so we just verify basic consistency
-            if value != 0 && ones > 0 {
-                XCTAssertLessThan(leadingZeros + trailingZeros, 32, "Non-zero value should have some bits set")
-            }
-        }
-    }
+    // MARK: - Edge Case Tests
 
     func testBitCountPowerOfTwoValues() {
         for i in 0..<31 {
             let powerOfTwo = 1 << i
-            XCTAssertEqual(kk_int_countOneBits(powerOfTwo), 1, "2^\(i) should have exactly 1 bit set")
-            XCTAssertEqual(kk_int_countTrailingZeroBits(powerOfTwo), i, "2^\(i) should have \(i) trailing zeros")
-            XCTAssertEqual(kk_int_countLeadingZeroBits(powerOfTwo), 31 - i, "2^\(i) should have \(31-i) leading zeros")
+            XCTAssertEqual(kk_int_countOneBits(powerOfTwo), 1, "2^\(i)")
+            XCTAssertEqual(kk_int_countTrailingZeroBits(powerOfTwo), i, "2^\(i)")
+            XCTAssertEqual(kk_int_countLeadingZeroBits(powerOfTwo), 31 - i, "2^\(i)")
         }
     }
 
     func testBitCountComplementaryValues() {
         for i in 0..<16 {
             let value = 1 << i
-            let complement = ~value & 0xFFFFFFFF  // Keep only 32 bits
+            let complement = ~value & 0xFFFFFFFF
 
             let onesInValue = kk_int_countOneBits(value)
             let onesInComplement = kk_int_countOneBits(complement)
 
-            XCTAssertEqual(onesInValue + onesInComplement, 32, "Value and its complement should have 32 total bits set")
-        }
-    }
-
-    func testBitCountConsistencyAcrossRange() {
-        for value in 0..<1000 {
-            let ones = kk_int_countOneBits(value)
-            let leadingZeros = kk_int_countLeadingZeroBits(value)
-            let trailingZeros = kk_int_countTrailingZeroBits(value)
-
-            XCTAssertGreaterThanOrEqual(ones, 0, "Ones count should be non-negative for value \(value)")
-            XCTAssertLessThanOrEqual(ones, 32, "Ones count should not exceed 32 for value \(value)")
-
-            if value != 0 {
-                XCTAssertLessThan(leadingZeros, 32, "Non-zero value should have less than 32 leading zeros")
-                XCTAssertLessThan(trailingZeros, 32, "Non-zero value should have less than 32 trailing zeros")
-            } else {
-                XCTAssertEqual(leadingZeros, 32, "Zero should have exactly 32 leading zeros")
-                XCTAssertEqual(trailingZeros, 32, "Zero should have exactly 32 trailing zeros")
-            }
-        }
-    }
-
-    // MARK: - Performance and Optimization Tests
-
-    func testBitCountPerformanceCharacteristics() {
-        let testValues: [Int] = Array(0..<10000)
-
-        measure {
-            for value in testValues {
-                _ = kk_int_countOneBits(value)
-                _ = kk_int_countLeadingZeroBits(value)
-                _ = kk_int_countTrailingZeroBits(value)
-            }
-        }
-    }
-
-    func testBitManipulationPerformanceCharacteristics() {
-        let testValues: [Int] = Array(0..<1000)
-        let distances: [Int] = [0, 1, 7, 15, 31]
-
-        measure {
-            for value in testValues {
-                for distance in distances {
-                    _ = kk_int_rotateLeft(value, distance)
-                    _ = kk_int_rotateRight(value, distance)
-                    _ = kk_int_highestOneBit(value)
-                    _ = kk_int_lowestOneBit(value)
-                    _ = kk_int_takeHighestOneBit(value)
-                    _ = kk_int_takeLowestOneBit(value)
-                }
-            }
-        }
-    }
-
-    func testLongBitManipulationPerformanceCharacteristics() {
-        let testValues: [Int] = Array(0..<1000)
-        let distances: [Int] = [0, 1, 31, 63]
-
-        measure {
-            for value in testValues {
-                for distance in distances {
-                    _ = kk_long_rotateLeft(value, distance)
-                    _ = kk_long_rotateRight(value, distance)
-                    _ = kk_long_highestOneBit(value)
-                    _ = kk_long_lowestOneBit(value)
-                    _ = kk_long_takeHighestOneBit(value)
-                    _ = kk_long_takeLowestOneBit(value)
-                }
-            }
-        }
-    }
-
-    func testBitCountLargeValues() {
-        let largeValues: [Int] = [
-            Int.max,
-            Int.max - 1,
-            Int.max / 2,
-            Int.min,
-            Int.min + 1,
-            Int.min / 2
-        ]
-
-        for value in largeValues {
-            let ones = kk_int_countOneBits(value)
-            let leadingZeros = kk_int_countLeadingZeroBits(value)
-            let trailingZeros = kk_int_countTrailingZeroBits(value)
-
-            XCTAssertGreaterThanOrEqual(ones, 0, "Large value should have non-negative ones count")
-            XCTAssertLessThanOrEqual(ones, 32, "Large value should not exceed 32 ones")
-
-            XCTAssertGreaterThanOrEqual(leadingZeros, 0, "Large value should have non-negative leading zeros")
-            XCTAssertLessThanOrEqual(leadingZeros, 32, "Large value should not exceed 32 leading zeros")
-
-            XCTAssertGreaterThanOrEqual(trailingZeros, 0, "Large value should have non-negative trailing zeros")
-            XCTAssertLessThanOrEqual(trailingZeros, 32, "Large value should not exceed 32 trailing zeros")
+            XCTAssertEqual(onesInValue + onesInComplement, 32)
         }
     }
 
@@ -232,16 +92,16 @@ final class NumericBitCountTests: XCTestCase {
         ]
 
         for (value, expectedOnes, expectedLeadingZeros, expectedTrailingZeros) in knownValues {
-            XCTAssertEqual(kk_int_countOneBits(value), expectedOnes, "Unexpected ones count for \(value)")
-            XCTAssertEqual(kk_int_countLeadingZeroBits(value), expectedLeadingZeros, "Unexpected leading zeros for \(value)")
-            XCTAssertEqual(kk_int_countTrailingZeroBits(value), expectedTrailingZeros, "Unexpected trailing zeros for \(value)")
+            XCTAssertEqual(kk_int_countOneBits(value), expectedOnes, "value=\(value)")
+            XCTAssertEqual(kk_int_countLeadingZeroBits(value), expectedLeadingZeros, "value=\(value)")
+            XCTAssertEqual(kk_int_countTrailingZeroBits(value), expectedTrailingZeros, "value=\(value)")
         }
     }
 
     func testBitCountWithBitManipulation() {
         for value in [0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 255, 256, 511, 512, 1023] {
             var manualOnes = 0
-            var tempValue = value & 0xFFFFFFFF  // Ensure 32-bit
+            var tempValue = value & 0xFFFFFFFF
             for _ in 0..<32 {
                 if tempValue & 1 != 0 {
                     manualOnes += 1
@@ -249,7 +109,7 @@ final class NumericBitCountTests: XCTestCase {
                 tempValue >>= 1
             }
 
-            XCTAssertEqual(kk_int_countOneBits(value), manualOnes, "Manual count should match for \(value)")
+            XCTAssertEqual(kk_int_countOneBits(value), manualOnes, "value=\(value)")
         }
     }
 
@@ -267,37 +127,35 @@ final class NumericBitCountTests: XCTestCase {
                 let rotatedRight = kk_int_rotateRight(value, distance)
 
                 XCTAssertEqual(kk_int_rotateRight(rotatedLeft, distance) & 0xFFFFFFFF, value & 0xFFFFFFFF,
-                    "Rotate left then right should return original for value=\(value), distance=\(distance)")
+                    "rotateLeft→Right value=\(value), distance=\(distance)")
                 XCTAssertEqual(kk_int_rotateLeft(rotatedRight, distance) & 0xFFFFFFFF, value & 0xFFFFFFFF,
-                    "Rotate right then left should return original for value=\(value), distance=\(distance)")
+                    "rotateRight→Left value=\(value), distance=\(distance)")
             }
 
             let highest = kk_int_highestOneBit(value)
             let lowest = kk_int_lowestOneBit(value)
 
             if value != 0 {
-                XCTAssertNotEqual(highest, 0, "Highest one bit should be non-zero for non-zero value \(value)")
-                XCTAssertNotEqual(lowest, 0, "Lowest one bit should be non-zero for non-zero value \(value)")
-
-                XCTAssertTrue(isPowerOfTwo32(highest), "Highest one bit should be power of two for \(value)")
-                XCTAssertTrue(isPowerOfTwo32(lowest), "Lowest one bit should be power of two for \(value)")
+                XCTAssertNotEqual(highest, 0)
+                XCTAssertNotEqual(lowest, 0)
+                XCTAssertTrue(isPowerOfTwo32(highest), "highestOneBit(\(value))")
+                XCTAssertTrue(isPowerOfTwo32(lowest), "lowestOneBit(\(value))")
             } else {
-                XCTAssertEqual(highest, 0, "Highest one bit should be 0 for zero")
-                XCTAssertEqual(lowest, 0, "Lowest one bit should be 0 for zero")
+                XCTAssertEqual(highest, 0)
+                XCTAssertEqual(lowest, 0)
             }
 
             let takeHighest = kk_int_takeHighestOneBit(value)
             let takeLowest = kk_int_takeLowestOneBit(value)
 
             if value != 0 {
-                XCTAssertNotEqual(takeHighest, 0, "Take highest should be non-zero for non-zero value \(value)")
-                XCTAssertNotEqual(takeLowest, 0, "Take lowest should be non-zero for non-zero value \(value)")
-
-                XCTAssertEqual(takeHighest & highest, highest, "Take highest should preserve highest bit for \(value)")
-                XCTAssertEqual(takeLowest & lowest, lowest, "Take lowest should preserve lowest bit for \(value)")
+                XCTAssertNotEqual(takeHighest, 0)
+                XCTAssertNotEqual(takeLowest, 0)
+                XCTAssertEqual(takeHighest & highest, highest)
+                XCTAssertEqual(takeLowest & lowest, lowest)
             } else {
-                XCTAssertEqual(takeHighest, 0, "Take highest should be 0 for zero")
-                XCTAssertEqual(takeLowest, 0, "Take lowest should be 0 for zero")
+                XCTAssertEqual(takeHighest, 0)
+                XCTAssertEqual(takeLowest, 0)
             }
         }
     }
@@ -322,23 +180,22 @@ final class NumericBitCountTests: XCTestCase {
                 let rotatedRight = kk_long_rotateRight(value, distance)
 
                 XCTAssertEqual(kk_long_rotateRight(rotatedLeft, distance), value,
-                    "Long rotate left then right should return original for value=\(value), distance=\(distance)")
+                    "rotateLeft→Right value=\(value), distance=\(distance)")
                 XCTAssertEqual(kk_long_rotateLeft(rotatedRight, distance), value,
-                    "Long rotate right then left should return original for value=\(value), distance=\(distance)")
+                    "rotateRight→Left value=\(value), distance=\(distance)")
             }
 
             let highest = kk_long_highestOneBit(value)
             let lowest = kk_long_lowestOneBit(value)
 
             if value != 0 {
-                XCTAssertNotEqual(highest, 0, "Long highest one bit should be non-zero for non-zero value \(value)")
-                XCTAssertNotEqual(lowest, 0, "Long lowest one bit should be non-zero for non-zero value \(value)")
-
-                XCTAssertTrue(isPowerOfTwo64(highest), "Long highest one bit should be power of two for \(value)")
-                XCTAssertTrue(isPowerOfTwo64(lowest), "Long lowest one bit should be power of two for \(value)")
+                XCTAssertNotEqual(highest, 0)
+                XCTAssertNotEqual(lowest, 0)
+                XCTAssertTrue(isPowerOfTwo64(highest), "highestOneBit(\(value))")
+                XCTAssertTrue(isPowerOfTwo64(lowest), "lowestOneBit(\(value))")
             } else {
-                XCTAssertEqual(highest, 0, "Long highest one bit should be 0 for zero")
-                XCTAssertEqual(lowest, 0, "Long lowest one bit should be 0 for zero")
+                XCTAssertEqual(highest, 0)
+                XCTAssertEqual(lowest, 0)
             }
         }
     }

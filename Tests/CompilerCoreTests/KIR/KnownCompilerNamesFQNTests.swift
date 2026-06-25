@@ -1,19 +1,13 @@
 @testable import CompilerCore
 import XCTest
 
-/// Regression tests for KnownCompilerNames FQN-based symbol matching.
-/// Ensures that user-defined types named "Set" or "MutableSet" are not
-/// confused with stdlib kotlin.collections.Set / MutableSet.
 final class KnownCompilerNamesFQNTests: XCTestCase {
-
-    // MARK: - isSetLikeSymbol FQN checks
 
     func testIsSetLikeSymbolMatchesStdlibSetFQN() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // stdlib Set with correct FQN: kotlin.collections.Set
         let stdlibSetSymbol = symbols.define(
             kind: .typeAlias,
             name: interner.intern("Set"),
@@ -32,7 +26,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
         let symbols = SymbolTable()
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // stdlib MutableSet with correct FQN: kotlin.collections.MutableSet
         let stdlibMutableSetSymbol = symbols.define(
             kind: .typeAlias,
             name: interner.intern("MutableSet"),
@@ -51,7 +44,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
         let symbols = SymbolTable()
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // User-defined class named "Set" with a non-stdlib FQN
         let userSetSymbol = symbols.define(
             kind: .class,
             name: interner.intern("Set"),
@@ -70,7 +62,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
         let symbols = SymbolTable()
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // User-defined class named "MutableSet" with a non-stdlib FQN
         let userMutableSetSymbol = symbols.define(
             kind: .class,
             name: interner.intern("MutableSet"),
@@ -89,7 +80,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
         let symbols = SymbolTable()
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Synthetic symbol with name "Set" but empty FQN (fallback allowed)
         let syntheticSetSymbol = symbols.define(
             kind: .typeAlias,
             name: interner.intern("Set"),
@@ -103,8 +93,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
                       "Synthetic Set (no FQN) should still be recognized as set-like via fallback")
     }
 
-    // MARK: - loweredRuntimeBuiltinCallee: Regex(String, Set) disambiguation
-
     func testRegexConstructorWithUserDefinedSetDoesNotRouteToSetOverload() {
         let fixture = makeKIRDirectLoweringFixture()
         let interner = fixture.interner
@@ -114,7 +102,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
 
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Define a user class "Set" with non-stdlib FQN
         let userSetClassSymbol = symbols.define(
             kind: .class,
             name: interner.intern("Set"),
@@ -140,8 +127,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
             knownNames: knownNames
         )
 
-        // User-defined Set should NOT match set-like; should fall through
-        // to the single-option overload kk_regex_create_with_option.
         XCTAssertEqual(
             result.map { interner.resolve($0) },
             "kk_regex_create_with_option",
@@ -158,7 +143,6 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
 
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Define stdlib Set with correct FQN
         let stdlibSetClassSymbol = symbols.define(
             kind: .class,
             name: interner.intern("Set"),

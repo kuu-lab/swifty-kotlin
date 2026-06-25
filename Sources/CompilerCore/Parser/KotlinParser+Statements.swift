@@ -199,8 +199,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .tryExpr, range: range.value ?? invalidRange, children)
     }
 
-    // MARK: - Branch Body Helpers
-
     /// Appends a branch body for if/else. Can be a block, a nested control flow,
     /// or a simple inline expression (stops before `else` if requested).
     func appendBranchBody(
