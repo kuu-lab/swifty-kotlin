@@ -1,0 +1,715 @@
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+import XCTest
+
+final class BuildKIRCodegenRegressionTests: XCTestCase {
+    func testBuildKIRLowersListFirstAndOrNullTerminalsToCollectionRuntimeCalls() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.first()
+            values.firstOrNull()
+            values.lastOrNull()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_first"))
+            XCTAssertTrue(callNames.contains("kk_list_firstOrNull"))
+            XCTAssertTrue(callNames.contains("kk_list_lastOrNull"))
+            XCTAssertFalse(callNames.contains("first"))
+            XCTAssertFalse(callNames.contains("firstOrNull"))
+            XCTAssertFalse(callNames.contains("lastOrNull"))
+        }
+    }
+
+    func testABILoweringMarksSetCollectionHelpersAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        XCTAssertTrue(callees.contains(interner.intern("kk_list_intersect")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_list_union")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_list_subtract")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_set_toList")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_set_intersect")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_set_union")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_set_subtract")))
+    }
+
+    func testBuildKIRLowersListUnionToCollectionRuntimeCall() throws {
+        let source = """
+        fun main(values: List<Int>, other: List<Int>) {
+            values.union(other)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_union"))
+            XCTAssertFalse(callNames.contains("union"))
+        }
+    }
+
+    func testBuildKIRLowersSetBinaryMembersToCollectionRuntimeCalls() throws {
+        let source = """
+        fun main(values: Set<Int>, other: List<Int>) {
+            values.intersect(other)
+            values.union(other)
+            values.subtract(other)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_set_intersect"))
+            XCTAssertTrue(callNames.contains("kk_set_union"))
+            XCTAssertTrue(callNames.contains("kk_set_subtract"))
+            XCTAssertFalse(callNames.contains("intersect"))
+            XCTAssertFalse(callNames.contains("union"))
+            XCTAssertFalse(callNames.contains("subtract"))
+        }
+    }
+
+    func testBuildKIRLowersListUnzipToCollectionRuntimeCall() throws {
+        let source = """
+        fun main(values: List<Pair<Int, String>>) {
+            values.unzip()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_unzip"))
+            XCTAssertFalse(callNames.contains("unzip"))
+        }
+    }
+
+    func testBuildKIRLowersListZipWithNextOverloadsToCollectionRuntimeCalls() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.zipWithNext()
+            values.zipWithNext { left, right -> right - left }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_zipWithNext"))
+            XCTAssertTrue(callNames.contains("kk_list_zipWithNextTransform"))
+            XCTAssertFalse(callNames.contains("zipWithNext"))
+        }
+    }
+
+    func testBuildKIRLowersListWithIndexToCollectionRuntimeCall() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.withIndex()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_withIndex"))
+            XCTAssertFalse(callNames.contains("withIndex"))
+        }
+    }
+
+    func testBuildKIRLowersListZipToCollectionRuntimeCall() throws {
+        let source = """
+        fun main(left: List<Int>, right: List<String>) {
+            left.zip(right)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_zip"))
+            XCTAssertFalse(callNames.contains("zip"))
+        }
+    }
+
+    func testBuildKIRLowersStringZipOverloadsToRuntimeCalls() throws {
+        let source = """
+        fun main(left: String, right: CharSequence) {
+            left.zip(right)
+            left.zip(right) { a, b -> a }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_string_zip"))
+            XCTAssertTrue(callNames.contains("kk_string_zipTransform"))
+            XCTAssertFalse(callNames.contains("zip"))
+        }
+    }
+
+    func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
+        let source = """
+        fun main(values: Map<Int, Int>) {
+            values.withDefault { it * 10 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_map_withDefault"))
+            XCTAssertFalse(callNames.contains("withDefault"))
+        }
+    }
+
+    func testBuildKIRLowersListWindowedToCollectionRuntimeCalls() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.windowed(3)
+            values.windowed(3, 2)
+            values.windowed(3, 2, true)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_windowed_default"))
+            XCTAssertTrue(callNames.contains("kk_list_windowed"))
+            XCTAssertTrue(callNames.contains("kk_list_windowed_partial"))
+            XCTAssertFalse(callNames.contains("windowed"))
+        }
+    }
+
+    func testABILoweringMarksAtomicRuntimeHelpersAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_load")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_store")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_long_compareAndExchange")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_ref_exchange")))
+    }
+
+    func testABILoweringMarksNativeRefRuntimeHelpersAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        XCTAssertTrue(callees.contains(interner.intern("kk_weak_ref_create")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_weak_ref_get")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_weak_ref_clear")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_cleaner_create")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_cleaner_dispose")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_gc_collect")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_gc_schedule")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_gc_target_heap_bytes")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_gc_target_heap_utilization")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_gc_max_heap_bytes")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_is_thread_state_runnable")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_gc_suspend_count")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_thread_count")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_debugging_global_object_count")))
+    }
+
+    func testThisBasedMemberCallCompilesAndUsesImplicitReceiverInLowering() throws {
+        let source = """
+        class Vec
+        fun Vec.plus(other: Vec): Vec = this
+        fun Vec.combine(other: Vec): Vec = this.plus(other)
+        fun useCombine(a: Vec, b: Vec): Vec = a.combine(b)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            XCTAssertFalse(ctx.diagnostics.hasError, "Expected this-based member call program to compile without errors.")
+
+            let module = try XCTUnwrap(ctx.kir)
+            let combineFunction = try findKIRFunction(named: "combine", in: module, interner: ctx.interner)
+            let plusCall = try XCTUnwrap(combineFunction.body.first { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                    return false
+                }
+                return ctx.interner.resolve(callee) == "plus"
+            })
+            guard case let .call(_, _, arguments, _, _, _, _, _) = plusCall else {
+                XCTFail("Expected combine to lower to a call to plus.")
+                return
+            }
+
+            let implicitReceiverSymbol = try XCTUnwrap(combineFunction.params.first?.symbol)
+            XCTAssertEqual(arguments.count, 2)
+            guard case let .symbolRef(insertedReceiver)? = module.arena.expr(arguments[0]) else {
+                XCTFail("Expected first argument to be a symbolRef for implicit this receiver.")
+                return
+            }
+            XCTAssertEqual(insertedReceiver, implicitReceiverSymbol)
+        }
+    }
+
+    func testABILoweringInsertsBoxingCallsForPrimitiveToAnyBoundary() throws {
+        let source = """
+        fun acceptAny(x: Any?) = x
+        fun main() {
+            acceptAny(42)
+            acceptAny(true)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertTrue(callNames.contains("kk_box_int"))
+            XCTAssertTrue(callNames.contains("kk_box_bool"))
+        }
+    }
+
+    func testABILoweringBoxingCallsAreNonThrowing() throws {
+        let source = """
+        fun acceptAny(x: Any?) = x
+        fun main() {
+            acceptAny(7)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+
+            let boxingThrowFlags = body.compactMap { instruction -> Bool? in
+                guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else {
+                    return nil
+                }
+                let name = ctx.interner.resolve(callee)
+                guard name == "kk_box_int" || name == "kk_box_bool" ||
+                    name == "kk_unbox_int" || name == "kk_unbox_bool"
+                else {
+                    return nil
+                }
+                return canThrow
+            }
+            XCTAssertFalse(boxingThrowFlags.isEmpty)
+            XCTAssertTrue(boxingThrowFlags.allSatisfy { $0 == false })
+        }
+    }
+
+    func testStringStdlibThrowFlagsAreClassifiedByABI() throws {
+        let source = """
+        fun main() {
+            val maybe: String? = null
+            "  hi  ".trim()
+            "1,2,3".split(",")
+            maybe.isNullOrEmpty()
+            maybe.isNullOrBlank()
+            "42".toInt()
+            "3.14".toDouble()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            XCTAssertEqual(throwFlags["kk_string_trim"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_split"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_isNullOrBlank"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_toInt"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["kk_string_toDouble"]?.allSatisfy { $0 == true }, true)
+        }
+    }
+
+    func testArrayAccessAndAssignmentLowerToRuntimeCallsWithExpectedThrowFlags() throws {
+        let source = """
+        fun main(): Any? {
+            val arr = IntArray(2)
+            arr[0] = 7
+            return arr[0]
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertTrue(callNames.contains("kk_array_new"))
+            XCTAssertTrue(callNames.contains("kk_array_set"))
+            XCTAssertTrue(callNames.contains("kk_array_get"))
+
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            XCTAssertEqual(throwFlags["kk_array_new"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_array_set"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["kk_array_get"]?.allSatisfy { $0 == true }, true)
+        }
+    }
+
+    func testUShortArrayLoweringUsesSharedArrayRuntimeCalls() throws {
+        let source = """
+        fun main(): UShort {
+            val arr = UShortArray(2) { (it + 1).toUShort() }
+            arr[0] = 65535.toUShort()
+            return arr[0]
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertTrue(callNames.contains("kk_array_new"))
+            XCTAssertTrue(callNames.contains("kk_array_set"))
+            XCTAssertTrue(callNames.contains("kk_array_get"))
+
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            XCTAssertEqual(throwFlags["kk_array_new"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_array_set"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["kk_array_get"]?.allSatisfy { $0 == true }, true)
+        }
+    }
+
+    func testUIntArrayAccessAndFactoriesLowerToRuntimeCallsAndResolveUIntArrayType() throws {
+        let source = """
+        fun make() = uintArrayOf(1u, 2u)
+        fun main(): Any? {
+            val arr = UIntArray(2) { (it + 1).toUInt() }
+            arr[0] = 7u
+            val fromFactory = make()
+            return arr[0].toInt() + fromFactory[1].toInt()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let makeSymbol = try XCTUnwrap(sema.symbols.lookupByShortName(ctx.interner.intern("make")).first)
+            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: makeSymbol))
+            guard case let .classType(classType) = sema.types.kind(of: signature.returnType),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else {
+                XCTFail("Expected make() to return a nominal UIntArray type.")
+                return
+            }
+            XCTAssertEqual(ctx.interner.resolve(symbol.name), "UIntArray")
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertTrue(callNames.contains("kk_array_new"))
+            XCTAssertTrue(callNames.contains("kk_array_set"))
+            XCTAssertTrue(callNames.contains("kk_array_get"))
+
+            let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
+            let makeCallNames = extractCallees(from: makeBody, interner: ctx.interner)
+            XCTAssertTrue(makeCallNames.contains("kk_array_of"))
+        }
+    }
+
+    func testArrayBinarySearchLowersToRuntimeCall() throws {
+        let source = """
+        fun main(): Int {
+            val arr = arrayOf(1, 3, 4, 7, 9)
+            return arr.binarySearch(4, 1, 4)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertTrue(callNames.contains("kk_array_binarySearch"), "\(callNames)")
+            XCTAssertFalse(callNames.contains("binarySearch"))
+        }
+    }
+
+    func testULongArrayBinarySearchLowersToUnsignedRuntimeCall() throws {
+        let source = """
+        fun main(): Int {
+            val arr = ULongArray(3) { it.toULong() }
+            return arr.binarySearch(1uL, 0, 3)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertTrue(callNames.contains("kk_uLongArray_binarySearch"), "\(callNames)")
+            XCTAssertFalse(callNames.contains("binarySearch"))
+        }
+    }
+
+    func testMapGetValueLoweringMarksRuntimeCallAsThrowing() throws {
+        let source = """
+        fun main(): Int {
+            val map = mapOf("a" to 1)
+            return map.getValue("b")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+
+            XCTAssertEqual(
+                throwFlags["kk_map_getValue"]?.allSatisfy { $0 == true },
+                true,
+                "kk_map_getValue should be lowered as throwing so ABI lowering wires outThrown."
+            )
+        }
+    }
+
+    func testArrayOutOfBoundsThrownChannelReturnsEarlyBeforeSubsequentReturn() throws {
+        let source = """
+        fun readOutOfBounds(arr: Any?): Any? = arr[5]
+        fun main(): Any? {
+            val arr = IntArray(1)
+            readOutOfBounds(arr)
+            return 99
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "ArrayThrownChannel",
+                emit: .executable,
+                outputPath: outputPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            let result: CommandResult
+            do {
+                result = try CommandRunner.run(executable: outputPath, arguments: [])
+                XCTFail("Expected top-level thrown channel to fail process exit.")
+                return
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                result = failed
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+                return
+            }
+            XCTAssertEqual(result.exitCode, 1)
+            XCTAssertTrue(result.stderr.contains("KSWIFTK-LINK-0003"))
+        }
+    }
+
+    func testMutableListIndexedMutationUsesThrowingABI() throws {
+        let source = """
+        fun main(): Any? {
+            val values = mutableListOf(10, 20)
+            values.add(1, 15)
+            values[0] = 5
+            return values[0]
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertTrue(callNames.contains("kk_mutable_list_add_at"))
+            XCTAssertTrue(callNames.contains("kk_mutable_list_set"))
+
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            XCTAssertEqual(throwFlags["kk_mutable_list_add_at"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["kk_mutable_list_set"]?.allSatisfy { $0 == true }, true)
+        }
+    }
+
+    func testFrontendAndSemaResolveTypedDeclarationsAndEmitExpectedDiagnostics() throws {
+        let source = """
+        package typed.demo
+        import typed.demo.*
+
+        public inline suspend fun transform<T>(
+            vararg values: T,
+            crossinline mapper: T,
+            noinline fallback: T = mapper
+        ): String? = "ok"
+        fun String.decorate(): String = this
+
+        fun typed(a: Int, b: String?, c: Any): Int = 1
+        fun duplicate(x: Int, x: Int): Int = x
+
+        val explicit: Int = 1
+        var delegated by delegateProvider
+        val unknown: CustomType = explicit
+        val explicit: Int = 2
+
+        class TypedBox<T>(value: T)
+        object Obj
+        typealias Alias = String
+        enum class Kind { A, B }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "Typed", emit: .kirDump)
+            try runToKIR(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let declarations = ast.arena.declarations()
+            XCTAssertGreaterThanOrEqual(declarations.count, 8)
+
+            var sawTypedParameter = false
+            var sawFunctionReturnType = false
+            var sawFunctionReceiverType = false
+            var sawExplicitPropertyType = false
+            var sawDelegatedPropertyWithoutType = false
+
+            for decl in declarations {
+                switch decl {
+                case let .funDecl(fn):
+                    if fn.returnType != nil {
+                        sawFunctionReturnType = true
+                    }
+                    if fn.receiverType != nil {
+                        sawFunctionReceiverType = true
+                    }
+                    if fn.valueParams.contains(where: { $0.type != nil }) {
+                        sawTypedParameter = true
+                    }
+                case let .propertyDecl(property):
+                    if let typeID = property.type, let typeRef = ast.arena.typeRef(typeID) {
+                        sawExplicitPropertyType = true
+                        if case let .named(path, _, _) = typeRef {
+                            XCTAssertFalse(path.isEmpty)
+                        }
+                    } else if ctx.interner.resolve(property.name) == "delegated" {
+                        sawDelegatedPropertyWithoutType = true
+                    }
+                default:
+                    continue
+                }
+            }
+
+            XCTAssertTrue(sawTypedParameter)
+            XCTAssertTrue(sawFunctionReturnType)
+            XCTAssertTrue(sawFunctionReceiverType)
+            XCTAssertTrue(sawExplicitPropertyType)
+            XCTAssertTrue(sawDelegatedPropertyWithoutType)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            XCTAssertFalse(sema.symbols.allSymbols().isEmpty)
+            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let decorateSymbol = sema.symbols.allSymbols().first(where: { symbol in
+                ctx.interner.resolve(symbol.name) == "decorate"
+            })
+            XCTAssertNotNil(decorateSymbol)
+            if let decorateSymbol {
+                let signature = sema.symbols.functionSignature(for: decorateSymbol.id)
+                XCTAssertNotNil(signature?.receiverType)
+            }
+
+            let codes = Set(ctx.diagnostics.diagnostics.map(\.code))
+            XCTAssertTrue(codes.contains("KSWIFTK-TYPE-0002"))
+            XCTAssertTrue(codes.contains("KSWIFTK-SEMA-0001"))
+        }
+    }
+}
