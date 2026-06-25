@@ -354,6 +354,7 @@ extension ABIMismatchTests {
         "kk_job_is_completed",
         "kk_job_is_failed",
         "kk_job_join",
+        "kk_js_readonly_set_toMutableSet",
         "kk_json_default",
         "kk_json_encodeMapToString",
         "kk_json_encodeToString",
