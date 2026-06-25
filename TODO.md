@@ -112,10 +112,10 @@
 - [ ] STDLIB-COMP-FN-040: `minOf` 関数の実装（Float版、vararg）
 - [ ] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-046: `minOf` 関数の実装（Long版、vararg）
-- [ ] STDLIB-COMP-FN-050: `minOf` 関数の実装（UByte版）
-- [ ] STDLIB-COMP-FN-051: `minOf` 関数の実装（UInt版）
-- [ ] STDLIB-COMP-FN-052: `minOf` 関数の実装（ULong版）
-- [ ] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
+- [x] STDLIB-COMP-FN-050: `minOf` 関数の実装（UByte版）
+- [x] STDLIB-COMP-FN-051: `minOf` 関数の実装（UInt版）
+- [x] STDLIB-COMP-FN-052: `minOf` 関数の実装（ULong版）
+- [x] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
 - [x] STDLIB-COMP-FN-059: `nullsFirst` 関数の実装（Comparable版）
 - [ ] STDLIB-COMP-FN-061: `nullsLast` 関数の実装（Comparable版）
 - [x] STDLIB-COMP-FN-062: `nullsLast` 関数の実装（Comparator版）
