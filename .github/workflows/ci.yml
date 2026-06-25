@@ -190,13 +190,6 @@ jobs:
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
       - uses: actions/checkout@v4
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
