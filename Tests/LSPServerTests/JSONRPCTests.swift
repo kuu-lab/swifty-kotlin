@@ -16,13 +16,12 @@ final class JSONRPCTests: XCTestCase {
         let received = connection.receive()
         XCTAssertEqual(received?["method"] as? String, "initialize")
         XCTAssertEqual(received?["id"] as? Int, 1)
-        XCTAssertNil(connection.receive(), "Stream should be exhausted after one message")
+        XCTAssertNil(connection.receive())
     }
 
     func testReadsMultipleMessagesAcrossChunkBoundaries() {
         let first = LSPTestSupport.frame(["jsonrpc": "2.0", "method": "a"])
         let second = LSPTestSupport.frame(["jsonrpc": "2.0", "method": "b"])
-        // Split the combined stream at an arbitrary mid-point to exercise buffering.
         var combined = first
         combined.append(second)
         let mid = combined.count / 2

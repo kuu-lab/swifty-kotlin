@@ -11,8 +11,6 @@ final class ConstantCollectorTests: XCTestCase {
         interner = StringInterner()
     }
 
-    // MARK: - inlineGetterConstantExpr: Int literals
-
     func testInlineGetterExtractsIntegerLiteral() {
         let source = "val x: Int\n    get() = 42"
         let result = collector.inlineGetterConstantExpr(propertyName: "x", source: source, interner: interner)
@@ -38,8 +36,6 @@ final class ConstantCollectorTests: XCTestCase {
         XCTAssertEqual(result, .intLiteral(0))
     }
 
-    // MARK: - inlineGetterConstantExpr: Bool literals
-
     func testInlineGetterExtractsBoolTrue() {
         let source = "val flag: Boolean\n    get() = true"
         let result = collector.inlineGetterConstantExpr(propertyName: "flag", source: source, interner: interner)
@@ -51,8 +47,6 @@ final class ConstantCollectorTests: XCTestCase {
         let result = collector.inlineGetterConstantExpr(propertyName: "flag", source: source, interner: interner)
         XCTAssertEqual(result, .boolLiteral(false))
     }
-
-    // MARK: - inlineGetterConstantExpr: String literals
 
     func testInlineGetterExtractsStringLiteral() {
         let source = "val name: String\n    get() = \"hello\""
@@ -67,8 +61,6 @@ final class ConstantCollectorTests: XCTestCase {
         let expected = interner.intern("")
         XCTAssertEqual(result, .stringLiteral(expected))
     }
-
-    // MARK: - inlineGetterConstantExpr: Nil cases
 
     func testInlineGetterReturnsNilForEmptyPropertyName() {
         let source = "val x: Int\n    get() = 42"
@@ -99,8 +91,6 @@ final class ConstantCollectorTests: XCTestCase {
         let result = collector.inlineGetterConstantExpr(propertyName: "x", source: "", interner: interner)
         XCTAssertNil(result)
     }
-
-    // MARK: - literalConstantExpr via collectPropertyConstantInitializers
 
     func testCollectIntLiteralFromTopLevelVal() throws {
         let ctx = makeContextFromSource("val answer = 42")
@@ -198,8 +188,6 @@ final class ConstantCollectorTests: XCTestCase {
         let hasIntLiteral42 = mapping.values.contains { if case .intLiteral(42) = $0 { return true }; return false }
         XCTAssertFalse(hasIntLiteral42, "Function call result should not be collected as constant")
     }
-
-    // MARK: - Helpers
 
     private func buildSourceByFileID(ctx: CompilationContext) -> [Int32: String] {
         var result: [Int32: String] = [:]

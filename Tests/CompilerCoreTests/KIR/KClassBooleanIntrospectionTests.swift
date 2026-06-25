@@ -2,15 +2,6 @@
 import Foundation
 import XCTest
 
-/// STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
-/// (`isData` / `isSealed` / `isValue`) lowering.
-///
-/// These members are end-to-end wired (Sema inference → KIR lowering → runtime),
-/// so the tests assert that the expected runtime callee is emitted for both
-/// receiver forms:
-/// - a compile-time class literal (`Foo::class.isData`), and
-/// - a stored `KClass<T>` variable (`val k: KClass<Foo> = Foo::class; k.isData`),
-///   which exercises the `.classType`-wrapping-KClass receiver representation.
 final class KClassBooleanIntrospectionTests: XCTestCase {
 
     private func calleesForMain(_ source: String) throws -> Set<String> {
@@ -28,8 +19,6 @@ final class KClassBooleanIntrospectionTests: XCTestCase {
         }
         return try XCTUnwrap(result)
     }
-
-    // MARK: - Class-literal receiver
 
     func testClassLiteralIsDataEmitsRuntimeCallAndMetadata() throws {
         let callees = try calleesForMain("""
@@ -77,9 +66,6 @@ final class KClassBooleanIntrospectionTests: XCTestCase {
         )
     }
 
-    /// The type-kind members (isEnum/isInterface/isObject/isFun) must also be
-    /// routed by the KIR dispatch set to the lowerer — without that they would
-    /// fall through to a regular call and link-fail with an undefined symbol.
     func testClassLiteralTypeKindMembersEmitRuntimeCalls() throws {
         let cases: [(decl: String, ref: String, member: String, callee: String)] = [
             ("enum class Color { RED }", "Color", "isEnum", "kk_kclass_is_enum"),
@@ -100,9 +86,6 @@ final class KClassBooleanIntrospectionTests: XCTestCase {
             )
         }
     }
-
-    // MARK: - Stored KClass<T> variable receiver (regression for the
-    // `.classType`-wrapping-KClass receiver guard).
 
     func testVariableReceiverIsDataEmitsRuntimeCall() throws {
         let callees = try calleesForMain("""

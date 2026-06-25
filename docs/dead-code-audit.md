@@ -1,5 +1,10 @@
 # Dead Code Audit（2026-06-12）
 
+> **ステータス**: Section A（完全到達不能 102 個）と Section C（参照ゼロ Swift 関数 6 個）は **削除済み**。
+> 参照元ファイル（`RuntimeLogging.swift`, `RuntimeFlowErrorHandling.swift` 等）も既に存在しない。
+> Section B（テストのみ参照 127 個）はトリアージ途中。
+> 本ドキュメントは監査の履歴記録として保持する。
+
 TODO.md の Phase RF9（RF-DEAD-001〜004）の根拠インベントリ。検出手法と全リストを記録する。
 
 ## 検出手法
@@ -35,9 +40,11 @@ grep -rhoE '"kk_[a-zA-Z0-9_]*\\\(' Sources/CompilerCore --include="*.swift" \
 comm -23 /tmp/runtime_cdecl.txt /tmp/kk_compilercore.txt
 ```
 
-## A. 完全到達不能の `kk_*` ランタイム関数（102 個）→ RF-DEAD-001
+## A. 完全到達不能の `kk_*` ランタイム関数（102 個）→ RF-DEAD-001 ✅ 削除済み
 
-Runtime 実装（`@_cdecl` 宣言）と `RuntimeABISpec` ミラーのみ存在。CompilerCore（静的・動的とも）、Tests、Runtime 内部、`Stdlib/*.kt` のいずれからも参照ゼロ。削除時は **Runtime 実装 + spec エントリをセットで削除**し、孤立する private ヘルパー・Box 型も同時に消す。
+> **削除済み**: 以下のシンボルとその実装ファイル（`RuntimeLogging.swift`, `RuntimeFlowErrorHandling.swift` 等）はすべて削除された。下記リストは監査記録として残す。
+
+~~Runtime 実装（`@_cdecl` 宣言）と `RuntimeABISpec` ミラーのみ存在。CompilerCore（静的・動的とも）、Tests、Runtime 内部、`Stdlib/*.kt` のいずれからも参照ゼロ。削除時は **Runtime 実装 + spec エントリをセットで削除**し、孤立する private ヘルパー・Box 型も同時に消す。~~
 
 ### ロギング（SLF4J 互換・JVM 専用でターゲット外）— 28 個
 
@@ -202,7 +209,7 @@ kk_write_barrier
 - `kk_write_barrier` / `kk_register_global_root` / `kk_unregister_global_root` / `kk_panic` は GC・ランタイム基盤の名前だが現行 codegen は emit していない（global root は `kk_global_root_slot_*` 動的名で処理）。設計上の予約か取り残しかの判断が必要
 - `kk_set_*` HOF 群は TEST-COL-012（TODO.md テスト改善タスク）が Codegen 統合テスト追加を予定している領域と重なる。削除ではなく配線が正解の可能性あり
 
-## C. 参照ゼロの Swift 関数（6 個）→ RF-DEAD-003
+## C. 参照ゼロの Swift 関数（6 個）→ RF-DEAD-003 ✅ 削除済み
 
 | 関数 | 場所 | 備考 |
 |---|---|---|

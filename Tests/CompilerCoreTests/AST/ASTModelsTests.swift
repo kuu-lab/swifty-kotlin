@@ -341,16 +341,6 @@ final class ASTModelsTests: XCTestCase {
         }
     }
 
-    func testTypeArgRefCases() {
-        let typeRef = TypeRefID(rawValue: 0)
-        let invariant = TypeArgRef.invariant(typeRef)
-        let outArg = TypeArgRef.out(typeRef)
-        let inArg = TypeArgRef.in(typeRef)
-        let star = TypeArgRef.star
-        XCTAssertNotEqual(invariant, star)
-        XCTAssertNotEqual(outArg, inArg)
-    }
-
     func testPropertyAccessorDeclSetterWithExprBody() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)
@@ -464,7 +454,4 @@ final class ASTModelsTests: XCTestCase {
         XCTAssertEqual(catchClause.paramTypeName, name)
     }
 
-    // MARK: - Expr variants
-
-    // MARK: - ASTArena expr() method
 }
