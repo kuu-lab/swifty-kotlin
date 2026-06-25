@@ -15,7 +15,7 @@ symbol s13 kind=function fq=kotlin.collections.MutableList.set vis=public flags=
 symbol s14 kind=function fq=kotlin.collections.MutableList.add vis=public flags=synthetic|operatorFunction sig=recv=Class#11<T#12> params=[T#12] ret=Boolean
 symbol s15 kind=function fq=kotlin.collections.MutableList.add vis=public flags=synthetic sig=recv=Class#11<T#12> params=[Int,T#12] ret=Unit
 symbol s16 kind=class fq=kotlin.ByteArray vis=public flags=synthetic type=Class#16
-symbol s17 kind=function fq=kotlin.comparisons.minOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong vararg=[0,1]
+symbol s17 kind=function fq=kotlin.comparisons.minOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[UByte,UByte] ret=UByte vararg=[0,1]
 symbol s18 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol s19 kind=class fq=java.util.Locale vis=public flags=synthetic type=Class#19
 symbol s20 kind=function fq=kotlin.text.__kk_lowercase_locale vis=public flags=synthetic sig=recv=String params=[Class#19] ret=String
@@ -190,11 +190,11 @@ symbol s188 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=r
 symbol s189 kind=valueParameter fq=kotlin.text.decodeToString.$47.startIndex vis=private flags=_
 symbol s190 kind=valueParameter fq=kotlin.text.decodeToString.$47.endIndex vis=private flags=_
 symbol s191 kind=valueParameter fq=kotlin.text.decodeToString.$47.throwOnInvalidSequence vis=private flags=_
-symbol s192 kind=function fq=golden.sema.varargMinULong vis=public flags=_ sig=recv=_ params=[ULong,ULong,ULong,ULong] ret=ULong
-symbol s193 kind=valueParameter fq=golden.sema.varargMinULong.$48.a vis=private flags=_
-symbol s194 kind=valueParameter fq=golden.sema.varargMinULong.$48.b vis=private flags=_
-symbol s195 kind=valueParameter fq=golden.sema.varargMinULong.$48.c vis=private flags=_
-symbol s196 kind=valueParameter fq=golden.sema.varargMinULong.$48.d vis=private flags=_
+symbol s192 kind=function fq=golden.sema.varargMinUByte vis=public flags=_ sig=recv=_ params=[UByte,UByte,UByte,UByte] ret=UByte
+symbol s193 kind=valueParameter fq=golden.sema.varargMinUByte.$48.a vis=private flags=_
+symbol s194 kind=valueParameter fq=golden.sema.varargMinUByte.$48.b vis=private flags=_
+symbol s195 kind=valueParameter fq=golden.sema.varargMinUByte.$48.c vis=private flags=_
+symbol s196 kind=valueParameter fq=golden.sema.varargMinUByte.$48.d vis=private flags=_
 symbol s197 kind=local fq=__local_0.i vis=private flags=mutable type=Int
 symbol s198 kind=local fq=__local_1.sz vis=private flags=_ type=Int
 symbol s199 kind=local fq=__local_2.element vis=private flags=_ type=T#47
@@ -356,7 +356,7 @@ file f1 package=kotlin.text
   decl d52 fun decodeToString sym=s185
   decl d53 fun decodeToString sym=s188
 file f2 package=golden.sema
-  decl d54 fun varargMinULong sym=s192
+  decl d54 fun varargMinUByte sym=s192
 expr e1 call callee=e0 args=[] type=Boolean call=s7 targs=[T#45]
 expr e3 string(Collection is empty.) type=String
 expr e4 call callee=e2 args=[_:e3] type=Class#36 call=s39
@@ -1554,8 +1554,8 @@ expr e1295 name(startIndex) type=Int ref=s189
 expr e1296 name(endIndex) type=Int ref=s190
 expr e1297 name(throwOnInvalidSequence) type=Boolean ref=s191
 expr e1298 memberCall recv=e1294 callee=__kk_decodeToString_range_throw args=[_:e1295,_:e1296,_:e1297] type=String call=s31
-expr e1300 name(a) type=ULong ref=s193
-expr e1301 name(b) type=ULong ref=s194
-expr e1302 name(c) type=ULong ref=s195
-expr e1303 name(d) type=ULong ref=s196
-expr e1304 call callee=e1299 args=[_:e1300,_:e1301,_:e1302,_:e1303] type=ULong call=s17
+expr e1300 name(a) type=UByte ref=s193
+expr e1301 name(b) type=UByte ref=s194
+expr e1302 name(c) type=UByte ref=s195
+expr e1303 name(d) type=UByte ref=s196
+expr e1304 call callee=e1299 args=[_:e1300,_:e1301,_:e1302,_:e1303] type=UByte call=s17
