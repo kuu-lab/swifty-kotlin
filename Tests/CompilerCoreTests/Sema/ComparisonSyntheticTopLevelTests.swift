@@ -688,6 +688,46 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-015: maxOf(Float, Float, Float) — Float is preserved (no widening to Double)
+    func testThreeArgMaxOfFloatResolvesToFloat3Overload() throws {
+        let source = """
+        fun sample(a: Float, b: Float, c: Float): Float = maxOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 3
+                },
+                "Expected 3-arg maxOf call with Float arguments"
+            )
+
+            // Float is preserved end-to-end (no widening to Double)
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.floatType)
+            // Resolves via the Float3 special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .maxOfFloat3)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.floatType, sema.types.floatType, sema.types.floatType])
+        }
+    }
+
     // STDLIB-COMP-FN-038: minOf(Float, Float) — 2-arg Float overload
     func testTwoArgMinOfFloatResolvesToFloat2Overload() throws {
         let source = """
