@@ -1728,11 +1728,6 @@ public func kk_flow_state_in(_ flowHandle: Int, _ initialValue: Int) -> Int {
 
 // MARK: - Advanced Flow Operators (STDLIB-FLOW-176)
 
-// ---------------------------------------------------------------------------
-// Helpers for advanced source evaluation (flatMapConcat, flatMapMerge,
-// flatMapLatest, merge, zip, combine).  These are called from
-// runtimeFlowRunSourceStage when the flow source is one of the advanced types.
-// ---------------------------------------------------------------------------
 
 private func runtimeFlowEvaluateFlatMapConcat(
     sourceHandle: Int,

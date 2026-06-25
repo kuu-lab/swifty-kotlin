@@ -1,8 +1,6 @@
 @testable import Runtime
 import XCTest
 
-/// Edge-case / boundary-value tests for kotlin.uuid.Uuid runtime.
-/// Covers STDLIB-UUID-003: runtime / canonical form / failure path.
 final class RuntimeUuidEdgeCaseTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -62,9 +60,7 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
 
     // MARK: - Canonical Form (8-4-4-4-12 lowercase)
 
-    /// toString must emit lowercase hex digits regardless of how the UUID was created.
     func testToStringAlwaysEmitsLowercase() {
-        // Parse with uppercase input (Kotlin's parser is case-insensitive)
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("123E4567-E89B-12D3-A456-426614174000"), &thrown)
         XCTAssertEqual(thrown, 0, "Parsing uppercase UUID string should succeed")
@@ -72,7 +68,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertEqual(str, "123e4567-e89b-12d3-a456-426614174000", "toString must emit lowercase")
     }
 
-    /// toString must produce exactly the 8-4-4-4-12 canonical hyphenated form.
     func testToStringProducesCanonicalForm() {
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("550e8400-e29b-41d4-a716-446655440000"), &thrown)
@@ -94,7 +89,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertEqual(parts[4].count, 12)
     }
 
-    /// Round-trip: parse canonical string -> toString == original (lowercase).
     func testCanonicalStringRoundTrip() {
         let inputs = [
             "00000000-0000-0000-0000-000000000000",
@@ -172,7 +166,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(extractRuntimeString(kk_uuid_toString(uuidRaw)),
                        "ffffffff-ffff-ffff-ffff-ffffffffffff")
-        // MSB and LSB should both be -1 when interpreted as Int64 (all bits set)
         XCTAssertEqual(UInt64(bitPattern: Int64(kk_uuid_mostSignificantBits(uuidRaw))),
                        UInt64.max)
         XCTAssertEqual(UInt64(bitPattern: Int64(kk_uuid_leastSignificantBits(uuidRaw))),
@@ -196,7 +189,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertEqual(thrown, 0)
         let hexOut = extractRuntimeString(kk_uuid_toHexString(uuidRaw))
         XCTAssertEqual(hexOut, hexInput, "toHexString must match original hex input")
-        // Re-parse the hex output and verify canonical form
         let uuidRaw2 = kk_uuid_parse(makeRuntimeString(hexOut), &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(extractRuntimeString(kk_uuid_toString(uuidRaw2)),
@@ -293,11 +285,8 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
 
     // MARK: - toLongs / fromLongs endianness round-trip
 
-    /// toLongs should return (mostSignificantBits, leastSignificantBits) in that order.
     func testToLongsEndianness() {
         var thrown = 0
-        // 550e8400-e29b-41d4 -> msb = 0x550e8400e29b41d4
-        // a716-446655440000  -> lsb = 0xa716446655440000
         let uuidRaw = kk_uuid_parse(makeRuntimeString("550e8400-e29b-41d4-a716-446655440000"), &thrown)
         XCTAssertEqual(thrown, 0)
 
@@ -311,7 +300,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
                        "Second element of toLongs must be least significant bits")
     }
 
-    /// toLongs on NIL UUID should return (0, 0).
     func testToLongsNilUuid() {
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("00000000-0000-0000-0000-000000000000"), &thrown)
@@ -323,7 +311,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
 
     // MARK: - toByteArray (big-endian)
 
-    /// toByteArray must return 16 bytes in big-endian order.
     func testToByteArrayLength() {
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("123e4567-e89b-12d3-a456-426614174000"), &thrown)
@@ -336,10 +323,7 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertEqual(arrayBox.elements.count, 16, "toByteArray must return exactly 16 bytes")
     }
 
-    /// toByteArray big-endian order: first byte is MSB high byte.
     func testToByteArrayBigEndian() {
-        // UUID: 550e8400-e29b-41d4-a716-446655440000
-        // Bytes (big-endian): 55 0e 84 00  e2 9b 41 d4  a7 16 44 66  55 44 00 00
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("550e8400-e29b-41d4-a716-446655440000"), &thrown)
         XCTAssertEqual(thrown, 0)
@@ -360,7 +344,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         }
     }
 
-    /// NIL UUID byte array must be all zeros.
     func testToByteArrayNilUuidAllZeros() {
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("00000000-0000-0000-0000-000000000000"), &thrown)
@@ -377,7 +360,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
 
     // MARK: - Failure Paths
 
-    /// Too-short string must throw.
     func testParseTooShortStringThrows() {
         var thrown = 0
         let result = kk_uuid_parse(makeRuntimeString("123e4567-e89b-12d3"), &thrown)
@@ -385,7 +367,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0, "Too-short string must throw")
     }
 
-    /// Too-long string must throw.
     func testParseTooLongStringThrows() {
         var thrown = 0
         let longStr = "123e4567-e89b-12d3-a456-426614174000-extra"
@@ -394,7 +375,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0, "Too-long string must throw")
     }
 
-    /// Invalid hex characters in a 36-character string must throw.
     func testParseInvalidHexCharsThrows() {
         var thrown = 0
         let bad = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -403,27 +383,22 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0, "Invalid hex chars must throw")
     }
 
-    /// Missing dashes (31 hex chars) must throw.
     func testParseMissingDashesThrows() {
         var thrown = 0
-        // 31 chars — not 32 (hex) nor 36 (dashed)
         let noDash = "123e4567e89b12d3a45642661417400"
         let result = kk_uuid_parse(makeRuntimeString(noDash), &thrown)
         XCTAssertEqual(result, 0)
         XCTAssertNotEqual(thrown, 0, "31-char string (not 32 hex) must throw")
     }
 
-    /// Extra dashes must throw.
     func testParseExtraDashesThrows() {
         var thrown = 0
-        // Correct length but wrong dash positions
         let extraDash = "123e-4567-e89b-12d3-a456426614174"
         let result = kk_uuid_parse(makeRuntimeString(extraDash), &thrown)
         XCTAssertEqual(result, 0)
         XCTAssertNotEqual(thrown, 0, "Wrong dash positions must throw")
     }
 
-    /// Empty string must throw.
     func testParseEmptyStringThrows() {
         var thrown = 0
         let result = kk_uuid_parse(makeRuntimeString(""), &thrown)
@@ -431,10 +406,8 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0, "Empty string must throw")
     }
 
-    /// 32-char string with invalid hex char must throw.
     func testParseHex32WithInvalidCharThrows() {
         var thrown = 0
-        // 32 chars but one 'g' which is not hex
         let bad = "123e4567e89b12d3a45642661417400g"
         let result = kk_uuid_parse(makeRuntimeString(bad), &thrown)
         XCTAssertEqual(result, 0)
@@ -638,7 +611,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("123E4567E89B12D3A456426614174000"), &thrown)
         XCTAssertEqual(thrown, 0, "Uppercase 32-char hex string must parse successfully")
-        // toString must still emit lowercase
         let str = extractRuntimeString(kk_uuid_toString(uuidRaw))
         XCTAssertEqual(str, "123e4567-e89b-12d3-a456-426614174000")
     }
@@ -649,7 +621,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("00000000-0000-0000-0000-000000000000"), &thrown)
         XCTAssertEqual(thrown, 0)
-        // NIL UUID: version bits are 0
         XCTAssertEqual(kk_uuid_version(uuidRaw), 0)
     }
 
@@ -657,7 +628,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         var thrown = 0
         let uuidRaw = kk_uuid_parse(makeRuntimeString("ffffffff-ffff-ffff-ffff-ffffffffffff"), &thrown)
         XCTAssertEqual(thrown, 0)
-        // MAX UUID: version bits are 0xF = 15
         XCTAssertEqual(kk_uuid_version(uuidRaw), 15)
     }
 

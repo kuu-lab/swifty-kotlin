@@ -116,8 +116,12 @@ extension ExprTypeChecker {
             // For lists and plain collection exprs: fall back only when no operator candidates exist.
             // For sequences: also fall back when candidates exist but none accepts the RHS type
             // (e.g. `seq + element` where only `plus(Sequence<Any>)` is registered).
+            // For list minus with a collection RHS (list - listOf(...)): always fall back so that
+            // kk_list_minus_collection is used, even when element-minus stubs exist as candidates.
+            let rhsIsCollectionExpr = sema.bindings.isCollectionExpr(rhsID)
             let shouldFallBack = (isListLhs || isCollExpr) && operatorCandidates.isEmpty
                 || isSeqLhs
+                || isListLhs && op == .subtract && rhsIsCollectionExpr
             if shouldFallBack {
                 sema.bindings.bindExprType(id, type: lhs)
                 sema.bindings.markCollectionExpr(id)

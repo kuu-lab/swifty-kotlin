@@ -76,8 +76,6 @@ extension NativeEmitter {
     }
 }
 
-// MARK: - Helper methods
-
 extension NativeEmitter.FunctionEmissionState {
 
     static func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
