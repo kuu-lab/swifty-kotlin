@@ -1,1 +1,0 @@
-fun useReadln(): String = readln()
