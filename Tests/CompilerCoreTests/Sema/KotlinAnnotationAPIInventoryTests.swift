@@ -2,44 +2,7 @@
 import Foundation
 import XCTest
 
-// MARK: - STDLIB-ANNO-001: kotlin.annotation API Surface Inventory
-//
-// This file fixes the canonical set of symbols that the sema layer must register
-// for the `kotlin.annotation` package and verifies that every symbol is present in
-// the symbol table after a minimal sema run. It covers:
-//
-//   Annotation classes:
-//     • @Target              (kotlin.annotation.Target)
-//     • @Retention           (kotlin.annotation.Retention)
-//     • @Repeatable          (kotlin.annotation.Repeatable)
-//     • @MustBeDocumented    (kotlin.annotation.MustBeDocumented)
-//
-//   Enum classes and their entries:
-//     • AnnotationTarget     (CLASS, ANNOTATION_CLASS, TYPE_PARAMETER, PROPERTY, FIELD,
-//                             LOCAL_VARIABLE, VALUE_PARAMETER, CONSTRUCTOR, FUNCTION,
-//                             PROPERTY_GETTER, PROPERTY_SETTER, TYPE, EXPRESSION,
-//                             FILE, TYPEALIAS)
-//     • AnnotationRetention  (SOURCE, BINARY, RUNTIME)
-//
-// Scope: symbol-table / sema-level only.  Diagnostic behaviour for these annotations
-//        is covered by AnnotationSemanticTests (codex #1205).
-
 final class KotlinAnnotationAPIInventoryTests: XCTestCase {
-
-    // MARK: - Shared sema fixture
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
-    // MARK: - Lookup helpers
 
     private func symbol(
         fqPath: [String],

@@ -2,22 +2,6 @@
 import XCTest
 
 final class DurationSyntheticStubTests: XCTestCase {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
-    // MIGRATION-TIME-001: plus, minus, times, div, unaryMinus are implemented in
-    // BundledKotlinStdlib.kotlinTimeSource via __kk_duration_* bridge stubs. Direct operator
-    // stubs (plus, minus, …) are kept as backward-compatible dispatch targets until
-    // collectMemberFunctionCandidates probes kotlin.time extension functions. This test verifies:
-    //   (a) The __kk_duration_* bridge stubs exist with correct ABI link names.
-    //   (b) compareTo remains as a direct synthetic stub (not in migration scope).
     func testDurationOperatorBridgesAreRegistered() throws {
         let (sema, interner) = try makeSema()
 

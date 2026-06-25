@@ -84,6 +84,7 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
 }
 
 
+// (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
 @_cdecl("kk_kclass_get_arity")
 public func kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeReflectionKClassBox(from: kclassRaw) else {

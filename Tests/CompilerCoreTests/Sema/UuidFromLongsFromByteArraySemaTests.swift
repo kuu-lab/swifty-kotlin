@@ -2,39 +2,7 @@
 import Foundation
 import XCTest
 
-// MARK: - STDLIB-UUID-ABI-001/002: Uuid.fromLongs and Uuid.fromByteArray sema stubs
-//
-// Verifies that fromLongs(msb, lsb) and fromByteArray(byteArray) companion factory
-// methods are registered with the correct ABI external-link names.
-
 final class UuidFromLongsFromByteArraySemaTests: XCTestCase {
-
-    // MARK: - Shared sema fixture
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
-    // MARK: - Lookup helpers
-
-    private func allExternalLinks(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Set<String> {
-        let interned = fqPath.map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: interned)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
-    }
 
     // MARK: - fromLongs
 

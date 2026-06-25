@@ -479,8 +479,6 @@ extension KIRLoweringDriver {
     }
 }
 
-// MARK: - Delegate Lowering Helpers
-
 extension KIRLoweringDriver {
     /// Detects the delegate kind from the delegate expression AST node.
     func detectDelegateKind(

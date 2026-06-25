@@ -2,7 +2,6 @@
 // MARK: - provideDelegate operator support (PROP-007)
 
 extension KIRLoweringDriver {
-    /// Checks whether the delegate expression type defines a `provideDelegate` operator function.
     func checkHasProvideDelegate(
         delegateExprType: TypeID?,
         shared: KIRLoweringSharedContext
@@ -132,10 +131,7 @@ extension KIRLoweringDriver {
     }
 }
 
-// MARK: - ABILoweringPass helpers
-
 extension ABILoweringPass {
-    /// Returns the set of KProperty stub runtime callee names for the non-throwing callees set.
     static func kPropertyStubCallees(_ interner: StringInterner) -> Set<InternedString> {
         [
             interner.intern("kk_kproperty_stub_create"),

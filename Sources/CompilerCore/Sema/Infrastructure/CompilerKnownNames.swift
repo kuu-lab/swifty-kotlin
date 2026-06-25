@@ -292,6 +292,8 @@ struct KnownCompilerNames {
     let kClassSafeCastName: InternedString
     let membersName: InternedString
     let constructorsName: InternedString
+    // MIGRATION-REFLECT-002: KClass member introspection
+    let nestedClassesName: InternedString
     // STDLIB-REFLECT-060: KClass basic reflection features
     let isFinalName: InternedString
     let isOpenName: InternedString
@@ -480,6 +482,8 @@ struct KnownCompilerNames {
         kClassSafeCastName = interner.intern("safeCast")
         membersName = interner.intern("members")
         constructorsName = interner.intern("constructors")
+        // MIGRATION-REFLECT-002: KClass member introspection
+        nestedClassesName = interner.intern("nestedClasses")
         // STDLIB-REFLECT-060: KClass basic reflection features
         isFinalName = interner.intern("isFinal")
         isOpenName = interner.intern("isOpen")

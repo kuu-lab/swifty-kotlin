@@ -193,7 +193,6 @@ extension DataFlowSemaPhase {
         // map(transform: (T) -> R): Result<R>
         let rName = interner.intern("R")
 
-        // Create map-scoped R type parameter
         let mapRFQName = resultFQName + [interner.intern("map"), rName]
         let mapRSymbol: SymbolID
         if let existing = symbols.lookup(fqName: mapRFQName) {
@@ -234,7 +233,6 @@ extension DataFlowSemaPhase {
         )
 
         // fold(onSuccess: (T) -> R, onFailure: (Throwable) -> R): R
-        // Create fold-scoped R type parameter
         let foldRFQName = resultFQName + [interner.intern("fold"), rName]
         let foldRSymbol: SymbolID
         if let existing = symbols.lookup(fqName: foldRFQName) {
@@ -406,8 +404,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - Result Helpers
 
     private func registerResultTopLevelFunction(
         named name: String,
