@@ -799,8 +799,6 @@ extension CallTypeChecker {
         return directSupertypes.contains(closeableSymbol)
     }
 
-    // MARK: - Result helpers (STDLIB-590)
-
     /// Extract the element type T from a Result<out T> receiver type.
     func extractResultElementType(
         _ receiverType: TypeID,

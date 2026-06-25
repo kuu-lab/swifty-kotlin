@@ -6,23 +6,6 @@ import XCTest
 /// resolvable in Sema with a `Boolean` result type. The runtime link is
 /// `kk_file_isRooted` (see `Sources/Runtime/RuntimeFileIO.swift`).
 final class FileIsRootedTests: XCTestCase {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected File.isRooted to resolve cleanly, got: \(diagnostics)"
-            )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     /// The extension property symbol lives under `kotlin.io.isRooted` with
     /// `java.io.File` as its receiver type and `Boolean` as its return type.
     /// The accessor getter must share the same external link name so codegen

@@ -327,8 +327,6 @@ extension KotlinLexer {
         return tokens
     }
 
-    // MARK: - Helper functions
-
     /// Handles dollar interpolation logic for multi-dollar strings.
     /// Assumes the current character is a dollar sign.
     private func scanDollarInterpolation(dollarCount: Int, segmentStart: inout Int, tokens: inout [Token]) {

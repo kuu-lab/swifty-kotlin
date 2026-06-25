@@ -77,7 +77,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        // Set up primitive types to implement Comparable<Self>
         setupPrimitiveComparableImplementations(symbols: symbols, types: types, interner: interner, comparableSymbol: comparableSymbol)
         patchSyntheticClosedRangeTypeParameterUpperBound(symbols: symbols, types: types, interner: interner)
     }
@@ -102,7 +101,6 @@ extension DataFlowSemaPhase {
         registerSyntheticPairStub(symbols: symbols, types: types, interner: interner)
         registerSyntheticTripleStub(symbols: symbols, types: types, interner: interner)
 
-        // Ensure the "kotlin.collections" package exists.
         let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
         if symbols.lookup(fqName: kotlinCollectionsPkg) == nil {
             _ = symbols.define(
@@ -427,13 +425,11 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
 
-        // Register type aliases: ArrayList, HashMap, HashSet, LinkedHashMap, LinkedHashSet (STDLIB-560)
         registerSyntheticCollectionTypeAliases(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
 
-        // Register Array<T> and primitive array types (TYPE-103) after collections are registered
         registerSyntheticArrayStubs(
             symbols: symbols, types: types, interner: interner
         )

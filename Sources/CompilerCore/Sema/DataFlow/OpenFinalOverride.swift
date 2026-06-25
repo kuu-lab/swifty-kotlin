@@ -769,8 +769,6 @@ extension DataFlowSemaPhase {
         // to verify that child exception types are subtypes of parent exception types
     }
 
-    // MARK: - Helper: generic return type covariance
-
     private func validateGenericReturnTypeCovariance(
         childReturnType: TypeID,
         parentReturnType: TypeID,
@@ -1314,10 +1312,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    // MARK: - Type parameter detection helper
-
-    /// Returns true if the type (or any of its generic type arguments) contains
-    /// a type parameter. Used to skip covariance checks that require substitution.
     private func typeContainsAnyTypeParam(_ typeID: TypeID, types: TypeSystem) -> Bool {
         switch types.kind(of: typeID) {
         case .typeParam:
@@ -1345,8 +1339,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns all inherited members with the given name across the entire supertype
-    /// hierarchy. Used for overload count detection in covariance checking.
     private func findAllInheritedMembers(
         named memberName: InternedString,
         for classSymbol: SymbolID,
@@ -1386,7 +1378,6 @@ extension DataFlowSemaPhase {
         return results
     }
 
-    /// Checks if two function signatures match for override purposes
     private func signaturesMatch(child: FunctionSignature, parent: FunctionSignature, ctx: OpenFinalOverrideContext) -> Bool {
         // Check parameter count
         guard child.parameterTypes.count == parent.parameterTypes.count else {

@@ -296,7 +296,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerAtomicAsKotlinAtomicArrayFunctions(
+        registerAtomicIntArrayAsKotlinAtomicArrayFunction(
             packageFQName: atomicsPkg,
             javaPackageFQName: ensurePackage(
                 path: ["java", "util", "concurrent", "atomic"],
@@ -414,8 +414,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - Helpers
 
     private func ensureAtomicMemoryOrderEnum(
         in pkg: [InternedString],
@@ -599,7 +597,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Register the T type parameter
         let typeParamName = interner.intern("T")
         let typeParamFQName = packageFQName + [className, typeParamName]
         let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
@@ -1735,20 +1732,19 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerAtomicAsKotlinAtomicArrayFunctions(
+    private func registerAtomicAsKotlinAtomicFunctions(
         packageFQName: [InternedString],
-        javaPackageFQName: [InternedString],
+        receiverPackageFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        registerAtomicIntArrayAsKotlinAtomicArrayFunction(
-            packageFQName: packageFQName,
-            javaPackageFQName: javaPackageFQName,
+        _ = ensurePackage(
+            path: ["java", "util", "concurrent", "atomic"],
             symbols: symbols,
-            types: types,
             interner: interner
         )
+
     }
 
     private func registerAtomicIntArrayAsKotlinAtomicArrayFunction(

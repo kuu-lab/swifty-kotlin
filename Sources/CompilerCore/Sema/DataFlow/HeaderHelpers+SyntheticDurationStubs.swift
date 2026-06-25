@@ -720,8 +720,6 @@ extension DataFlowSemaPhase {
         return companionFQName
     }
 
-    // MARK: - Duration Helpers
-
     private func ensureDurationPackageHierarchy(
         symbols: SymbolTable,
         interner: StringInterner
@@ -1131,7 +1129,6 @@ extension DataFlowSemaPhase {
         symbols.setExtensionPropertyReceiverType(receiverType, for: propertySymbol)
         symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
 
-        // Register getter accessor
         let getterSymbol = symbols.define(
             kind: .function,
             name: interner.intern("get"),

@@ -2,16 +2,6 @@
 import XCTest
 
 final class ExceptionSyntheticStubTests: XCTestCase {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     func testNoWhenBranchMatchedExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 

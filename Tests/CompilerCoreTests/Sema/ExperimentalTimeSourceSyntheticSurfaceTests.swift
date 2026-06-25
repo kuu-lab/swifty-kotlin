@@ -2,20 +2,6 @@
 import XCTest
 
 final class ExperimentalTimeSourceSyntheticSurfaceTests: XCTestCase {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            XCTAssertTrue(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected experimental time source surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
-            result = (try XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
         do {

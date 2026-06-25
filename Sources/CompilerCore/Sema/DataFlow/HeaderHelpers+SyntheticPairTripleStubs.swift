@@ -378,10 +378,10 @@ extension DataFlowSemaPhase {
                     for: pairToListSymbol
                 )
             } else {
-                assertionFailure("Pair.toList() symbol found but has no function signature; return type not patched")
+                assertionFailure("Pair.toList(): no function signature")
             }
         } else {
-            assertionFailure("Pair.toList() symbol not found in symbol table; return type not patched")
+            assertionFailure("Pair.toList(): symbol not found")
         }
 
         // Patch Triple<A,B,C>.toList() -> List<Any?>
@@ -400,10 +400,10 @@ extension DataFlowSemaPhase {
                     for: tripleToListSymbol
                 )
             } else {
-                assertionFailure("Triple.toList() symbol found but has no function signature; return type not patched")
+                assertionFailure("Triple.toList(): no function signature")
             }
         } else {
-            assertionFailure("Triple.toList() symbol not found in symbol table; return type not patched")
+            assertionFailure("Triple.toList(): symbol not found")
         }
     }
 }
