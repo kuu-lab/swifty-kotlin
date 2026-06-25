@@ -3,7 +3,7 @@
 import Foundation
 import XCTest
 
-final class BackendDriverOutputTests: XCTestCase {
+extension KotlinCompilationObjectEmissionTests {
 
     // MARK: - Driver output (moved from CompilerCoreTests)
 
