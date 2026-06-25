@@ -682,6 +682,63 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(kk_unbox_char(list.elements[1]), 0xDC3B + Int(Unicode.Scalar("Z").value))
     }
 
+    // MARK: - STDLIB-TEXT-FN-040: kk_string_onEachIndexed
+
+    func testOnEachIndexedVisitsEachCharWithIndexAndReturnsOriginal() {
+        var callCount = 0
+        withUnsafeMutablePointer(to: &callCount) { counterPtr in
+            let action: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, _, _, _ in
+                UnsafeMutablePointer<Int>(bitPattern: closureRaw)!.pointee += 1
+                return 0
+            }
+            let source = registerRuntimeObject(RuntimeStringBox("abc"))
+            var thrown = 0
+            let returned = kk_string_onEachIndexed(
+                source,
+                unsafeBitCast(action, to: Int.self),
+                Int(bitPattern: counterPtr),
+                &thrown
+            )
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(returned, source)
+        }
+        XCTAssertEqual(callCount, 3)
+    }
+
+    func testOnEachIndexedOnEmptyStringCallsNoAction() {
+        let action: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
+            outThrown?.pointee = 99
+            return 0
+        }
+        let source = registerRuntimeObject(RuntimeStringBox(""))
+        var thrown = 0
+        let returned = kk_string_onEachIndexed(
+            source,
+            unsafeBitCast(action, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(returned, source)
+    }
+
+    func testOnEachIndexedPropagatesThrown() {
+        let action: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
+            outThrown?.pointee = 42
+            return 0
+        }
+        let source = registerRuntimeObject(RuntimeStringBox("xyz"))
+        var thrown = 0
+        let returned = kk_string_onEachIndexed(
+            source,
+            unsafeBitCast(action, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 42)
+        XCTAssertEqual(returned, source)
+    }
+
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
