@@ -818,6 +818,8 @@ extension CallLowerer {
                     ("kk_string_takeLastWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "dropWhile":
                     ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
+                case "onEach":
+                    ("kk_string_onEach", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":
                     ("kk_string_splitToSequence", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
