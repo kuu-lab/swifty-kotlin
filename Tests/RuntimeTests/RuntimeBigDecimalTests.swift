@@ -2,25 +2,16 @@
 import XCTest
 
 final class RuntimeBigDecimalTests: XCTestCase {
-    private func stringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
-    private func withFlatString<T>(
-        _ text: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        Array(text.utf8).withUnsafeBufferPointer { buffer in
-            body(buffer.baseAddress, text.unicodeScalars.count, text.utf8.count, 0)
-        }
-    }
-
     private func runtimeString(_ text: String) -> Int {
         text.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, text.utf8.count)) { ptr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
                 Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
             }
         }
+    }
+
+    private func stringValue(_ raw: Int) -> String {
+        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
     func testStringToBigDecimalAcceptsScientificNotation() {
@@ -51,5 +42,16 @@ final class RuntimeBigDecimalTests: XCTestCase {
             _ = kk_string_toBigDecimal(runtimeString(value), &thrown)
             XCTAssertNotEqual(thrown, 0, "Expected \(value) to throw NumberFormatException")
         }
+    }
+
+    func testStringToBigDecimalOrNullAcceptsScientificNotation() {
+        let raw = kk_string_toBigDecimalOrNull(runtimeString("+.5E-2"))
+        XCTAssertNotEqual(raw, runtimeNullSentinelInt)
+        XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "+.5E-2")
+    }
+
+    func testStringToBigDecimalOrNullReturnsNullForInvalidInput() {
+        XCTAssertEqual(kk_string_toBigDecimalOrNull(runtimeString("not-a-number")), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_string_toBigDecimalOrNull(runtimeString(" 12.5 ")), runtimeNullSentinelInt)
     }
 }

@@ -143,7 +143,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             returnType: intType, module: module, sema: sema,
             existingFunctionSymbols: existingFunctionSymbols
         )
-        let stringType = sema.types.stringType
+        let stringType = sema.types.make(.primitive(.string, .nonNull))
         for (ordinal, entry) in entries.enumerated() {
             let entryName = ctx.interner.resolve(entry.name)
             appendSyntheticCountFunctionIfNeeded(
@@ -343,7 +343,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
         case .primitive(.boolean, _):
             2
-        case .stringStruct:
+        case .primitive(.string, _):
             3
         default:
             1

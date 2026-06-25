@@ -256,18 +256,6 @@ private func runtimeTestStringHandle(_ value: String) -> Int {
     }
 }
 
-private func runtimeTestStringBuilder(_ value: String) -> Int {
-    let bytes = Array(value.utf8)
-    return bytes.withUnsafeBufferPointer { buffer in
-        kk_string_builder_new_from_string_flat(
-            buffer.baseAddress,
-            value.unicodeScalars.count,
-            value.utf8.count,
-            0
-        )
-    }
-}
-
 final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -721,7 +709,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testJoinToAppendsToStringBuilderAndReturnsDestination() {
         let seq = makeSequence([1, 2, 3])
-        let builder = runtimeTestStringBuilder("seed:")
+        let builder = kk_string_builder_new_from_string(runtimeTestStringHandle("seed:"))
 
         let returned = kk_sequence_joinTo(
             seq,

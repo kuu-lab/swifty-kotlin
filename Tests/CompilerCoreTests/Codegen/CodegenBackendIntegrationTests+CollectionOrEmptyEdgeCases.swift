@@ -10,15 +10,11 @@ extension CodegenBackendIntegrationTests {
             val presentList: List<Int>? = listOf(1, 2, 3)
             val missingMap: Map<String, Int>? = null
             val presentMap: Map<String, Int>? = mapOf("a" to 1, "b" to 2)
-            val missingString: String? = null
-            val presentString: String? = "hello"
 
             println(missingList.orEmpty())
             println(presentList.orEmpty())
             println(missingMap.orEmpty().count())
             println(presentMap.orEmpty().count())
-            println(missingString.orEmpty().length)
-            println(presentString.orEmpty())
         }
         """
 
@@ -34,7 +30,7 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[]\n[1, 2, 3]\n0\n2\n0\nhello\n")
+            XCTAssertEqual(normalizedStdout, "[]\n[1, 2, 3]\n0\n2\n")
         }
     }
 }

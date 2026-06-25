@@ -7,29 +7,16 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
 
     // MARK: - Helpers
 
+    private func makeString(_ text: String) -> Int {
+        text.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
+                Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
+            }
+        }
+    }
+
     private func toString(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
-    private func withFlatString<T>(
-        _ text: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        Array(text.utf8).withUnsafeBufferPointer { buffer in
-            body(buffer.baseAddress, text.unicodeScalars.count, text.utf8.count, 0)
-        }
-    }
-
-    private func hexToInt(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-        withFlatString(text) { data, length, byteCount, hash in
-            kk_string_hexToInt_flat(data, length, byteCount, hash, formatRaw, outThrown)
-        }
-    }
-
-    private func hexToLong(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-        withFlatString(text) { data, length, byteCount, hash in
-            kk_string_hexToLong_flat(data, length, byteCount, hash, formatRaw, outThrown)
-        }
     }
 
     private func makeFormat(prefix: String = "", suffix: String = "", removeLeadingZeros: Bool = false) -> Int {
@@ -72,7 +59,7 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
         XCTAssertEqual(encoded, "0xff", "Encoding 255 with prefix 0x and removeLeadingZeros should give 0xff")
 
         var thrown = 0
-        let decoded = hexToInt(encoded, fmt, &thrown)
+        let decoded = kk_string_hexToInt(makeString(encoded), fmt, &thrown)
         XCTAssertEqual(thrown, 0, "Decoding 0xff should not throw")
         XCTAssertEqual(decoded, 255, "Round-trip of 255 via 0xff should give 255")
     }
@@ -92,7 +79,7 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
         XCTAssertEqual(encoded, "0xFF")
 
         var thrown = 0
-        let decoded = hexToInt(encoded, fmt, &thrown)
+        let decoded = kk_string_hexToInt(makeString(encoded), fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(decoded, 255)
     }
@@ -102,7 +89,7 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
     func testDecodeIntMissingPrefixThrowsNumberFormatException() {
         let fmt = makeFormat(prefix: "0x")
         var thrown = 0
-        _ = hexToInt("ff", fmt, &thrown)
+        _ = kk_string_hexToInt(makeString("ff"), fmt, &thrown)
         XCTAssertNotEqual(thrown, 0, "Missing prefix should throw NumberFormatException")
 
         // Verify the throwable message contains useful context
@@ -119,7 +106,7 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
     func testDecodeIntMissingSuffixThrowsNumberFormatException() {
         let fmt = makeFormat(suffix: "h")
         var thrown = 0
-        _ = hexToInt("ff", fmt, &thrown)
+        _ = kk_string_hexToInt(makeString("ff"), fmt, &thrown)
         XCTAssertNotEqual(thrown, 0, "Missing suffix should throw NumberFormatException")
     }
 
@@ -129,11 +116,11 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
         // "h" suffix: "ff" (no suffix) must throw, "ffh" (with suffix) must succeed
         let fmt = makeFormat(suffix: "h")
         var thrown1 = 0
-        _ = hexToInt("ff", fmt, &thrown1)
+        _ = kk_string_hexToInt(makeString("ff"), fmt, &thrown1)
         XCTAssertNotEqual(thrown1, 0, "Missing suffix 'h' should throw")
 
         var thrown2 = 0
-        let value = hexToInt("ffh", fmt, &thrown2)
+        let value = kk_string_hexToInt(makeString("ffh"), fmt, &thrown2)
         XCTAssertEqual(thrown2, 0, "Valid suffix 'h' should not throw")
         XCTAssertEqual(value, 255)
     }
@@ -142,11 +129,11 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
         // prefix "0x", suffix "h": "0xffh" succeeds, "ffh" fails (missing prefix)
         let fmt = makeFormat(prefix: "0x", suffix: "h")
         var thrown1 = 0
-        _ = hexToInt("ffh", fmt, &thrown1)
+        _ = kk_string_hexToInt(makeString("ffh"), fmt, &thrown1)
         XCTAssertNotEqual(thrown1, 0, "Missing prefix '0x' when suffix present should throw")
 
         var thrown2 = 0
-        let value = hexToInt("0xffh", fmt, &thrown2)
+        let value = kk_string_hexToInt(makeString("0xffh"), fmt, &thrown2)
         XCTAssertEqual(thrown2, 0, "Full prefix+suffix match should not throw")
         XCTAssertEqual(value, 255)
     }
@@ -156,7 +143,7 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
     func testDecodeIntDefaultFormatNoThrow() {
         let fmt = kk_hexformat_default()
         var thrown = 0
-        let value = hexToInt("ff", fmt, &thrown)
+        let value = kk_string_hexToInt(makeString("ff"), fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(value, 255)
     }
@@ -179,7 +166,7 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
         XCTAssertEqual(encoded, "0xff")
 
         var thrown = 0
-        let decoded = hexToLong(encoded, fmt, &thrown)
+        let decoded = kk_string_hexToLong(makeString(encoded), fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_unbox_long(decoded), 255)
     }
@@ -187,7 +174,7 @@ final class RuntimeHexFormatNumberPrefixSuffixTests: XCTestCase {
     func testDecodeLongMissingPrefixThrows() {
         let fmt = makeFormat(prefix: "0x")
         var thrown = 0
-        _ = hexToLong("ff", fmt, &thrown)
+        _ = kk_string_hexToLong(makeString("ff"), fmt, &thrown)
         XCTAssertNotEqual(thrown, 0, "Missing prefix on long decode should throw")
     }
 }

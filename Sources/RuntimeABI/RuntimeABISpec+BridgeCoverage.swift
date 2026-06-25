@@ -496,19 +496,27 @@ public extension RuntimeABISpec {
     ]
 
     static let stringBridgeFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toJsString_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
         bridgeSpec("kk_string_singleOrNull", section: "String", params: ["strRaw"],
+            isThrowing: false),
+        bridgeSpec("kk_string_substringAfter",
+            section: "String",
+            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"],
+            isThrowing: false),
+        bridgeSpec("kk_string_substringAfter_char",
+            section: "String",
+            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"],
+            isThrowing: false),
+        bridgeSpec("kk_string_substringBefore_char",
+            section: "String",
+            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"],
+            isThrowing: false),
+        bridgeSpec("kk_string_substringBeforeLast_char",
+            section: "String",
+            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"],
+            isThrowing: false),
+        bridgeSpec("kk_string_substringAfterLast_char",
+            section: "String",
+            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"],
             isThrowing: false),
     ]
 }

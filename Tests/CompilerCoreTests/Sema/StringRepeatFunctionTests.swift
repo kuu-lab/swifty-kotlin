@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-054: Validates that `String.repeat(n)` resolves through
 /// Sema for plain String receivers as well as literal / expression contexts.
-/// The runtime link involved is `kk_string_repeat_flat`
+/// The runtime link involved is `kk_string_repeat`
 /// (see `Sources/Runtime/RuntimeStringStdlib.swift`).
 final class StringRepeatFunctionTests: XCTestCase {
     func testStringRepeatResolvesInSource() throws {

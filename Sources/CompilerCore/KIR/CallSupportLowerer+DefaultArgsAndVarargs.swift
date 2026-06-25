@@ -69,7 +69,7 @@ extension CallSupportLowerer {
         case "Regex":
             switch argumentCount {
             case 1:
-                return interner.intern("kk_regex_create_flat")
+                return interner.intern("kk_regex_create")
             case 2:
                 // Two 2-arg overloads exist: Regex(String, RegexOption) and
                 // Regex(String, Set<RegexOption>). Disambiguate by inspecting
@@ -83,11 +83,11 @@ extension CallSupportLowerer {
                        symbolInfo.name != .invalid
                     {
                         if knownNames.isSetLikeSymbol(symbolInfo) {
-                            return interner.intern("kk_regex_create_with_options_flat")
+                            return interner.intern("kk_regex_create_with_options")
                         }
                     }
                 }
-                return interner.intern("kk_regex_create_with_option_flat")
+                return interner.intern("kk_regex_create_with_option")
             default:
                 return nil
             }
@@ -96,7 +96,7 @@ extension CallSupportLowerer {
             case 0:
                 return interner.intern("kk_string_builder_new")
             case 1:
-                return interner.intern("kk_string_builder_new_from_string_flat")
+                return interner.intern("kk_string_builder_new_from_string")
             default:
                 return nil
             }

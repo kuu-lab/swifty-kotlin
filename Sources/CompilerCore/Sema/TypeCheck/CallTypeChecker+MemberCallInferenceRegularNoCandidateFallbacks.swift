@@ -415,6 +415,13 @@ extension CallTypeChecker {
                         interner: interner,
                         fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
                     )
+                case "toBigDecimalOrNull":
+                    sema.types.makeNullable(makeSyntheticNominalType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
+                    ))
                 case "toBigInteger":
                     makeSyntheticNominalType(
                         symbols: sema.symbols,
@@ -473,11 +480,11 @@ extension CallTypeChecker {
                         elementType: sema.types.make(.primitive(.char, .nonNull))
                     )
                 case "toByteArray", "encodeToByteArray":
-                    makeSyntheticPrimitiveArrayType(
+                    makeSyntheticListType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
-                        arrayName: "ByteArray"
+                        elementType: sema.types.intType
                     )
                 default:
                     nil
@@ -674,11 +681,11 @@ extension CallTypeChecker {
                     sema.bindings.markCollectionExpr(id)
                     return boundType
                 }
-                let resultType = makeSyntheticPrimitiveArrayType(
+                let resultType = makeSyntheticListType(
                     symbols: sema.symbols,
                     types: sema.types,
                     interner: interner,
-                    arrayName: "ByteArray"
+                    elementType: sema.types.intType
                 )
                 sema.bindings.markCollectionExpr(id)
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -794,11 +801,11 @@ extension CallTypeChecker {
             {
                 let calleeStr = interner.resolve(calleeName)
                 if calleeStr == "encodeToByteArray" || calleeStr == "toByteArray" {
-                    let resultType = makeSyntheticPrimitiveArrayType(
+                    let resultType = makeSyntheticListType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
-                        arrayName: "ByteArray"
+                        elementType: sema.types.intType
                     )
                     if let boundType = tryBindSyntheticStringMemberFallback(
                         id,
@@ -846,11 +853,11 @@ extension CallTypeChecker {
                 case "get":
                     sema.types.make(.primitive(.char, .nonNull))
                 case "encodeToByteArray", "toByteArray":
-                    makeSyntheticPrimitiveArrayType(
+                    makeSyntheticListType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
-                        arrayName: "ByteArray"
+                        elementType: sema.types.intType
                     )
                 default:
                     nil
@@ -918,7 +925,7 @@ extension CallTypeChecker {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+            let nullableStringType = sema.types.make(.primitive(.string, .nullable))
             if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
                 if args.count == 1,
                    sema.types.isSubtype(argTypes[0], nullableStringType)
@@ -1185,7 +1192,7 @@ extension CallTypeChecker {
                    "filter", "map", "count", "any", "all", "none",
                    "indexOfFirst", "indexOfLast",
                    "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
-                   "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
+                   "takeWhile", "takeLastWhile", "dropWhile", "find", "findLast", "splitToSequence",
                    "trim", "trimStart", "trimEnd",
                    "zipWithNext",
                    "partition",
@@ -1436,7 +1443,7 @@ extension CallTypeChecker {
                 case "count": sema.types.intType
                 case "indexOfFirst", "indexOfLast": sema.types.intType
                 case "any", "all", "none": sema.types.booleanType
-                case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
+                case "filterIndexed", "filterNot", "takeWhile", "takeLastWhile", "dropWhile": sema.types.stringType
                 case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
                 case "splitToSequence": sequenceStringType
                 case "partition": pairStringStringType

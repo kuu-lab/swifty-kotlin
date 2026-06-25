@@ -145,23 +145,23 @@ public final class JSONRPCConnection {
 
 /// Bridges `Codable` payloads and the loosely-typed JSON objects exchanged by
 /// `JSONRPCConnection`.
-enum JSONCoding {
-    private static let encoder = JSONEncoder()
-    private static let decoder = JSONDecoder()
-
-    static func toObject<T: Encodable>(_ value: T) -> Any? {
-        guard let data = try? encoder.encode(value) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
+public enum JSONCoding {
+    /// Encodes a value into a JSON object/array/scalar suitable for embedding in
+    /// a message dictionary.
+    public static func toObject(_ value: some Encodable) -> Any? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
     }
 
-    /// Helper to convert a dynamic JSON object into a strongly typed `Decodable`.
-    static func decode<T: Decodable>(_ type: T.Type, from object: Any) -> T? {
+    /// Decodes a typed value from a JSON object previously produced by
+    /// `JSONSerialization`.
+    public static func decode<T: Decodable>(_ type: T.Type, from object: Any) -> T? {
         guard let data = try? JSONSerialization.data(
             withJSONObject: object,
             options: [.fragmentsAllowed]
         ) else {
             return nil
         }
-        return try? decoder.decode(type, from: data)
+        return try? JSONDecoder().decode(type, from: data)
     }
 }

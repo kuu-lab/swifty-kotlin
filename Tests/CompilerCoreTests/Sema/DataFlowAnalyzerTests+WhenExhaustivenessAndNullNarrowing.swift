@@ -58,7 +58,7 @@ extension DataFlowAnalyzerTests {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
         let sym = SymbolID(rawValue: 0)
         let state = DataFlowState(variables: [
             sym: VariableFlowState(possibleTypes: [intType, stringType], nullability: .nonNull, isStable: true),
@@ -125,8 +125,8 @@ extension DataFlowAnalyzerTests {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
-        let nullableString = types.makeNullable(types.stringType)
-        let nonNullString = types.stringType
+        let nullableString = types.make(.primitive(.string, .nullable))
+        let nonNullString = types.make(.primitive(.string, .nonNull))
         let base = DataFlowState()
 
         let result = analyzer.whenNonNullBranchState(

@@ -181,7 +181,7 @@ extension ConstraintSolverTests {
     func testSolveMixedConstraintKindsAcrossMultipleVariables() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
         let anyType = types.anyType
         let t0 = TypeVarID(rawValue: 260)
         let t1 = TypeVarID(rawValue: 261)
@@ -247,7 +247,7 @@ extension ConstraintSolverTests {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
         let t0 = TypeVarID(rawValue: 280)
         let t1 = TypeVarID(rawValue: 281)
         let blame0 = makeRange(start: 100, end: 105)

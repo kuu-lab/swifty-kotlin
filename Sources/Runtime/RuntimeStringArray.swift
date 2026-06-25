@@ -243,115 +243,6 @@ func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
     runtimeStructuredPanicMessage(String(cString: cstr))
 }
 
-private final class RuntimeFlatStringStorage: @unchecked Sendable {
-    let data: UnsafeMutablePointer<UInt8>
-    let length: Int
-    let byteCount: Int
-    let hash: Int
-
-    init(_ value: String) {
-        let bytes = Array(value.utf8)
-        self.length = bytes.count
-        self.byteCount = bytes.count
-        self.hash = 0
-        self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))
-        if bytes.isEmpty {
-            data.initialize(to: 0)
-        } else {
-            data.initialize(from: bytes, count: bytes.count)
-        }
-    }
-
-    deinit {
-        data.deallocate()
-    }
-}
-
-private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [RuntimeFlatStringStorage] = []
-
-    func append(_ entry: RuntimeFlatStringStorage) {
-        lock.lock()
-        storage.append(entry)
-        lock.unlock()
-    }
-}
-
-private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
-
-func runtimeStringFromFlatFields(
-    data: UnsafePointer<UInt8>?,
-    length: Int,
-    byteCount: Int,
-    hash: Int
-) -> String {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        return ""
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    return String(decoding: buffer, as: UTF8.self)
-}
-
-func runtimeRegisterFlatString(
-    _ value: String,
-    outLength: UnsafeMutablePointer<Int>?,
-    outByteCount: UnsafeMutablePointer<Int>?,
-    outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let storage = RuntimeFlatStringStorage(value)
-    outLength?.pointee = storage.length
-    outByteCount?.pointee = storage.byteCount
-    outHash?.pointee = storage.hash
-    let data = storage.data
-    runtimeFlatStringStorageRegistry.append(storage)
-    return data
-}
-
-@_cdecl("kk_string_from_flat")
-public func kk_string_from_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    guard data != nil else {
-        return 0
-    }
-    let string = runtimeStringFromFlatFields(
-        data: data,
-        length: length,
-        byteCount: byteCount,
-        hash: hash
-    )
-    return registerRuntimeObject(RuntimeStringBox(string))
-}
-
-@_cdecl("kk_string_to_flat")
-public func kk_string_to_flat(
-    _ raw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    guard raw != runtimeNullSentinelInt,
-          raw != 0,
-          let string = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
-    else {
-        outLength?.pointee = 0
-        outByteCount?.pointee = 0
-        outHash?.pointee = 0
-        return nil
-    }
-    return runtimeRegisterFlatString(
-        string,
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
 @_cdecl("kk_string_from_utf8")
 public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> UnsafeMutableRawPointer {
     let count = max(0, Int(len))
@@ -375,64 +266,53 @@ public func kk_int_toString_radix(_ value: Int, _ radix: Int) -> UnsafeMutableRa
     }
 }
 
-@_cdecl("kk_string_concat_flat")
-public func kk_string_concat_flat(
-    _ lhsData: UnsafePointer<UInt8>?,
-    _ lhsLength: Int,
-    _ lhsByteCount: Int,
-    _ lhsHash: Int,
-    _ rhsData: UnsafePointer<UInt8>?,
-    _ rhsLength: Int,
-    _ rhsByteCount: Int,
-    _ rhsHash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let lhs = runtimeStringFromFlatFields(
-        data: lhsData,
-        length: lhsLength,
-        byteCount: lhsByteCount,
-        hash: lhsHash
-    )
-    let rhs = runtimeStringFromFlatFields(
-        data: rhsData,
-        length: rhsLength,
-        byteCount: rhsByteCount,
-        hash: rhsHash
-    )
-    return runtimeRegisterFlatString(
-        lhs + rhs,
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
+@_cdecl("kk_string_concat")
+public func kk_string_concat(_ a: UnsafeMutableRawPointer?, _ b: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
+    let lhs = extractString(from: normalizeNullableRuntimePointer(a)) ?? ""
+    let rhs = extractString(from: normalizeNullableRuntimePointer(b)) ?? ""
+    let box = RuntimeStringBox(lhs + rhs)
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+    }
+    return opaque
 }
 
-@_cdecl("kk_string_compareTo_flat")
-public func kk_string_compareTo_flat(
-    _ lhsData: UnsafePointer<UInt8>?,
-    _ lhsLength: Int,
-    _ lhsByteCount: Int,
-    _ lhsHash: Int,
-    _ rhsData: UnsafePointer<UInt8>?,
-    _ rhsLength: Int,
-    _ rhsByteCount: Int,
-    _ rhsHash: Int
-) -> Int {
-    let lhs = runtimeStringFromFlatFields(
-        data: lhsData,
-        length: lhsLength,
-        byteCount: lhsByteCount,
-        hash: lhsHash
-    )
-    let rhs = runtimeStringFromFlatFields(
-        data: rhsData,
-        length: rhsLength,
-        byteCount: rhsByteCount,
-        hash: rhsHash
-    )
-    return runtimeCompareStrings(lhs, rhs)
+// STDLIB-TEXT-FN-043: String?.plus(other: Any?): String
+// Receiver is passed as Int (intptr) so null receivers produce "null".
+// Primitives passed as `other` are already boxed by the ABI lowering pass
+// when widened to Any?, so runtimeElementToString handles them correctly.
+@_cdecl("kk_string_plus")
+public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
+    let lhs = runtimeElementToString(receiverRaw)
+    let rhs = runtimeElementToString(otherRaw)
+    return runtimeMakeStringRaw(lhs + rhs)
+}
+
+@_cdecl("kk_string_compareTo")
+public func kk_string_compareTo(_ a: UnsafeMutableRawPointer?, _ b: UnsafeMutableRawPointer?) -> Int {
+    let lhs = extractString(from: normalizeNullableRuntimePointer(a)) ?? ""
+    let rhs = extractString(from: normalizeNullableRuntimePointer(b)) ?? ""
+    if lhs < rhs { return -1 }
+    if lhs > rhs { return 1 }
+    return 0
+}
+
+@_cdecl("kk_string_length")
+public func kk_string_length(_ strRaw: Int) -> Int {
+    if strRaw == runtimeNullSentinelInt {
+        return runtimeNullSentinelInt
+    }
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw) else {
+        return runtimeNullSentinelInt
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer, let stringBox = tryCast(ptr, to: RuntimeStringBox.self) else {
+        return runtimeNullSentinelInt
+    }
+    return stringBox.value.utf8.count
 }
 
 @_cdecl("kk_op_is")
@@ -1147,6 +1027,14 @@ public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeKConstructorRegistry.constructors(for: kclassRaw)))
 }
 
+/// Returns the nested classes of this KClass as a runtime list of KClass handles.
+/// Currently returns an empty list; nested class metadata registration is not yet
+/// emitted by the compiler (MIGRATION-REFLECT-002).
+@_cdecl("kk_kclass_nested_classes")
+public func kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
+    return registerRuntimeObject(RuntimeListBox(elements: []))
+}
+
 /// Returns the primary constructor of this KClass as a KConstructor box, or null sentinel if none.
 /// STDLIB-REFLECT-064
 @_cdecl("kk_kclass_primary_constructor")
@@ -1607,17 +1495,17 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
-        let rendered = listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
+        let rendered = listBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", ")
         Swift.print("[\(rendered)]")
         return
     }
     if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
-        let rendered = setBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
+        let rendered = setBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", ")
         Swift.print("[\(rendered)]")
         return
     }
     if let mapBox = tryCast(raw, to: RuntimeMapBox.self) {
-        let rendered = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
+        let rendered = zip(mapBox.keys, mapBox.values).map { key, value in
             "\(runtimeRenderAnyForPrint(key))=\(runtimeRenderAnyForPrint(value))"
         }.joined(separator: ", ")
         Swift.print("{\(rendered)}")
@@ -1628,8 +1516,8 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
-        let first = runtimeRenderAnyForPrint(pairBox.firstValue)
-        let second = runtimeRenderAnyForPrint(pairBox.secondValue)
+        let first = runtimeRenderAnyForPrint(pairBox.first)
+        let second = runtimeRenderAnyForPrint(pairBox.second)
         if runtimeIsMapEntry(rawValue: intValue) {
             Swift.print("\(first)=\(second)")
         } else if runtimeObjectTypeID(rawValue: intValue) == indexedValueRuntimeTypeID {
@@ -1652,11 +1540,11 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let iterableBox = tryCast(raw, to: RuntimeStringIterableBox.self) {
-        Swift.print(runtimeRenderStringIterableForPrint(iterableBox.source))
+        Swift.print(runtimeRenderStringIterableForPrint(iterableBox.strRaw))
         return
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let rendered = arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
+        let rendered = arrayBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", ")
         Swift.print("[\(rendered)]")
         return
     }
@@ -1671,41 +1559,6 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     Swift.print("<object \(raw)>")
-}
-
-@_cdecl("kk_println_string_flat")
-public func kk_println_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self))
-    return 0
-}
-
-/// Runtime support for printing aggregate String values without a trailing newline.
-@_cdecl("kk_print_string_flat")
-public func kk_print_string_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    _ = (length, hash)
-    guard let data, byteCount >= 0 else {
-        Swift.print("null", terminator: "")
-        return 0
-    }
-    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
-    Swift.print(String(decoding: buffer, as: UTF8.self), terminator: "")
-    return 0
 }
 
 /// Runtime support for kotlin.io.print(message) (no newline).
@@ -1835,13 +1688,13 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "Throwable(\(throwable.renderedMessage))"
     }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
-        return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return "[\(listBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
-        return "[\(setBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return "[\(setBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let mapBox = tryCast(raw, to: RuntimeMapBox.self) {
-        let rendered = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
+        let rendered = zip(mapBox.keys, mapBox.values).map { key, value in
             "\(runtimeRenderAnyForPrint(key))=\(runtimeRenderAnyForPrint(value))"
         }.joined(separator: ", ")
         return "{\(rendered)}"
@@ -1850,8 +1703,8 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return runtimeElementToString(value)
     }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
-        let first = runtimeRenderAnyForPrint(pairBox.firstValue)
-        let second = runtimeRenderAnyForPrint(pairBox.secondValue)
+        let first = runtimeRenderAnyForPrint(pairBox.first)
+        let second = runtimeRenderAnyForPrint(pairBox.second)
         if runtimeIsMapEntry(rawValue: value) {
             return "\(first)=\(second)"
         }
@@ -1871,10 +1724,10 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
     if let iterableBox = tryCast(raw, to: RuntimeStringIterableBox.self) {
-        return runtimeRenderStringIterableForPrint(iterableBox.source)
+        return runtimeRenderStringIterableForPrint(iterableBox.strRaw)
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return "[\(arrayBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.value
@@ -1889,26 +1742,12 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     return "<object \(raw)>"
 }
 
-func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
-    switch value.tag {
-    case RuntimeValue.stringTag:
-        guard let data = UnsafePointer<UInt8>(bitPattern: value.payload0) else {
-            return "null"
-        }
-        return runtimeStringFromFlatFields(
-            data: data,
-            length: value.payload1,
-            byteCount: value.payload2,
-            hash: value.payload3
-        )
-    case RuntimeValue.charTag:
-        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "�"
-    default:
-        return runtimeRenderAnyForPrint(value.payload0)
+private func runtimeRenderStringIterableForPrint(_ strRaw: Int) -> String {
+    guard let raw = UnsafeMutableRawPointer(bitPattern: strRaw),
+          let string = extractString(from: raw)
+    else {
+        return "<invalid String iterable>"
     }
-}
-
-private func runtimeRenderStringIterableForPrint(_ string: String) -> String {
     let rendered = string.unicodeScalars.map { String(Character($0)) }.joined(separator: ", ")
     return "[\(rendered)]"
 }
@@ -2034,106 +1873,37 @@ func runtimeFormatFloatingPoint(_ value: Float) -> String {
 
 // MARK: - String nullable receiver helpers
 
-@_cdecl("kk_string_isNullOrEmpty_flat")
-public func kk_string_isNullOrEmpty_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    guard data != nil else {
-        return 1
+@_cdecl("kk_string_isNullOrEmpty")
+public func kk_string_isNullOrEmpty(_ strRaw: Int) -> Int {
+    guard let rawPointer = UnsafeMutableRawPointer(bitPattern: strRaw) else {
+        return kk_box_bool(1)
     }
-    let str = runtimeStringFromFlatFields(
-        data: data,
-        length: length,
-        byteCount: byteCount,
-        hash: hash
-    )
-    return str.isEmpty ? 1 : 0
+    guard let str = extractString(from: rawPointer) else {
+        return kk_box_bool(0)
+    }
+    return kk_box_bool(str.isEmpty ? 1 : 0)
 }
 
-@_cdecl("kk_string_isNullOrBlank_flat")
-public func kk_string_isNullOrBlank_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    guard data != nil else {
-        return 1
+@_cdecl("kk_string_isNullOrBlank")
+public func kk_string_isNullOrBlank(_ strRaw: Int) -> Int {
+    guard let rawPointer = UnsafeMutableRawPointer(bitPattern: strRaw) else {
+        return kk_box_bool(1)
     }
-    let str = runtimeStringFromFlatFields(
-        data: data,
-        length: length,
-        byteCount: byteCount,
-        hash: hash
-    )
-    return str.allSatisfy(\.isWhitespace) ? 1 : 0
+    guard let str = extractString(from: rawPointer) else {
+        return kk_box_bool(0)
+    }
+    return kk_box_bool(str.allSatisfy(\.isWhitespace) ? 1 : 0)
 }
 
 // MARK: - STDLIB-534: String?.orEmpty()
 
-@_cdecl("kk_string_orEmpty_flat")
-public func kk_string_orEmpty_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    let value = runtimeStringFromFlatFields(
-        data: data,
-        length: length,
-        byteCount: byteCount,
-        hash: hash
-    )
-    return runtimeRegisterFlatString(
-        value,
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-// MARK: - System call wrappers for console I/O
-
-@_cdecl("kk_sys_write")
-public func kk_sys_write(_ fd: Int32, _ buffer: UnsafeRawPointer, _ count: Int) -> Int {
-    return write(fd, buffer, count)
-}
-
-// MARK: - Read from stdin using system calls
-
-@_cdecl("kk_readln_from_syscall")
-public func kk_readln_from_syscall(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    var buffer = [UInt8](repeating: 0, count: 4096)
-    var pos = 0
-
-    while pos < buffer.count {
-        let result = read(STDIN_FILENO, &buffer[pos], 1)
-        if result < 0 {
-            // Error
-            outThrown?.pointee = runtimeAllocateThrowable(message: "Read error")
-            return 0
+@_cdecl("kk_string_orEmpty")
+public func kk_string_orEmpty(_ strRaw: Int) -> Int {
+    if strRaw == runtimeNullSentinelInt || strRaw == 0 {
+        var emptyByte: UInt8 = 0
+        return withUnsafePointer(to: &emptyByte) { ptr in
+            Int(bitPattern: kk_string_from_utf8(ptr, 0))
         }
-        if result == 0 {
-            // EOF
-            if pos == 0 {
-                return runtimeNullSentinelInt
-            }
-            break
-        }
-        if buffer[pos] == UInt8(ascii: "\n") {
-            break
-        }
-        pos += 1
     }
-
-    return buffer.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(pos)))
-    }
+    return strRaw
 }

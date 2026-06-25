@@ -924,7 +924,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Kotlin source for sortedByDescending and sortedWith exists at
         // Stdlib/kotlin/collections/ListSortOrdering.kt (MIGRATION-COL-006)
         // but is not yet wired into the compiler pipeline (RF-STDLIB-004+). Keep these stubs until then.
         // sortedByDescending (HOF, selector lambda with R: Comparable<R>)

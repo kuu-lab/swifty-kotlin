@@ -2,20 +2,6 @@
 import XCTest
 
 final class ReflectKParameterSyntheticTests: XCTestCase {
-    private func makeSema(
-        source: String = "fun noop() {}"
-    ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected KParameter surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     func testKParameterSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
@@ -40,7 +26,7 @@ final class ReflectKParameterSyntheticTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+        let nullableStringType = sema.types.make(.primitive(.string, .nullable))
         let propertyExpectations: [(name: String, type: TypeID, externalLinkName: String)] = [
             ("index", sema.types.intType, "kk_kparameter_get_index"),
             ("name", nullableStringType, "kk_kparameter_get_name"),

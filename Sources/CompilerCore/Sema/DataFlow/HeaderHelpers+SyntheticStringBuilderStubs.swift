@@ -213,6 +213,70 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-024: Typed insert overloads for StringBuilder.
+        // Char, Boolean, Float, Double require dedicated runtime functions for correct type-specific conversion.
+        // String?, Int, Long delegate to kk_string_builder_insert_obj (runtimeElementToString handles them).
+
+        // insert(Int, Char): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "insert",
+            externalLinkName: "kk_string_builder_insert_char",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("index", intType, false, false), ("value", charType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // insert(Int, Boolean): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "insert",
+            externalLinkName: "kk_string_builder_insert_bool",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("index", intType, false, false), ("value", booleanType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // insert(Int, Float): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "insert",
+            externalLinkName: "kk_string_builder_insert_float",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("index", intType, false, false), ("value", floatType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // insert(Int, Double): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "insert",
+            externalLinkName: "kk_string_builder_insert_double",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("index", intType, false, false), ("value", doubleType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // insert(Int, String?): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "insert",
+            externalLinkName: "kk_string_builder_insert_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("index", intType, false, false), ("value", nullableStringType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
         // delete(Int, Int): StringBuilder
         registerStringBuilderMemberFunction(
             named: "delete",
@@ -312,10 +376,11 @@ extension DataFlowSemaPhase {
         )
 
         // appendRange(CharSequence, Int, Int): StringBuilder (STDLIB-580)
-        // The runtime boundary receives flattened String fields.
+        // The runtime still accepts raw string storage, but the surface type now
+        // matches Kotlin's CharSequence signature.
         registerStringBuilderMemberFunction(
             named: "appendRange",
-            externalLinkName: "kk_string_builder_appendRange_obj_flat",
+            externalLinkName: "kk_string_builder_appendRange_obj",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("value", charSequenceType, false, false), ("startIndex", intType, false, false), ("endIndex", intType, false, false)],
@@ -327,7 +392,7 @@ extension DataFlowSemaPhase {
         // insertRange(Int, CharSequence, Int, Int): StringBuilder (STDLIB-TEXT-BUILDER-003)
         registerStringBuilderMemberFunction(
             named: "insertRange",
-            externalLinkName: "kk_string_builder_insertRange_obj_flat",
+            externalLinkName: "kk_string_builder_insertRange_obj",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("index", intType, false, false), ("value", charSequenceType, false, false), ("startIndex", intType, false, false), ("endIndex", intType, false, false)],
@@ -339,7 +404,7 @@ extension DataFlowSemaPhase {
         // setRange(Int, Int, String): StringBuilder (STDLIB-TEXT-BUILDER-004)
         registerStringBuilderMemberFunction(
             named: "setRange",
-            externalLinkName: "kk_string_builder_setRange_flat",
+            externalLinkName: "kk_string_builder_setRange",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false), ("value", stringType, false, false)],
@@ -353,7 +418,7 @@ extension DataFlowSemaPhase {
         // replace(Int, Int, String): StringBuilder
         registerStringBuilderMemberFunction(
             named: "replace",
-            externalLinkName: "kk_string_builder_replace_obj_flat",
+            externalLinkName: "kk_string_builder_replace_obj",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("start", intType, false, false), ("end", intType, false, false), ("str", stringType, false, false)],
@@ -434,8 +499,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - Private Helpers
 
     private func ensureKotlinTextPackage(
         symbols: SymbolTable,

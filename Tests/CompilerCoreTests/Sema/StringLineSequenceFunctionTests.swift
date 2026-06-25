@@ -4,7 +4,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-036: Validates that `CharSequence.lineSequence()` resolves
 /// through Sema for `String` / `CharSequence` receivers, dispatches to the
-/// runtime helper `kk_string_lineSequence_flat` for String receivers, and is classified as non-throwing.
+/// runtime helper `kk_string_lineSequence`, and is classified as non-throwing.
 final class StringLineSequenceFunctionTests: XCTestCase {
     private func allMemberCallExprIDs(
         named member: String,
@@ -98,7 +98,7 @@ final class StringLineSequenceFunctionTests: XCTestCase {
         }
     }
 
-    /// The lowered KIR should call the runtime helper `kk_string_lineSequence_flat`,
+    /// The lowered KIR should call the runtime helper `kk_string_lineSequence`,
     /// and the call must be classified as non-throwing.
     func testLineSequenceLowersToRuntimeHelperNonThrowing() throws {
         let source = """
@@ -122,8 +122,8 @@ final class StringLineSequenceFunctionTests: XCTestCase {
             )
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let lineSequenceFlags = try XCTUnwrap(
-                throwFlags["kk_string_lineSequence_flat"],
-                "Expected kk_string_lineSequence_flat calls to appear in main()"
+                throwFlags["kk_string_lineSequence"],
+                "Expected kk_string_lineSequence calls to appear in main()"
             )
             XCTAssertEqual(lineSequenceFlags.count, 1)
             XCTAssertTrue(

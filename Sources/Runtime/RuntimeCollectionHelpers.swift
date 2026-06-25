@@ -96,16 +96,6 @@ func runtimeCollectionElements(from rawValue: Int) -> [Int]? {
     return nil
 }
 
-func runtimeCollectionValues(from rawValue: Int) -> [RuntimeValue]? {
-    if let listBox = runtimeListBox(from: rawValue) {
-        return listBox.values
-    }
-    if let setBox = runtimeSetBox(from: rawValue) {
-        return setBox.values
-    }
-    return nil
-}
-
 func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     if let elements = runtimeCollectionElements(from: rawValue) {
         return elements
@@ -116,41 +106,25 @@ func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     return nil
 }
 
-func runtimeCollectionOrArrayValues(from rawValue: Int) -> [RuntimeValue]? {
-    if let values = runtimeCollectionValues(from: rawValue) {
-        return values
-    }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.values
-    }
-    return nil
-}
-
-func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
-    if let values = runtimeCollectionValues(from: rawValue) {
-        return values
+func runtimeIterableElements(from rawValue: Int) -> [Int]? {
+    if let elements = runtimeCollectionElements(from: rawValue) {
+        return elements
     }
     if let stringIterable = runtimeStringIterableBox(from: rawValue) {
-        return stringIterable.source.utf16.map { RuntimeValue(charScalar: Int($0)) }
+        let listRaw = kk_string_toList(stringIterable.strRaw)
+        return runtimeCollectionElements(from: listRaw)
     }
     if let indexingIterable = runtimeIndexingIterableBox(from: rawValue),
        let list = runtimeListBox(from: indexingIterable.listRaw)
     {
-        return list.values.enumerated().map { index, element in
-            RuntimeValue(raw: runtimeIndexedValueNew(index: index, value: element))
+        return list.elements.enumerated().map { index, element in
+            kk_pair_new(index, element)
         }
     }
-    if let arrayBox = runtimeArrayBox(from: rawValue) {
-        return arrayBox.values
-    }
     if runtimeSequenceBox(from: rawValue) != nil {
-        return runtimeSequenceSourceValues(from: rawValue)
+        return runtimeSequenceSourceElements(from: rawValue)
     }
     return nil
-}
-
-func runtimeIterableElements(from rawValue: Int) -> [Int]? {
-    runtimeIterableValues(from: rawValue)?.map(\.legacyRawValue)
 }
 
 func runtimeListIteratorBox(from rawValue: Int) -> RuntimeListIteratorBox? {
@@ -434,35 +408,6 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     return lhs == rhs
 }
 
-func runtimeValuesEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Bool {
-    if lhs.tag == rhs.tag {
-        switch lhs.tag {
-        case RuntimeValue.charTag:
-            return lhs.payload0 == rhs.payload0
-        case RuntimeValue.stringTag:
-            guard let lhsData = UnsafePointer<UInt8>(bitPattern: lhs.payload0),
-                  let rhsData = UnsafePointer<UInt8>(bitPattern: rhs.payload0)
-            else {
-                return lhs.payload0 == rhs.payload0
-            }
-            return runtimeStringFromFlatFields(
-                data: lhsData,
-                length: lhs.payload1,
-                byteCount: lhs.payload2,
-                hash: lhs.payload3
-            ) == runtimeStringFromFlatFields(
-                data: rhsData,
-                length: rhs.payload1,
-                byteCount: rhs.payload2,
-                hash: rhs.payload3
-            )
-        default:
-            return runtimeValuesEqual(lhs.payload0, rhs.payload0)
-        }
-    }
-    return runtimeValuesEqual(lhs.legacyRawValue, rhs.legacyRawValue)
-}
-
 /// Structural equality for `==` on reference types (lists, sets, maps, boxed values).
 /// Returns a boxed Bool (via kk_box_bool) so it matches the ABI of other kk_op_* functions.
 @_cdecl("kk_structural_eq")
@@ -511,22 +456,22 @@ func runtimeElementToString(_ elem: Int) -> String {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"
     }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
-        let parts = listBox.values.map { runtimeElementToString($0) }
+        let parts = listBox.elements.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let setBox = tryCast(ptr, to: RuntimeSetBox.self) {
-        let parts = setBox.values.map { runtimeElementToString($0) }
+        let parts = setBox.elements.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
-        let parts = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
+        let parts = zip(mapBox.keys, mapBox.values).map { key, value in
             "\(runtimeElementToString(key))=\(runtimeElementToString(value))"
         }
         return "{" + parts.joined(separator: ", ") + "}"
     }
     if let pairBox = tryCast(ptr, to: RuntimePairBox.self) {
-        let first = runtimeElementToString(pairBox.firstValue)
-        let second = runtimeElementToString(pairBox.secondValue)
+        let first = runtimeElementToString(pairBox.first)
+        let second = runtimeElementToString(pairBox.second)
         if runtimeIsMapEntry(rawValue: elem) {
             return "\(first)=\(second)"
         }
@@ -555,7 +500,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         }
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let parts = arrayBox.values.map { runtimeElementToString($0) }
+        let parts = arrayBox.elements.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
@@ -568,25 +513,6 @@ func runtimeElementToString(_ elem: Int) -> String {
         return runtimeKTypeToString(ktypeBox)
     }
     return "\(elem)"
-}
-
-func runtimeElementToString(_ value: RuntimeValue) -> String {
-    switch value.tag {
-    case RuntimeValue.stringTag:
-        guard let data = UnsafePointer<UInt8>(bitPattern: value.payload0) else {
-            return "null"
-        }
-        return runtimeStringFromFlatFields(
-            data: data,
-            length: value.payload1,
-            byteCount: value.payload2,
-            hash: value.payload3
-        )
-    case RuntimeValue.charTag:
-        return UnicodeScalar(value.payload0).map(String.init) ?? "?"
-    default:
-        return runtimeElementToString(value.payload0)
-    }
 }
 
 // MARK: - Collection HOF Helpers (STDLIB-005)
@@ -740,54 +666,6 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
         return 0
     }
     return lhsRendered < rhsRendered ? -1 : 1
-}
-
-func runtimeCompareValues(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Int {
-    if lhs.tag == RuntimeValue.rawTag, rhs.tag == RuntimeValue.rawTag {
-        return runtimeCompareValues(lhs.payload0, rhs.payload0)
-    }
-    if let lhsString = runtimeStringFromRuntimeValue(lhs),
-       let rhsString = runtimeStringFromRuntimeValue(rhs)
-    {
-        return runtimeCompareStrings(lhsString, rhsString)
-    }
-    if lhs.tag == RuntimeValue.charTag, rhs.tag == RuntimeValue.charTag {
-        return runtimeCompareIntegers(lhs.payload0, rhs.payload0)
-    }
-    if lhs.tag != RuntimeValue.stringTag, rhs.tag != RuntimeValue.stringTag {
-        return runtimeCompareValues(lhs.legacyRawValue, rhs.legacyRawValue)
-    }
-    return runtimeCompareStrings(
-        runtimeElementToString(lhs),
-        runtimeElementToString(rhs)
-    )
-}
-
-@inline(__always)
-private func runtimeCompareIntegers(_ lhs: Int, _ rhs: Int) -> Int {
-    if lhs == rhs {
-        return 0
-    }
-    return lhs < rhs ? -1 : 1
-}
-
-private func runtimeStringFromRuntimeValue(_ value: RuntimeValue) -> String? {
-    switch value.tag {
-    case RuntimeValue.stringTag:
-        guard let data = UnsafePointer<UInt8>(bitPattern: value.payload0) else {
-            return nil
-        }
-        return runtimeStringFromFlatFields(
-            data: data,
-            length: value.payload1,
-            byteCount: value.payload2,
-            hash: value.payload3
-        )
-    case RuntimeValue.rawTag:
-        return runtimeStringFromRawValue(value.payload0)
-    default:
-        return nil
-    }
 }
 
 @inline(__always)

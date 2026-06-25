@@ -1,3 +1,4 @@
+@testable import CompilerCore
 import XCTest
 
 final class KotlinCompilationResourceTests: XCTestCase {

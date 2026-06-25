@@ -19,45 +19,6 @@ final class RuntimeTypesTests: XCTestCase {
         XCTAssertEqual(box.value, "こんにちは")
     }
 
-    // MARK: - RuntimeValue
-
-    func testRuntimeValueRawRoundTripsThroughLegacyRawValue() {
-        let value = RuntimeValue(raw: 42)
-        XCTAssertEqual(value.tag, RuntimeValue.rawTag)
-        XCTAssertEqual(value.legacyRawValue, 42)
-    }
-
-    func testRuntimeValueStringPayloadMaterializesLegacyStringBox() throws {
-        let bytes = Array("hello".utf8)
-        let raw = bytes.withUnsafeBufferPointer { buffer -> Int in
-            let data = Int(bitPattern: buffer.baseAddress!)
-            let value = RuntimeValue(
-                stringData: data,
-                length: 5,
-                byteCount: bytes.count,
-                hash: 0
-            )
-            return value.legacyRawValue
-        }
-        let ptr = try XCTUnwrap(UnsafeMutableRawPointer(bitPattern: raw))
-        let box = try XCTUnwrap(tryCast(ptr, to: RuntimeStringBox.self))
-        XCTAssertEqual(box.value, "hello")
-    }
-
-    func testRuntimeValueCharPayloadRoundTripsThroughLegacyRawValue() {
-        let value = RuntimeValue(charScalar: 97)
-        XCTAssertEqual(value.tag, RuntimeValue.charTag)
-        XCTAssertEqual(value.legacyRawValue, 97)
-    }
-
-    func testRuntimeValueNullStringComparesAsNullWithoutLegacyBox() {
-        let value = RuntimeValue(stringData: 0, length: 0, byteCount: 0, hash: 0)
-        let baselineObjectCount = kk_debugging_global_object_count()
-
-        XCTAssertEqual(runtimeCompareValues(value, RuntimeValue(raw: runtimeNullSentinelInt)), 0)
-        XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount)
-    }
-
     // MARK: - RuntimeThrowableBox
 
     func testRuntimeThrowableBoxStoresMessage() {
@@ -92,36 +53,6 @@ final class RuntimeTypesTests: XCTestCase {
         let box = RuntimeArrayBox(length: 3)
         box.elements[1] = 42
         XCTAssertEqual(box.elements[1], 42)
-    }
-
-    func testRuntimeArrayBoxStoresRuntimeValues() {
-        let box = RuntimeArrayBox(length: 2)
-        box.values[0] = RuntimeValue(raw: 11)
-        box.values[1] = RuntimeValue(raw: 22)
-        XCTAssertEqual(box.elements, [11, 22])
-
-        box.elements[0] = 33
-        XCTAssertEqual(box.values[0].legacyRawValue, 33)
-    }
-
-    func testRuntimeListBoxCanViewRuntimeArrayValues() {
-        let array = RuntimeArrayBox(length: 2)
-        array.values = [RuntimeValue(raw: 7), RuntimeValue(raw: 8)]
-
-        let list = RuntimeListBox(arrayViewOf: array)
-        XCTAssertEqual(list.elements, [7, 8])
-
-        list.values[1] = RuntimeValue(raw: 9)
-        XCTAssertEqual(array.elements, [7, 9])
-    }
-
-    func testRuntimeMapBoxStoresRuntimeValues() {
-        let map = RuntimeMapBox(keys: [1], values: [2])
-        map.keyValues[0] = RuntimeValue(raw: 10)
-        map.entryValues[0] = RuntimeValue(raw: 20)
-
-        XCTAssertEqual(map.keys, [10])
-        XCTAssertEqual(map.values, [20])
     }
 
     // MARK: - RuntimeIntBox

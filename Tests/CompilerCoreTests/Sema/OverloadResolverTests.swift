@@ -315,7 +315,7 @@ final class OverloadResolverTests: XCTestCase {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
 
         let ext = defineSymbol(
             kind: .function,
@@ -353,7 +353,7 @@ final class OverloadResolverTests: XCTestCase {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
 
         let ext = defineSymbol(
             kind: .function,

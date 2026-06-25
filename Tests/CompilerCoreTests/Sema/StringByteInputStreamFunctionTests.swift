@@ -4,8 +4,8 @@ import XCTest
 
 /// Verifies the STDLIB-IO-FN-011 synthetic stub for `String.byteInputStream(charset)`.
 /// Two overloads are exposed from `kotlin.io`:
-/// - `String.byteInputStream(): ByteArrayInputStream` → `kk_string_byteInputStream_flat`
-/// - `String.byteInputStream(charset: Charset): ByteArrayInputStream` → `kk_string_byteInputStream_charset_flat`
+/// - `String.byteInputStream(): ByteArrayInputStream` → `kk_string_byteInputStream`
+/// - `String.byteInputStream(charset: Charset): ByteArrayInputStream` → `kk_string_byteInputStream_charset`
 ///
 /// Both return `java.io.ByteArrayInputStream`, which is registered as an
 /// `InputStream` subtype so that resource-management surfaces (`.use {}`) work
@@ -38,7 +38,7 @@ final class StringByteInputStreamFunctionTests: XCTestCase {
             let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_byteInputStream_flat"
+                "kk_string_byteInputStream"
             )
 
             // The chosen overload must be the zero-parameter, kotlin.io extension.
@@ -91,7 +91,7 @@ final class StringByteInputStreamFunctionTests: XCTestCase {
             let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_byteInputStream_charset_flat"
+                "kk_string_byteInputStream_charset"
             )
 
             // Signature should accept a single Charset parameter.
@@ -182,7 +182,7 @@ final class StringByteInputStreamFunctionTests: XCTestCase {
             let externalLinks = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
             XCTAssertEqual(
                 externalLinks,
-                ["kk_string_byteInputStream_flat", "kk_string_byteInputStream_charset_flat"]
+                ["kk_string_byteInputStream", "kk_string_byteInputStream_charset"]
             )
 
             // Both overloads must declare String as their extension receiver.

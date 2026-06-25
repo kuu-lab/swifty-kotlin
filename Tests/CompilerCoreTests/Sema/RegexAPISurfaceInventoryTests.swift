@@ -2,37 +2,8 @@
 import Foundation
 import XCTest
 
-// MARK: - STDLIB-REGEX-001: kotlin.text.Regex API Surface Inventory
-//
-// This file catalogues *every* Regex-related symbol that the sema layer registers
-// as a synthetic stub and verifies that:
-//   • the symbol exists in the symbol table after sema
-//   • it is wired to the expected ABI / external-link name
-//   • class-member lookups use the correct fully-qualified path
-//     (kotlin.text.<ClassName>.<member>)
-//   • top-level constructor overloads and companion methods are all present
-//
-// Scope: signature-level / sema-level only — runtime correctness is covered by
-//        RuntimeRegexTests and STDLIB-REGEX-003 (commit #1208).
-
 final class RegexAPISurfaceInventoryTests: XCTestCase {
 
-    // MARK: - Shared sema fixture
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
-    // MARK: - Lookup helpers
-
-    /// External link for a kotlin.text-level symbol (top-level or class member).
     private func externalLink(
         fqPath: [String],
         sema: SemaModule,
@@ -41,19 +12,6 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         let interned = fqPath.map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: interned) else { return nil }
         return sema.symbols.externalLinkName(for: sym)
-    }
-
-    /// All external links registered under the given FQ path.
-    private func allExternalLinks(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Set<String> {
-        let interned = fqPath.map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: interned)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
     }
 
     // MARK: - 1. Constructors
@@ -67,8 +25,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             interner: interner
         )
         XCTAssertTrue(
-            links.contains("kk_regex_create_flat"),
-            "Regex(pattern) constructor must link to kk_regex_create_flat"
+            links.contains("kk_regex_create"),
+            "Regex(pattern) constructor must link to kk_regex_create"
         )
     }
 
@@ -81,8 +39,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             interner: interner
         )
         XCTAssertTrue(
-            links.contains("kk_regex_create_with_option_flat"),
-            "Regex(pattern, option) constructor must link to kk_regex_create_with_option_flat"
+            links.contains("kk_regex_create_with_option"),
+            "Regex(pattern, option) constructor must link to kk_regex_create_with_option"
         )
     }
 
@@ -95,8 +53,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             interner: interner
         )
         XCTAssertTrue(
-            links.contains("kk_regex_create_with_options_flat"),
-            "Regex(pattern, options) constructor must link to kk_regex_create_with_options_flat"
+            links.contains("kk_regex_create_with_options"),
+            "Regex(pattern, options) constructor must link to kk_regex_create_with_options"
         )
     }
 
@@ -108,9 +66,9 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             interner: interner
         )
         let required: Set<String> = [
-            "kk_regex_create_flat",
-            "kk_regex_create_with_option_flat",
-            "kk_regex_create_with_options_flat",
+            "kk_regex_create",
+            "kk_regex_create_with_option",
+            "kk_regex_create_with_options",
         ]
         XCTAssertTrue(
             required.isSubset(of: links),
@@ -151,7 +109,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches_flat")
+        XCTAssertEqual(link, "kk_regex_matches", "Regex.matches must link to kk_regex_matches")
     }
 
     func testRegexContainsMatchInIsRegistered() throws {
@@ -161,8 +119,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_containsMatchIn_flat",
-                       "Regex.containsMatchIn must link to kk_regex_containsMatchIn_flat")
+        XCTAssertEqual(link, "kk_regex_containsMatchIn",
+                       "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
     }
 
     func testRegexFindIsRegistered() throws {
@@ -172,7 +130,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_find_flat", "Regex.find must link to kk_regex_find_flat")
+        XCTAssertEqual(link, "kk_regex_find", "Regex.find must link to kk_regex_find")
     }
 
     func testRegexFindAllIsRegistered() throws {
@@ -182,7 +140,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll_flat")
+        XCTAssertEqual(link, "kk_regex_findAll", "Regex.findAll must link to kk_regex_findAll")
     }
 
     func testRegexMatchEntireIsRegistered() throws {
@@ -192,8 +150,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_matchEntire_flat",
-                       "Regex.matchEntire must link to kk_regex_matchEntire_flat")
+        XCTAssertEqual(link, "kk_regex_matchEntire",
+                       "Regex.matchEntire must link to kk_regex_matchEntire")
     }
 
     func testRegexReplaceWithLambdaIsRegistered() throws {
@@ -250,8 +208,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         XCTAssertFalse(syms.isEmpty, "Regex.Companion.fromLiteral must be registered")
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         XCTAssertTrue(
-            links.contains("kk_regex_from_literal_flat"),
-            "Regex.fromLiteral must link to kk_regex_from_literal_flat; found: \(links)"
+            links.contains("kk_regex_from_literal"),
+            "Regex.fromLiteral must link to kk_regex_from_literal; found: \(links)"
         )
     }
 
@@ -421,13 +379,13 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
     func testStringSplitWithRegexIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // String.split(Regex) is registered in HeaderHelpers+SyntheticStringStubs
-        // as kotlin.text.split with externalLinkName kk_string_split_regex_flat.
+        // as kotlin.text.split with externalLinkName kk_string_split_regex.
         let fq = ["kotlin", "text", "split"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         XCTAssertTrue(
-            links.contains("kk_string_split_regex_flat"),
-            "kotlin.text.split(Regex) must link to kk_string_split_regex_flat; found: \(links)"
+            links.contains("kk_string_split_regex"),
+            "kotlin.text.split(Regex) must link to kk_string_split_regex; found: \(links)"
         )
     }
 
@@ -483,7 +441,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_create_with_option_flat"
+                "kk_regex_create_with_option"
             )
         }
     }
@@ -510,7 +468,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_matches_flat"
+                "kk_regex_matches"
             )
         }
     }
@@ -537,7 +495,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_containsMatchIn_flat"
+                "kk_regex_containsMatchIn"
             )
         }
     }
@@ -565,7 +523,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_find_flat"
+                "kk_regex_find"
             )
         }
     }
@@ -593,7 +551,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_matchEntire_flat"
+                "kk_regex_matchEntire"
             )
         }
     }
@@ -620,7 +578,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_from_literal_flat"
+                "kk_regex_from_literal"
             )
         }
     }
@@ -716,22 +674,22 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         // nil linkName means we only check symbol existence, not the link.
         let mandatoryLinks: [([String], String)] = [
             // Constructors (top-level in kotlin.text)
-            (["kotlin", "text", "Regex"], "kk_regex_create_flat"),
-            (["kotlin", "text", "Regex"], "kk_regex_create_with_option_flat"),
-            (["kotlin", "text", "Regex"], "kk_regex_create_with_options_flat"),
+            (["kotlin", "text", "Regex"], "kk_regex_create"),
+            (["kotlin", "text", "Regex"], "kk_regex_create_with_option"),
+            (["kotlin", "text", "Regex"], "kk_regex_create_with_options"),
             // Member functions
-            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches_flat"),
-            (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn_flat"),
-            (["kotlin", "text", "Regex", "find"], "kk_regex_find_flat"),
-            (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll_flat"),
-            (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire_flat"),
+            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches"),
+            (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn"),
+            (["kotlin", "text", "Regex", "find"], "kk_regex_find"),
+            (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll"),
+            (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire"),
             (["kotlin", "text", "Regex", "replace"], "kk_regex_replace_lambda"),
             // Properties
             (["kotlin", "text", "Regex", "pattern"], "kk_regex_pattern"),
             (["kotlin", "text", "Regex", "options"], "kk_regex_options"),
             (["kotlin", "text", "Regex", "groupNames"], "kk_regex_group_names"),
             // Companion
-            (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal_flat"),
+            (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal"),
             // MatchResult
             (["kotlin", "text", "MatchResult", "value"], "kk_match_result_value"),
             (["kotlin", "text", "MatchResult", "range"], "kk_match_result_range"),
@@ -747,13 +705,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get"),
             (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get_at"),
             // String extensions
-            (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
-            (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
             (["kotlin", "text", "replaceFirst"], "kk_string_replaceFirst_regex"),
-            (["kotlin", "text", "split"], "kk_string_split_regex_flat"),
-            (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
-            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_option_flat"),
-            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_options_flat"),
+            (["kotlin", "text", "split"], "kk_string_split_regex"),
         ]
 
         for (fqPath, expectedLink) in mandatoryLinks {

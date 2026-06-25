@@ -57,7 +57,7 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-        if sema.symbols.externalLinkName(for: chosen) == "kk_string_split_flat" {
+        if sema.symbols.externalLinkName(for: chosen) == "kk_string_split" {
             sema.bindings.markCollectionExpr(id)
         }
         let returnType: TypeID

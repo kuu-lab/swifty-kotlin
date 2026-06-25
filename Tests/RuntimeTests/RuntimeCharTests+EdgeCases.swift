@@ -25,40 +25,6 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
         }
     }
 
-    private func withFlatString<T>(
-        _ value: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        var length = 0
-        var byteCount = 0
-        var hash = 0
-        let data = runtimeRegisterFlatString(
-            value,
-            outLength: &length,
-            outByteCount: &byteCount,
-            outHash: &hash
-        )
-        let constData = data.map { UnsafePointer($0) }
-        return body(constData, length, byteCount, hash)
-    }
-
-    private func makeLocale(language: String, country: String) -> Int {
-        withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
-            withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                kk_locale_new_language_country_flat(
-                    languageData,
-                    languageLength,
-                    languageByteCount,
-                    languageHash,
-                    countryData,
-                    countryLength,
-                    countryByteCount,
-                    countryHash
-                )
-            }
-        }
-    }
-
     // MARK: - Char.MIN_VALUE / MAX_VALUE boundaries
     // Kotlin Char.MIN_VALUE = '\u0000', Char.MAX_VALUE = '\uFFFF'
 
@@ -243,7 +209,7 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
     }
 
     func testUppercaseWithTurkishLocale() {
-        let locale = makeLocale(language: "tr", country: "TR")
+        let locale = kk_locale_new_language_country(runtimeString("tr"), runtimeString("TR"))
         let result = kk_char_uppercase_locale(Int(("i" as UnicodeScalar).value), locale)
         XCTAssertEqual(runtimeStringValue(result), "\u{0130}")
     }
@@ -253,7 +219,7 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
     }
 
     func testLowercaseWithTurkishLocale() {
-        let locale = makeLocale(language: "tr", country: "TR")
+        let locale = kk_locale_new_language_country(runtimeString("tr"), runtimeString("TR"))
         let result = kk_char_lowercase_locale(Int(("I" as UnicodeScalar).value), locale)
         XCTAssertEqual(runtimeStringValue(result), "\u{0131}")
     }

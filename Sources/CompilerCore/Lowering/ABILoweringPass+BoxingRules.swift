@@ -105,6 +105,8 @@ extension ABILoweringPass {
                     return boxCallees.int
                 case .ulong:
                     return boxCallees.long
+                default:
+                    return nil
                 }
             }
             return nil
@@ -194,7 +196,7 @@ extension ABILoweringPass {
             case .boolLiteral:
                 return types.make(.primitive(.boolean, .nonNull))
             case .stringLiteral:
-                return types.stringType
+                return types.make(.primitive(.string, .nonNull))
             default:
                 break
             }

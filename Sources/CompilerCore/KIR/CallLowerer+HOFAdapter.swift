@@ -87,8 +87,7 @@ extension CallLowerer {
                     returnType: functionType.returnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
-                    isInline: false,
-                    usesRawCallbackABI: true
+                    isInline: false
                 )
             )
         )

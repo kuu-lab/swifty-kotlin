@@ -1,8 +1,8 @@
 import CompilerCore
 
 /// Computes hover information (type and symbol) for a position.
-enum HoverFeature {
-    static func hover(for analysis: Analyzer.Analysis, line: Int, character: Int) -> Hover? {
+public enum HoverFeature {
+    public static func hover(for analysis: Analyzer.Analysis, line: Int, character: Int) -> Hover? {
         guard
             let fileID = analysis.fileID,
             let ast = analysis.context.ast,

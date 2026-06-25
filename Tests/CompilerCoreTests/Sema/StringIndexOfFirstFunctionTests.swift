@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-022: Validates that `CharSequence.indexOfFirst(predicate)` resolves
 /// through Sema for `String` / `CharSequence` receivers, dispatching to the
-/// runtime link name `kk_string_indexOfFirst_flat` for String receivers, and returns `Int`.
+/// runtime link name `kk_string_indexOfFirst`, and returns `Int`.
 final class StringIndexOfFirstFunctionTests: XCTestCase {
     func testIndexOfFirstWithPredicateResolvesInSource() throws {
         let ctx = makeContextFromSource("""

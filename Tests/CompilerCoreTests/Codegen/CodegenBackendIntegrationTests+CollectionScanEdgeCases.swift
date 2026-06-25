@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 extension CodegenBackendIntegrationTests {
-    func testCodegenCollectionScanUsesListRuntimeForParameterReceiver() throws {
+    func testCodegenCollectionScanIncludesInitialAccumulator() throws {
         let source = """
         fun printScans(values: List<Int>) {
             println(values.scan(10) { acc, value -> acc + value })

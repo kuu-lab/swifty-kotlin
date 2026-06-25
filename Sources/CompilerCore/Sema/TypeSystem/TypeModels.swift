@@ -15,6 +15,7 @@ public enum PrimitiveType: String, Hashable, Sendable {
     case long
     case float
     case double
+    case string
     case uint
     case ulong
     case ubyte
@@ -31,6 +32,7 @@ public extension PrimitiveType {
         case .long: "Long"
         case .float: "Float"
         case .double: "Double"
+        case .string: "String"
         case .uint: "UInt"
         case .ulong: "ULong"
         case .ubyte: "UByte"
@@ -91,7 +93,7 @@ public struct TypeParamType: Hashable, Sendable {
     }
 }
 
-public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
+public struct FunctionType: Hashable, Sendable {
     public let contextReceivers: [TypeID]
     public let receiver: TypeID?
     public let params: [TypeID]
@@ -117,10 +119,6 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
         self.nullability = nullability
         self.`throws` = `throws`
     }
-
-    public var description: String {
-        return "(\(params.count)) -> \(returnType.rawValue) throws: \(`throws`.count)"
-    }
 }
 
 /// Represents `kotlin.reflect.KClass<T>`, the type of `T::class` expressions.
@@ -141,7 +139,6 @@ public enum TypeKind: Hashable {
     case nothing(Nullability)
     case any(Nullability)
 
-    case stringStruct(Nullability)
     case primitive(PrimitiveType, Nullability)
     case classType(ClassType)
     case typeParam(TypeParamType)

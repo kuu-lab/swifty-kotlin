@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-097: Validates that `String.toFloat()` resolves through Sema
 /// for plain String receivers as well as literal / branch / nullable contexts.
-/// The runtime link involved is `kk_string_toFloat_flat` (see
+/// The runtime link involved is `kk_string_toFloat` (see
 /// `Sources/Runtime/RuntimeStringStdlib.swift`).
 final class StringToFloatFunctionTests: XCTestCase {
     func testStringToFloatResolvesInSource() throws {
@@ -59,6 +59,6 @@ final class StringToFloatFunctionTests: XCTestCase {
                 "String.toFloat() should return Float"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_toFloat_flat")
+        XCTAssertEqual(resolvedLink, "kk_string_toFloat")
     }
 }

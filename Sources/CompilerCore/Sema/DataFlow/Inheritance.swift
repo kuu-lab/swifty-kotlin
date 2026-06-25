@@ -560,14 +560,10 @@ extension DataFlowSemaPhase {
 
     /// CLASS-008: Create synthetic method symbols for delegated interface methods
     /// that the class does not override. These are used for itable layout and KIR lowering.
-    private struct DelegationDispatchKey: Hashable, CustomStringConvertible {
+    private struct DelegationDispatchKey: Hashable {
         let name: InternedString
         let arity: Int
         let isSuspend: Bool
-
-        var description: String {
-            return "\(name):\(arity)"
-        }
     }
 
     private func delegationDispatchKey(for methodSymbol: SymbolID, symbols: SymbolTable, interner: StringInterner) -> DelegationDispatchKey {

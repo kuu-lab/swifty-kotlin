@@ -6,7 +6,7 @@ extension OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
 
         let tpSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "extGen_T", symbols: symbols, interner: interner)
         let tpType = types.make(.typeParam(TypeParamType(symbol: tpSym, nullability: .nonNull)))
@@ -355,7 +355,7 @@ extension OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
         let fn = defineSymbol(
             kind: .function,
             name: "namedThenVararg",

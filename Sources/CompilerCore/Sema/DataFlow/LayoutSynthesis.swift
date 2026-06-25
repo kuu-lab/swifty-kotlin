@@ -169,14 +169,10 @@ extension DataFlowSemaPhase {
         return interfaces.sorted(by: { $0.rawValue < $1.rawValue })
     }
 
-    private struct MethodDispatchKey: Hashable, CustomStringConvertible {
+    private struct MethodDispatchKey: Hashable {
         let name: InternedString
         let arity: Int
         let isSuspend: Bool
-
-        var description: String {
-            return "\(name):\(arity)"
-        }
     }
 
     private func methodDispatchKey(for method: SemanticSymbol, symbols: SymbolTable) -> MethodDispatchKey {

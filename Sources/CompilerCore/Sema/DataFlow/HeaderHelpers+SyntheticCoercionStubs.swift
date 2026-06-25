@@ -11,7 +11,6 @@ extension DataFlowSemaPhase {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         let kotlinRangesPkg = kotlinPkg + [interner.intern("ranges")]
 
-        // Ensure packages exist
         if symbols.lookup(fqName: kotlinPkg) == nil {
             _ = symbols.define(kind: .package, name: interner.intern("kotlin"), fqName: kotlinPkg, declSite: nil, visibility: .public, flags: [.synthetic])
         }
@@ -1369,9 +1368,6 @@ extension DataFlowSemaPhase {
         }) {
             return
         }
-        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
-            return
-        }
         let functionSymbol = symbols.define(
             kind: .function,
             name: functionName,
@@ -1437,9 +1433,6 @@ extension DataFlowSemaPhase {
             if !deprecatedAnnotations.isEmpty {
                 symbols.setAnnotations(deprecatedAnnotations, for: existing)
             }
-            return
-        }
-        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 

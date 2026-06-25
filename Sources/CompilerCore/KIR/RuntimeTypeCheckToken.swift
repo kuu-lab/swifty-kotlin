@@ -49,7 +49,7 @@ enum RuntimeTypeCategory {
         switch self {
         case .any:      "Any"
         case .null:     "Nothing"
-        case .string:   "String"
+        case .string:   PrimitiveType.string.kotlinName
         case .int:      PrimitiveType.int.kotlinName
         case .boolean:  PrimitiveType.boolean.kotlinName
         case .uint:     PrimitiveType.uint.kotlinName
@@ -119,7 +119,7 @@ enum RuntimeTypeCheckToken {
         let category: RuntimeTypeCategory
         switch sema.types.kind(of: type) {
         case .any:                      category = .any
-        case .stringStruct:             category = .string
+        case .primitive(.string, _):    category = .string
         case .primitive(.int, _):       category = .int
         case .primitive(.uint, _):      category = .uint
         case .primitive(.ulong, _):     category = .ulong

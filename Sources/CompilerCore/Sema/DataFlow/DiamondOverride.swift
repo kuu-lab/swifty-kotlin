@@ -2,14 +2,10 @@
 // CLASS-004: Diamond override validation — when a class implements multiple interfaces
 // that both provide a default method with the same name, the class must override it.
 extension DataFlowSemaPhase {
-    private struct DiamondDispatchKey: Hashable, CustomStringConvertible {
+    private struct DiamondDispatchKey: Hashable {
         let name: InternedString
         let parameterTypes: [TypeID]
         let isSuspend: Bool
-
-        var description: String {
-            return "\(name):\(parameterTypes.count)"
-        }
     }
 
     private struct DiamondImplementation {

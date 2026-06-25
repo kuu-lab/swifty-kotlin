@@ -6,34 +6,6 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
-    func hasImportedLibrarySymbol(
-        fqName: [InternedString],
-        kind: SymbolKind,
-        symbols: SymbolTable
-    ) -> Bool {
-        // Imported stdlib declarations own the public Kotlin surface; synthetic
-        // fallback stubs should not reintroduce direct runtime links there.
-        symbols.lookupAll(fqName: fqName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID) else {
-                return false
-            }
-            return symbol.kind == kind && symbol.flags.contains(.importedLibrary)
-        }
-    }
-
-    func hasSourceOrImportedLibrarySymbol(
-        fqName: [InternedString],
-        kind: SymbolKind,
-        symbols: SymbolTable
-    ) -> Bool {
-        symbols.lookupAll(fqName: fqName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID), symbol.kind == kind else {
-                return false
-            }
-            return symbol.flags.contains(.importedLibrary) || !symbol.flags.contains(.synthetic)
-        }
-    }
-
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
         case let .classDecl(classDecl):
@@ -48,8 +20,8 @@ extension DataFlowSemaPhase {
             propertyDecl.annotations
         case let .typeAliasDecl(typeAliasDecl):
             typeAliasDecl.annotations
-        default:
-            []
+        case let .enumEntryDecl(enumEntryDecl):
+            enumEntryDecl.annotations
         }
     }
 
@@ -103,13 +75,6 @@ extension DataFlowSemaPhase {
             )
         }
         symbols.setAnnotations(records, for: symbol)
-        applyKSwiftKRuntimeNameAnnotation(
-            astAnnotations,
-            symbol: symbol,
-            declRange: declRange,
-            symbols: symbols,
-            diagnostics: diagnostics
-        )
 
         // Register @Suppress ranges so matching diagnostics are filtered.
         guard let declRange else {
@@ -123,52 +88,6 @@ extension DataFlowSemaPhase {
                 }
             }
         }
-    }
-
-    private func applyKSwiftKRuntimeNameAnnotation(
-        _ astAnnotations: [AnnotationNode],
-        symbol: SymbolID,
-        declRange: SourceRange?,
-        symbols: SymbolTable,
-        diagnostics: DiagnosticEngine
-    ) {
-        guard let runtimeNameAnnotation = astAnnotations.first(where: {
-            KnownCompilerAnnotation.kSwiftKRuntimeName.matches($0.name)
-        }) else {
-            return
-        }
-        guard symbols.symbol(symbol)?.kind == .function else {
-            diagnostics.error(
-                "KSWIFTK-SEMA-RUNTIME-NAME",
-                "@KSwiftKRuntimeName can only be used on functions.",
-                range: declRange
-            )
-            return
-        }
-        guard let linkName = runtimeNameArgument(from: runtimeNameAnnotation), !linkName.isEmpty else {
-            diagnostics.error(
-                "KSWIFTK-SEMA-RUNTIME-NAME",
-                "@KSwiftKRuntimeName requires a non-empty runtime symbol name.",
-                range: declRange
-            )
-            return
-        }
-        symbols.setExternalLinkName(linkName, for: symbol)
-    }
-
-    private func runtimeNameArgument(from annotation: AnnotationNode) -> String? {
-        guard let raw = annotation.arguments.first else {
-            return nil
-        }
-        let assignmentPrefixes = ["name =", "value ="]
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let value = assignmentPrefixes.reduce(trimmed) { partial, prefix in
-            if partial.hasPrefix(prefix) {
-                return String(partial.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            return partial
-        }
-        return value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
     }
 
     private func suppressionRange(for decl: Decl, declRange: SourceRange?) -> SourceRange? {
@@ -508,16 +427,6 @@ extension DataFlowSemaPhase {
                 return
             }
         }
-        if newKind == .property,
-           !newFlags.contains(.synthetic)
-        {
-            let existingNonPackage = existing.filter { $0.kind != .package }
-            if !existingNonPackage.isEmpty,
-               existingNonPackage.allSatisfy({ $0.kind == .property && $0.flags.contains(.synthetic) })
-            {
-                return
-            }
-        }
         if hasDeclarationConflict(newKind: newKind, existing: existing) {
             diagnostics.error(
                 "KSWIFTK-SEMA-0001",
@@ -566,7 +475,7 @@ extension DataFlowSemaPhase {
         }
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
         guard !hasUserDeclaredFunction(
             fqName: toStringFQName,
             receiverType: ownerType,
@@ -1111,6 +1020,7 @@ extension DataFlowSemaPhase {
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticStdlibLoopStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTestFrameworkStubs(
             symbols: symbols,
@@ -1132,20 +1042,15 @@ extension DataFlowSemaPhase {
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsParseIntStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsParseIntRadixStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsJsonStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsTypeOfStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
         // Function interfaces are registered by TODO/IO stubs, so patch KProperty function supertypes here.
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsParseFloatStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)

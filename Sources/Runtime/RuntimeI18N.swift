@@ -28,13 +28,13 @@ private final class RuntimeLocaleState: @unchecked Sendable {
 
 private let runtimeLocaleState = RuntimeLocaleState()
 
-private func i18nStringFromFlat(
-    data: UnsafePointer<UInt8>?,
-    length: Int,
-    byteCount: Int,
-    hash: Int
-) -> String {
-    runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+private func i18nString(from raw: Int, caller: StaticString) -> String {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+          let value = extractString(from: ptr)
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid string handle")
+    }
+    return value
 }
 
 private func i18nMakeStringRaw(_ value: String) -> Int {
@@ -123,45 +123,16 @@ private func setRuntimeDefaultLocaleBox(_ box: RuntimeLocaleBox) {
     runtimeLocaleState.lock.unlock()
 }
 
-@_cdecl("kk_locale_new_flat")
-public func kk_locale_new_flat(
-    _ identifierData: UnsafePointer<UInt8>?,
-    _ identifierLength: Int,
-    _ identifierByteCount: Int,
-    _ identifierHash: Int
-) -> Int {
-    let identifier = i18nStringFromFlat(
-        data: identifierData,
-        length: identifierLength,
-        byteCount: identifierByteCount,
-        hash: identifierHash
-    )
+@_cdecl("kk_locale_new")
+public func kk_locale_new(_ identifierRaw: Int) -> Int {
+    let identifier = i18nString(from: identifierRaw, caller: #function)
     return registerRuntimeObject(makeRuntimeLocaleBox(languageOnly: identifier))
 }
 
-@_cdecl("kk_locale_new_language_country_flat")
-public func kk_locale_new_language_country_flat(
-    _ languageData: UnsafePointer<UInt8>?,
-    _ languageLength: Int,
-    _ languageByteCount: Int,
-    _ languageHash: Int,
-    _ countryData: UnsafePointer<UInt8>?,
-    _ countryLength: Int,
-    _ countryByteCount: Int,
-    _ countryHash: Int
-) -> Int {
-    let language = i18nStringFromFlat(
-        data: languageData,
-        length: languageLength,
-        byteCount: languageByteCount,
-        hash: languageHash
-    )
-    let country = i18nStringFromFlat(
-        data: countryData,
-        length: countryLength,
-        byteCount: countryByteCount,
-        hash: countryHash
-    )
+@_cdecl("kk_locale_new_language_country")
+public func kk_locale_new_language_country(_ languageRaw: Int, _ countryRaw: Int) -> Int {
+    let language = i18nString(from: languageRaw, caller: #function)
+    let country = i18nString(from: countryRaw, caller: #function)
     return registerRuntimeObject(makeRuntimeLocaleBox(language: language, country: country))
 }
 

@@ -34,7 +34,25 @@ import XCTest
 // MARK: - Helpers
 // ---------------------------------------------------------------------------
 
+private final class NativeConcurrentSharedValue: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: Int = 0
 
+    var value: Int {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _value
+        }
+        set {
+            lock.lock()
+            _value = newValue
+            lock.unlock()
+        }
+    }
+
+    func reset() { value = 0 }
+}
 
 // A simple sentinel object registered in the runtime heap so freeze/isFrozen
 // can operate on a valid managed handle.

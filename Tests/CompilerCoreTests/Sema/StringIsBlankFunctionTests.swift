@@ -3,11 +3,15 @@ import XCTest
 
 /// STDLIB-TEXT-FN-027: Validates that `CharSequence.isBlank()` resolves through Sema
 /// for `String` / `CharSequence` receivers, dispatching to the runtime link
-/// name `kk_string_isBlank_flat`.
+/// name `kk_string_isBlank`.
 final class StringIsBlankFunctionTests: XCTestCase {
     func testIsBlankFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun isStringBlank(s: String): Boolean {
+            return s.isBlank()
+        }
+
+        fun isCharSequenceBlank(s: CharSequence): Boolean {
             return s.isBlank()
         }
 
@@ -44,8 +48,8 @@ final class StringIsBlankFunctionTests: XCTestCase {
         )
         XCTAssertEqual(
             sema.symbols.externalLinkName(for: symbol),
-            "kk_string_isBlank_flat",
-            "Expected isBlank extension to link to kk_string_isBlank_flat"
+            "kk_string_isBlank",
+            "Expected isBlank extension to link to kk_string_isBlank"
         )
     }
 }

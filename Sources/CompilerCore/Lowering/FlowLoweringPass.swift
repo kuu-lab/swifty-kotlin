@@ -232,7 +232,7 @@ final class FlowLoweringPass: LoweringPass {
                     }
                     loweredBody.append(instruction)
 
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                     if callee == collectName,
                        arguments.count == 1,
                        let flowExpr = activeFlowExpr,

@@ -1011,12 +1011,7 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureTimeMillis",
            args.count == 1,
-           shouldUseRuntimeStdlibSpecialCall(
-               calleeName,
-               fqComponents: ["kotlin", "system", "measureTimeMillis"],
-               locals: locals,
-               ctx: ctx
-           )
+           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — the block's return type is
@@ -1038,12 +1033,7 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureTimeMicros",
            args.count == 1,
-           shouldUseRuntimeStdlibSpecialCall(
-               calleeName,
-               fqComponents: ["kotlin", "system", "measureTimeMicros"],
-               locals: locals,
-               ctx: ctx
-           )
+           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as
@@ -1064,12 +1054,7 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureNanoTime",
            args.count == 1,
-           shouldUseRuntimeStdlibSpecialCall(
-               calleeName,
-               fqComponents: ["kotlin", "system", "measureNanoTime"],
-               locals: locals,
-               ctx: ctx
-           )
+           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as
@@ -3749,6 +3734,20 @@ final class CallTypeChecker {
                     case "toIntOrNull": sema.types.make(.primitive(.int, .nullable))
                     case "toDouble": sema.types.make(.primitive(.double, .nonNull))
                     case "toDoubleOrNull": sema.types.make(.primitive(.double, .nullable))
+                    case "toBigDecimal":
+                        makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
+                        )
+                    case "toBigDecimalOrNull":
+                        sema.types.makeNullable(makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
+                        ))
                     case "toBigIntegerOrNull":
                         sema.types.makeNullable(makeSyntheticNominalType(
                             symbols: sema.symbols,

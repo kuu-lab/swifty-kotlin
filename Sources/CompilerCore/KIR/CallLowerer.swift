@@ -708,13 +708,13 @@ final class CallLowerer {
             case .buildString, .buildStringBuilder:
                 switch (sourceName, loweredArgIDs.count) {
                 case ("append", 1):
-                    "kk_string_builder_append_flat"
+                    "kk_string_builder_append"
                 case ("appendLine", 0):
                     "kk_string_builder_append_line_noarg"
                 case ("appendLine", 1):
-                    "kk_string_builder_append_line_flat"
+                    "kk_string_builder_append_line"
                 case ("appendRange", 3):
-                    "kk_string_builder_append_range_flat"
+                    "kk_string_builder_append_range"
                 default:
                     nil
                 }
@@ -1276,13 +1276,35 @@ final class CallLowerer {
             return (implicitReceiver, interner.intern(argCallee))
         }
 
+        // STDLIB-TEXT-FN-024: For insert(index, value), dispatch to typed overloads.
+        if interner.resolve(sourceCalleeName) == "insert", loweredArguments.count == 2 {
+            let argCallee: String
+            if let argType = arena.exprType(loweredArguments[1]) {
+                let nonNull = sema.types.makeNonNullable(argType)
+                if nonNull == sema.types.booleanType {
+                    argCallee = "kk_string_builder_insert_bool"
+                } else if nonNull == sema.types.charType {
+                    argCallee = "kk_string_builder_insert_char"
+                } else if nonNull == sema.types.make(.primitive(.float, .nonNull)) {
+                    argCallee = "kk_string_builder_insert_float"
+                } else if nonNull == sema.types.make(.primitive(.double, .nonNull)) {
+                    argCallee = "kk_string_builder_insert_double"
+                } else {
+                    argCallee = "kk_string_builder_insert_obj"
+                }
+            } else {
+                argCallee = "kk_string_builder_insert_obj"
+            }
+            return (implicitReceiver, interner.intern(argCallee))
+        }
+
         let callee: String? = switch (interner.resolve(sourceCalleeName), loweredArguments.count) {
         case ("appendLine", 0):
             "kk_string_builder_append_line_noarg_obj"
         case ("appendLine", 1):
             "kk_string_builder_append_line_obj"
         case ("appendRange", 3):
-            "kk_string_builder_appendRange_obj_flat"
+            "kk_string_builder_appendRange_obj"
         case ("toString", 0):
             "kk_string_builder_toString"
         case ("clear", 0):
@@ -1295,16 +1317,14 @@ final class CallLowerer {
             "kk_string_builder_deleteCharAt"
         case ("deleteAt", 1):
             "kk_string_builder_deleteAt"
-        case ("insert", 2):
-            "kk_string_builder_insert_obj"
         case ("delete", 2):
             "kk_string_builder_delete_obj"
         case ("deleteRange", 2):
             "kk_string_builder_deleteRange"
         case ("insertRange", 4):
-            "kk_string_builder_insertRange_obj_flat"
+            "kk_string_builder_insertRange_obj"
         case ("setRange", 3):
-            "kk_string_builder_setRange_flat"
+            "kk_string_builder_setRange"
         case ("set", 2):
             // STDLIB-TEXT-FN-064: operator fun set(index, value) desugars to setCharAt
             "kk_string_builder_setCharAt"
@@ -1365,7 +1385,7 @@ final class CallLowerer {
             case interner.intern("CharRange"), interner.intern("CharProgression"):
                 interner.intern("kk_char_range_toList")
             case knownNames.string:
-                interner.intern("kk_string_toList_flat")
+                interner.intern("kk_string_toList")
             default:
                 interner.intern("kk_sequence_to_list")
             }

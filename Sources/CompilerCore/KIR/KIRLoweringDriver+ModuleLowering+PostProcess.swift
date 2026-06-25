@@ -456,14 +456,14 @@ extension KIRLoweringDriver {
         let propertyName = sema.symbols.symbol(propSym)?.name ?? interner.intern("")
         let propertyNameExpr = arena.appendExpr(
             .stringLiteral(propertyName),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         body.append(.constValue(result: propertyNameExpr, value: .stringLiteral(propertyName)))
         let propertyType = sema.symbols.propertyType(for: propSym) ?? sema.types.anyType
         let typeName = interner.intern(sema.types.renderType(propertyType))
         let typeExpr = arena.appendExpr(
             .stringLiteral(typeName),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         body.append(.constValue(result: typeExpr, value: .stringLiteral(typeName)))
         let stubExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
@@ -478,8 +478,6 @@ extension KIRLoweringDriver {
         return stubExpr
     }
 }
-
-// MARK: - Delegate Lowering Helpers
 
 extension KIRLoweringDriver {
     /// Detects the delegate kind from the delegate expression AST node.

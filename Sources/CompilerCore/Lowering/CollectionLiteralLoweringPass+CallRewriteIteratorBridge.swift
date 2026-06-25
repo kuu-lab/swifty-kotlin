@@ -105,7 +105,7 @@ extension CollectionLiteralLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-189: Rewrite kk_range_iterator on String -> kk_string_iterator_flat
+            // STDLIB-189: Rewrite kk_range_iterator on String → kk_string_iterator
             if state.stringExprIDs.contains(argID.rawValue) {
                 if let result { state.stringIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
@@ -331,6 +331,14 @@ extension CollectionLiteralLoweringPass {
                 ))
                 return true
             }
+        }
+
+        // --- STDLIB-TEXT-FN-033: Track kk_string_iterator results as string iterator IDs ---
+        // When iterator() is called explicitly on a String (resolved directly to kk_string_iterator
+        // by the KIR call lowerer), mark the result so subsequent kk_range_hasNext/next calls
+        // emitted by ControlFlowLowerer get rewritten to the specialised string variants.
+        if callee == lookup.kkStringIteratorName, arguments.count == 1, let result {
+            state.stringIteratorExprIDs.insert(result.rawValue)
         }
 
         // --- STDLIB-538: Rewrite hasPrevious()/previous() on list iterator ---

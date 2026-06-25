@@ -200,12 +200,9 @@ final class LambdaLowerer {
         // Runtime expects (closureRaw, ...valueParams, outThrown). Add closure param as first param.
         let lambdaParameters: [KIRParameter]
         if needsClosureParam {
-            let closureParamType = captureBindings.count == 1
-                ? captureBindings[0].param.type
-                : sema.types.intType
             let closureParam = KIRParameter(
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
-                type: closureParamType
+                type: sema.types.intType
             )
             let valueParams = (0 ..< effectiveParamCount).map { index in
                 KIRParameter(
@@ -358,8 +355,7 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: functionType?.isSuspend ?? false,
-                    isInline: false,
-                    usesRawCallbackABI: needsClosureParam
+                    isInline: false
                 )
             )
         )
@@ -541,8 +537,7 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
-                    isInline: false,
-                    usesRawCallbackABI: true
+                    isInline: false
                 )
             )
         )
@@ -1059,8 +1054,7 @@ final class LambdaLowerer {
                         returnType: returnType,
                         body: body,
                         isSuspend: functionType?.isSuspend ?? false,
-                        isInline: false,
-                        usesRawCallbackABI: true
+                        isInline: false
                     )
                 )
             )
@@ -1197,7 +1191,7 @@ final class LambdaLowerer {
         // Emit the name string literal.
         let nameExpr = arena.appendExpr(
             .stringLiteral(memberName),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         instructions.append(.constValue(result: nameExpr, value: .stringLiteral(memberName)))
 

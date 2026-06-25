@@ -3,7 +3,6 @@ import Foundation
 import XCTest
 
 // MARK: - Value class edge case coverage (TEST-VAL-001)
-// Expands value class / inline class test coverage from ~10 to 21+ cases.
 
 extension ValueClassUnboxingTests {
 
@@ -27,7 +26,7 @@ extension ValueClassUnboxingTests {
         let underlyingType = sema.symbols.valueClassUnderlyingType(for: nameSymbol.id)
         XCTAssertNotNil(underlyingType, "value class with String payload should record an underlying type")
         if let underlyingType {
-            if case .stringStruct = sema.types.kind(of: underlyingType) {
+            if case .primitive(.string, _) = sema.types.kind(of: underlyingType) {
                 // Expected
             } else {
                 XCTFail("Expected underlying type to be String, got \(sema.types.kind(of: underlyingType))")

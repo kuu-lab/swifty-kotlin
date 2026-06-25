@@ -77,7 +77,7 @@ final class SemaCacheContext {
     /// mutations to signatures during type checking (e.g. when a function's
     /// return type is inferred from its body) cause a cache miss rather than
     /// returning stale results.
-    struct CallResolutionKey: Hashable, CustomStringConvertible {
+    struct CallResolutionKey: Hashable {
         let candidates: [SymbolID]
         let candidateSignatures: [FunctionSignature?]
         let calleeName: InternedString
@@ -87,10 +87,6 @@ final class SemaCacheContext {
         let explicitTypeArgs: [TypeID]
         let expectedType: TypeID?
         let implicitReceiverType: TypeID?
-
-        var description: String {
-            return "\(calleeName):\(candidates.count)"
-        }
     }
 
     private var callResolutionCache: [CallResolutionKey: ResolvedCall] = [:]

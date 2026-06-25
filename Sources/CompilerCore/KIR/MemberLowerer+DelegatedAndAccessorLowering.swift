@@ -244,14 +244,14 @@ extension MemberLowerer {
         let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
         let propertyNameExprID = arena.appendExpr(
             .stringLiteral(propertyName),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         body.append(.constValue(result: propertyNameExprID, value: .stringLiteral(propertyName)))
         let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         let returnTypeSig = interner.intern(sema.types.renderType(propertyType))
         let returnTypeExprID = arena.appendExpr(
             .stringLiteral(returnTypeSig),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
         let kPropertyExprID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)

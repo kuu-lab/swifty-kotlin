@@ -16,11 +16,9 @@ import Foundation
 /// IMPORTANT: the call order inside this function is **identical** to the
 /// original middle-section of `registerSyntheticDelegateStubs`. Do NOT reorder
 /// lines — Sema golden outputs depend on the registration sequence
-/// (some symbols are intentionally re-registered or shadowed by later calls;
-/// see e.g. the dual `registerSyntheticJsBooleanInteropStubs` calls preserved
-/// here as-is from the original dispatch). When adding a new entry, insert
-/// it in the position dictated by any documented dependency; otherwise prefer
-/// alphabetical order within the surrounding peer group.
+/// (some symbols are intentionally re-registered or shadowed by later calls).
+/// When adding a new entry, insert it in the position dictated by any documented
+/// dependency; otherwise prefer alphabetical order within the surrounding peer group.
 ///
 /// Companion file: `HeaderHelpers+SyntheticPhase_PlatformAndJS.swift` covers
 /// the trailing 28-call Wasm/Js batch. Both Phase files preserve the original
@@ -49,8 +47,6 @@ extension DataFlowSemaPhase {
         registerSyntheticCoroutineCancellationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineIntrinsicsStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticReadWriteLockStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsBooleanInteropStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsBooleanInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsArrayExternalClassStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeRefRuntimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBase64Stubs(symbols: symbols, types: types, interner: interner)

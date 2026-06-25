@@ -35,8 +35,6 @@ extension DataFlowSemaPhase {
             let isConstCompatible = switch types.kind(of: resolvedType) {
             case let .primitive(_, nullability):
                 nullability == .nonNull
-            case let .stringStruct(nullability):
-                nullability == .nonNull
             default:
                 false
             }

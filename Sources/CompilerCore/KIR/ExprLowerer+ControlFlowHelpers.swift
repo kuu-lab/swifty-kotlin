@@ -83,8 +83,6 @@ extension ExprLowerer {
         return true
     }
 
-    // MARK: - Finally Block Inlining Helper (CODE-001)
-
     /// Inline enclosing finally blocks before a control-flow transfer.
     ///
     /// For `return`, all enclosing finally blocks are inlined (a return always
@@ -283,7 +281,7 @@ extension ExprLowerer {
         }
         let propertyNameExpr = arena.appendExpr(
             .stringLiteral(symbolInfo.name),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         instructions.append(.constValue(result: propertyNameExpr, value: .stringLiteral(symbolInfo.name)))
         let result = arena.appendExpr(

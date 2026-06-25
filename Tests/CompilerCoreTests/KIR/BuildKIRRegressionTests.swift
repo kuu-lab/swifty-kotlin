@@ -73,32 +73,13 @@ final class BuildKIRRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_string_concat_flat"))
+            XCTAssertTrue(callees.contains("kk_string_concat"))
             XCTAssertFalse(body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else {
                     return false
                 }
                 return op == .add
             })
-        }
-    }
-
-    func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
-        let source = """
-        fun lengthOf(value: String): Int {
-            return value.length
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try XCTUnwrap(ctx.kir)
-            let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-
-            XCTAssertTrue(callees.contains("__string_struct_get_length"))
-            XCTAssertFalse(callees.contains("kk_string_struct_get_length"))
         }
     }
 
@@ -399,19 +380,4 @@ final class BuildKIRRegressionTests: XCTestCase {
         }
     }
 
-    // MARK: - Expression Variants Scenarios
-
-    // MARK: - Reified Type Token Scenarios
-
-    // MARK: - Default Argument Callee-Context Semantics (P5-56)
-
-    // MARK: - Nested Return Propagation (P5-48)
-
-    // MARK: - if/when Control Flow (P5-51)
-
-    // MARK: - Lambda / CallableRef Lowering (P5-20)
-
-    // MARK: - P5-39: vararg call lowering / ABI regression tests
-
-    // MARK: - P5-42: Local function scope registration and KIR generation
 }

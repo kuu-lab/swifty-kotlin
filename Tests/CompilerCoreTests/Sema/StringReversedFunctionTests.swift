@@ -3,9 +3,9 @@ import XCTest
 
 /// STDLIB-TEXT-FN-063: `kotlin.text.CharSequence.reversed()`
 ///
-/// `reversed()` returns a new string with the receiver scalars in reverse order.
-/// Sema resolves it to `kk_string_reversed_flat` and keeps the result typed as
-/// `String` (Kotlin's `CharSequence` implementation).
+/// `reversed()` は元の文字列を逆順にした新しい文字列を返す拡張関数。
+/// Sema が `kk_string_reversed` 外部リンク名に解決し、戻り値型が
+/// `String` (Kotlin の `CharSequence` 実装) になることを検証する。
 final class StringReversedFunctionTests: XCTestCase {
     func testReversedOnStringLiteralResolves() throws {
         let ctx = makeContextFromSource("""

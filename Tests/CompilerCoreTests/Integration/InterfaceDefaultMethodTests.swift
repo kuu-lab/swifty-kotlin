@@ -1,15 +1,6 @@
 @testable import CompilerCore
 import XCTest
 
-/// Tests for interface default methods (CLASS-003 / P5-113).
-///
-/// Verifies that interface functions with bodies (default methods) are:
-/// 1. Parsed and preserved in the AST
-/// 2. NOT marked abstract in the sema symbol table
-/// 3. Callable on implementing classes that do not override them
-/// 4. Correctly overridden when a concrete class provides its own implementation
-/// 5. Lowered to KIR without errors
-/// 6. Dispatched correctly through itable when receiver is interface-typed
 final class InterfaceDefaultMethodTests: XCTestCase {
     // MARK: - Sema: default methods are not abstract
 

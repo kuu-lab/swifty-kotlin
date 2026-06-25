@@ -33,7 +33,7 @@ final class EnumNameAccessLoweringPass: LoweringPass {
         let nameCallee = ctx.interner.intern("name")
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-        let stringType = sema.types.stringType
+        let stringType = sema.types.make(.primitive(.string, .nonNull))
 
         module.arena.transformFunctions { function in
             var newBody: [KIRInstruction] = []
@@ -144,7 +144,7 @@ final class EnumNameAccessLoweringPass: LoweringPass {
         printlnCallee: InternedString,
         kkPrintlnAnyCallee: InternedString
     ) -> [KIRInstruction]? {
-        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction,
+        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction,
               callee == printlnCallee || callee == kkPrintlnAnyCallee,
               arguments.count == 1,
               let classSymbol = enumClassSymbol(

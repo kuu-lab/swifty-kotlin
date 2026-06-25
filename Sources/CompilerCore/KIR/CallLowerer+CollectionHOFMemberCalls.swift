@@ -90,13 +90,6 @@ extension CallLowerer {
                 type: arena.exprType(loweredArgID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
-            driver.ctx.registerCallableValue(
-                fnPtrExpr,
-                symbol: callableInfo.symbol,
-                callee: callableInfo.callee,
-                captureArguments: callableInfo.captureArguments,
-                hasClosureParam: callableInfo.hasClosureParam
-            )
             finalArgs.append(fnPtrExpr)
             let boxedCaptureArguments = makeBoxedCallableCaptureArguments(
                 callableInfo: callableInfo,

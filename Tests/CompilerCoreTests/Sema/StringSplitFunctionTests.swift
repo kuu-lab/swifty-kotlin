@@ -5,10 +5,10 @@ import XCTest
 /// resolves through Sema for `String` receivers across all registered overloads.
 ///
 /// Overload links (see `HeaderHelpers+SyntheticStringStubs.swift`):
-/// - `split(delimiters: String)` → `kk_string_split_flat`
-/// - `split(delimiters: String, limit: Int)` → `kk_string_split_limit_flat`
-/// - `split(delimiters: String, ignoreCase: Bool)` → `kk_string_split_limit_flat`
-/// - `split(delimiters: String, ignoreCase: Bool, limit: Int)` → `kk_string_split_limit_flat`
+/// - `split(delimiters: String)` → `kk_string_split`
+/// - `split(delimiters: String, limit: Int)` → `kk_string_split_limit`
+/// - `split(delimiters: String, ignoreCase: Bool)` → `kk_string_split_limit`
+/// - `split(delimiters: String, ignoreCase: Bool, limit: Int)` → `kk_string_split_limit`
 final class StringSplitFunctionTests: XCTestCase {
     func testSplitWithDelimiterResolvesInSource() throws {
         let ctx = makeContextFromSource("""

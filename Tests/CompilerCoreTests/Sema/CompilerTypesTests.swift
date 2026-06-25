@@ -1,5 +1,4 @@
 @testable import CompilerCore
-import Foundation
 import XCTest
 
 final class CompilerTypesTests: XCTestCase {
@@ -25,9 +24,6 @@ final class CompilerTypesTests: XCTestCase {
         XCTAssertEqual(options.outputPath, "out.o")
         XCTAssertEqual(options.emit, .object)
         XCTAssertEqual(options.searchPaths, [])
-        XCTAssertEqual(options.stdlibSearchPaths, [])
-        XCTAssertTrue(options.includeStdlib)
-        XCTAssertEqual(options.effectiveSearchPaths, [])
         XCTAssertEqual(options.libraryPaths, [])
         XCTAssertEqual(options.linkLibraries, [])
         XCTAssertEqual(options.optLevel, .O0)
@@ -62,7 +58,6 @@ final class CompilerTypesTests: XCTestCase {
             outputPath: "bin/custom",
             emit: .library,
             searchPaths: ["/opt/include"],
-            stdlibSearchPaths: ["/opt/stdlib"],
             libraryPaths: ["/opt/lib"],
             linkLibraries: ["m", "pthread"],
             target: target,
@@ -77,8 +72,6 @@ final class CompilerTypesTests: XCTestCase {
         XCTAssertEqual(options.optLevel, .O3)
         XCTAssertTrue(options.debugInfo)
         XCTAssertEqual(options.searchPaths, ["/opt/include"])
-        XCTAssertEqual(options.stdlibSearchPaths, ["/opt/stdlib"])
-        XCTAssertEqual(options.effectiveSearchPaths, ["/opt/stdlib", "/opt/include"])
         XCTAssertEqual(options.libraryPaths, ["/opt/lib"])
         XCTAssertEqual(options.linkLibraries, ["m", "pthread"])
         XCTAssertEqual(options.frontendFlags, ["-XfrontendA"])
@@ -154,8 +147,6 @@ final class CompilerTypesTests: XCTestCase {
         XCTAssertEqual(options.emit, .llvmIR)
         XCTAssertFalse(options.debugInfo)
         XCTAssertEqual(options.searchPaths, [])
-        XCTAssertEqual(options.stdlibSearchPaths, [])
-        XCTAssertEqual(options.effectiveSearchPaths, [])
         XCTAssertEqual(options.libraryPaths, [])
         XCTAssertEqual(options.linkLibraries, [])
         XCTAssertEqual(options.optLevel, .O0)
@@ -192,36 +183,6 @@ final class CompilerTypesTests: XCTestCase {
         )
         XCTAssertEqual(o1, o2)
         XCTAssertNotEqual(o1, o3)
-    }
-
-    func testCompilerOptionsCanDisableStdlibSearchPaths() {
-        let target = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
-        let options = CompilerOptions(
-            moduleName: "NoStdlib",
-            inputs: ["input.kt"],
-            outputPath: "out",
-            emit: .kirDump,
-            searchPaths: ["/user/lib"],
-            stdlibSearchPaths: ["/stdlib/lib"],
-            includeStdlib: false,
-            target: target
-        )
-
-        XCTAssertFalse(options.includeStdlib)
-        XCTAssertEqual(options.effectiveSearchPaths, ["/user/lib"])
-    }
-
-    func testDefaultStdlibSearchPathsUsesEnvironmentOverride() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-
-        let paths = CompilerOptions.defaultStdlibSearchPaths(
-            executablePath: nil,
-            environment: ["KSWIFTK_STDLIB_PATH": dir.path]
-        )
-
-        XCTAssertEqual(paths, [dir.standardizedFileURL.path])
     }
 
     func testHostDefaultTargetTripleMatchesCompileArchitecture() {

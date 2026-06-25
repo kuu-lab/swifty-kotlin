@@ -18,7 +18,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let stringType = sema.types.stringType
+        let stringType = sema.types.make(.primitive(.string, .nonNull))
         let nullableStringType = sema.types.makeNullable(stringType)
 
         // 1. Emit the type token.
@@ -49,6 +49,7 @@ extension CallLowerer {
         }
 
         // 3. Emit the runtime call.
+        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         let runtimeFuncName = propertyName == "qualifiedName"
             ? "kk_type_token_qualified_name"
             : "kk_type_token_simple_name"
@@ -226,6 +227,8 @@ extension CallLowerer {
             return result
         }
 
+        // NOTE: Kotlin source for isInstance/isFinal/isAbstract/isSealed exists at
+        // Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         switch memberName {
         case "isInstance":
             return emitRuntimeCall(
@@ -253,6 +256,14 @@ extension CallLowerer {
         case "constructors":
             return emitRuntimeCall(
                 callee: "kk_kclass_constructors",
+                arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+
+        // MIGRATION-REFLECT-002: KClass.nestedClasses
+        case "nestedClasses":
+            return emitRuntimeCall(
+                callee: "kk_kclass_nested_classes",
                 arguments: [kclassExpr],
                 fallbackType: sema.types.anyType
             )

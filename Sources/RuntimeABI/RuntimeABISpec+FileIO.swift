@@ -563,24 +563,18 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-IO-FN-011: String.byteInputStream()
         RuntimeABIFunctionSpec(
-            name: "kk_string_byteInputStream_flat",
+            name: "kk_string_byteInputStream",
             parameters: [
-                RuntimeABIParameter(name: "receiverData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "receiverLength", type: .intptr),
-                RuntimeABIParameter(name: "receiverByteCount", type: .intptr),
-                RuntimeABIParameter(name: "receiverHash", type: .intptr),
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "FileIO"
         ),
         // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset)
         RuntimeABIFunctionSpec(
-            name: "kk_string_byteInputStream_charset_flat",
+            name: "kk_string_byteInputStream_charset",
             parameters: [
-                RuntimeABIParameter(name: "receiverData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "receiverLength", type: .intptr),
-                RuntimeABIParameter(name: "receiverByteCount", type: .intptr),
-                RuntimeABIParameter(name: "receiverHash", type: .intptr),
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "charsetTag", type: .intptr),
             ],
             returnType: .intptr,

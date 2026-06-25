@@ -644,7 +644,7 @@ extension DataFlowSemaPhase {
             )
             if newArg == kc.argument { return typeID }
             return types.make(.kClassType(KClassType(argument: newArg, nullability: kc.nullability)))
-        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
+        case .primitive, .any, .unit, .nothing, .error:
             return typeID
         case let .intersection(parts):
             let newParts = parts.map {
@@ -754,8 +754,6 @@ extension DataFlowSemaPhase {
             return types.errorType
         }
     }
-
-    // MARK: - Tailrec validation helpers
 
     /// Check whether the function body contains a self-recursive call in tail position.
     /// For block bodies, checks ALL return expressions (not just the last statement)

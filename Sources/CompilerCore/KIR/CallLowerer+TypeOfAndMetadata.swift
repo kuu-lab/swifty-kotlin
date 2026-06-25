@@ -80,8 +80,6 @@ extension CallLowerer {
                     return nullability == .nullable ? 1 : 0
                 case let .nothing(nullability):
                     return nullability == .nullable ? 1 : 0
-                case let .stringStruct(nullability):
-                    return nullability == .nullable ? 1 : 0
                 default:
                     return 0
                 }

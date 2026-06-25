@@ -133,11 +133,6 @@ public func kk_atomic_int_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
 }
 
-@_cdecl("kk_java_atomic_int_asKotlinAtomic")
-public func kk_java_atomic_int_asKotlinAtomic(_ receiver: Int) -> Int {
-    receiver
-}
-
 @_cdecl("kk_atomic_int_fetchAndAdd")
 public func kk_atomic_int_fetchAndAdd(_ receiver: Int, _ delta: Int) -> Int {
     guard let box = atomicIntBox(from: receiver) else { return 0 }
@@ -174,6 +169,7 @@ public func kk_atomic_int_decrementAndFetch(_ receiver: Int) -> Int {
     return box.addAndFetch(-1)
 }
 
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicInt.getAndUpdate / updateAndGet)
 @_cdecl("kk_atomic_int_getAndUpdate")
 public func kk_atomic_int_getAndUpdate(
     _ receiver: Int,
@@ -369,6 +365,7 @@ public func kk_atomic_long_decrementAndFetch(_ receiver: Int) -> Int {
     return box.addAndFetch(-1)
 }
 
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicLong.getAndUpdate / updateAndGet)
 @_cdecl("kk_atomic_long_getAndUpdate")
 public func kk_atomic_long_getAndUpdate(
     _ receiver: Int,
@@ -515,6 +512,7 @@ public func kk_atomic_bool_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
 }
 
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicBoolean.getAndUpdate / updateAndGet)
 @_cdecl("kk_atomic_bool_getAndUpdate")
 public func kk_atomic_bool_getAndUpdate(
     _ receiver: Int,
@@ -662,6 +660,7 @@ public func kk_atomic_ref_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
 }
 
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicReference.getAndUpdate / updateAndGet)
 @_cdecl("kk_atomic_ref_getAndUpdate")
 public func kk_atomic_ref_getAndUpdate(
     _ receiver: Int,
@@ -790,6 +789,7 @@ private func atomicIntArrayBox(from raw: Int) -> AtomicIntArrayBox? {
     return Unmanaged<AtomicIntArrayBox>.fromOpaque(ptr).takeUnretainedValue()
 }
 
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicIntArray / AtomicLongArray サポート)
 @_cdecl("kk_atomic_int_array_create")
 public func kk_atomic_int_array_create(_ size: Int) -> Int {
     let box = AtomicIntArrayBox(size: size)
@@ -889,11 +889,6 @@ public func kk_atomic_int_array_compareAndExchangeAt(
 
 @_cdecl("kk_atomic_int_array_asJavaAtomicArray")
 public func kk_atomic_int_array_asJavaAtomicArray(_ receiver: Int) -> Int {
-    receiver
-}
-
-@_cdecl("kk_java_atomic_int_array_asKotlinAtomicArray")
-public func kk_java_atomic_int_array_asKotlinAtomicArray(_ receiver: Int) -> Int {
     receiver
 }
 
@@ -1383,13 +1378,12 @@ final class AtomicRefArrayBox {
         return old
     }
 
-    /// Identity-based CAS, with string boxes compared structurally because aggregate
-    /// string lowering may materialize an equivalent RuntimeStringBox at ABI edges.
+    /// Identity-based CAS: succeeds iff storage[index] == expect (pointer identity).
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return false }
-        if runtimeAtomicRefValuesMatch(storage[index], expect) {
+        if storage[index] == expect {
             storage[index] = update
             return true
         }
@@ -1402,7 +1396,7 @@ final class AtomicRefArrayBox {
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
         let old = storage[index]
-        if runtimeAtomicRefValuesMatch(old, expect) {
+        if old == expect {
             storage[index] = update
         }
         return old
@@ -1436,21 +1430,6 @@ private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
-}
-
-private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
-    if lhs == rhs {
-        return true
-    }
-    guard
-        let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
-        let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs),
-        let lhsString = tryCast(lhsPointer, to: RuntimeStringBox.self),
-        let rhsString = tryCast(rhsPointer, to: RuntimeStringBox.self)
-    else {
-        return false
-    }
-    return lhsString.value == rhsString.value
 }
 
 @_cdecl("kk_atomic_ref_array_new")

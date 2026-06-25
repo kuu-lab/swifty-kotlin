@@ -179,6 +179,10 @@ public final class IncrementalCompilationCache {
             try fm.copyItem(atPath: sourcePath, toPath: destinationPath)
             return true
         } catch {
+            let message = "[IncrementalCompilationCache] Failed to restore cached output at '\(cachePath)': \(error)\n"
+            if let data = message.data(using: .utf8) {
+                FileHandle.standardError.write(data)
+            }
             return false
         }
     }
@@ -306,6 +310,10 @@ public final class IncrementalCompilationCache {
                 relativePath: relativePath
             )
         } catch {
+            let message = "[IncrementalCompilationCache] Failed to cache output artifact at '\(cachePath)': \(error)\n"
+            if let data = message.data(using: .utf8) {
+                FileHandle.standardError.write(data)
+            }
             return nil
         }
     }
@@ -346,8 +354,6 @@ public final class IncrementalCompilationCache {
             inputPaths: options.inputs,
             emit: options.emit.rawValue,
             searchPaths: options.searchPaths,
-            stdlibSearchPaths: options.stdlibSearchPaths,
-            includeStdlib: options.includeStdlib,
             libraryPaths: options.libraryPaths,
             linkLibraries: options.linkLibraries,
             target: IncrementalTargetTriple(
@@ -413,14 +419,12 @@ enum CachedOutputArtifactKind: String, Codable {
     case directory
 }
 
-struct IncrementalBuildConfiguration: Encodable {
+private struct IncrementalBuildConfiguration: Encodable {
     let schemaVersion: Int
     let moduleName: String
     let inputPaths: [String]
     let emit: String
     let searchPaths: [String]
-    let stdlibSearchPaths: [String]
-    let includeStdlib: Bool
     let libraryPaths: [String]
     let linkLibraries: [String]
     let target: IncrementalTargetTriple
@@ -431,7 +435,7 @@ struct IncrementalBuildConfiguration: Encodable {
     let runtimeFlags: [String]
 }
 
-struct IncrementalTargetTriple: Encodable {
+private struct IncrementalTargetTriple: Encodable {
     let arch: String
     let vendor: String
     let os: String

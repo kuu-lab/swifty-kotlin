@@ -463,7 +463,7 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
 /// (e.g. via `iterator()`, `toList()`, or `for-in`).  Creation is O(1).
 @_cdecl("kk_string_asIterable")
 public func kk_string_asIterable(_ strRaw: Int) -> Int {
-    let box = RuntimeStringIterableBox(source: runtimeStringFromRawOrPanic(strRaw, caller: #function))
+    let box = RuntimeStringIterableBox(strRaw: strRaw)
     return registerRuntimeObject(box)
 }
 
@@ -481,14 +481,14 @@ public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
         // Unrecognised input — return an empty list.
         return kk_string_toList(runtimeMakeStringRaw(""))
     }
-    return kk_string_toList(runtimeMakeStringRaw(box.source))
+    return kk_string_toList(box.strRaw)
 }
 
 /// Create an iterator from a lazy string iterable (for `for (c in str.asIterable())`).
 @_cdecl("kk_string_iterable_iterator")
 public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     if let box = runtimeStringIterableBox(from: iterableRaw) {
-        return kk_string_iterator(runtimeMakeStringRaw(box.source))
+        return kk_string_iterator(box.strRaw)
     }
     // Validate that the raw value is a valid string handle before falling
     // back, to avoid reinterpreting an unrelated object pointer as a string.
@@ -504,7 +504,7 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
 @_cdecl("kk_string_asSequence")
 public func kk_string_asSequence(_ strRaw: Int) -> Int {
     // Lazy: store only the string handle; characters are yielded on demand
-    let seq = RuntimeSequenceBox(steps: [.stringSource(source: runtimeStringFromRawOrPanic(strRaw, caller: #function))])
+    let seq = RuntimeSequenceBox(steps: [.stringSource(strRaw: strRaw)])
     return registerRuntimeObject(seq)
 }
 

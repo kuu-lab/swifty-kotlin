@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-002: Validates that `CharSequence.any(predicate)` resolves
 /// through Sema for `String` / `CharSequence` receivers, dispatching to the
-/// runtime link name `kk_string_any_flat` for String receivers.
+/// runtime link name `kk_string_any`.
 final class StringAnyFunctionTests: XCTestCase {
     func testAnyWithPredicateResolvesInSource() throws {
         let ctx = makeContextFromSource("""

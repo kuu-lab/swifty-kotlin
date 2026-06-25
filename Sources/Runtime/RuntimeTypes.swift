@@ -61,65 +61,6 @@ final class RuntimeStringBox {
     }
 }
 
-struct RuntimeValue {
-    static let rawTag = 0
-    static let stringTag = 1
-    static let charTag = 2
-
-    var tag: Int
-    var payload0: Int
-    var payload1: Int
-    var payload2: Int
-    var payload3: Int
-
-    init(raw: Int) {
-        self.tag = Self.rawTag
-        self.payload0 = raw
-        self.payload1 = 0
-        self.payload2 = 0
-        self.payload3 = 0
-    }
-
-    init(stringData data: Int, length: Int, byteCount: Int, hash: Int) {
-        self.tag = Self.stringTag
-        self.payload0 = data
-        self.payload1 = length
-        self.payload2 = byteCount
-        self.payload3 = hash
-    }
-
-    init(charScalar value: Int) {
-        self.tag = Self.charTag
-        self.payload0 = value
-        self.payload1 = 0
-        self.payload2 = 0
-        self.payload3 = 0
-    }
-
-    var legacyRawValue: Int {
-        guard tag == Self.stringTag else {
-            return payload0
-        }
-        guard let data = UnsafePointer<UInt8>(bitPattern: payload0) else {
-            return 0
-        }
-        let string = runtimeStringFromFlatFields(
-            data: data,
-            length: payload1,
-            byteCount: payload2,
-            hash: payload3
-        )
-        return registerRuntimeObject(RuntimeStringBox(string))
-    }
-
-    var childReferenceRawValue: Int? {
-        guard tag == Self.rawTag, payload0 != 0 else {
-            return nil
-        }
-        return payload0
-    }
-}
-
 class RuntimeThrowableBox {
     let message: String
     var cause: Int
@@ -194,28 +135,10 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
 }
 
 class RuntimeArrayBox {
-    private var storage: [RuntimeValue]
-
-    var values: [RuntimeValue] {
-        get {
-            storage
-        }
-        set {
-            storage = newValue
-        }
-    }
-
-    var elements: [Int] {
-        get {
-            storage.map(\.legacyRawValue)
-        }
-        set {
-            storage = newValue.map { RuntimeValue(raw: $0) }
-        }
-    }
+    var elements: [Int]
 
     init(length: Int) {
-        storage = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
+        elements = Array(repeating: 0, count: max(0, length))
     }
 }
 
@@ -229,20 +152,12 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 }
 
 final class RuntimePairBox {
-    let firstValue: RuntimeValue
-    let secondValue: RuntimeValue
-
-    var first: Int { firstValue.legacyRawValue }
-    var second: Int { secondValue.legacyRawValue }
+    let first: Int
+    let second: Int
 
     init(first: Int, second: Int) {
-        self.firstValue = RuntimeValue(raw: first)
-        self.secondValue = RuntimeValue(raw: second)
-    }
-
-    init(firstValue: RuntimeValue, secondValue: RuntimeValue) {
-        self.firstValue = firstValue
-        self.secondValue = secondValue
+        self.first = first
+        self.second = second
     }
 }
 
@@ -336,7 +251,7 @@ final class RuntimeFunctionValueBox {
 /// Stores elements directly or as a lightweight view over another list/array.
 final class RuntimeListBox {
     private enum Storage {
-        case direct([RuntimeValue])
+        case direct([Int])
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
     }
@@ -344,11 +259,7 @@ final class RuntimeListBox {
     private var storage: Storage
 
     init(elements: [Int]) {
-        storage = .direct(elements.map { RuntimeValue(raw: $0) })
-    }
-
-    init(values: [RuntimeValue]) {
-        storage = .direct(values)
+        storage = .direct(elements)
     }
 
     init(reversedViewOf base: RuntimeListBox) {
@@ -359,15 +270,15 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
-    var values: [RuntimeValue] {
+    var elements: [Int] {
         get {
             switch storage {
-            case .direct(let values):
-                return values
+            case .direct(let elements):
+                return elements
             case .reversedViewOf(let base):
-                return Array(base.values.reversed())
+                return Array(base.elements.reversed())
             case .arrayViewOf(let base):
-                return base.values
+                return base.elements
             }
         }
         set {
@@ -375,132 +286,47 @@ final class RuntimeListBox {
             case .direct:
                 storage = .direct(newValue)
             case .reversedViewOf(let base):
-                base.values = Array(newValue.reversed())
+                base.elements = Array(newValue.reversed())
             case .arrayViewOf(let base):
-                base.values = newValue
+                base.elements = newValue
             }
-        }
-    }
-
-    var elements: [Int] {
-        get {
-            values.map(\.legacyRawValue)
-        }
-        set {
-            values = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 }
 
 /// Runtime box for `setOf(...)` / `mutableSetOf(...)`.
-/// Stores unique elements in insertion order as runtime values.
+/// Stores unique elements in insertion order as an array of `Int`.
 final class RuntimeSetBox {
-    private var storage: [RuntimeValue]
-
-    var values: [RuntimeValue] {
-        get {
-            storage
-        }
-        set {
-            storage = newValue
-        }
-    }
-
-    var elements: [Int] {
-        get {
-            storage.map(\.legacyRawValue)
-        }
-        set {
-            storage = newValue.map { RuntimeValue(raw: $0) }
-        }
-    }
+    var elements: [Int]
 
     init(elements: [Int]) {
-        self.storage = elements.map { RuntimeValue(raw: $0) }
-    }
-
-    init(values: [RuntimeValue]) {
-        self.storage = values
+        self.elements = elements
     }
 }
 
 /// Runtime box for `mapOf(...)` / `mutableMapOf(...)`.
-/// Stores keys and values as parallel runtime-value arrays.
+/// Stores keys and values as parallel arrays of `Int` (opaque intptr_t values).
 final class RuntimeMapBox {
-    private var keyStorage: [RuntimeValue]
-    private var valueStorage: [RuntimeValue]
+    var keys: [Int]
+    var values: [Int]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
 
-    var keyValues: [RuntimeValue] {
-        get {
-            keyStorage
-        }
-        set {
-            keyStorage = newValue
-        }
-    }
-
-    var entryValues: [RuntimeValue] {
-        get {
-            valueStorage
-        }
-        set {
-            valueStorage = newValue
-        }
-    }
-
-    var keys: [Int] {
-        get {
-            keyStorage.map(\.legacyRawValue)
-        }
-        set {
-            keyStorage = newValue.map { RuntimeValue(raw: $0) }
-        }
-    }
-
-    var values: [Int] {
-        get {
-            valueStorage.map(\.legacyRawValue)
-        }
-        set {
-            valueStorage = newValue.map { RuntimeValue(raw: $0) }
-        }
-    }
-
     init(keys: [Int], values: [Int], defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
-        self.keyStorage = keys.map { RuntimeValue(raw: $0) }
-        self.valueStorage = values.map { RuntimeValue(raw: $0) }
+        self.keys = keys
+        self.values = values
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
     }
 }
 
 /// Runtime box for `ArrayDeque<T>`.
-/// Stores elements in a mutable runtime-value array.
+/// Stores elements in a mutable array of `Int`.
 final class RuntimeArrayDequeBox {
-    private var storage: [RuntimeValue]
-
-    var values: [RuntimeValue] {
-        get {
-            storage
-        }
-        set {
-            storage = newValue
-        }
-    }
-
-    var elements: [Int] {
-        get {
-            storage.map(\.legacyRawValue)
-        }
-        set {
-            storage = newValue.map { RuntimeValue(raw: $0) }
-        }
-    }
+    var elements: [Int]
 
     init(elements: [Int]) {
-        self.storage = elements.map { RuntimeValue(raw: $0) }
+        self.elements = elements
     }
 }
 
@@ -517,11 +343,11 @@ final class RuntimeIndexingIterableBox {
 /// Iterator for `withIndex()` result. Each call to `next()` yields an
 /// `IndexedValue<E>` pair (index, element) represented as `RuntimePairBox`.
 final class RuntimeIndexingIteratorBox {
-    let values: [RuntimeValue]
+    let elements: [Int]
     var index: Int
 
-    init(values: [RuntimeValue]) {
-        self.values = values
+    init(elements: [Int]) {
+        self.elements = elements
         index = 0
     }
 }
@@ -549,13 +375,15 @@ final class RuntimeStringIteratorBox {
 }
 
 /// Lazy iterable view for `String.asIterable()` (STDLIB-317).
-/// Stores the immutable string payload; characters are yielded on demand when
+/// Stores only the string raw handle; characters are yielded on demand when
 /// the iterable is consumed (e.g. via `iterator()`, `toList()`, or `for-in`).
+/// In the current runtime the iterable delegates to the existing `kk_string_toList`
+/// materialisation at consumption time, keeping the creation itself O(1).
 final class RuntimeStringIterableBox {
-    let source: String
+    let strRaw: Int
 
-    init(source: String) {
-        self.source = source
+    init(strRaw: Int) {
+        self.strRaw = strRaw
     }
 }
 
@@ -579,8 +407,7 @@ final class RuntimeMapIteratorBox {
 /// for map/filter transformations. Lazy semantics: no evaluation until terminal.
 enum SequenceStepKind {
     case source(elements: [Int])
-    case valueSource(values: [RuntimeValue])
-    case stringSource(source: String)
+    case stringSource(strRaw: Int)
     case mapStep(fnPtr: Int, closureRaw: Int)
     case filterStep(fnPtr: Int, closureRaw: Int)
     case filterNotStep(fnPtr: Int, closureRaw: Int)
@@ -651,18 +478,25 @@ final class RuntimeSequenceBuilderBox {
 //
 // The coroutine is started lazily on the first call to `materializeAll()`.
 //
-// Thread protocol:
-//   Producer thread (background):
-//     1. Runs builder lambda
-//     2. On yield(value): store value, signal consumer, suspend on producer gate
-//     3. On completion: set finished flag, signal consumer
+// Thread protocol (DEBT-CORO-002 / CORO-004):
+//   Producer thread (dedicated OS thread, not GCD pool):
+//     1. Waits on producerGate for the first consumer request.
+//     2. Runs builder lambda sequentially.
+//     3. On yield(value): store value, signal consumer, block on producerGate.
+//     4. On completion: set finished flag, signal consumer.
 //
 //   Consumer thread (caller):
-//     1. materializeAll(): signal producer, suspend on consumer gate, read value
-//     2. Returns when producer has finished
+//     1. Signals producerGate (starts or resumes producer), blocks on consumerGate.
+//     2. Reads yielded value or observes finished flag.
 //
-// CORO-004: Gates use `RuntimeCoroutineSyncGate` so suspend continuations can
-// replace the semaphore fallback once builder lambdas are CPS-transformed.
+// DEBT-CORO-002 status: producer runs on a dedicated Thread (not a GCD pool
+// thread) so yield() no longer occupies a shared GCD thread while blocked.
+// Only the consumer blocks a GCD thread per iteration step.
+//
+// Full continuation-based migration (CORO-004 next step): requires the
+// compiler to CPS-transform sequence builder lambdas so yield() can return
+// COROUTINE_SUSPENDED instead of blocking. Once that lands, invokeBuilderLambda()
+// below becomes the re-entry point and the dedicated thread is eliminated.
 final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// The builder lambda function pointer: (closureRaw, builderRaw, outThrown) -> Int.
     let fnPtr: Int
@@ -692,20 +526,23 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// Whether the coroutine has been fully exhausted.
     private var fullyMaterialized = false
 
+    /// Registered handle for the builder proxy — stored here so that future
+    /// CPS re-invocations can call invokeBuilderLambda() without recreating it.
+    private var builderHandle: Int = 0
+
     init(fnPtr: Int, closureRaw: Int) {
         self.fnPtr = fnPtr
         self.closureRaw = closureRaw
     }
 
     /// Called by the producer (background thread) to yield a value.
-    /// CORO-004 producer suspend point.
     func yieldValue(_ value: Int) {
         stateLock.lock()
         yieldedValue = value
         stateLock.unlock()
 
         consumerGate.signal()
-        _ = suspendProducerUntilConsumerRequest()
+        producerGate.wait()
     }
 
     /// Called by the producer when it finishes (normally or via exception).
@@ -716,22 +553,32 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         consumerGate.signal()
     }
 
-    /// CORO-004 producer suspend point. Returns `true` when a resume continuation
-    /// was installed instead of blocking the current thread.
-    @discardableResult
-    private func suspendProducerUntilConsumerRequest(
-        resumeContinuation: (@Sendable () -> Void)? = nil
-    ) -> Bool {
-        producerGate.wait(resumeContinuation: resumeContinuation)
+    /// Consumer side: advance the producer one step and block until it yields or finishes.
+    private func awaitProducerYield() {
+        producerGate.signal()
+        consumerGate.wait()
     }
 
-    /// CORO-004 consumer suspend point while waiting for the producer to yield.
-    @discardableResult
-    private func awaitProducerYield(
-        resumeContinuation: (@Sendable () -> Void)? = nil
-    ) -> Bool {
-        producerGate.signal()
-        return consumerGate.wait(resumeContinuation: resumeContinuation)
+    /// Re-invokes the builder lambda from where it last suspended.
+    ///
+    /// Called once per requested element on the producer thread. Currently the
+    /// lambda is a sequential (non-CPS) function, so this method is only used
+    /// via the initial `ensureStarted` path. Once the compiler emits
+    /// COROUTINE_SUSPENDED from yield(), this will become the per-element
+    /// re-entry point and the long-lived producer thread will be eliminated.
+    private func invokeBuilderLambda() {
+        var thrown = 0
+        let fn = unsafeBitCast(
+            fnPtr,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        _ = fn(closureRaw, builderHandle, &thrown)
+
+        if thrown != 0 {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
+        }
+
+        markFinished()
     }
 
     /// Result type for `nextElement()`: either a value or end-of-sequence.
@@ -752,14 +599,12 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
     func nextElement() -> NextResult {
         stateLock.lock()
-        // If we have cached elements beyond the current index, return them.
         if consumptionIndex < materializedElements.count {
             let elem = materializedElements[consumptionIndex]
             consumptionIndex += 1
             stateLock.unlock()
             return .value(elem)
         }
-        // If fully materialized and no more cached elements, we're done.
         if fullyMaterialized {
             stateLock.unlock()
             return .done
@@ -768,7 +613,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
         ensureStarted()
 
-        _ = awaitProducerYield()
+        awaitProducerYield()
 
         stateLock.lock()
         if finished {
@@ -793,8 +638,6 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     }
 
     /// Materialize all elements from the coroutine and return them.
-    /// This is the main entry point for evaluateSequence.
-    /// The coroutine is started lazily on the first call.
     func materializeAll() -> [Int] {
         stateLock.lock()
         if fullyMaterialized {
@@ -807,7 +650,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         ensureStarted()
 
         while true {
-            _ = awaitProducerYield()
+            awaitProducerYield()
 
             stateLock.lock()
             if finished {
@@ -821,7 +664,12 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         }
     }
 
-    /// Start the background thread if not already started.
+    /// Start the producer on a dedicated OS thread.
+    ///
+    /// A dedicated Thread (not a GCD pool thread) is used so that blocking
+    /// inside yieldValue() does not occupy a shared GCD work item slot.
+    /// This is the DEBT-CORO-002 improvement: the producer now holds only a
+    /// dedicated OS thread, leaving the GCD pool free for async coroutines.
     private func ensureStarted() {
         stateLock.lock()
         guard !started else {
@@ -832,26 +680,16 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         stateLock.unlock()
 
         let coroutine = self
-        DispatchQueue.global(qos: .userInitiated).async {
-            // Producer suspend point: wait for the first consumer request.
-            _ = coroutine.suspendProducerUntilConsumerRequest()
+        // builderHandle is written before the thread starts, so no lock needed:
+        // Thread.detachNewThread provides the happens-before edge the reader relies on.
+        coroutine.builderHandle = registerRuntimeObject(
+            RuntimeSequenceCoroutineBuilderProxy(coroutine: coroutine)
+        )
 
-            let builderHandle = registerRuntimeObject(
-                RuntimeSequenceCoroutineBuilderProxy(coroutine: coroutine)
-            )
-
-            var thrown = 0
-            let fn = unsafeBitCast(
-                coroutine.fnPtr,
-                to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-            )
-            _ = fn(coroutine.closureRaw, builderHandle, &thrown)
-
-            if thrown != 0 {
-                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
-            }
-
-            coroutine.markFinished()
+        Thread.detachNewThread {
+            // Wait for the first consumer request before running the lambda.
+            coroutine.producerGate.wait()
+            coroutine.invokeBuilderLambda()
         }
     }
 }
@@ -869,26 +707,24 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 
 // Runtime box for the `iterator { yield(x) }` builder (STDLIB-331/564).
 //
-// Implements **continuation-based lazy iteration** using a cooperative
-// producer-consumer pattern. The builder lambda runs on a background thread
-// and suspends on each `yield()` call until the consumer calls `next()`.
+// Implements lazy iteration using a cooperative producer-consumer pattern.
+// The builder lambda runs on a dedicated OS thread (not a GCD pool thread)
+// and blocks on each yield() call until the consumer calls next().
 //
 // Protocol:
-//   1. `kk_iterator_builder_build(fnPtr)` creates the box and spawns the
-//      producer thread. The producer immediately suspends on `producerGate`
-//      until the first `hasNext` / `next` call.
-//   2. `hasNext` signals `producerGate` (let producer run), then suspends on
-//      `consumerGate`. When the producer yields a value or finishes, it
-//      signals `consumerGate`.
-//   3. `next` returns the most recently yielded value (already fetched by
-//      `hasNext`).
+//   1. `kk_iterator_builder_build(fnPtr)` creates the box.
+//   2. First `hasNext` / `next` call: starts the producer thread and waits.
+//   3. Producer runs lambda; on yield(value): signals consumer, blocks on
+//      producerGate. On completion: transitions to .done, signals consumer.
+//   4. Consumer wakes, reads state / value, and signals producer on the next
+//      `hasNext` call (or skips when .done).
 //
-// Memory: The box is registered in the runtime object table; the background
-// thread retains the box via its closure capture. The thread exits naturally
-// when the builder lambda returns.
+// DEBT-CORO-002: Producer runs on a dedicated Thread so yield() does not
+// occupy a GCD pool thread. Only the consumer blocks one GCD thread per step.
 //
-// CORO-004: Gates use `RuntimeCoroutineSyncGate` so suspend continuations can
-// replace the semaphore fallback once builder lambdas are CPS-transformed.
+// CORO-004 next step: CPS-transform iterator builder lambdas so yield() can
+// return COROUTINE_SUSPENDED. invokeBuilderLambda() then becomes the per-element
+// re-entry point and the dedicated thread is eliminated.
 final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private let fnPtr: Int
     private var builderHandle: Int = 0
@@ -922,7 +758,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         builderHandle = handle
     }
 
-    /// CORO-004 producer suspend point.
     func yieldValue(_ value: Int) {
         stateLock.lock()
         yieldedValue = value
@@ -930,7 +765,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         stateLock.unlock()
 
         consumerGate.signal()
-        _ = suspendProducerUntilConsumerRequest()
+        producerGate.wait()
     }
 
     func probeHasNext() -> Bool {
@@ -945,7 +780,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             return false
         case .initial:
             ensureStarted()
-            _ = awaitProducerYield()
+            awaitProducerYield()
             stateLock.lock()
             defer { stateLock.unlock() }
             return state == .hasValue
@@ -959,7 +794,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
 
         if current == .initial {
             ensureStarted()
-            _ = awaitProducerYield()
+            awaitProducerYield()
         }
 
         stateLock.lock()
@@ -973,23 +808,39 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         return value
     }
 
-    /// CORO-004 producer suspend point.
-    @discardableResult
-    private func suspendProducerUntilConsumerRequest(
-        resumeContinuation: (@Sendable () -> Void)? = nil
-    ) -> Bool {
-        producerGate.wait(resumeContinuation: resumeContinuation)
-    }
-
-    /// CORO-004 consumer suspend point while waiting for the producer to yield.
-    @discardableResult
-    private func awaitProducerYield(
-        resumeContinuation: (@Sendable () -> Void)? = nil
-    ) -> Bool {
+    private func awaitProducerYield() {
         producerGate.signal()
-        return consumerGate.wait(resumeContinuation: resumeContinuation)
+        consumerGate.wait()
     }
 
+    /// Invokes the builder lambda from its current position.
+    ///
+    /// Currently the lambda is a sequential (non-CPS) function that calls
+    /// yield() which blocks synchronously. Once the compiler emits
+    /// COROUTINE_SUSPENDED from yield(), this becomes the per-element re-entry
+    /// point and the long-lived producer thread can be eliminated.
+    private func invokeBuilderLambda() {
+        var thrown = 0
+        _ = runtimeInvokeClosureThunk(
+            fnPtr: fnPtr,
+            closureRaw: builderHandle,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
+        }
+
+        stateLock.lock()
+        state = .done
+        stateLock.unlock()
+        consumerGate.signal()
+    }
+
+    /// Starts the producer on a dedicated OS thread on first consumer request.
+    ///
+    /// Using Thread.detachNewThread instead of DispatchQueue.global() ensures
+    /// that blocking inside yieldValue() does not occupy a shared GCD work item
+    /// slot (DEBT-CORO-002).
     private func ensureStarted() {
         stateLock.lock()
         guard !started else {
@@ -1000,23 +851,10 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         stateLock.unlock()
 
         let box = self
-        DispatchQueue.global(qos: .userInitiated).async {
-            _ = box.suspendProducerUntilConsumerRequest()
-
-            var thrown = 0
-            _ = runtimeInvokeClosureThunk(
-                fnPtr: box.fnPtr,
-                closureRaw: box.builderHandle,
-                outThrown: &thrown
-            )
-            if thrown != 0 {
-                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
-            }
-
-            box.stateLock.lock()
-            box.state = .done
-            box.stateLock.unlock()
-            box.consumerGate.signal()
+        Thread.detachNewThread {
+            // Wait for the first consumer signal before running the lambda.
+            box.producerGate.wait()
+            box.invokeBuilderLambda()
         }
     }
 }
@@ -2075,13 +1913,11 @@ final class RuntimeBufferedWriterBox {
 // Only types that store `Int` child handles need to conform.
 
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    var childRefs: [Int] { elements }
 }
 
 extension RuntimePairBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] {
-        [firstValue, secondValue].compactMap(\.childReferenceRawValue)
-    }
+    var childRefs: [Int] { [first, second] }
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
@@ -2089,20 +1925,17 @@ extension RuntimeTripleBox: RuntimeChildReferenceProviding {
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    var childRefs: [Int] { elements }
 }
 
 extension RuntimeSetBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    var childRefs: [Int] { elements }
 }
 
 extension RuntimeMapBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] {
-        keyValues.compactMap(\.childReferenceRawValue)
-            + entryValues.compactMap(\.childReferenceRawValue)
-    }
+    var childRefs: [Int] { keys + values }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    var childRefs: [Int] { elements }
 }

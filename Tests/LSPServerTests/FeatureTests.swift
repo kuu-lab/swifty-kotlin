@@ -1,3 +1,4 @@
+@testable import CompilerCore
 @testable import LSPServer
 import XCTest
 
@@ -17,14 +18,14 @@ final class FeatureTests: XCTestCase {
         let symbols = DocumentSymbolFeature.documentSymbols(for: analysis)
 
         let names = symbols.map(\.name)
-        XCTAssertTrue(names.contains("Foo"), "Outline should include the class: \(names)")
-        XCTAssertTrue(names.contains("topLevel"), "Outline should include the top-level function: \(names)")
+        XCTAssertTrue(names.contains("Foo"), "\(names)")
+        XCTAssertTrue(names.contains("topLevel"), "\(names)")
 
         if let foo = symbols.first(where: { $0.name == "Foo" }) {
             XCTAssertEqual(foo.kind, LSPSymbolKind.class.rawValue)
             let childNames = (foo.children ?? []).map(\.name)
-            XCTAssertTrue(childNames.contains("bar"), "Class outline should include property: \(childNames)")
-            XCTAssertTrue(childNames.contains("baz"), "Class outline should include method: \(childNames)")
+            XCTAssertTrue(childNames.contains("bar"), "\(childNames)")
+            XCTAssertTrue(childNames.contains("baz"), "\(childNames)")
         } else {
             XCTFail("Expected a symbol for class Foo")
         }

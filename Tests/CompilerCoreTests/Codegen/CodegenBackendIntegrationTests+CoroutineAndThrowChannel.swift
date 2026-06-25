@@ -113,4 +113,82 @@ extension CodegenBackendIntegrationTests {
         }
         return try Data(contentsOf: URL(fileURLWithPath: artifactPath))
     }
+
+    func makeComplexKIRModule(interner: StringInterner) -> KIRModule {
+        let arena = KIRArena()
+
+        let mainSym = SymbolID(rawValue: 1)
+        let calleeSym = SymbolID(rawValue: 2)
+
+        let e0 = arena.appendExpr(.intLiteral(10))
+        let e1 = arena.appendExpr(.intLiteral(3))
+        let e2 = arena.appendExpr(.boolLiteral(true))
+        let e3 = arena.appendExpr(.stringLiteral(interner.intern("hello\\n\"world\"")))
+        let e4 = arena.appendExpr(.symbolRef(calleeSym))
+        let e5 = arena.appendExpr(.temporary(5))
+        let e6 = arena.appendExpr(.temporary(6))
+        let e7 = arena.appendExpr(.temporary(7))
+        let e8 = arena.appendExpr(.temporary(8))
+        let e9 = arena.appendExpr(.unit)
+        let eFalse = arena.appendExpr(.boolLiteral(false))
+
+        let callee = KIRFunction(
+            symbol: calleeSym,
+            name: interner.intern("callee"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [.returnUnit],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let main = KIRFunction(
+            symbol: mainSym,
+            name: interner.intern("1-main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .nop,
+                .beginBlock,
+                .constValue(result: e0, value: .intLiteral(10)),
+                .constValue(result: e1, value: .intLiteral(3)),
+                .constValue(result: e2, value: .boolLiteral(true)),
+                .constValue(result: e3, value: .stringLiteral(interner.intern("hello\\n\"world\""))),
+                .constValue(result: e4, value: .symbolRef(calleeSym)),
+                .constValue(result: e5, value: .temporary(99)),
+                .constValue(result: e9, value: .unit),
+                .binary(op: .add, lhs: e0, rhs: e1, result: e5),
+                .binary(op: .subtract, lhs: e0, rhs: e1, result: e6),
+                .binary(op: .multiply, lhs: e0, rhs: e1, result: e7),
+                .binary(op: .divide, lhs: e0, rhs: e1, result: e8),
+                .binary(op: .equal, lhs: e0, rhs: e1, result: e5),
+                .call(symbol: nil, callee: interner.intern("println"), arguments: [e3], result: e5, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_println_any"), arguments: [e3], result: nil, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [e0, e1], result: e5, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_op_sub"), arguments: [e0, e1], result: e6, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_op_mul"), arguments: [e0, e1], result: e7, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_op_div"), arguments: [e0, e1], result: e8, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_op_eq"), arguments: [e0, e1], result: e5, canThrow: false, thrownResult: nil),
+                .constValue(result: eFalse, value: .boolLiteral(false)),
+                .jumpIfEqual(lhs: e2, rhs: eFalse, target: 800),
+                .copy(from: e0, to: e5),
+                .jump(801),
+                .label(800),
+                .copy(from: e1, to: e5),
+                .label(801),
+                .call(symbol: calleeSym, callee: interner.intern("ignored"), arguments: [], result: e5, canThrow: false, thrownResult: nil),
+                .returnValue(e5),
+                .endBlock,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        _ = arena.appendDecl(.global(KIRGlobal(symbol: mainSym, type: TypeSystem().anyType)))
+        _ = arena.appendDecl(.nominalType(KIRNominalType(symbol: mainSym)))
+        _ = arena.appendDecl(.function(callee))
+
+        return KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])], arena: arena)
+    }
 }

@@ -12,30 +12,10 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
         super.tearDown()
     }
 
-    private func withFlatString<T>(
-        _ value: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        Array(value.utf8).withUnsafeBufferPointer { buffer in
-            body(buffer.baseAddress, value.unicodeScalars.count, value.utf8.count, 0)
-        }
-    }
-
-    private func makeRegex(_ pattern: String) -> Int {
-        withFlatString(pattern) { data, length, byteCount, hash in
-            kk_regex_create_flat(data, length, byteCount, hash)
-        }
-    }
-
-    private func find(regexRaw: Int, input: String) -> Int {
-        withFlatString(input) { data, length, byteCount, hash in
-            kk_regex_find_flat(regexRaw, data, length, byteCount, hash)
-        }
-    }
-
-    private func group(_ groupsRaw: Int, named name: String) -> Int {
-        withFlatString(name) { data, length, byteCount, hash in
-            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
+    private func makeRuntimeString(_ value: String) -> Int {
+        let utf8 = Array(value.utf8)
+        return utf8.withUnsafeBufferPointer { buffer in
+            Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
         }
     }
 
@@ -48,12 +28,12 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
     }
 
     func testNamedGroupsExposeValuesByName() {
-        let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
-        let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
+        let regexRaw = kk_regex_create(makeRuntimeString("(?<lhs>ab)(?<rhs>cd)"))
+        let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("zzabcdyy"))
         let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let lhsGroupRaw = group(groupsRaw, named: "lhs")
-        let rhsGroupRaw = group(groupsRaw, named: "rhs")
+        let lhsGroupRaw = kk_match_group_collection_get(groupsRaw, makeRuntimeString("lhs"))
+        let rhsGroupRaw = kk_match_group_collection_get(groupsRaw, makeRuntimeString("rhs"))
 
         XCTAssertNotEqual(lhsGroupRaw, runtimeNullSentinelInt)
         XCTAssertNotEqual(rhsGroupRaw, runtimeNullSentinelInt)
@@ -62,16 +42,16 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
     }
 
     func testMissingNamedGroupReturnsNullSentinel() {
-        let regexRaw = makeRegex("(?<lhs>ab)(?<rhs>cd)")
-        let matchRaw = find(regexRaw: regexRaw, input: "zzabcdyy")
+        let regexRaw = kk_regex_create(makeRuntimeString("(?<lhs>ab)(?<rhs>cd)"))
+        let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("zzabcdyy"))
         let groupsRaw = kk_match_result_groups(matchRaw)
 
-        let missing = group(groupsRaw, named: "missing")
+        let missing = kk_match_group_collection_get(groupsRaw, makeRuntimeString("missing"))
         XCTAssertEqual(missing, runtimeNullSentinelInt)
     }
 
     func testGroupNamesReturnsAllNamedGroups() {
-        let regexRaw = makeRegex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
+        let regexRaw = kk_regex_create(makeRuntimeString("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})"))
         let setRaw = kk_regex_group_names(regexRaw)
 
         guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
@@ -84,7 +64,7 @@ final class RuntimeRegexNamedGroupTests: XCTestCase {
     }
 
     func testGroupNamesEmptyForUnnamedPattern() {
-        let regexRaw = makeRegex("(\\d+)-(\\d+)")
+        let regexRaw = kk_regex_create(makeRuntimeString("(\\d+)-(\\d+)"))
         let setRaw = kk_regex_group_names(regexRaw)
 
         guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),

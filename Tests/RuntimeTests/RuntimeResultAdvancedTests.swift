@@ -3,7 +3,7 @@ import XCTest
 
 @_cdecl("runtime_result_adv_success_lambda")
 private func runtime_result_adv_success_lambda(
-    _: Int,
+    _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
@@ -12,7 +12,7 @@ private func runtime_result_adv_success_lambda(
 
 @_cdecl("runtime_result_adv_failure_lambda")
 private func runtime_result_adv_failure_lambda(
-    _: Int,
+    _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = runtimeAllocateThrowable(message: "advanced failure")
@@ -21,8 +21,8 @@ private func runtime_result_adv_failure_lambda(
 
 @_cdecl("runtime_result_adv_transform_lambda")
 private func runtime_result_adv_transform_lambda(
-    _: Int,
-    _: Int,
+    _ closureRaw: Int,
+    _ argument: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0

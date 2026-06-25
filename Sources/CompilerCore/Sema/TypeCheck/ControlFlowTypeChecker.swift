@@ -59,7 +59,7 @@ final class ControlFlowTypeChecker {
             chosenCallee: iteratorChosen,
             substitutedTypeArguments: iteratorResolved.substitutedTypeArguments
                 .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                .map { _, value in value },
+                .map { (_: TypeVarID, value: TypeID) in value },
             parameterMapping: iteratorResolved.parameterMapping
         )
 
@@ -132,14 +132,14 @@ final class ControlFlowTypeChecker {
             chosenCallee: hasNextChosen,
             substitutedTypeArguments: hasNextResolved.substitutedTypeArguments
                 .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                .map { _, value in value },
+                .map { (_: TypeVarID, value: TypeID) in value },
             parameterMapping: hasNextResolved.parameterMapping
         )
         let nextCall = CallBinding(
             chosenCallee: nextChosen,
             substitutedTypeArguments: nextResolved.substitutedTypeArguments
                 .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                .map { _, value in value },
+                .map { (_: TypeVarID, value: TypeID) in value },
             parameterMapping: nextResolved.parameterMapping
         )
 

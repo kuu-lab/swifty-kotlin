@@ -6,17 +6,6 @@ import XCTest
 /// tracked by STDLIB-TEXT-FN-099 — are registered as synthetic stdlib stubs
 /// and resolve to the correct runtime external link names at sema time.
 final class StringToIntFunctionTests: XCTestCase {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     private func externalLinks(
         for member: String,
         sema: SemaModule,
@@ -30,24 +19,24 @@ final class StringToIntFunctionTests: XCTestCase {
     }
 
     /// Both `String.toInt()` and `String.toInt(radix)` must be registered with
-    /// their respective flattened runtime ABI bridges (`kk_string_toInt_flat`
-    /// and `kk_string_toInt_radix_flat`).
+    /// their respective runtime ABI bridges (`kk_string_toInt` and
+    /// `kk_string_toInt_radix`).
     func testStringToIntStubsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let links = externalLinks(for: "toInt", sema: sema, interner: interner)
         XCTAssertTrue(
-            links.contains("kk_string_toInt_flat"),
-            "String.toInt() should link to kk_string_toInt_flat — got: \(links.sorted())"
+            links.contains("kk_string_toInt"),
+            "String.toInt() should link to kk_string_toInt — got: \(links.sorted())"
         )
         XCTAssertTrue(
-            links.contains("kk_string_toInt_radix_flat"),
-            "String.toInt(radix) should link to kk_string_toInt_radix_flat — got: \(links.sorted())"
+            links.contains("kk_string_toInt_radix"),
+            "String.toInt(radix) should link to kk_string_toInt_radix — got: \(links.sorted())"
         )
     }
 
     /// Call expression `"42".toInt()` must resolve through sema to the
-    /// `kk_string_toInt_flat` runtime entry and produce an `Int` result.
+    /// `kk_string_toInt` runtime entry and produce an `Int` result.
     func testStringToIntCallResolvesToRuntimeBridge() throws {
         let source = """
         fun parse(value: String): Int {
@@ -74,14 +63,14 @@ final class StringToIntFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toInt_flat",
-                "String.toInt() should resolve to kk_string_toInt_flat"
+                "kk_string_toInt",
+                "String.toInt() should resolve to kk_string_toInt"
             )
         }
     }
 
     /// Call expression `"ff".toInt(16)` must resolve to the radix-aware
-    /// runtime bridge `kk_string_toInt_radix_flat`.
+    /// runtime bridge `kk_string_toInt_radix`.
     func testStringToIntRadixCallResolvesToRuntimeBridge() throws {
         let source = """
         fun parseHex(value: String): Int {
@@ -108,8 +97,8 @@ final class StringToIntFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toInt_radix_flat",
-                "String.toInt(16) should resolve to kk_string_toInt_radix_flat"
+                "kk_string_toInt_radix",
+                "String.toInt(16) should resolve to kk_string_toInt_radix"
             )
         }
     }

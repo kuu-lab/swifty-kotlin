@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-110: Validates that `kotlin.text.CharSequence.trim` resolves
 /// through Sema for both the no-arg overload and the predicate-based overload.
-/// Runtime link names involved: `kk_string_trim_flat`, `kk_string_trim_predicate_flat`.
+/// Runtime link names involved: `kk_string_trim`, `kk_string_trim_predicate`.
 final class StringTrimFunctionTests: XCTestCase {
     func testTrimFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""

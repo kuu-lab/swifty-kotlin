@@ -8,9 +8,6 @@ public enum RuntimeABICType: String, Equatable, Sendable {
     case opaquePointer = "void *"
     case nullableOpaquePointer = "void * _Nullable"
     case constUInt8Pointer = "const uint8_t *"
-    case nullableConstUInt8Pointer = "const uint8_t * _Nullable"
-    case uint8Pointer = "uint8_t *"
-    case nullableUInt8Pointer = "uint8_t * _Nullable"
     case constCCharPointer = "const char *"
     case fieldAddrPointer = "void **"
     case constTypeInfoPointer = "const KTypeInfo *"
@@ -242,14 +239,6 @@ public enum RuntimeABISpec {
             section: "IO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_readln_from_syscall",
-            parameters: [
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "IO"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_readlnOrNull",
             parameters: [],
             returnType: .intptr,
@@ -351,16 +340,6 @@ public enum RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sys_write",
-            parameters: [
-                RuntimeABIParameter(name: "fd", type: .int32),
-                RuntimeABIParameter(name: "buffer", type: .constRawPointer),
-                RuntimeABIParameter(name: "count", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_platform_isLittleEndian",
             parameters: [
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
@@ -456,14 +435,6 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_instant_to_js_date",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_double_toJsNumber",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .double),
@@ -480,23 +451,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_jsclass_kotlin",
-            parameters: [
-                RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_boolean_toJsBoolean",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -805,9 +760,6 @@ public enum RuntimeABISpec {
     ]
 
 
-    /// Stdlib Delegate Functions (P5-80)
-
-    /// Stdlib Delegate Functions (P5-80)
     public static let delegateFunctions: [RuntimeABIFunctionSpec] = [
         // Lazy
         RuntimeABIFunctionSpec(
@@ -1082,9 +1034,6 @@ public enum RuntimeABISpec {
             section: "Delegate"
         ),
     ]
-    /// Boolean logical operators
-
-    /// Boolean logical operators
     public static let booleanFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_op_not",
@@ -1097,9 +1046,6 @@ public enum RuntimeABISpec {
         ),
     ]
 
-    /// Char operations
-
-    /// Char operations
     public static let charFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_char_minus",
@@ -1131,38 +1077,20 @@ public enum RuntimeABISpec {
         ),
     ]
 
-    /// Regex (STDLIB-100/101/102/103)
-
-    /// Regex (STDLIB-100/101/102/103)
     public static let regexFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_create_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_create",
             parameters: [
-                RuntimeABIParameter(name: "patternRaw", type: .intptr),
+                RuntimeABIParameter(name: "pattern", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_matches_regex_flat",
+            name: "kk_string_matches_regex",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
             ],
             returnType: .intptr,
@@ -1170,26 +1098,10 @@ public enum RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_contains_regex_flat",
+            name: "kk_string_contains_regex",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_find_flat",
-            parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -1198,21 +1110,8 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_regex_find",
             parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_findAll_flat",
-            parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "regex", type: .intptr),
+                RuntimeABIParameter(name: "input", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -1221,8 +1120,8 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_regex_findAll",
             parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "regex", type: .intptr),
+                RuntimeABIParameter(name: "input", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -1240,13 +1139,10 @@ public enum RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_split_regex_flat",
+            name: "kk_string_split_regex",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "regex", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -1265,21 +1161,8 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_with_option",
             parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "optionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_with_option_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "optionRaw", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "option", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -1288,32 +1171,8 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_with_options",
             parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "optionsRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_with_options_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "optionsRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "options", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -1370,19 +1229,6 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_regex_matchEntire_flat",
-            parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_regex_matchEntire",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
@@ -1403,19 +1249,6 @@ public enum RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_create_with_option_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "optionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
         // STDLIB-480: Regex(pattern, options: Set<RegexOption>) constructor
         RuntimeABIFunctionSpec(
             name: "kk_regex_create_with_options",
@@ -1427,38 +1260,12 @@ public enum RuntimeABISpec {
             section: "Regex",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_create_with_options_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "optionsSetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
         // STDLIB-480: Regex.containsMatchIn(input)
         RuntimeABIFunctionSpec(
             name: "kk_regex_containsMatchIn",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_containsMatchIn_flat",
-            parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "inputRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex",
@@ -1483,18 +1290,6 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Regex",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_match_group_collection_get_flat",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_group_collection_get_at",
@@ -1537,13 +1332,10 @@ public enum RuntimeABISpec {
         // STDLIB-REGEX-094: Regex.fromLiteral
         // First param is the Companion object receiver (ignored at runtime).
         RuntimeABIFunctionSpec(
-            name: "kk_regex_from_literal_flat",
+            name: "kk_regex_from_literal",
             parameters: [
                 RuntimeABIParameter(name: "companionRef", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "literalRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"
@@ -1662,81 +1454,45 @@ public enum RuntimeABISpec {
         ),
         // STDLIB-318: commonPrefixWith / commonSuffixWith
         RuntimeABIFunctionSpec(
-            name: "kk_string_commonPrefixWith_flat",
+            name: "kk_string_commonPrefixWith",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "other", type: .intptr),
             ],
-            returnType: .nullableUInt8Pointer,
+            returnType: .intptr,
             section: "String",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_commonSuffixWith_flat",
+            name: "kk_string_commonSuffixWith",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "other", type: .intptr),
             ],
-            returnType: .nullableUInt8Pointer,
+            returnType: .intptr,
             section: "String",
             isThrowing: false
         ),
         // STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
         RuntimeABIFunctionSpec(
-            name: "kk_string_commonPrefixWith_ignoreCase_flat",
+            name: "kk_string_commonPrefixWith_ignoreCase",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "other", type: .intptr),
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
-            returnType: .nullableUInt8Pointer,
+            returnType: .intptr,
             section: "String",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_commonSuffixWith_ignoreCase_flat",
+            name: "kk_string_commonSuffixWith_ignoreCase",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "other", type: .intptr),
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
-            returnType: .nullableUInt8Pointer,
+            returnType: .intptr,
             section: "String",
             isThrowing: false
         ),
@@ -1764,24 +1520,15 @@ public enum RuntimeABISpec {
         ),
         // STDLIB-317: String.asSequence / asIterable
         RuntimeABIFunctionSpec(
-            name: "kk_string_asSequence_flat",
+            name: "kk_string_asSequence",
             parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "str", type: .intptr),
             ],
             returnType: .intptr,
             section: "String",
             isThrowing: false
         ),
     ]
-
-
-    public static let i18nFunctions: [RuntimeABIFunctionSpec] = []
-
-    // MARK: - Path (STDLIB-IO-089)
-
 
     // MARK: - Path (STDLIB-IO-089)
 
@@ -1902,9 +1649,6 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(name: "kk_path_moveTo_options", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "targetRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_getLastModifiedTime", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
     ]
-
-    // MARK: - Duration / measureTime (STDLIB-230/231)
-
 
     // MARK: - Duration / measureTime (STDLIB-230/231)
 
@@ -2502,28 +2246,6 @@ public enum RuntimeABISpec {
         ),
     ]
 
-    /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
-    ///
-    /// The sub-arrays are listed in alphabetical order, one entry per line, so that
-    /// parallel branches adding a new category insert their entry at a unique
-    /// alphabetic position rather than all appending to the same trailing line.
-    /// This is purely a merge-conflict-prevention layout: the resulting element
-    /// set is unchanged from any other ordering.
-    ///
-    /// When adding a new sub-array, insert its name in alphabetical position.
-    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
-
-
-    /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
-    ///
-    /// The sub-arrays are listed in alphabetical order, one entry per line, so that
-    /// parallel branches adding a new category insert their entry at a unique
-    /// alphabetic position rather than all appending to the same trailing line.
-    /// This is purely a merge-conflict-prevention layout: the resulting element
-    /// set is unchanged from any other ordering.
-    ///
-    /// When adding a new sub-array, insert its name in alphabetical position.
-    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
     public static let allFunctions: [RuntimeABIFunctionSpec] = ([
         abiParityFunctions,
         arrayFunctions,
@@ -2548,7 +2270,6 @@ public enum RuntimeABISpec {
         fileIOFunctions,
         gcFunctions,
         hexFormatFunctions,
-        i18nFunctions,
         ioFunctions,
         kFunctionFunctions,
         kParameterFunctions,

@@ -2,7 +2,7 @@
 import XCTest
 
 /// STDLIB-TEXT-FN-080: Validates that `CharSequence.takeLast(n)` resolves through Sema for
-/// `String` receivers. The synthetic stub links to `kk_string_takeLast_flat`.
+/// `String` receivers. The synthetic stub links to `kk_string_takeLast`.
 final class StringTakeLastFunctionTests: XCTestCase {
     func testTakeLastWithLiteralCount() throws {
         let ctx = makeContextFromSource("""

@@ -275,10 +275,8 @@ extension LoweringPassRegressionTests {
             return interner.resolve(function.name)
         }
 
-        // Verify count helper still exists
         XCTAssertTrue(functionNames.contains("Color$enumValuesCount"), "Missing Color$enumValuesCount, got: \(functionNames)")
 
-        // Verify per-entry ordinal helpers
         XCTAssertTrue(functionNames.contains("RED$enumOrdinal"), "Missing RED$enumOrdinal, got: \(functionNames)")
         XCTAssertTrue(functionNames.contains("GREEN$enumOrdinal"), "Missing GREEN$enumOrdinal, got: \(functionNames)")
         XCTAssertTrue(functionNames.contains("BLUE$enumOrdinal"), "Missing BLUE$enumOrdinal, got: \(functionNames)")
@@ -330,9 +328,8 @@ extension LoweringPassRegressionTests {
 
         // Verify valueOf body contains string comparison calls
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
-        XCTAssertTrue(valueOfCallees.contains("kk_string_equals_flat"), "valueOf should call kk_string_equals_flat")
-        XCTAssertTrue(valueOfCallees.contains("kk_unbox_bool"), "valueOf should unbox the flat String.equals result")
-        XCTAssertTrue(valueOfCallees.contains("kk_string_concat_flat"), "valueOf should call kk_string_concat_flat to build 'ClassName.value' for error message")
+        XCTAssertTrue(valueOfCallees.contains("kk_string_equals"), "valueOf should call kk_string_equals")
+        XCTAssertTrue(valueOfCallees.contains("kk_string_concat"), "valueOf should call kk_string_concat to build 'ClassName.value' for error message")
         XCTAssertTrue(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
         // Verify valueOf body contains the class name prefix string "Color."
@@ -753,7 +750,7 @@ extension LoweringPassRegressionTests {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let nullableAnyType = types.nullableAnyType
         symbols.setFunctionSignature(
@@ -862,7 +859,7 @@ extension LoweringPassRegressionTests {
         // Verify toString body uses StringBuilder + kk_any_to_string
         let toStringFn = try findKIRFunction(named: "toString", in: module, interner: interner)
         let toStringCallees = extractCallees(from: toStringFn.body, interner: interner)
-        XCTAssertTrue(toStringCallees.contains("kk_string_builder_new_from_string_flat"), "toString should create a StringBuilder from the class prefix")
+        XCTAssertTrue(toStringCallees.contains("kk_string_builder_new_from_string"), "toString should create a StringBuilder from the class prefix")
         XCTAssertTrue(toStringCallees.contains("kk_string_builder_append_obj"), "toString should append labels and values via StringBuilder")
         XCTAssertTrue(toStringCallees.contains("kk_string_builder_toString"), "toString should convert the StringBuilder back to String")
         XCTAssertTrue(toStringCallees.contains("kk_any_to_string"), "toString should use kk_any_to_string")
@@ -893,8 +890,6 @@ extension LoweringPassRegressionTests {
 
     // MARK: - DATA-001: copy() edge cases
 
-    /// When a data class has no primary constructor, copy() should fall back to
-    /// returning self and emit a KSWIFTK-DATA-0001 warning.
     func testDataCopyNoPrimaryCtorEmitsWarningAndReturnsSelf() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -964,8 +959,6 @@ extension LoweringPassRegressionTests {
         XCTAssertTrue(dataWarnings.first?.message.contains("Point") ?? false)
     }
 
-    /// When a data class has a proper primary constructor, copy() should include
-    /// parameters matching the constructor and call it.
     func testDataCopyWithPrimaryCtorIncludesCtorParams() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -1067,9 +1060,6 @@ extension LoweringPassRegressionTests {
         XCTAssertEqual(dataWarnings.count, 0, "No DATA warnings expected for normal data class copy")
     }
 
-    /// When a data class constructor has a signature mismatch between
-    /// parameterTypes and valueParameterSymbols, copy() should emit
-    /// KSWIFTK-DATA-0002 warning and use the shorter count.
     func testDataCopySignatureMismatchEmitsWarning() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -1109,7 +1099,7 @@ extension LoweringPassRegressionTests {
         )
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
         let nameParamName = interner.intern("name")
         let nameParamSymbol = symbols.define(
             kind: .valueParameter,
@@ -1162,8 +1152,6 @@ extension LoweringPassRegressionTests {
         XCTAssertTrue(mismatchWarnings.first?.message.contains("Person") ?? false)
     }
 
-    /// When a data class constructor has zero value parameters, copy()
-    /// should produce a function with only the self parameter.
     func testDataCopyZeroCtorParams() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -1247,8 +1235,6 @@ extension LoweringPassRegressionTests {
         XCTAssertEqual(dataWarnings.count, 0, "No DATA warnings expected for zero-param data class copy")
     }
 
-    /// When a data class constructor has a function signature but the symbol
-    /// lookup returns no constructor kind, copy() should fall back to self.
     func testDataCopyCtorWithoutConstructorKindFallsBack() throws {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()

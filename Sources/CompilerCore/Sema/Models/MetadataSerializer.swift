@@ -131,21 +131,13 @@ final class MetadataEncoder {
         moduleName: String,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String],
-        inlineFunctionSymbols: Set<SymbolID> = [],
         includeNonPublic: Bool = false,
-        includeSynthetic: Bool = true,
-        includeSyntheticNominalAnchors: Bool = false,
         excludedFileIDs: Set<Int32> = []
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
                 if !includeNonPublic && symbol.visibility != .public {
                     return false
-                }
-                if !includeSynthetic && symbol.flags.contains(.synthetic) {
-                    if !(includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)) {
-                        return false
-                    }
                 }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
@@ -177,19 +169,13 @@ final class MetadataEncoder {
 
         var records: [MetadataRecord] = []
         for symbol in exported {
-            let isSyntheticNominalAnchor = !includeSynthetic
-                && includeSyntheticNominalAnchors
-                && symbol.flags.contains(.synthetic)
-                && Self.nominalKinds.contains(symbol.kind)
             records.append(buildRecord(
                 for: symbol,
                 symbols: symbols,
                 types: types,
                 moduleName: moduleName,
                 interner: interner,
-                functionLinkNames: functionLinkNames,
-                inlineFunctionSymbols: inlineFunctionSymbols,
-                metadataAnchorOnly: isSyntheticNominalAnchor
+                functionLinkNames: functionLinkNames
             ))
         }
         return records
@@ -330,7 +316,7 @@ final class MetadataEncoder {
                 nullability: kClassType.nullability
             )))
 
-        case .typeParam, .stringStruct, .primitive, .any, .unit, .nothing, .error:
+        case .typeParam, .primitive, .any, .unit, .nothing, .error:
             return type
         }
     }
@@ -377,9 +363,7 @@ final class MetadataEncoder {
         types: TypeSystem,
         moduleName: String,
         interner: StringInterner,
-        functionLinkNames: [SymbolID: String] = [:],
-        inlineFunctionSymbols: Set<SymbolID> = [],
-        metadataAnchorOnly: Bool = false
+        functionLinkNames: [SymbolID: String] = [:]
     ) -> MetadataRecord {
         let mangler = NameMangler()
         let mangled = mangler.mangle(
@@ -391,10 +375,6 @@ final class MetadataEncoder {
         )
         let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
 
-        if metadataAnchorOnly {
-            return MetadataRecord(kind: symbol.kind, mangledName: mangled, fqName: fqName)
-        }
-
         var arity = 0
         var isSuspend = false
         var isInline = false
@@ -404,19 +384,14 @@ final class MetadataEncoder {
         if symbol.kind == .function || symbol.kind == .constructor, let signature = symbols.functionSignature(for: symbol.id) {
             arity = signature.parameterTypes.count
             isSuspend = signature.isSuspend
-            isInline = symbol.flags.contains(.inlineFunction) || inlineFunctionSymbols.contains(symbol.id)
+            isInline = symbol.flags.contains(.inlineFunction)
             typeSignature = mangler.mangledSignature(
                 for: symbol,
                 symbols: symbols,
                 types: types,
                 nameResolver: { interner.resolve($0) }
             )
-            let carriesRuntimeNameAnnotation = symbols.annotations(for: symbol.id).contains {
-                KnownCompilerAnnotation.kSwiftKRuntimeName.matches($0.annotationFQName)
-            }
-            externalLinkName = carriesRuntimeNameAnnotation
-                ? symbols.externalLinkName(for: symbol.id)
-                : functionLinkNames[symbol.id]
+            externalLinkName = functionLinkNames[symbol.id]
         }
 
         if symbol.kind == .property || symbol.kind == .field,
@@ -640,8 +615,6 @@ final class MetadataEncoder {
         }
         return lines.joined(separator: "\n") + "\n"
     }
-
-    // MARK: - Layout Serialization Helpers
 
     func serializeFieldOffsets(
         _ offsets: [SymbolID: Int],

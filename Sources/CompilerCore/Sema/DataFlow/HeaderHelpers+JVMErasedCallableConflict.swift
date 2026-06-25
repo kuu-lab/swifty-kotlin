@@ -20,7 +20,6 @@ extension DataFlowSemaPhase {
                   let existingSymbol = symbols.symbol(existingID),
                   existingSymbol.kind == newSymbol.kind,
                   !canCoexistAsExpectActualPair(newSymbol, existingSymbol),
-                  !canCoexistAsSyntheticFallback(newSymbol, existingSymbol),
                   let existingSignature = symbols.functionSignature(for: existingID)
             else {
                 return false
@@ -61,9 +60,10 @@ extension DataFlowSemaPhase {
 
     func jvmErasedCallableType(_ type: TypeID, types: TypeSystem) -> TypeID {
         switch types.kind(of: type) {
-        case .stringStruct:
-            return types.makeNonNullable(type)
-        case .primitive:
+        case let .primitive(primitive, _):
+            if primitive == .string {
+                return types.makeNonNullable(type)
+            }
             return type
         default:
             return types.makeNonNullable(type)
@@ -87,9 +87,5 @@ extension DataFlowSemaPhase {
         }
 
         return (lhsIsExpect && rhsIsActual) || (lhsIsActual && rhsIsExpect)
-    }
-
-    func canCoexistAsSyntheticFallback(_ lhs: SemanticSymbol, _ rhs: SemanticSymbol) -> Bool {
-        lhs.flags.contains(.synthetic) != rhs.flags.contains(.synthetic)
     }
 }

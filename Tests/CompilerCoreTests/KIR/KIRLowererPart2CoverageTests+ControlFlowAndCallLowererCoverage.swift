@@ -1,8 +1,6 @@
 @testable import CompilerCore
 import XCTest
 
-// MARK: - ControlFlow and Call lowerer tests extracted to reduce file length.
-
 extension KIRLowererPart2CoverageTests {
     func testControlFlowLowererPart2CatchBindingAndLegacyTypeResolution() {
         let fixture = makeDirectKIRFixture()
@@ -64,7 +62,7 @@ extension KIRLowererPart2CoverageTests {
             ("Double", TypeKind.primitive(.double, .nonNull)),
             ("Boolean", TypeKind.primitive(.boolean, .nonNull)),
             ("Char", TypeKind.primitive(.char, .nonNull)),
-            ("String", TypeKind.stringStruct(.nonNull)),
+            ("String", TypeKind.primitive(.string, .nonNull)),
         ]
 
         for (name, expectedKind) in builtinNames {

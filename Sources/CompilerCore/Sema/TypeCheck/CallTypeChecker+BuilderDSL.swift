@@ -1,5 +1,3 @@
-// MARK: - Builder DSL Helpers (STDLIB-002)
-
 extension CallTypeChecker {
     private enum BuilderDSLArgumentShape {
         case unary([TypeID])

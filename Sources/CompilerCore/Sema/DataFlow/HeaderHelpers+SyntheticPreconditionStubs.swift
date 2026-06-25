@@ -1,6 +1,6 @@
-/// Synthetic fallback declarations for kotlin.require, kotlin.check, assert, and error.
-/// Source stdlib declarations own these symbols when imported; this fallback only
-/// keeps no-stdlib-search Sema paths contract-aware.
+
+/// Synthetic stdlib top-level functions for kotlin.require, kotlin.check, and kotlin.error (STDLIB-062).
+/// These stubs enable name resolution and type checking; runtime behavior is implemented in Runtime.
 extension DataFlowSemaPhase {
     func registerSyntheticPreconditionStubs(
         symbols: SymbolTable,
@@ -10,12 +10,6 @@ extension DataFlowSemaPhase {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
         let packageSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
-        let lazyMessageType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
 
         registerSyntheticPreconditionTopLevelFunction(
             named: "require",
@@ -34,7 +28,12 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [
                 (name: "condition", type: types.booleanType),
-                (name: "lazyMessage", type: lazyMessageType),
+                (name: "lazyMessage", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))),
             ],
             returnType: types.unitType,
             externalLinkName: "kk_require_lazy",
@@ -59,7 +58,12 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [
                 (name: "condition", type: types.booleanType),
-                (name: "lazyMessage", type: lazyMessageType),
+                (name: "lazyMessage", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))),
             ],
             returnType: types.unitType,
             externalLinkName: "kk_check_lazy",
@@ -67,6 +71,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             contractNonNullParameterIndex: 0
         )
+        // STDLIB-258: assert(condition) and assert(condition, lazyMessage)
         registerSyntheticPreconditionTopLevelFunction(
             named: "assert",
             packageFQName: kotlinPkg,
@@ -84,7 +89,12 @@ extension DataFlowSemaPhase {
             packageSymbol: packageSymbol,
             parameters: [
                 (name: "value", type: types.booleanType),
-                (name: "lazyMessage", type: lazyMessageType),
+                (name: "lazyMessage", type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))),
             ],
             returnType: types.unitType,
             externalLinkName: "kk_precondition_assert_lazy",
@@ -121,22 +131,23 @@ extension DataFlowSemaPhase {
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
             }
-            return existingSignature.receiverType == nil
-                && existingSignature.parameterTypes == parameters.map(\.type)
+            return existingSignature.parameterTypes == parameters.map(\.type)
                 && existingSignature.returnType == returnType
         }) {
-            let existingFlags = symbols.symbol(existing)?.flags ?? []
-            if existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            if let contractNonNullParameterIndex,
+               let signature = symbols.functionSignature(for: existing),
+               contractNonNullParameterIndex < signature.valueParameterSymbols.count
+            {
+                let parameterSymbol = signature.valueParameterSymbols[contractNonNullParameterIndex]
+                symbols.setContractNonNullEffect(
+                    ContractNonNullEffect(
+                        parameterSymbol: parameterSymbol,
+                        appliesOnAnyReturn: true
+                    ),
+                    for: existing
+                )
             }
-            setPreconditionContractEffect(
-                on: existing,
-                parameterIndex: contractNonNullParameterIndex,
-                symbols: symbols
-            )
-            return
-        }
-        if hasSourceOrImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 
@@ -178,30 +189,17 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
-        setPreconditionContractEffect(
-            on: functionSymbol,
-            parameterIndex: contractNonNullParameterIndex,
-            symbols: symbols
-        )
-    }
-
-    private func setPreconditionContractEffect(
-        on functionSymbol: SymbolID,
-        parameterIndex: Int?,
-        symbols: SymbolTable
-    ) {
-        guard let parameterIndex,
-              let signature = symbols.functionSignature(for: functionSymbol),
-              parameterIndex < signature.valueParameterSymbols.count
-        else {
-            return
+        if let contractNonNullParameterIndex,
+           contractNonNullParameterIndex < valueParameterSymbols.count
+        {
+            let parameterSymbol = valueParameterSymbols[contractNonNullParameterIndex]
+            symbols.setContractNonNullEffect(
+                ContractNonNullEffect(
+                    parameterSymbol: parameterSymbol,
+                    appliesOnAnyReturn: true
+                ),
+                for: functionSymbol
+            )
         }
-        symbols.setContractNonNullEffect(
-            ContractNonNullEffect(
-                parameterSymbol: signature.valueParameterSymbols[parameterIndex],
-                appliesOnAnyReturn: true
-            ),
-            for: functionSymbol
-        )
     }
 }

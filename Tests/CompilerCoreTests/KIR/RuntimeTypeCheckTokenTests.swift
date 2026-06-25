@@ -4,9 +4,8 @@ import XCTest
 
 final class RuntimeTypeCheckTokenTests: XCTestCase {
 
-    // MARK: - classify() Tests
-
     func testClassifyBuiltinTypes() {
+        let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
         let sema = SemaModule(
@@ -21,7 +20,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             (.any(.nullable), .any, true),
             (.primitive(.int, .nonNull), .int, false),
             (.primitive(.int, .nullable), .int, true),
-            (.stringStruct(.nonNull), .string, false),
+            (.primitive(.string, .nonNull), .string, false),
             (.primitive(.boolean, .nonNull), .boolean, false),
             (.primitive(.uint, .nonNull), .uint, false),
             (.primitive(.ulong, .nonNull), .ulong, false),
@@ -42,6 +41,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     }
 
     func testClassifyNothingType() {
+        let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),
@@ -91,6 +91,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     }
 
     func testClassifyUnknownTypes() {
+        let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),
@@ -112,8 +113,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         XCTAssertEqual(descriptor.category.base, RuntimeTypeCheckToken.unknownBase)
     }
 
-    // MARK: - encode() Consistency Tests
-
     func testEncodeConsistencyWithClassify() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -129,7 +128,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             .any(.nonNull),
             .any(.nullable),
             .primitive(.int, .nonNull),
-            .stringStruct(.nullable),
+            .primitive(.string, .nullable),
             .primitive(.boolean, .nonNull),
             .primitive(.uint, .nonNull),
             .primitive(.ulong, .nonNull),
@@ -213,8 +212,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         XCTAssertEqual(encoded, manuallyEncoded)
     }
 
-    // MARK: - simpleName() Consistency Tests
-
     func testSimpleNameConsistencyWithCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -228,7 +225,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         let testCases: [(TypeKind, String)] = [
             (.any(.nonNull), "Any"),
             (.primitive(.int, .nonNull), "Int"),
-            (.stringStruct(.nonNull), "String"),
+            (.primitive(.string, .nonNull), "String"),
             (.primitive(.boolean, .nonNull), "Boolean"),
             (.primitive(.uint, .nonNull), "UInt"),
             (.primitive(.ulong, .nonNull), "ULong"),
@@ -275,8 +272,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             XCTAssertEqual(simpleName, expectedName)
         }
     }
-
-    // MARK: - Catch/Is Token Consistency Tests
 
     func testCatchTokenMatchesIsToken() throws {
         let source = """
@@ -327,7 +322,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         }
     }
 
-    // MARK: - Type Alias Resolution Test
 
     func testTypeAliasResolvesToCorrectToken() {
         let interner = StringInterner()

@@ -87,7 +87,7 @@ public func kk_set_to_string(_ setRaw: Int) -> UnsafeMutableRawPointer {
             kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
         }
     }
-    let parts = set.values.map(runtimeElementToString)
+    let parts = set.elements.map(runtimeElementToString)
     let str = "[" + parts.joined(separator: ", ") + "]"
     let utf8 = Array(str.utf8)
     return utf8.withUnsafeBufferPointer { buf in

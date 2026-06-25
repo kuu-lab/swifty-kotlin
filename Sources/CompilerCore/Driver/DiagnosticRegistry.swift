@@ -14,7 +14,7 @@ public struct DiagnosticCodeAction: Equatable, Sendable {
 }
 
 /// Metadata describing a registered diagnostic code.
-struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
+struct DiagnosticDescriptor: Equatable, Sendable {
     /// The canonical code string (e.g. "KSWIFTK-SEMA-0014").
     let code: String
     /// Which compiler pass this diagnostic originates from.
@@ -25,10 +25,6 @@ struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
     let summary: String
     /// Default code actions (quick-fixes) available for this diagnostic.
     let codeActions: [DiagnosticCodeAction]
-
-    var description: String {
-        return "[\(code)] \(defaultSeverity): \(summary)"
-    }
 
     init(
         code: String,
@@ -52,6 +48,7 @@ struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
 /// CORO, BACKEND, LINK, PIPELINE, ICE) and `{CODE}` is a numeric or mnemonic
 /// identifier unique within that pass.
 enum DiagnosticRegistry {
+    /// All registered diagnostic descriptors, keyed by their code string.
     static let descriptors: [String: DiagnosticDescriptor] = {
         var map: [String: DiagnosticDescriptor] = [:]
         for descriptor in allDescriptors {

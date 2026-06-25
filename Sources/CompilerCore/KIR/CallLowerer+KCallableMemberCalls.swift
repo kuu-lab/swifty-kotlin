@@ -5,8 +5,6 @@
 extension CallLowerer {
     // MARK: - KProperty member access lowering (PROP-007)
 
-    /// Checks if the receiver type is a `kotlin.reflect.KProperty` (or related reflect interface)
-    /// and the callee is a known property like `name`, and if so emits the runtime call.
     private func isKPropertyReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -48,7 +46,7 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.types.stringType
+            ?? sema.types.make(.primitive(.string, .nonNull))
         let result = arena.appendExpr(
             .temporary(Int32(arena.expressions.count)),
             type: resultType
@@ -66,8 +64,6 @@ extension CallLowerer {
 
     // MARK: - KFunction member access lowering (STDLIB-REFLECT-063)
 
-    /// Checks if the receiver type is a `kotlin.reflect.KFunction` (or related reflect interface)
-    /// so that member accesses like `.name`, `.returnType`, `.parameters`, `.isSuspend` can be lowered.
     private func isKFunctionReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -143,7 +139,6 @@ extension CallLowerer {
 
     // MARK: - KParameter member access lowering (STDLIB-REFLECT-TYPE-013)
 
-    /// Checks if the receiver type is a `kotlin.reflect.KParameter`.
     private func isKParameterReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,

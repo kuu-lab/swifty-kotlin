@@ -2,12 +2,7 @@
 import Foundation
 import XCTest
 
-// MARK: - BuildAST BodyParsing Regression Tests
-
-// Target: BuildASTPhase+BodyParsing.swift (56.9%)
-
 final class BuildASTBodyParsingRegressionTests: XCTestCase {
-    // MARK: - Typed local variable declaration
 
     func testTypedLocalVariableDeclaration() throws {
         let source = """
@@ -26,8 +21,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         }
     }
 
-    // MARK: - Local variable without initializer
-
     func testLocalVariableWithoutInitializer() throws {
         let source = """
         fun main(): Int {
@@ -44,8 +37,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         }
     }
 
-    // MARK: - Local function with expression body
-
     func testLocalFunctionWithExpressionBody() throws {
         let source = """
         fun outer(): Int {
@@ -61,8 +52,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
         }
     }
-
-    // MARK: - Nested local function
 
     func testNestedLocalFunction() throws {
         let source = """
@@ -100,8 +89,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         }
     }
 
-    // MARK: - Compound assignment operators in body parsing
-
     func testCompoundAssignmentOperatorsInBody() throws {
         let source = """
         fun main(): Int {
@@ -122,8 +109,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         }
     }
 
-    // MARK: - Array assignment
-
     func testArrayAssignmentInBody() throws {
         let source = """
         fun main(): Int {
@@ -140,8 +125,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(ast.declarationCount, 1)
         }
     }
-
-    // MARK: - Block body with multiple statements
 
     func testBlockBodyMultipleStatements() throws {
         let source = """
@@ -161,8 +144,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             XCTAssertFalse(body.isEmpty)
         }
     }
-
-    // MARK: - String template in body
 
     func testStringTemplateInBody() throws {
         let source = """
@@ -225,8 +206,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             XCTAssertFalse(nullable)
         }
     }
-
-    // MARK: - Lambda/Object literal/Callable reference roundtrip
 
     func testLambdaObjectLiteralAndCallableReferenceRoundtripToASTLocals() throws {
         let source = """
@@ -299,8 +278,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             }
         }
     }
-
-    // MARK: - Multi-line expression merging (BuildASTPhase+BodyParsing fix)
 
     func testMultiLineFunctionCallMergesIntoSingleStatement() throws {
         // Arguments spread across multiple lines should be parsed as one call.
@@ -482,39 +459,6 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
 
             XCTAssertEqual(function.annotations.count, 1)
             XCTAssertEqual(function.annotations[0].name, "JvmStatic")
-        }
-    }
-
-    func testAnnotationAfterBodylessExternalFunctionStartsNextDeclaration() throws {
-        let source = """
-        package anno.ast
-
-        @RuntimeName("first")
-        external fun first(value: Boolean)
-
-        @RuntimeName("second")
-        external fun second(value: Boolean)
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runFrontend(ctx)
-
-            let ast = try XCTUnwrap(ctx.ast)
-            let file = try XCTUnwrap(ast.sortedFiles.first)
-            let functions = file.topLevelDecls.compactMap { declID -> FunDecl? in
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(function) = decl
-                else {
-                    return nil
-                }
-                return function
-            }
-
-            XCTAssertEqual(functions.count, 2)
-            XCTAssertEqual(functions.map { ctx.interner.resolve($0.name) }, ["first", "second"])
-            XCTAssertEqual(functions.map { $0.annotations.first?.name }, ["RuntimeName", "RuntimeName"])
-            XCTAssertEqual(functions.map { $0.annotations.first?.arguments.first }, ["\"\"first\"\"", "\"\"second\"\""])
         }
     }
 }

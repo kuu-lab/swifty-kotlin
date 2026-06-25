@@ -125,13 +125,6 @@ extension CallLowerer {
                 type: arena.exprType(lambdaID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
-            driver.ctx.registerCallableValue(
-                adaptedExpr,
-                symbol: adaptedInfo.symbol,
-                callee: adaptedInfo.callee,
-                captureArguments: adaptedInfo.captureArguments,
-                hasClosureParam: adaptedInfo.hasClosureParam
-            )
             lambdaID = adaptedExpr
             resolvedCallableInfo = adaptedInfo
         }
@@ -181,13 +174,6 @@ extension CallLowerer {
                 type: arena.exprType(loweredArgID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adapted.symbol)))
-            driver.ctx.registerCallableValue(
-                adaptedExpr,
-                symbol: adapted.symbol,
-                callee: adapted.callee,
-                captureArguments: adapted.captureArguments,
-                hasClosureParam: adapted.hasClosureParam
-            )
             loweredCallableID = adaptedExpr
             callableInfo = adapted
         }
@@ -261,13 +247,6 @@ extension CallLowerer {
                 type: arena.exprType(loweredSelectorID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
-            driver.ctx.registerCallableValue(
-                adaptedExpr,
-                symbol: adaptedInfo.symbol,
-                callee: adaptedInfo.callee,
-                captureArguments: adaptedInfo.captureArguments,
-                hasClosureParam: adaptedInfo.hasClosureParam
-            )
             loweredSelectorID = adaptedExpr
             selectorCallableInfo = adaptedInfo
         }
@@ -793,8 +772,7 @@ extension CallLowerer {
                     returnType: functionType.returnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
-                    isInline: false,
-                    usesRawCallbackABI: true
+                    isInline: false
                 )
             )
         )

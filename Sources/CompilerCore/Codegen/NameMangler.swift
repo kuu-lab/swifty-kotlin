@@ -168,9 +168,6 @@ final class NameMangler {
         case let .any(nullability):
             return applyNullability("A", nullability: nullability)
 
-        case let .stringStruct(nullability):
-            return applyNullability("Lkotlin_String;", nullability: nullability)
-
         case let .primitive(primitive, nullability):
             let encoded = switch primitive {
             case .boolean:
@@ -193,6 +190,8 @@ final class NameMangler {
                 "F"
             case .double:
                 "D"
+            case .string:
+                "Lkotlin_String;"
             }
             return applyNullability(encoded, nullability: nullability)
 

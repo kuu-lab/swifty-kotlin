@@ -6,8 +6,8 @@ extension OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
-        let nullableStringType = types.makeNullable(types.stringType)
+        let stringType = types.make(.primitive(.string, .nonNull))
+        let nullableStringType = types.make(.primitive(.string, .nullable))
 
         let nonNullExt = defineSymbol(
             kind: .function, name: "tag", suffix: "tagNonNull", symbols: symbols, interner: interner
@@ -54,7 +54,7 @@ extension OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.stringType
+        let stringType = types.make(.primitive(.string, .nonNull))
 
         let ext = defineSymbol(kind: .function, name: "extWithParams", suffix: "extWithParams", symbols: symbols, interner: interner)
         let paramX = defineSymbol(kind: .valueParameter, name: "x", suffix: "extWithParams_x", symbols: symbols, interner: interner)

@@ -507,8 +507,6 @@ final class ExprTypeChecker {
         }
     }
 
-    // MARK: - Container Operator Helpers (STDLIB-OP-032)
-
     /// Resolves operator fun contains on the container type and records a CallBinding
     /// so KIR lowering can dispatch to the user-defined contains() instead of the
     /// generic kk_op_contains runtime stub.
@@ -566,7 +564,7 @@ final class ExprTypeChecker {
                 chosenCallee: chosen,
                 substitutedTypeArguments: resolved.substitutedTypeArguments
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map { _, value in value },
+                    .map { (_: TypeVarID, value: TypeID) in value },
                 parameterMapping: resolved.parameterMapping
             )
         )

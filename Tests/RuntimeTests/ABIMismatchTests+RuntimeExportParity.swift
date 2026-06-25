@@ -1,4 +1,5 @@
 import RuntimeABI
+@testable import Runtime
 import XCTest
 
 // MARK: - Runtime Export / RuntimeABISpec Reconciliation
@@ -60,7 +61,6 @@ extension ABIMismatchTests {
             "kk_annotation_simple_class_name",
             "kk_any_javaClass",
             "kk_array_isArrayOf",
-            "kk_boolean_toJsBoolean",
             "kk_double_toJsNumber",
             "kk_dynamic_iterator",
             "kk_future_getState",
@@ -69,12 +69,9 @@ extension ABIMismatchTests {
             "kk_js_bigint_toLong",
             "kk_js_map_toMap",
             "kk_js_set_toMutableSet",
-            "kk_js_boolean_toBoolean",
             "kk_js_number_toDouble",
             "kk_js_set_toSet",
-            "kk_jsclass_kotlin",
             "kk_kclass_has_annotation",
-            "kk_kclass_js",
             "kk_kclass_register_annotation",
             "kk_long_range_firstOrNull",
             "kk_long_range_lastOrNull",
@@ -154,7 +151,6 @@ extension ABIMismatchTests {
             "kk_flow_retry_when",
             "kk_hexformat_prefix",
             "kk_hexformat_suffix",
-            "kk_java_atomic_bool_asKotlinAtomic",
             "kk_kxmini_async_with_dispatcher",
             "kk_math_e",
             "kk_math_pi",
@@ -165,57 +161,7 @@ extension ABIMismatchTests {
             "kk_result_flatMap",
             "kk_result_flatMapCatching",
             "kk_result_mapCatching",
-            "kk_locale_new",
-            "kk_regex_matches",
-            "kk_string_builder_replace_obj",
-            "kk_string_chunked",
-            "kk_string_compareToIgnoreCase",
-            "kk_string_compareTo_locale",
-            "kk_string_compareTo_member",
-            "kk_string_contains_ignoreCase",
-            "kk_string_contains_str",
-            "kk_string_contentEquals",
-            "kk_string_contentEquals_ignoreCase",
-            "kk_string_endsWith",
-            "kk_string_equals",
-            "kk_string_equalsIgnoreCase",
-            "kk_string_first",
-            "kk_string_firstOrNull",
-            "kk_string_getOrNull",
-            "kk_string_indexOf_char",
-            "kk_string_indexOf_ignoreCase",
-            "kk_string_isBlank",
-            "kk_string_isEmpty",
-            "kk_string_isNormalized",
-            "kk_string_isNotBlank",
-            "kk_string_isNotEmpty",
-            "kk_string_isNullOrBlank",
-            "kk_string_isNullOrEmpty",
-            "kk_string_last",
-            "kk_string_lastIndexOf_char",
-            "kk_string_lastOrNull",
-            "kk_string_lowercase",
-            "kk_string_normalize",
-            "kk_string_single",
-            "kk_string_singleOrNull",
-            "kk_string_startsWith",
-            "kk_string_toBigInteger",
-            "kk_string_toBooleanStrictOrNull",
-            "kk_string_toByteOrNull",
-            "kk_string_toDoubleOrNull",
-            "kk_string_toFloatOrNull",
-            "kk_string_toIntOrNull",
-            "kk_string_toIntOrNull_radix",
-            "kk_string_toLongOrNull",
-            "kk_string_toShortOrNull",
-            "kk_string_toUIntOrNull_radix",
-            "kk_string_toULongOrNull_radix",
-            "kk_string_toUShortOrNull_radix",
             "kk_string_toJsString",
-            "kk_string_trim",
-            "kk_string_trimEnd",
-            "kk_string_trimStart",
-            "kk_string_uppercase_locale",
             "kk_toJsReference",
             "kk_uri_toPath",
         ]
@@ -390,12 +336,6 @@ extension ABIMismatchTests {
             RuntimeABICType.constCCharPointer.rawValue
         case "UnsafePointer<UInt8>":
             RuntimeABICType.constUInt8Pointer.rawValue
-        case "UnsafePointer<UInt8>?":
-            RuntimeABICType.nullableConstUInt8Pointer.rawValue
-        case "UnsafeMutablePointer<UInt8>":
-            RuntimeABICType.uint8Pointer.rawValue
-        case "UnsafeMutablePointer<UInt8>?":
-            RuntimeABICType.nullableUInt8Pointer.rawValue
         case "UnsafeMutablePointer<Int>?":
             RuntimeABICType.nullableIntptrPointer.rawValue
         case "UnsafeMutablePointer<UnsafeMutableRawPointer?>":

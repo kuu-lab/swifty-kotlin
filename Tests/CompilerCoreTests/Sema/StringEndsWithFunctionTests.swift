@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-015: Validates that `CharSequence.endsWith(suffix)` resolves
 /// through Sema for `String` receivers, dispatching to the runtime link name
-/// `kk_string_endsWith_flat`.
+/// `kk_string_endsWith`.
 final class StringEndsWithFunctionTests: XCTestCase {
     func testEndsWithFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""

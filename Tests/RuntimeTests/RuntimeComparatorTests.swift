@@ -27,6 +27,10 @@ private let nullsFirstTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePo
     kk_comparator_nulls_first_trampoline(closureRaw, a, b, outThrown)
 }
 
+private let primitiveComparatorTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
+    kk_comparator_from_selector_primitive_trampoline(closureRaw, a, b, outThrown)
+}
+
 private let selectorComparatorTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
     kk_comparator_from_selector_trampoline(closureRaw, a, b, outThrown)
 }

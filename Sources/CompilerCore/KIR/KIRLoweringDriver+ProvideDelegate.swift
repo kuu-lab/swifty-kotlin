@@ -2,7 +2,6 @@
 // MARK: - provideDelegate operator support (PROP-007)
 
 extension KIRLoweringDriver {
-    /// Checks whether the delegate expression type defines a `provideDelegate` operator function.
     func checkHasProvideDelegate(
         delegateExprType: TypeID?,
         shared: KIRLoweringSharedContext
@@ -37,13 +36,13 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         let propertyNameExprID = arena.appendExpr(
             .stringLiteral(propertyName),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         body.append(.constValue(result: propertyNameExprID, value: .stringLiteral(propertyName)))
         let returnTypeSig = interner.intern(sema.types.renderType(propertyType))
         let returnTypeExprID = arena.appendExpr(
             .stringLiteral(returnTypeSig),
-            type: sema.types.stringType
+            type: sema.types.make(.primitive(.string, .nonNull))
         )
         body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
         let kPropertyExprID = arena.appendExpr(
@@ -132,10 +131,7 @@ extension KIRLoweringDriver {
     }
 }
 
-// MARK: - ABILoweringPass helpers
-
 extension ABILoweringPass {
-    /// Returns the set of KProperty stub runtime callee names for the non-throwing callees set.
     static func kPropertyStubCallees(_ interner: StringInterner) -> Set<InternedString> {
         [
             interner.intern("kk_kproperty_stub_create"),

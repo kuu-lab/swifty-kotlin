@@ -151,7 +151,7 @@ extension TypeCheckHelpersCoverageTests {
             sema: fixture.sema
         )
         if case let .in(inner) = substitutedIn {
-            XCTAssertEqual(fixture.types.kind(of: inner), .stringStruct(.nullable))
+            XCTAssertEqual(fixture.types.kind(of: inner), .primitive(.string, .nullable))
         } else {
             XCTFail("Expected in")
         }

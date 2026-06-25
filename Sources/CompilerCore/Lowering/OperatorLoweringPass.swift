@@ -75,7 +75,7 @@ final class OperatorLoweringPass: LoweringPass {
                     newBody.append(.call(symbol: nil, callee: callee, arguments: [operand], result: result, canThrow: false, thrownResult: nil))
                 case let .nullAssert(operand, result):
                     newBody.append(.call(symbol: nil, callee: ctx.interner.intern("kk_op_notnull"), arguments: [operand], result: result, canThrow: true, thrownResult: nil))
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                     if callee == printlnCallee || callee == kkPrintlnAnyCallee,
                        arguments.count == 1,
                        tryLowerPrintlnCall(
@@ -334,11 +334,12 @@ final class OperatorLoweringPass: LoweringPass {
 
     /// Returns true when the expression is a reference type that requires structural
     /// equality (e.g. List, Set, Map, String, Any, class instances).
-    /// String is a compiler aggregate, so pointer comparison is insufficient.
+    /// String is classified as a primitive in the type system but is represented as a
+    /// heap-allocated RuntimeStringBox at runtime, so pointer comparison is insufficient.
     private func isReferenceType(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
         switch types.kind(of: typeID) {
-        case .stringStruct:
+        case .primitive(.string, _):
             return true
         case .primitive:
             return false
@@ -495,7 +496,7 @@ final class OperatorLoweringPass: LoweringPass {
             let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_concat_flat"),
+                callee: interner.intern("kk_string_concat"),
                 arguments: [lhs, rhs],
                 result: result,
                 canThrow: false,
@@ -512,7 +513,7 @@ final class OperatorLoweringPass: LoweringPass {
             let tag: Int64 = switch sema.types.kind(of: type) {
             case .primitive(.boolean, _):
                 2
-            case .stringStruct:
+            case .primitive(.string, _):
                 3
             default:
                 1

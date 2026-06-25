@@ -3,7 +3,7 @@ import XCTest
 
 @_cdecl("runtime_runcatching_success_lambda")
 private func runtime_runcatching_success_lambda(
-    _: Int,
+    _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
@@ -12,7 +12,7 @@ private func runtime_runcatching_success_lambda(
 
 @_cdecl("runtime_runcatching_failure_lambda")
 private func runtime_runcatching_failure_lambda(
-    _: Int,
+    _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = runtimeAllocateThrowable(message: "runcatching failure")

@@ -66,33 +66,34 @@ extension CallLowerer {
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
-            return interner.intern("__string_struct_get_length")
-        }
-        if memberName == "length",
-           let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-           case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-           classType.classSymbol == charSequenceSymbol
-        {
-            return interner.intern("kk_char_sequence_length")
+            return interner.intern("kk_string_length")
         }
 
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
             switch memberName {
             case "compareTo":
-                return interner.intern("kk_string_compareTo_flat")
+                return interner.intern("kk_string_compareTo_member")
             case "get":
-                return interner.intern("kk_string_get_flat")
+                return interner.intern("kk_string_get")
             case "lines":
-                return interner.intern("kk_string_lines_flat")
+                return interner.intern("kk_string_lines")
             case "lineSequence":
-                return interner.intern("kk_string_lineSequence_flat")
+                return interner.intern("kk_string_lineSequence")
             case "toRegex":
                 return argumentCount == 0
-                    ? interner.intern("kk_string_toRegex_flat")
-                    : interner.intern("kk_string_toRegex_with_option_flat")
+                    ? interner.intern("kk_string_toRegex")
+                    : interner.intern("kk_string_toRegex_with_option")
             default:
                 break
             }
+        }
+
+        // Generic Comparable<T>.compareTo — emitted when the receiver is a type parameter
+        // bounded by Comparable<T> and no concrete stub covers it (e.g. sorted() in the
+        // bundled stdlib).  String is excluded above; Char and primitives are excluded by
+        // tryLowerPrimitiveCompareTo which runs before this path.
+        if memberName == "compareTo", argumentCount == 1 {
+            return interner.intern("kk_comparable_compareTo")
         }
 
         if memberName == "binarySearch",
@@ -410,6 +411,16 @@ extension CallLowerer {
                 )
             case "sortedArrayWith":
                 return interner.intern("kk_array_sortedArrayWith")
+            case "fold":
+                return interner.intern("kk_array_fold")
+            case "foldIndexed":
+                return interner.intern("kk_array_foldIndexed")
+            case "reduce":
+                return interner.intern("kk_array_reduce")
+            case "reduceIndexed":
+                return interner.intern("kk_array_reduceIndexed")
+            case "reduceOrNull":
+                return interner.intern("kk_array_reduceOrNull")
             case "find":
                 return interner.intern("kk_array_find")
             case "findLast":

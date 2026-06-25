@@ -175,9 +175,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "trim",
             externalLinkName: "kk_string_trim",
@@ -237,7 +234,6 @@ extension DataFlowSemaPhase {
 
         // capitalize() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
 
-
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
             symbols: symbols,
@@ -281,7 +277,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
         registerSyntheticStringExtensionFunction(
             named: "__kk_uppercase_locale",
             externalLinkName: "kk_string_uppercase_locale",
@@ -526,9 +521,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase) overload.
-        // Routes to `kk_string_contains_ignoreCase` so callers can opt into
-        // case-insensitive substring matching by passing `ignoreCase = true`.
+        // STDLIB-TEXT-FN-012
         registerSyntheticStringExtensionFunction(
             named: "contains",
             externalLinkName: "kk_string_contains_ignoreCase",
@@ -711,8 +704,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "subSequence",
             externalLinkName: "kk_string_subSequence",
@@ -778,8 +769,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "substring",
             externalLinkName: "kk_string_substring",
@@ -969,7 +958,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-SEARCH-001: CharSequence.indexOfAny(chars, startIndex, ignoreCase) ---
+        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(chars, startIndex, ignoreCase) ---
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
@@ -977,8 +966,8 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [
                 ("chars", charArrayType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
+                ("startIndex", intType, true, false),
+                ("ignoreCase", boolType, true, false),
             ],
             returnType: intType,
             packageFQName: kotlinTextPkg,
@@ -986,7 +975,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-SEARCH-002: CharSequence.indexOfAny(strings, startIndex, ignoreCase) ---
+        // --- STDLIB-TEXT-FN-021: CharSequence.indexOfAny(strings, startIndex, ignoreCase) ---
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
@@ -994,8 +983,8 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
-                ("startIndex", intType, false, false),
-                ("ignoreCase", boolType, false, false),
+                ("startIndex", intType, true, false),
+                ("ignoreCase", boolType, true, false),
             ],
             returnType: intType,
             packageFQName: kotlinTextPkg,
@@ -1113,8 +1102,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Kotlin declares toList on CharSequence; the runtime treats every
-        // CharSequence as string-backed, so the same kk_string_toList applies.
         registerSyntheticStringExtensionFunction(
             named: "toList",
             externalLinkName: "kk_string_toList",
@@ -1126,10 +1113,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-TEXT-FN-104: CharSequence.toMutableList(): MutableList<Char>
-        // The return type is modelled as MutableList<Char> when the symbol is
-        // available, falling back to List<Char> otherwise — the runtime produces
-        // a fresh, mutable list either way.
+        // STDLIB-TEXT-FN-104: fallback to List<Char> when MutableList symbol unavailable.
         let mutableListCharType: TypeID = {
             let mutableListFQName: [InternedString] = [
                 interner.intern("kotlin"),
@@ -1156,9 +1140,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-TEXT-FN-108: CharSequence.toSortedSet(): SortedSet<Char>
-        // The return type is modelled as Set<Char> — the runtime produces a
-        // sorted, deduplicated set backed by RuntimeSetBox.
+        // STDLIB-TEXT-FN-108: modelled as Set<Char> (runtime produces sorted set).
         let setCharType: TypeID = {
             let setFQName: [InternedString] = [
                 interner.intern("kotlin"),
@@ -1228,9 +1210,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-FN-094: CharSequence.toCollection(destination) ---
-        // Appends all characters to the given mutable collection and returns it.
-        // The destination type is erased to `Any` in the ABI (type parameter C).
+        // --- STDLIB-TEXT-FN-094: destination type erased to Any in the ABI ---
         registerSyntheticStringExtensionFunction(
             named: "toCollection",
             externalLinkName: "kk_string_toCollection",
@@ -1275,8 +1255,43 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
+        // STDLIB-TEXT-FN-033: CharSequence.iterator() — returns CharIterator
+        let charIteratorType: TypeID = {
+            let charIteratorFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("CharIterator"),
+            ]
+            if let charIteratorSymbol = symbols.lookup(fqName: charIteratorFQName) {
+                return types.make(.classType(ClassType(
+                    classSymbol: charIteratorSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+            return iterableCharType
+        }()
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charIteratorType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: charIteratorType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "drop",
             externalLinkName: "kk_string_drop",
@@ -1437,16 +1452,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-186 / STDLIB-TEXT-FN-074..077: substringBefore / substringAfter /
-        // substringBeforeLast / substringAfterLast ---
-        //
-        // Kotlin exposes four overloads per direction:
-        //   String.substringBefore(delimiter: Char, missingDelimiterValue: String = this)
-        //   String.substringBefore(delimiter: String, missingDelimiterValue: String = this)
-        // ... and analogously for substringAfter / *-Last. We register the explicit
-        // `missingDelimiterValue` parameter so call sites can pass the argument; the
-        // runtime helpers accept `0` (a null raw) when the default `this` should be used.
-
+        // --- STDLIB-186 / STDLIB-TEXT-FN-074..077 ---
+        // Runtime helpers accept 0 (null raw) for missingDelimiterValue when the
+        // default `this` should be used.
         registerSyntheticStringExtensionFunction(
             named: "substringBefore",
             externalLinkName: "kk_string_substringBefore",
@@ -1853,6 +1861,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-027: CharSequence.isBlank ---
+        registerSyntheticStringExtensionFunction(
+            named: "isBlank",
+            externalLinkName: "kk_string_isBlank",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
             externalLinkName: "kk_string_isNotBlank",
@@ -1974,6 +1994,40 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-044: String.random() / String.random(Random) ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "random",
+            externalLinkName: "kk_string_random",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        let randomType = syntheticNominalType(
+            named: "Random",
+            in: [interner.intern("kotlin"), interner.intern("random")],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "random",
+            externalLinkName: "kk_string_random_random",
+            receiverType: stringType,
+            parameters: [
+                ("random", randomType, false, false),
+            ],
+            returnType: charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-140: String.getOrNull(Int): Char? ---
 
         registerSyntheticStringExtensionFunction(
@@ -1984,6 +2038,32 @@ extension DataFlowSemaPhase {
                 ("index", intType, false, false),
             ],
             returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-FN-019: indent ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "indent",
+            externalLinkName: "kk_string_indent_default",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "indent",
+            externalLinkName: "kk_string_indent",
+            receiverType: stringType,
+            parameters: [
+                ("n", intType, false, false),
+            ],
+            returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2041,7 +2121,7 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-192: equals(other, ignoreCase) ---
 
-        let nullableStringType = types.make(.stringStruct(.nullable))
+        let nullableStringType = types.make(.primitive(.string, .nullable))
 
         registerSyntheticStringExtensionFunction(
             named: "equals",
@@ -2206,8 +2286,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // String.map returns List<R> in Kotlin; use (Char) -> Any transform
-        // and Any return type to allow arbitrary mapping.
         registerSyntheticStringExtensionFunction(
             named: "map",
             externalLinkName: "kk_string_map",
@@ -2553,10 +2631,25 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // --- STDLIB-TEXT-FN-039: String.onEach(action: (Char) -> Unit): String ---
+        let charToUnitType = types.make(.functionType(FunctionType(
+            params: [charType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerSyntheticStringExtensionFunction(
+            named: "onEach",
+            externalLinkName: "kk_string_onEach",
+            receiverType: stringType,
+            parameters: [("action", charToUnitType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
             externalLinkName: "kk_string_trimStart",
@@ -2685,15 +2778,9 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-315: String.replaceFirstChar — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005) ---
 
-
-        // --- STDLIB-142 / STDLIB-TEXT-FN-087: String?.toBoolean / String.toBooleanStrict ---
-
-        // Kotlin signature: `public actual fun String?.toBoolean(): Boolean`.
-        // The receiver is nullable: `null.toBoolean()` returns false, otherwise
-        // the result is `equalsIgnoreCase("true")`. We model this by registering
-        // the extension on `String?` so both nullable and non-null receivers bind
-        // without needing a safe-call. `nullableStringType` is declared earlier
-        // in this function for STDLIB-192 (equals) so we reuse it here.
+        // --- STDLIB-142 / STDLIB-TEXT-FN-087 ---
+        // Receiver is nullable so both `null.toBoolean()` and `str.toBoolean()`
+        // resolve without a safe-call.
         registerSyntheticStringExtensionFunction(
             named: "toBoolean",
             externalLinkName: "kk_string_toBoolean",
@@ -2846,7 +2933,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(charsetType, for: charsetSymbol)
 
-        // Register Charsets singleton object with charset constants
         let charsetsSymbol = ensureSyntheticObjectSymbol(
             named: "Charsets",
             in: kotlinTextPkg,
@@ -2984,6 +3070,17 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
+            named: "toBigDecimalOrNull",
+            externalLinkName: "kk_string_toBigDecimalOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: types.makeNullable(bigDecimalType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
             named: "toBigInteger",
             externalLinkName: "kk_string_toBigInteger",
             receiverType: stringType,
@@ -3032,7 +3129,6 @@ extension DataFlowSemaPhase {
             fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
         )
 
-        // Register decodeToString on List<Int> only — ByteArray variant is now in BundledKotlinStdlib (MIGRATION-TEXT-007)
         registerSyntheticStringExtensionFunction(
             named: "decodeToString",
             externalLinkName: "kk_bytearray_decodeToString",
@@ -3158,9 +3254,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-STR-125: String(ByteArray, Charset) constructor
-        // Allows decoding a byte array with an explicit charset: String(bytes, Charsets.UTF_8)
-        // Register on both List<Int> (internal representation) and ByteArray (user-facing type)
+        // STDLIB-STR-125
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         let stringClassSymbol = ensureClassSymbol(
             named: "String",
@@ -3193,9 +3287,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- STDLIB-I18N-COMMON-001: String.format companion method ---
-        // Kotlin: String.format(format: String, vararg args: Any?) -> String
-        // This is a companion (static) method on the String class, not an extension.
+        // --- STDLIB-I18N-COMMON-001: companion (static) method, not an extension ---
         let stringCompanionFQName = ensureStringCompanionSymbol(
             ownerSymbol: stringClassSymbol,
             symbols: symbols,
@@ -3841,18 +3933,45 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-FN-011: String.concat(str) ---
-        // Kotlin exposes `String.concat(str: String): String` as a member function
-        // on java.lang.String that appends the given string.  The backing runtime
-        // helper `kk_string_concat` (receiver + argument as opaque pointers) is
-        // already used for the `+` operator; we simply surface it here as the named
-        // member so that call-sites that use `.concat(…)` resolve correctly.
+        // --- STDLIB-TEXT-FN-011: shares kk_string_concat with the `+` operator ---
         registerSyntheticStringExtensionFunction(
             named: "concat",
             externalLinkName: "kk_string_concat",
             receiverType: stringType,
             parameters: [
                 ("str", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-FN-043: String?.plus(other: Any?) ---
+        // `operator fun String.plus(other: Any?): String` and the nullable-receiver
+        // variant `operator fun String?.plus(other: Any?): String`. Both delegate to
+        // kk_string_plus which converts receiver and argument via runtimeElementToString.
+        // Primitive `other` values are boxed by the ABI lowering pass before the call,
+        // so runtimeElementToString correctly renders Boolean/Char/Float/Double.
+        registerSyntheticStringExtensionFunction(
+            named: "plus",
+            externalLinkName: "kk_string_plus",
+            receiverType: stringType,
+            parameters: [
+                ("other", types.nullableAnyType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "plus",
+            externalLinkName: "kk_string_plus",
+            receiverType: nullableStringType,
+            parameters: [
+                ("other", types.nullableAnyType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -4014,7 +4133,6 @@ extension DataFlowSemaPhase {
         makeListType(symbols: symbols, types: types, interner: interner, elementType: types.stringType)
     }
 
-
     private func registerSyntheticObjectProperty(
         ownerSymbol: SymbolID,
         ownerType _: TypeID,
@@ -4042,7 +4160,6 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
         symbols.setPropertyType(propertyType, for: propertySymbol)
     }
-
 
     private func registerSyntheticLocaleConstructor(
         ownerSymbol: SymbolID,

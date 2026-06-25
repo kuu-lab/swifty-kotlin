@@ -187,200 +187,10 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_string_zip_flat"))
-            XCTAssertTrue(callNames.contains("kk_string_zipTransform_flat"))
+            XCTAssertTrue(callNames.contains("kk_string_zip"))
+            XCTAssertTrue(callNames.contains("kk_string_zipTransform"))
             XCTAssertFalse(callNames.contains("zip"))
         }
-    }
-
-    func testBuildKIRLowersCharSequenceCollectionSequenceMembersToFlatRuntimeCalls() throws {
-        let source = """
-        fun main(value: CharSequence, other: CharSequence) {
-            value.toSortedSet()
-            value.toCollection(mutableListOf<Char>())
-            value.withIndex()
-            value.zipWithNext()
-            value.zipWithNext { a, _ -> a }
-            value.zip(other)
-            value.zip(other) { a, _ -> a }
-            value.chunkedSequence(2)
-            value.chunkedSequence(2) { chunk -> chunk.length }
-            value.windowedSequence(2, 1, true)
-            value.windowedSequence(2, 1, true) { window -> window.length }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try XCTUnwrap(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            let flatNames = [
-                "kk_string_toSortedSet_flat",
-                "kk_string_toCollection_flat",
-                "kk_string_withIndex_flat",
-                "kk_string_zipWithNext_flat",
-                "kk_string_zipWithNextTransform_flat",
-                "kk_string_zip_flat",
-                "kk_string_zipTransform_flat",
-                "kk_string_chunked_sequence_flat",
-                "kk_string_chunked_sequence_transform_flat",
-                "kk_string_windowedSequence_partial_flat",
-                "kk_string_windowedSequence_transform_flat",
-            ]
-            for flatName in flatNames {
-                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
-            }
-
-            let rawNames = [
-                "kk_string_toSortedSet",
-                "kk_string_toCollection",
-                "kk_string_withIndex",
-                "kk_string_zipWithNext",
-                "kk_string_zipWithNextTransform",
-                "kk_string_zip",
-                "kk_string_zipTransform",
-                "kk_string_chunked_sequence",
-                "kk_string_chunked_sequence_transform",
-                "kk_string_windowedSequence_partial",
-                "kk_string_windowedSequence_transform",
-            ]
-            for rawName in rawNames {
-                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw CharSequence String call \(rawName)")
-            }
-        }
-    }
-
-    func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
-        let source = """
-        fun main(value: String) {
-            value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
-            value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
-            value.toCollection(mutableListOf<Char>())
-            value.reduceOrNull { acc, _ -> acc }
-            value.reduceRightIndexed { _, ch, _ -> ch }
-            value.reduceRightIndexedOrNull { _, ch, _ -> ch }
-            value.reduceRightOrNull { ch, _ -> ch }
-            value.sumBy { 1 }
-            value.sumByDouble { 1.0 }
-            value.indexOfFirst { it == 'a' }
-            value.indexOfLast { it == 'b' }
-            value.mapIndexed { index, _ -> index }
-            value.mapNotNull { ch -> if (ch == 'a') 1 else null }
-            value.partition { ch -> ch == 'b' }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try XCTUnwrap(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            let flatNames = [
-                "kk_string_firstNotNullOf_flat",
-                "kk_string_firstNotNullOfOrNull_flat",
-                "kk_string_toCollection_flat",
-                "kk_string_reduceOrNull_flat",
-                "kk_string_reduceRightIndexed_flat",
-                "kk_string_reduceRightIndexedOrNull_flat",
-                "kk_string_reduceRightOrNull_flat",
-                "kk_string_sumBy_flat",
-                "kk_string_sumByDouble_flat",
-                "kk_string_indexOfFirst_flat",
-                "kk_string_indexOfLast_flat",
-                "kk_string_mapIndexed_flat",
-                "kk_string_mapNotNull_flat",
-                "kk_string_partition_flat",
-            ]
-            for flatName in flatNames {
-                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
-            }
-
-            let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
-            for rawName in rawNames {
-                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw String HOF call \(rawName)")
-            }
-        }
-    }
-
-    func testBuildKIRLowersStringByteInputStreamToFlatRuntimeCalls() throws {
-        let source = """
-        import kotlin.text.Charsets
-
-        fun main(value: String) {
-            value.byteInputStream()
-            value.byteInputStream(Charsets.UTF_16)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try XCTUnwrap(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            let flatNames = [
-                "kk_string_byteInputStream_flat",
-                "kk_string_byteInputStream_charset_flat",
-            ]
-            for flatName in flatNames {
-                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
-            }
-            let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
-            for rawName in rawNames {
-                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw String stream call \(rawName)")
-            }
-        }
-    }
-
-    func testABILoweringMarksStringByteInputStreamFlatHelpersAsNonThrowing() {
-        let pass = ABILoweringPass()
-        let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-
-        for flatName in [
-            "kk_string_byteInputStream_flat",
-            "kk_string_byteInputStream_charset_flat",
-        ] {
-            XCTAssertTrue(callees.contains(interner.intern(flatName)), "Missing \(flatName)")
-        }
-    }
-
-    func testBuildKIRLowersStringEqualsToFlatRuntimeCall() throws {
-        let source = """
-        fun main(lhs: String, rhs: String?) {
-            lhs.equals(rhs)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try XCTUnwrap(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            XCTAssertTrue(callNames.contains("kk_string_equals_flat"))
-            XCTAssertFalse(callNames.contains("kk_string_equals"))
-        }
-    }
-
-    func testABILoweringMarksStringEqualsFlatHelperAsNonThrowing() {
-        let pass = ABILoweringPass()
-        let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-
-        XCTAssertTrue(callees.contains(interner.intern("kk_string_equals_flat")))
-        XCTAssertFalse(callees.contains(interner.intern("kk_string_equals")))
     }
 
     func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
@@ -556,10 +366,8 @@ extension BuildKIRRegressionTests {
             val maybe: String? = null
             "  hi  ".trim()
             "1,2,3".split(",")
-            "abcd".subSequence(1, 3)
             maybe.isNullOrEmpty()
             maybe.isNullOrBlank()
-            "ab".repeat(2)
             "42".toInt()
             "3.14".toDouble()
         }
@@ -573,16 +381,12 @@ extension BuildKIRRegressionTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_string_trim_flat"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_split_flat"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertNil(throwFlags["kk_string_subSequence"])
-            XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty_flat"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_isNullOrBlank_flat"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_repeat_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertNil(throwFlags["kk_string_repeat"])
-            XCTAssertEqual(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["kk_string_trim"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_split"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_isNullOrBlank"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_toInt"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["kk_string_toDouble"]?.allSatisfy { $0 == true }, true)
         }
     }
 

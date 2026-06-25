@@ -10,14 +10,6 @@ private let isLetterZ: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> 
 }
 
 final class RuntimeStringIndexOfLastTests: XCTestCase {
-    private func runtimeString(_ text: String) -> Int {
-        text.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, text.utf8.count)) { ptr in
-                Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
-            }
-        }
-    }
-
     override func setUp() {
         super.setUp()
         kk_runtime_force_reset()
@@ -29,33 +21,45 @@ final class RuntimeStringIndexOfLastTests: XCTestCase {
     }
 
     func testIndexOfLastReturnsLastMatchingIndex() {
+        let source = registerRuntimeObject(RuntimeStringBox("abcabc"))
         let predicate = unsafeBitCast(isLetterB, to: Int.self)
         var thrown = 0
-        let result = kk_string_indexOfLast(runtimeString("abcabc"), predicate, 0, &thrown)
+
+        let result = kk_string_indexOfLast(source, predicate, 0, &thrown)
+
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 4)
     }
 
     func testIndexOfLastReturnsNegativeOneWhenNoMatch() {
+        let source = registerRuntimeObject(RuntimeStringBox("abcabc"))
         let predicate = unsafeBitCast(isLetterZ, to: Int.self)
         var thrown = 0
-        let result = kk_string_indexOfLast(runtimeString("abcabc"), predicate, 0, &thrown)
+
+        let result = kk_string_indexOfLast(source, predicate, 0, &thrown)
+
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, -1)
     }
 
     func testIndexOfLastReturnsNegativeOneForEmptyString() {
+        let source = registerRuntimeObject(RuntimeStringBox(""))
         let predicate = unsafeBitCast(isLetterB, to: Int.self)
         var thrown = 0
-        let result = kk_string_indexOfLast(runtimeString(""), predicate, 0, &thrown)
+
+        let result = kk_string_indexOfLast(source, predicate, 0, &thrown)
+
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, -1)
     }
 
     func testIndexOfLastReturnsSingleCharIndexWhenOnlyOneMatch() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         let predicate = unsafeBitCast(isLetterB, to: Int.self)
         var thrown = 0
-        let result = kk_string_indexOfLast(runtimeString("abc"), predicate, 0, &thrown)
+
+        let result = kk_string_indexOfLast(source, predicate, 0, &thrown)
+
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 1)
     }

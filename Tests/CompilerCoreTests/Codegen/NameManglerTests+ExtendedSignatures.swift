@@ -230,6 +230,7 @@ extension NameManglerTests {
         let primitives: [(PrimitiveType, String)] = [
             (.boolean, "Z"), (.char, "C"), (.int, "I"),
             (.long, "J"), (.float, "F"), (.double, "D"),
+            (.string, "Lkotlin_String;"),
         ]
 
         for (prim, expected) in primitives {
@@ -250,21 +251,6 @@ extension NameManglerTests {
             )
             XCTAssertEqual(sig, expected, "Primitive \(prim) should encode to \(expected)")
         }
-
-        let stringSym = symbols.define(
-            kind: .property,
-            name: interner.intern("p_string"),
-            fqName: [interner.intern("p_string")],
-            declSite: nil,
-            visibility: .public
-        )
-        symbols.setPropertyType(types.stringType, for: stringSym)
-        let stringSig = try mangler.mangledSignature(
-            for: XCTUnwrap(symbols.symbol(stringSym)),
-            symbols: symbols,
-            types: types
-        )
-        XCTAssertEqual(stringSig, "Lkotlin_String;")
     }
 
     // MARK: - Special Type Encodings

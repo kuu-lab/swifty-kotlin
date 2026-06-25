@@ -1,4 +1,5 @@
 import RuntimeABI
+@testable import Runtime
 import XCTest
 
 // MARK: - Shared ABI Spec / Extern Adapter Reconciliation

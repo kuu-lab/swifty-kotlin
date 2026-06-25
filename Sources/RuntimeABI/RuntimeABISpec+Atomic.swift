@@ -73,15 +73,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_int_asKotlinAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_atomic_int_fetchAndAdd",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
@@ -380,15 +371,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_array_asJavaAtomicArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_int_array_asKotlinAtomicArray",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
@@ -718,15 +700,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_asJavaAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_bool_asKotlinAtomic",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],

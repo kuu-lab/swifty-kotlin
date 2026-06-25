@@ -19,7 +19,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: temp, value: .unit))
             return temp
         }
-        let stringType = sema.types.stringType
+        let stringType = sema.types.make(.primitive(.string, .nonNull))
 
         switch expr {
         case let .intLiteral(value, _):
@@ -98,7 +98,7 @@ extension ExprLowerer {
                         let tag: Int64 = switch sema.types.kind(of: nonNullType) {
                         case .primitive(.boolean, _):
                             2
-                        case .stringStruct:
+                        case .primitive(.string, _):
                             3
                         case .primitive(.char, _):
                             4
@@ -167,7 +167,7 @@ extension ExprLowerer {
                 let concatResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("kk_string_concat"),
                     arguments: [accumulated, partIDs[i]],
                     result: concatResult,
                     canThrow: false,
@@ -214,7 +214,7 @@ extension ExprLowerer {
                     if memberStr == "length" {
                         instructions.append(.call(
                             symbol: nil,
-                            callee: interner.intern("__string_struct_get_length"),
+                            callee: interner.intern("kk_string_length"),
                             arguments: [receiverExprID],
                             result: result,
                             canThrow: false,
@@ -1274,7 +1274,7 @@ extension ExprLowerer {
             case .modAssign: .modulo
             }
             let stringType = sema.types.stringType
-            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+            let nullableStringType = sema.types.make(.primitive(.string, .nullable))
 
             func appendBuiltinCompoundResult(
                 lhs: KIRExprID,
@@ -1337,7 +1337,7 @@ extension ExprLowerer {
                 let resultID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("kk_string_concat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: resultID,
                     canThrow: false,
@@ -1900,8 +1900,6 @@ extension ExprLowerer {
             )
         }
     }
-
-    // MARK: - Container Operator Helpers (STDLIB-OP-032)
 
     /// Emits a contains call instruction, dispatching to a user-defined operator fun contains
     /// if sema recorded a CallBinding, or falling back to the kk_op_contains runtime stub.

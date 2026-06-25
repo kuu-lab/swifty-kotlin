@@ -3,6 +3,19 @@ import Foundation
 import XCTest
 
 final class ComparisonSyntheticTopLevelTests: XCTestCase {
+    private func allExprIDs(
+        in ast: ASTModule,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), predicate(exprID, expr) else {
+                return nil
+            }
+            return exprID
+        }
+    }
+
     func testMaxOfAndMinOfResolveToSyntheticComparisonFunctions() throws {
         let source = """
         fun sample(): Int {

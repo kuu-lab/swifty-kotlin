@@ -11,14 +11,7 @@ let indexedValueRuntimeTypeID: Int64 = {
 }()
 
 func runtimeIndexedValueNew(index: Int, value: Int) -> Int {
-    runtimeIndexedValueNew(index: index, value: RuntimeValue(raw: value))
-}
-
-func runtimeIndexedValueNew(index: Int, value: RuntimeValue) -> Int {
-    let raw = runtimePairNew(
-        firstValue: RuntimeValue(raw: index),
-        secondValue: value
-    )
+    let raw = registerRuntimeObject(RuntimePairBox(first: index, second: value))
     runtimeRegisterObjectType(rawValue: raw, classID: indexedValueRuntimeTypeID)
     return raw
 }
@@ -1373,6 +1366,7 @@ public func kk_list_find(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outT
     return runtimeNullSentinelInt
 }
 
+// (a) RF-DEAD-002: 配線予定 → List.firstOrNull { predicate } lowering
 @_cdecl("kk_list_firstOrNull_predicate")
 public func kk_list_firstOrNull_predicate(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
@@ -1656,7 +1650,7 @@ public func kk_indexing_iterable_iterator(_ iterableRaw: Int) -> Int {
     else {
         return 0
     }
-    return registerRuntimeObject(RuntimeIndexingIteratorBox(values: list.values))
+    return registerRuntimeObject(RuntimeIndexingIteratorBox(elements: list.elements))
 }
 
 @_cdecl("kk_indexing_iterable_hasNext")
@@ -1665,21 +1659,22 @@ public func kk_indexing_iterable_hasNext(_ iterRaw: Int) -> Int {
           let iter = tryCast(ptr, to: RuntimeIndexingIteratorBox.self) else {
         return 0
     }
-    return iter.index < iter.values.count ? 1 : 0
+    return iter.index < iter.elements.count ? 1 : 0
 }
 
 @_cdecl("kk_indexing_iterable_next")
 public func kk_indexing_iterable_next(_ iterRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: iterRaw),
           let iter = tryCast(ptr, to: RuntimeIndexingIteratorBox.self),
-          iter.index < iter.values.count
+          iter.index < iter.elements.count
     else {
         return 0
     }
     let idx = iter.index
-    let elem = iter.values[idx]
+    let elem = iter.elements[idx]
     iter.index += 1
-    return runtimeIndexedValueNew(index: idx, value: elem)
+    // Return IndexedValue(index, value) as a Pair
+    return kk_pair_new(idx, elem)
 }
 
 @_cdecl("kk_list_forEachIndexed")
@@ -2309,10 +2304,9 @@ public func kk_list_indexOf(_ listRaw: Int, _ element: Int) -> Int {
            runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: elementPtr)) }),
            tryCast(elementPtr, to: RuntimeStringBox.self) != nil
         {
-            return runtimeStringIndexOfRaw(listRaw, element)
+            return kk_string_indexOf(listRaw, element)
         }
-        let stringListRaw = runtimeStringToCharListRaw(runtimeStringFromRawOrPanic(listRaw, caller: #function))
-        return kk_list_indexOf(stringListRaw, element)
+        return kk_list_indexOf(kk_string_toList(listRaw), element)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     for (index, elem) in list.elements.enumerated() where runtimeCompareValues(elem, element) == 0 {
@@ -2331,10 +2325,9 @@ public func kk_list_lastIndexOf(_ listRaw: Int, _ element: Int) -> Int {
            runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: elementPtr)) }),
            tryCast(elementPtr, to: RuntimeStringBox.self) != nil
         {
-            return runtimeStringLastIndexOfRaw(listRaw, element)
+            return kk_string_lastIndexOf(listRaw, element)
         }
-        let stringListRaw = runtimeStringToCharListRaw(runtimeStringFromRawOrPanic(listRaw, caller: #function))
-        return kk_list_lastIndexOf(stringListRaw, element)
+        return kk_list_lastIndexOf(kk_string_toList(listRaw), element)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var lastIdx = -1
@@ -2350,7 +2343,7 @@ public func kk_list_indexOfFirst(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
        tryCast(ptr, to: RuntimeStringBox.self) != nil
     {
-        return runtimeStringIndexOfFirstFromRaw(listRaw, fnPtr, closureRaw, outThrown)
+        return kk_string_indexOfFirst(listRaw, fnPtr, closureRaw, outThrown)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     for (index, elem) in list.elements.enumerated() {
@@ -2368,7 +2361,7 @@ public func kk_list_indexOfLast(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
        tryCast(ptr, to: RuntimeStringBox.self) != nil
     {
-        return runtimeStringIndexOfLastFromRaw(listRaw, fnPtr, closureRaw, outThrown)
+        return kk_string_indexOfLast(listRaw, fnPtr, closureRaw, outThrown)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var lastIdx = -1
@@ -2977,6 +2970,8 @@ public func kk_mutable_list_sortDescending_primitive(_ listRaw: Int, _ kindRaw: 
 }
 
 // MARK: - Set higher-order functions (STDLIB-268)
+// (a) RF-DEAD-002: 配線予定 → TEST-COL-012 (Set HOF Codegen 統合テスト追加)
+// 以下 kk_set_map / filterNot / flatMap / forEach / mapNotNull / count_predicate は全て同タスクに紐付く。
 
 @_cdecl("kk_set_map")
 public func kk_set_map(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

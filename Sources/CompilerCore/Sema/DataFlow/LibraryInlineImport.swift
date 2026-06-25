@@ -345,12 +345,10 @@ extension DataFlowSemaPhase {
 
     private func parseInlineIntList(_ token: String) -> [Int] {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        let inner: Substring
-        if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
-            inner = trimmed.dropFirst().dropLast()
-        } else {
-            inner = Substring(trimmed)
+        guard trimmed.hasPrefix("["), trimmed.hasSuffix("]") else {
+            return []
         }
+        let inner = trimmed.dropFirst().dropLast()
         if inner.isEmpty {
             return []
         }

@@ -14,6 +14,11 @@ public struct StdlibSurfaceArity: Equatable, Hashable, Sendable {
     public let minimum: Int
     public let maximum: Int
 
+    public init(_ exact: Int) {
+        self.minimum = exact
+        self.maximum = exact
+    }
+
     public init(_ range: ClosedRange<Int>) {
         self.minimum = range.lowerBound
         self.maximum = range.upperBound
@@ -70,7 +75,6 @@ public enum StdlibSurfaceLoweringCategory: String, Equatable, Hashable, Sendable
     case setHOF
     case mapHOF
     case sequenceHOF
-    case futureUse
 }
 
 public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
@@ -118,4 +122,5 @@ public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
     ) -> String {
         collectionHOFMember(ownerKind: ownerKind, memberName: memberName, arity: arity)?.runtimeLinkName ?? fallback
     }
+
 }

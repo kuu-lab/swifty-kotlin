@@ -18,7 +18,6 @@ final class CLIParserTests: XCTestCase {
             "--emit", "kir",
             "-O2",
             "-I", "include",
-            "--stdlib", "kotlin-stdlib.kklib",
             "-L", "lib",
             "-l", "runtime",
             "--target", "x86_64-apple-macos",
@@ -34,8 +33,6 @@ final class CLIParserTests: XCTestCase {
         XCTAssertEqual(options.emit, .kirDump)
         XCTAssertEqual(options.optLevel, .O2)
         XCTAssertEqual(options.searchPaths, ["include"])
-        XCTAssertTrue(options.includeStdlib)
-        XCTAssertTrue(options.stdlibSearchPaths.contains("kotlin-stdlib.kklib"))
         XCTAssertEqual(options.libraryPaths, ["lib"])
         XCTAssertEqual(options.linkLibraries, ["runtime"])
         XCTAssertEqual(options.frontendFlags, ["time-phases"])
@@ -48,13 +45,6 @@ final class CLIParserTests: XCTestCase {
         XCTAssertEqual(options.target.os, "macos")
     }
 
-    func testParsesNoStdlibFlag() throws {
-        let options = try CLIParser.parse(args: ["--no-stdlib", "main.kt"])
-
-        XCTAssertFalse(options.includeStdlib)
-        XCTAssertEqual(options.effectiveSearchPaths, options.searchPaths)
-    }
-
     func testParsesReflectionMetadataRuntimeFlag() throws {
         let options = try CLIParser.parse(args: [
             "-Xruntime",
@@ -63,7 +53,6 @@ final class CLIParserTests: XCTestCase {
         ])
 
         XCTAssertEqual(options.runtimeFlags, ["reflection-metadata=all"])
-        XCTAssertTrue(options.runtimeFlags.contains("reflection-metadata=all"))
         XCTAssertTrue(options.includeNonPublicReflectionMetadata)
     }
 

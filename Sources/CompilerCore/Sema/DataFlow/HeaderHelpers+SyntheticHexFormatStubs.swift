@@ -1,5 +1,15 @@
 
 /// Synthetic stubs for kotlin.text.HexFormat class, companion, and extension functions.
+///
+/// MIGRATION-ENC-002: Kotlin source for the extension functions (toHexString, hexToByteArray,
+/// hexTo*) now lives at Stdlib/kotlin/io/encoding/HexFormat.kt (migration target).
+/// That file is NOT yet wired into BundledKotlinStdlib / FrontendPhases — wiring is deferred
+/// to the follow-up RF-STDLIB task to avoid the JVM-erasure conflict between the private
+/// external fun kk_* declarations and the public extension functions in the same package.
+/// Until then these stubs remain the sole dispatch path for all HexFormat APIs.
+/// The HexFormat class, companion (Default), upperCase/bytes properties, and the HexFormat { }
+/// builder DSL will also remain synthetic because the builder lambda ABI (fnPtr / closureRaw)
+/// cannot yet be expressed as a typed external fun in Kotlin source.
 extension DataFlowSemaPhase {
     func registerSyntheticHexFormatStubs(
         symbols: SymbolTable,
@@ -129,7 +139,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToInt(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToInt",
-            externalLinkName: "kk_string_hexToInt_flat",
+            externalLinkName: "kk_string_hexToInt",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: intType,
@@ -141,7 +151,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToShort(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToShort",
-            externalLinkName: "kk_string_hexToShort_flat",
+            externalLinkName: "kk_string_hexToShort",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: intType,
@@ -153,7 +163,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUByte(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUByte",
-            externalLinkName: "kk_string_hexToUByte_flat",
+            externalLinkName: "kk_string_hexToUByte",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.ubyteType,
@@ -165,7 +175,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUShort(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUShort",
-            externalLinkName: "kk_string_hexToUShort_flat",
+            externalLinkName: "kk_string_hexToUShort",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.ushortType,
@@ -177,7 +187,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUInt(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUInt",
-            externalLinkName: "kk_string_hexToUInt_flat",
+            externalLinkName: "kk_string_hexToUInt",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.uintType,
@@ -189,7 +199,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToULong(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToULong",
-            externalLinkName: "kk_string_hexToULong_flat",
+            externalLinkName: "kk_string_hexToULong",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.ulongType,
@@ -201,7 +211,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToLong(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToLong",
-            externalLinkName: "kk_string_hexToLong_flat",
+            externalLinkName: "kk_string_hexToLong",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: longType,
@@ -213,7 +223,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUInt(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUInt",
-            externalLinkName: "kk_string_hexToUInt_flat",
+            externalLinkName: "kk_string_hexToUInt",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.uintType,
@@ -225,7 +235,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToByteArray(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToByteArray",
-            externalLinkName: "kk_string_hexToByteArray_flat",
+            externalLinkName: "kk_string_hexToByteArray",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: listIntType,
@@ -237,7 +247,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUByteArray(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUByteArray",
-            externalLinkName: "kk_string_hexToUByteArray_flat",
+            externalLinkName: "kk_string_hexToUByteArray",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: uByteArrayType,
@@ -246,8 +256,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - HexFormat Helpers
 
     private func ensureHexFormatKotlinTextPackage(
         symbols: SymbolTable,
@@ -286,7 +294,6 @@ extension DataFlowSemaPhase {
         if let existingCompanion = symbols.companionObjectSymbol(for: ownerSymbol),
            let companionInfo = symbols.symbol(existingCompanion)
         {
-            // Ensure Default field exists
             ensureHexFormatDefaultField(
                 companionSymbol: existingCompanion,
                 companionFQName: companionInfo.fqName,

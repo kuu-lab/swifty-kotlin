@@ -216,7 +216,7 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("MutableSet"),
         ], elementType: typeParamType, invariant: true)
-        _ = {
+        let comparableElementBounds: [TypeID] = {
             guard let comparableSymbol = types.comparableInterfaceSymbol else {
                 return []
             }
@@ -228,7 +228,7 @@ extension DataFlowSemaPhase {
         }()
 
         // sortedWith(comparator: (T, T) -> Int): Sequence<T>
-        _ = types.make(.functionType(FunctionType(
+        let comparatorType = types.make(.functionType(FunctionType(
             params: [typeParamType, typeParamType],
             returnType: types.intType,
             isSuspend: false,

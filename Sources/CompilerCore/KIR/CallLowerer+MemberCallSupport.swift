@@ -50,7 +50,7 @@ extension CallLowerer {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
         case .primitive(.boolean, _):
             2
-        case .stringStruct:
+        case .primitive(.string, _):
             3
         case .primitive(.char, _):
             4

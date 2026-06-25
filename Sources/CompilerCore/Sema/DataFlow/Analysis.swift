@@ -489,7 +489,34 @@ final class DataFlowAnalyzer {
     }
 
     private func makeTypeNonNullable(_ type: TypeID, types: TypeSystem) -> TypeID {
-        types.makeNonNullable(type)
+        switch types.kind(of: type) {
+        case .any(.nullable):
+            types.anyType
+        case let .primitive(primitive, .nullable):
+            types.make(.primitive(primitive, .nonNull))
+        case let .classType(classType) where classType.nullability == .nullable:
+            types.make(.classType(ClassType(
+                classSymbol: classType.classSymbol,
+                args: classType.args,
+                nullability: .nonNull
+            )))
+        case let .typeParam(typeParam) where typeParam.nullability == .nullable:
+            types.make(.typeParam(TypeParamType(
+                symbol: typeParam.symbol,
+                nullability: .nonNull
+            )))
+        case let .functionType(functionType) where functionType.nullability == .nullable:
+            types.make(.functionType(FunctionType(
+                contextReceivers: functionType.contextReceivers,
+                receiver: functionType.receiver,
+                params: functionType.params,
+                returnType: functionType.returnType,
+                isSuspend: functionType.isSuspend,
+                nullability: .nonNull
+            )))
+        default:
+            type
+        }
     }
 
     private func nominalSymbolID(of type: TypeID, types: TypeSystem) -> SymbolID? {

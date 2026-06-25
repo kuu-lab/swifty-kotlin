@@ -29,7 +29,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: localeSymbol,
             ownerType: localeType,
             parameters: [("identifier", types.stringType)],
-            externalLinkName: "kk_locale_new_flat",
+            externalLinkName: "kk_locale_new",
             symbols: symbols,
             interner: interner
         )
@@ -37,7 +37,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: localeSymbol,
             ownerType: localeType,
             parameters: [("language", types.stringType), ("country", types.stringType)],
-            externalLinkName: "kk_locale_new_language_country_flat",
+            externalLinkName: "kk_locale_new_language_country",
             symbols: symbols,
             interner: interner
         )

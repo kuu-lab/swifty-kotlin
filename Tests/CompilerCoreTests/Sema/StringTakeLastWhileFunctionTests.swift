@@ -2,7 +2,7 @@
 import XCTest
 
 /// STDLIB-TEXT-FN-081: Validates that `CharSequence.takeLastWhile(predicate)` resolves
-/// through Sema for `String` receivers. The synthetic stub links to `kk_string_takeLastWhile_flat`.
+/// through Sema for `String` receivers. The synthetic stub links to `kk_string_takeLastWhile`.
 final class StringTakeLastWhileFunctionTests: XCTestCase {
     func testTakeLastWhileWithSimpleLambda() throws {
         let ctx = makeContextFromSource("""

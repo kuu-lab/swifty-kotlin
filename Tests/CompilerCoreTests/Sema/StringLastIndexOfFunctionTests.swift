@@ -3,9 +3,9 @@ import XCTest
 
 /// STDLIB-TEXT-FN-034: Validates that `CharSequence.lastIndexOf` resolves through
 /// Sema for the (Char, startIndex, ignoreCase) overload and gets wired to the
-/// runtime entry point `kk_string_lastIndexOf_char_flat`. The previously-existing
-/// String/String overloads remain wired to `kk_string_lastIndexOf_flat` and
-/// `kk_string_lastIndexOf_ignoreCase_flat` respectively.
+/// runtime entry point `kk_string_lastIndexOf_char`. The previously-existing
+/// String/String overloads remain wired to `kk_string_lastIndexOf` and
+/// `kk_string_lastIndexOf_ignoreCase` respectively.
 final class StringLastIndexOfFunctionTests: XCTestCase {
     func testLastIndexOfCharResolvesInSource() throws {
         let ctx = makeContextFromSource("""
@@ -47,17 +47,17 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_char_flat"),
-            "Expected CharSequence.lastIndexOf(Char, Int, Boolean) to link to kk_string_lastIndexOf_char_flat, got: \(links)"
+            links.contains("kk_string_lastIndexOf_char"),
+            "Expected CharSequence.lastIndexOf(Char, Int, Boolean) to link to kk_string_lastIndexOf_char, got: \(links)"
         )
         // Existing overloads must continue to be registered.
         XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_flat"),
-            "Expected String.lastIndexOf(String) to remain linked to kk_string_lastIndexOf_flat, got: \(links)"
+            links.contains("kk_string_lastIndexOf"),
+            "Expected String.lastIndexOf(String) to remain linked to kk_string_lastIndexOf, got: \(links)"
         )
         XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_ignoreCase_flat"),
-            "Expected String.lastIndexOf(String, Int, Boolean) to remain linked to kk_string_lastIndexOf_ignoreCase_flat, got: \(links)"
+            links.contains("kk_string_lastIndexOf_ignoreCase"),
+            "Expected String.lastIndexOf(String, Int, Boolean) to remain linked to kk_string_lastIndexOf_ignoreCase, got: \(links)"
         )
     }
 
@@ -93,8 +93,8 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_lastIndexOf_char_flat",
-                "Expected lastIndexOf(Char, Int, Boolean) to resolve to kk_string_lastIndexOf_char_flat"
+                "kk_string_lastIndexOf_char",
+                "Expected lastIndexOf(Char, Int, Boolean) to resolve to kk_string_lastIndexOf_char"
             )
         }
     }
