@@ -110,7 +110,7 @@ jobs:
             test-filter: '^CompilerCoreTests\\.'
             workers: "8"
             build-jobs: "8"
-            needs-llvm: false
+            needs-llvm: true
           - test-target: CompilerBackendTests
             test-filter: '^CompilerBackendTests\\.'
             workers: "4"
@@ -120,12 +120,12 @@ jobs:
             test-filter: '^RuntimeTests\\.'
             workers: "4"
             build-jobs: "4"
-            needs-llvm: false
+            needs-llvm: true
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             workers: "4"
             build-jobs: "4"
-            needs-llvm: false
+            needs-llvm: true
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
             workers: "4"
@@ -135,7 +135,7 @@ jobs:
             test-filter: '^LSPServerTests\\.'
             workers: "4"
             build-jobs: "4"
-            needs-llvm: false
+            needs-llvm: true
     steps:
       - uses: actions/checkout@v4
       - name: Free disk space
