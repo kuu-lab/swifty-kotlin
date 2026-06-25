@@ -2023,6 +2023,40 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-044: String.random() / String.random(Random) ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "random",
+            externalLinkName: "kk_string_random",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        let randomType = syntheticNominalType(
+            named: "Random",
+            in: [interner.intern("kotlin"), interner.intern("random")],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "random",
+            externalLinkName: "kk_string_random_random",
+            receiverType: stringType,
+            parameters: [
+                ("random", randomType, false, false),
+            ],
+            returnType: charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-140: String.getOrNull(Int): Char? ---
 
         registerSyntheticStringExtensionFunction(
