@@ -751,7 +751,7 @@ extension CallTypeChecker {
                 }
             }
         }
-        // String.replaceIndentByMargin(newIndent, marginPrefix)
+        // String.replaceIndentByMargin, replaceBefore/Last, replaceAfter/Last (2-arg String+String)
         if args.count == 2 {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -760,26 +760,142 @@ extension CallTypeChecker {
             let arg1Type = sema.types.makeNonNullable(argTypes[1])
             if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
                sema.types.isSubtype(arg0Type, sema.types.stringType),
-               sema.types.isSubtype(arg1Type, sema.types.stringType),
-               interner.resolve(calleeName) == "replaceIndentByMargin"
+               sema.types.isSubtype(arg1Type, sema.types.stringType)
             {
-                if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
-                    receiverType: receiverTypeForCheck,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
-                ) {
-                    return boundType
+                let calleeStr = interner.resolve(calleeName)
+                let matched = calleeStr == "replaceIndentByMargin"
+                    || calleeStr == "replaceBefore" || calleeStr == "replaceBeforeLast"
+                    || calleeStr == "replaceAfter" || calleeStr == "replaceAfterLast"
+                if matched {
+                    if let boundType = tryBindSyntheticStringMemberFallback(
+                        id,
+                        calleeName: calleeName,
+                        receiverType: receiverTypeForCheck,
+                        args: args,
+                        argTypes: argTypes,
+                        range: range,
+                        ctx: ctx,
+                        expectedType: expectedType,
+                        explicitTypeArgs: explicitTypeArgs,
+                        safeCall: safeCall
+                    ) {
+                        return boundType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
                 }
-                let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
+            }
+        }
+        // replaceBefore/Last, replaceAfter/Last with Char delimiter (2-arg Char+String)
+        if args.count == 2 {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            let arg0Type = sema.types.makeNonNullable(argTypes[0])
+            let arg1Type = sema.types.makeNonNullable(argTypes[1])
+            let charType = sema.types.charType
+            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+               arg0Type == charType,
+               sema.types.isSubtype(arg1Type, sema.types.stringType)
+            {
+                let calleeStr = interner.resolve(calleeName)
+                let matched = calleeStr == "replaceBefore" || calleeStr == "replaceBeforeLast"
+                    || calleeStr == "replaceAfter" || calleeStr == "replaceAfterLast"
+                if matched {
+                    if let boundType = tryBindSyntheticStringMemberFallback(
+                        id,
+                        calleeName: calleeName,
+                        receiverType: receiverTypeForCheck,
+                        args: args,
+                        argTypes: argTypes,
+                        range: range,
+                        ctx: ctx,
+                        expectedType: expectedType,
+                        explicitTypeArgs: explicitTypeArgs,
+                        safeCall: safeCall
+                    ) {
+                        return boundType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+            }
+        }
+        // replaceBefore/Last, replaceAfter/Last with explicit missingDelimiterValue (3-arg String+String+String)
+        if args.count == 3 {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            let arg0Type = sema.types.makeNonNullable(argTypes[0])
+            let arg1Type = sema.types.makeNonNullable(argTypes[1])
+            let arg2Type = sema.types.makeNonNullable(argTypes[2])
+            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+               sema.types.isSubtype(arg0Type, sema.types.stringType),
+               sema.types.isSubtype(arg1Type, sema.types.stringType),
+               sema.types.isSubtype(arg2Type, sema.types.stringType)
+            {
+                let calleeStr = interner.resolve(calleeName)
+                let matched = calleeStr == "replaceBefore" || calleeStr == "replaceBeforeLast"
+                    || calleeStr == "replaceAfter" || calleeStr == "replaceAfterLast"
+                if matched {
+                    if let boundType = tryBindSyntheticStringMemberFallback(
+                        id,
+                        calleeName: calleeName,
+                        receiverType: receiverTypeForCheck,
+                        args: args,
+                        argTypes: argTypes,
+                        range: range,
+                        ctx: ctx,
+                        expectedType: expectedType,
+                        explicitTypeArgs: explicitTypeArgs,
+                        safeCall: safeCall
+                    ) {
+                        return boundType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+            }
+        }
+        // replaceBefore/Last, replaceAfter/Last with Char delimiter and explicit missingDelimiterValue (3-arg Char+String+String)
+        if args.count == 3 {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            let arg0Type = sema.types.makeNonNullable(argTypes[0])
+            let arg1Type = sema.types.makeNonNullable(argTypes[1])
+            let arg2Type = sema.types.makeNonNullable(argTypes[2])
+            let charType = sema.types.charType
+            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+               arg0Type == charType,
+               sema.types.isSubtype(arg1Type, sema.types.stringType),
+               sema.types.isSubtype(arg2Type, sema.types.stringType)
+            {
+                let calleeStr = interner.resolve(calleeName)
+                let matched = calleeStr == "replaceBefore" || calleeStr == "replaceBeforeLast"
+                    || calleeStr == "replaceAfter" || calleeStr == "replaceAfterLast"
+                if matched {
+                    if let boundType = tryBindSyntheticStringMemberFallback(
+                        id,
+                        calleeName: calleeName,
+                        receiverType: receiverTypeForCheck,
+                        args: args,
+                        argTypes: argTypes,
+                        range: range,
+                        ctx: ctx,
+                        expectedType: expectedType,
+                        explicitTypeArgs: explicitTypeArgs,
+                        safeCall: safeCall
+                    ) {
+                        return boundType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
             }
         }
         if args.count == 2 {

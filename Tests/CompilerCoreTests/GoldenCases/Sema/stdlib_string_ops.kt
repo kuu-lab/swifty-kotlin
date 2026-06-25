@@ -75,3 +75,9 @@ fun useReplaceFirst(): String = "abcabc".replaceFirst("abc", "X")
 fun useReplaceFirstIgnoreCase(): String = "abcABC".replaceFirst("abc", "X", ignoreCase = true)
 
 fun useReplaceRange(): String = "hello".replaceRange(0..2, "HE")
+
+fun useReplaceBefore(): String = "hello.world.kt".replaceBefore(".", "HEAD")
+
+fun useReplaceBeforeChar(): String = "hello.world.kt".replaceBefore('.', "HEAD")
+
+fun useReplaceBeforeWithMissing(): String = "hello.world.kt".replaceBefore(".", "HEAD", "missing")
