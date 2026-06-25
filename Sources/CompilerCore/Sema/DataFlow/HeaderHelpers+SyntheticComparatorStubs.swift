@@ -78,6 +78,14 @@ extension DataFlowSemaPhase {
             comparisonsPackageSymbol: comparisonsPackageSymbol,
             comparatorSymbol: comparatorSymbol
         )
+        registerNullsLastTopLevelComparable(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            comparisonsPkg: comparisonsPkg,
+            comparisonsPackageSymbol: comparisonsPackageSymbol,
+            comparatorSymbol: comparatorSymbol
+        )
 
         registerNullsFirstTopLevelComparable(
             symbols: symbols,
@@ -1208,6 +1216,78 @@ extension DataFlowSemaPhase {
             symbol: tParamSymbol, nullability: .nullable
         )))
 
+        let comparatorReturnType = types.make(.classType(ClassType(
+            classSymbol: comparatorSymbol,
+            args: [.invariant(tParamTypeNullable)],
+            nullability: .nonNull
+        )))
+
+        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
+            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+            return sig.parameterTypes.isEmpty && sig.returnType == comparatorReturnType
+        }) {
+            if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+                return sig.parameterTypes.isEmpty && sig.returnType == comparatorReturnType
+            }) {
+                symbols.setExternalLinkName(extLink, for: existing)
+            }
+            return
+        }
+
+        let funcSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(comparisonsPackageSymbol, for: funcSymbol)
+        symbols.setExternalLinkName(extLink, for: funcSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [],
+                returnType: comparatorReturnType,
+                isSuspend: false,
+                typeParameterSymbols: [tParamSymbol],
+                typeParameterUpperBoundsList: [[]]
+            ),
+            for: funcSymbol
+        )
+    }
+
+    /// Register `kotlin.comparisons.nullsLast(): Comparator<T?>` (STDLIB-COMP-FN-061).
+    /// Comparable版（引数なし）。naturalOrder<T>() を内包し null を末尾に配置する。
+    private func registerNullsLastTopLevelComparable(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        comparisonsPkg: [InternedString],
+        comparisonsPackageSymbol: SymbolID,
+        comparatorSymbol: SymbolID
+    ) {
+        let functionName = interner.intern("nullsLast")
+        let functionFQName = comparisonsPkg + [functionName]
+        let extLink = "kk_comparator_nulls_last_natural"
+
+        let tParamName = interner.intern("T")
+        let tParamFQName = functionFQName + [tParamName]
+        let tParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: tParamFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: tParamName,
+                fqName: tParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        let tParamTypeNullable = types.make(.typeParam(TypeParamType(
+            symbol: tParamSymbol, nullability: .nullable
+        )))
         let comparatorReturnType = types.make(.classType(ClassType(
             classSymbol: comparatorSymbol,
             args: [.invariant(tParamTypeNullable)],

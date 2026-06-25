@@ -958,6 +958,14 @@ final class RuntimeComparatorTests: XCTestCase {
         XCTAssertEqual(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0)
     }
 
+    func testComparatorNullsLastNaturalTrampoline() {
+        XCTAssertGreaterThan(kk_comparator_nulls_last_natural_trampoline(0, runtimeNullSentinelInt, 5, nil), 0, "null should sort after non-null")
+        XCTAssertLessThan(kk_comparator_nulls_last_natural_trampoline(0, 5, runtimeNullSentinelInt, nil), 0, "non-null should sort before null")
+        XCTAssertGreaterThan(kk_comparator_nulls_last_natural_trampoline(0, 5, 3, nil), 0, "natural order: 5 > 3")
+        XCTAssertLessThan(kk_comparator_nulls_last_natural_trampoline(0, 3, 5, nil), 0, "natural order: 3 < 5")
+        XCTAssertEqual(kk_comparator_nulls_last_natural_trampoline(0, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0, "null == null")
+    }
+
     func testComparatorThenByDescendingTrampoline() {
         let chain = kk_comparator_then_by_descending(
             comparatorPtr(comparatorByModTen),
