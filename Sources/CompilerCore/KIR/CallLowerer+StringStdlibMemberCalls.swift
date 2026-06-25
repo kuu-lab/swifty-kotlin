@@ -1354,6 +1354,25 @@ extension CallLowerer {
             }
         }
 
+        // STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>)
+        if args.count == 1, interner.resolve(calleeName) == "slice" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
+                let isRange = sema.bindings.isRangeExpr(args[0].expr)
+                let sliceCallee = isRange ? "kk_string_slice_range" : "kk_string_slice_iterable"
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(sliceCallee),
+                    arguments: [loweredReceiverID, loweredArgIDs[0]],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         // String stdlib: removeRange(startIndex, endIndex) (STDLIB-TEXT-EDGE-008)
         if args.count == 2, interner.resolve(calleeName) == "removeRange" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType

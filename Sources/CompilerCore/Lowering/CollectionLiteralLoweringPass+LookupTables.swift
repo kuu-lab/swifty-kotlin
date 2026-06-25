@@ -1667,6 +1667,8 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_replaceBeforeLast"),
             interner.intern("kk_string_replaceBeforeLast_char"),
             interner.intern("kk_string_substring"),
+            interner.intern("kk_string_slice_range"),
+            interner.intern("kk_string_slice_iterable"),
             interner.intern("kk_string_take"),
             interner.intern("kk_string_drop"),
             interner.intern("kk_string_takeLast"),
