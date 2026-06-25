@@ -264,6 +264,98 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
+        // Unsigned toFloat / toDouble conversions
+        RuntimeABIFunctionSpec(
+            name: "kk_uint_to_float",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_uint_to_double",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ulong_to_float",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ulong_to_double",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ubyte_to_float",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ubyte_to_double",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ushort_to_float",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ushort_to_double",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        // UByte / UShort cross-unsigned conversions
+        RuntimeABIFunctionSpec(
+            name: "kk_ubyte_to_ushort",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ushort_to_ubyte",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
         // SPEC-NUM-0007: unsigned toByte / toShort conversions
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_byte",

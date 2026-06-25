@@ -132,8 +132,6 @@ extension KotlinLexer {
         return makeNumericToken(kind: TokenKind.intLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
     }
 
-    // MARK: - scanNumber helpers
-
     /// Scans hex/bin digits with underscore handling. Advances cursor past digits; emits diagnostics for invalid placement.
     private func scanPrefixedDigits(cursor: inout Int, isDigit: (UInt8) -> Bool, rangeStart: Int) -> Int {
         let startDigits = cursor
@@ -174,14 +172,12 @@ extension KotlinLexer {
         return digitCount
     }
 
-    /// Creates a numeric literal token from the given range.
     private func makeNumericToken(kind: (String) -> TokenKind, start: Int, end: Int, leadingTrivia: [TriviaPiece]) -> Token {
         let literal = text(from: start ..< end)
         offset = end
         return Token(kind: kind(literal), range: makeRange(start: start, end: end), leadingTrivia: leadingTrivia)
     }
 
-    /// Handles 0x, 0b, 0o prefixes. Returns (parsedPrefix, isHexOrBin).
     private func scanNumberPrefix(cursor: inout Int, start: Int) -> (Bool, Bool) {
         guard byte(at: cursor) == 0x30 && cursor + 1 < byteCount() else {
             return (false, false)

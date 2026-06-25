@@ -29,17 +29,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
         var results: [ExprID] = []
         for index in ast.arena.exprs.indices {
@@ -147,6 +136,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
                 .contains("kk_string_replaceBeforeLast_char"),
             "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
+        )
+        // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+        XCTAssertTrue(
+            externalLinks(for: "plus", sema: sema, interner: interner)
+                .contains("kk_string_plus"),
+            "String?.plus(other: Any?) should link to kk_string_plus"
         )
         // STDLIB-TEXT-FN-055: replace overloads
         XCTAssertTrue(

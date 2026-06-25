@@ -35,8 +35,6 @@ func runtimePrimitiveCompareKind(from raw: Int32) -> RuntimePrimitiveCompareKind
     }
 }
 
-/// Creates a comparator closure from a selector. Returns closure_raw to be paired with
-/// kk_comparator_from_selector_trampoline (ascending) or kk_comparator_from_selector_descending_trampoline.
 @_cdecl("kk_comparator_from_selector")
 public func kk_comparator_from_selector(_ selectorFn: Int, _ selectorClosure: Int) -> Int {
     let box = RuntimePairBox(first: selectorFn, second: selectorClosure)
@@ -45,7 +43,6 @@ public func kk_comparator_from_selector(_ selectorFn: Int, _ selectorClosure: In
     return raw
 }
 
-/// Trampoline: (closure_raw, a, b, outThrown) -> Int. Used with closure from kk_comparator_from_selector.
 @_cdecl("kk_comparator_from_selector_trampoline")
 public func kk_comparator_from_selector_trampoline(
     _ closureRaw: Int,
@@ -57,7 +54,6 @@ public func kk_comparator_from_selector_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let pairBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -141,7 +137,6 @@ public func kk_comparator_from_selector_primitive_descending_trampoline(
     return result == 0 ? 0 : -result
 }
 
-/// Trampoline for compareByDescending: negates the comparison result.
 @_cdecl("kk_comparator_from_selector_descending_trampoline")
 public func kk_comparator_from_selector_descending_trampoline(
     _ closureRaw: Int,
@@ -258,8 +253,6 @@ private func comparatorFromComparatorSelectorCompare(
 
 // MARK: - Multi-selector compareBy (STDLIB-613)
 
-/// Creates a comparator closure from multiple selectors.
-/// Stores the (fn, closure) pairs in a RuntimeListBox for the trampoline to iterate.
 @_cdecl("kk_comparator_from_multi_selectors")
 public func kk_comparator_from_multi_selectors(
     _ sel1Fn: Int, _ sel1Closure: Int,
@@ -271,7 +264,6 @@ public func kk_comparator_from_multi_selectors(
     return raw
 }
 
-/// 3-selector variant.
 @_cdecl("kk_comparator_from_multi_selectors3")
 public func kk_comparator_from_multi_selectors3(
     _ sel1Fn: Int, _ sel1Closure: Int,
@@ -284,7 +276,6 @@ public func kk_comparator_from_multi_selectors3(
     return raw
 }
 
-/// Vararg-selector variant. Selectors are packed as [fn1, closure1, fn2, closure2, ...].
 @_cdecl("kk_comparator_from_multi_selectors_vararg")
 public func kk_comparator_from_multi_selectors_vararg(_ selectorsRaw: Int) -> Int {
     let elements = runtimeArrayBox(from: selectorsRaw)?.elements ?? []
@@ -294,7 +285,6 @@ public func kk_comparator_from_multi_selectors_vararg(_ selectorsRaw: Int) -> In
     return raw
 }
 
-/// Trampoline for multi-selector compareBy.
 @_cdecl("kk_comparator_from_multi_selectors_trampoline")
 public func kk_comparator_from_multi_selectors_trampoline(
     _ closureRaw: Int,
@@ -306,7 +296,6 @@ public func kk_comparator_from_multi_selectors_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let listBox = tryCast(ptr, to: RuntimeListBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -332,7 +321,6 @@ public func kk_comparator_from_multi_selectors_trampoline(
 
 // MARK: - Chained comparators (STDLIB-176)
 
-/// thenBy: first comparator, then selector for tie-breaker.
 @_cdecl("kk_comparator_then_by")
 public func kk_comparator_then_by(
     _ c1Fn: Int,
@@ -368,7 +356,6 @@ public func kk_comparator_then_by_descending(
     return raw
 }
 
-/// thenDescending: first comparator, then comparator for tie-breaker.
 @_cdecl("kk_comparator_then_descending")
 public func kk_comparator_then_descending(
     _ c1Fn: Int,
@@ -384,7 +371,6 @@ public func kk_comparator_then_descending(
     return raw
 }
 
-/// thenComparator: first comparator, then comparator for tie-breaker.
 @_cdecl("kk_comparator_then_comparator")
 public func kk_comparator_then_comparator(
     _ c1Fn: Int,
@@ -451,7 +437,6 @@ public func kk_comparator_then_by_descending_comparator_selector(
     )
 }
 
-/// Trampoline for thenBy.
 @_cdecl("kk_comparator_then_by_trampoline")
 public func kk_comparator_then_by_trampoline(
     _ closureRaw: Int,
@@ -463,7 +448,6 @@ public func kk_comparator_then_by_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let outerBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -472,7 +456,6 @@ public func kk_comparator_then_by_trampoline(
           let inner1 = tryCast(ptr1, to: RuntimePairBox.self),
           let inner2 = tryCast(ptr2, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null inner comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator inner closure")
         return 0
     }
@@ -487,7 +470,6 @@ public func kk_comparator_then_by_trampoline(
     return runtimeCompareValues(keyA, keyB)
 }
 
-/// Trampoline for thenComparator.
 @_cdecl("kk_comparator_then_comparator_trampoline")
 public func kk_comparator_then_comparator_trampoline(
     _ closureRaw: Int,
@@ -499,7 +481,6 @@ public func kk_comparator_then_comparator_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let outerBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -508,7 +489,6 @@ public func kk_comparator_then_comparator_trampoline(
           let inner1 = tryCast(ptr1, to: RuntimePairBox.self),
           let inner2 = tryCast(ptr2, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null inner comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator inner closure")
         return 0
     }
@@ -588,7 +568,6 @@ public func kk_comparator_then_by_comparator_selector_trampoline(
     return result
 }
 
-/// Trampoline for thenByDescending: reverse only the tie-breaker result.
 @_cdecl("kk_comparator_then_by_descending_trampoline")
 public func kk_comparator_then_by_descending_trampoline(
     _ closureRaw: Int,
@@ -600,7 +579,6 @@ public func kk_comparator_then_by_descending_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let outerBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -609,7 +587,6 @@ public func kk_comparator_then_by_descending_trampoline(
           let inner1 = tryCast(ptr1, to: RuntimePairBox.self),
           let inner2 = tryCast(ptr2, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null inner comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator inner closure")
         return 0
     }
@@ -696,7 +673,6 @@ public func kk_comparator_then_by_descending_comparator_selector_trampoline(
     return result == 0 ? 0 : -result
 }
 
-/// Trampoline for thenDescending: reverse only the tie-breaker result.
 @_cdecl("kk_comparator_then_descending_trampoline")
 public func kk_comparator_then_descending_trampoline(
     _ closureRaw: Int,
@@ -708,7 +684,6 @@ public func kk_comparator_then_descending_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let outerBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -717,7 +692,6 @@ public func kk_comparator_then_descending_trampoline(
           let inner1 = tryCast(ptr1, to: RuntimePairBox.self),
           let inner2 = tryCast(ptr2, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null inner comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator inner closure")
         return 0
     }
@@ -750,8 +724,6 @@ public func kk_comparator_nulls_first(_ cFn: Int, _ cClosure: Int) -> Int {
     return raw
 }
 
-/// Top-level nullsFirst(comparator): wraps a provided comparator so that nulls compare first.
-/// Used by kotlin.comparisons.nullsFirst(Comparator<in T>) (STDLIB-COMP-FN-060).
 @_cdecl("kk_comparator_nulls_first_of")
 public func kk_comparator_nulls_first_of(_ cFn: Int, _ cClosure: Int) -> Int {
     let pair = RuntimePairBox(first: cFn, second: cClosure)
@@ -793,7 +765,6 @@ public func kk_comparator_nulls_first_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let pairBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -826,7 +797,6 @@ public func kk_comparator_nulls_last_trampoline(
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let pairBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -848,7 +818,6 @@ public func kk_comparator_nulls_last_trampoline(
     return result
 }
 
-/// reversed: wraps a comparator and negates its result.
 @_cdecl("kk_comparator_reversed")
 public func kk_comparator_reversed(_ cFn: Int, _ cClosure: Int) -> Int {
     let box = RuntimePairBox(first: cFn, second: cClosure)
@@ -867,7 +836,6 @@ public func kk_comparator_reversed_trampoline(
     guard let ptr = UnsafeMutableRawPointer(bitPattern: closureRaw),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) })
     else {
-        // Return 0 instead of panic for invalid/null comparator closure
         outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
         return 0
     }
@@ -964,13 +932,11 @@ public func kk_comparator_reverse_order_trampoline(
     return -runtimeCompareValues(a, b)
 }
 
-/// naturalOrder() returns closure=0; use with kk_comparator_natural_order_trampoline.
 @_cdecl("kk_comparator_natural_order")
 public func kk_comparator_natural_order() -> Int {
     0
 }
 
-/// reverseOrder() returns closure=0; use with kk_comparator_reverse_order_trampoline.
 @_cdecl("kk_comparator_reverse_order")
 public func kk_comparator_reverse_order() -> Int {
     0
@@ -1010,7 +976,6 @@ public func kk_string_case_insensitive_order() -> Int {
 
 // MARK: - compareValues / compareValuesBy
 
-/// Internal helper for nullable value comparison. Nulls are less than non-nulls.
 func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     let aIsNull = (a == runtimeNullSentinelInt || a == 0)
     let bIsNull = (b == runtimeNullSentinelInt || b == 0)
@@ -1020,13 +985,17 @@ func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     return runtimeCompareValues(a, b)
 }
 
-/// compareValues(a: T?, b: T?): Int — nulls are less than non-nulls.
-/// Codegen emits: kk_compareValues(a, b, outThrown). outThrown is unused but present for ABI.
 @_cdecl("kk_compareValues")
 public func kk_compareValues(_ a: Int, _ b: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = outThrown
     return kk_box_int(runtimeCompareNullableValues(a, b))
 }
+
+@_cdecl("kk_comparable_compareTo")
+public func kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    return runtimeCompareNullableValues(lhsRaw, rhsRaw)
+}
+
 
 @inline(__always)
 private func runtimeInvokeCompareValuesSelector(
@@ -1038,8 +1007,6 @@ private func runtimeInvokeCompareValuesSelector(
     runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: value, outThrown: outThrown)
 }
 
-/// compareValuesBy(a: T, b: T, selector: (T) -> Comparable<*>?): Int — single selector.
-/// Codegen emits: kk_compareValuesBy1(a, b, selectorFnPtr, selectorClosureRaw, outThrown).
 @_cdecl("kk_compareValuesBy1")
 public func kk_compareValuesBy1(
     _ a: Int,
@@ -1066,9 +1033,6 @@ public func kk_compareValuesBy1(
     return kk_box_int(runtimeCompareNullableValues(keyA, keyB))
 }
 
-/// compareValuesBy(a: T, b: T, selector1, selector2): Int — 2-selector variant.
-/// Codegen emits:
-/// kk_compareValuesBy(a, b, sel1FnPtr, sel1ClosureRaw, sel2FnPtr, sel2ClosureRaw, outThrown).
 @_cdecl("kk_compareValuesBy")
 public func kk_compareValuesBy(
     _ a: Int,
@@ -1114,10 +1078,6 @@ public func kk_compareValuesBy(
     return kk_box_int(runtimeCompareNullableValues(keyA2, keyB2))
 }
 
-/// compareValuesBy(a: T, b: T, selector1, selector2, selector3): Int — 3-selector variant.
-/// Codegen emits:
-/// kk_compareValuesBy3(a, b, sel1FnPtr, sel1ClosureRaw, sel2FnPtr, sel2ClosureRaw,
-/// sel3FnPtr, sel3ClosureRaw, outThrown).
 @_cdecl("kk_compareValuesBy3")
 public func kk_compareValuesBy3(
     _ a: Int,
@@ -1182,7 +1142,6 @@ public func kk_compareValuesBy3(
     return kk_box_int(runtimeCompareNullableValues(keyA3, keyB3))
 }
 
-/// compareValuesBy(a: T, b: T, vararg selectors): Int.
 @_cdecl("kk_compareValuesByVararg")
 public func kk_compareValuesByVararg(
     _ a: Int,
@@ -1223,7 +1182,6 @@ public func kk_compareValuesByVararg(
     return kk_box_int(0)
 }
 
-/// compareValuesBy(a: T, b: T, comparator: Comparator<K>, selector: (T) -> K): Int.
 @_cdecl("kk_compareValuesByComparator")
 public func kk_compareValuesByComparator(
     _ a: Int,

@@ -26,6 +26,8 @@ final class RuntimeCOpaquePointerBox: @unchecked Sendable {
     }
 }
 
+// (a) RF-DEAD-002: 配線予定 → STDLIB-CINTEROP (CPointer / COpaquePointer / cname / pinned / cleaner API)
+// 以下 kk_cpointer_* / kk_copaque_pointer_* / kk_cname_* / kk_pinned_get / kk_cleaner_clean は全て同領域に紐付く。
 @_cdecl("kk_cpointer_new")
 public func kk_cpointer_new(_ address: Int) -> Int {
     registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address)))
@@ -572,6 +574,7 @@ public func kk_unpin_object(_ pinnedHandle: Int) -> Int {
     return box.objectRaw
 }
 
+// (a) RF-DEAD-002: 配線予定 → STDLIB-CINTEROP-FN-009/042 (pin() / usePinned())
 @_cdecl("kk_pinned_get")
 public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pinnedHandle) else {

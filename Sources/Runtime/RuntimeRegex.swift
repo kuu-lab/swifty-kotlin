@@ -427,28 +427,23 @@ private func createRegexBox(
     let normalizedPattern = canonEq ? pattern.precomposedStringWithCanonicalMapping : pattern
     let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: normalizedPattern) : normalizedPattern
     guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
-        do {
-            let fallback = try NSRegularExpression(pattern: "(?!)", options: [])
-            return RuntimeRegexBox(regex: fallback, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
-        } catch {
-            fatalError("Failed to create fallback NSRegularExpression")
-        }
+        return RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
     }
     return RuntimeRegexBox(regex: regex, pattern: pattern, canonEq: canonEq, optionOrdinals: optionOrdinals)
 }
+
 
 @_cdecl("kk_regex_create_with_option")
 public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int) -> Int {
     let pattern = regexStringFromRaw(patternRaw) ?? ""
     let ordinal = Int(kk_unbox_int(optionRaw))
-    let isLiteral = ordinal == kRegexOptionOrdinalLiteral
-    let options = nsRegexOption(fromOrdinal: ordinal)
-    let storedOrdinals: Set<Int> = [ordinal]
-    let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: pattern) : pattern
-    guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
-        return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern, canonEq: false, optionOrdinals: storedOrdinals))
-    }
-    return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern, canonEq: false, optionOrdinals: storedOrdinals))
+    let box = createRegexBox(
+        pattern: pattern,
+        isLiteral: ordinal == kRegexOptionOrdinalLiteral,
+        options: nsRegexOption(fromOrdinal: ordinal),
+        optionOrdinals: [ordinal]
+    )
+    return registerRuntimeObject(box)
 }
 
 /// Creates a Regex from a pattern and a `Set<RegexOption>`.
@@ -468,12 +463,8 @@ public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int
             combined.insert(nsRegexOption(fromOrdinal: ordinal))
         }
     }
-    let normalizedPattern = pattern
-    let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: normalizedPattern) : normalizedPattern
-    guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: combined) else {
-        return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern, canonEq: false, optionOrdinals: storedOrdinals))
-    }
-    return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern, canonEq: false, optionOrdinals: storedOrdinals))
+    let box = createRegexBox(pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals)
+    return registerRuntimeObject(box)
 }
 
 @_cdecl("kk_regex_containsMatchIn")

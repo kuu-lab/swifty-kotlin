@@ -1,6 +1,0 @@
-val a = 'A'
-val newline = '\n'
-val tab = '\t'
-val backslash = '\\'
-val quote = '\''
-val unicode = '\u0041'

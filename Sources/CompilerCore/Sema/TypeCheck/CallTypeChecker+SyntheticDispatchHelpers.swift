@@ -33,8 +33,6 @@ extension CallTypeChecker {
         return !hasConflictingUserDefinedCandidate
     }
 
-    // MARK: - Top-level run helpers (STDLIB-401)
-
     /// Returns true when the call site looks like a top-level `run { ... }` or
     /// `run(::ref)` that should be intercepted by the scope-function path.
     func isTopLevelRunCandidate(

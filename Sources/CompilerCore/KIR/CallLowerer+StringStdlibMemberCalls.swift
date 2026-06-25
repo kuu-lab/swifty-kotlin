@@ -355,6 +355,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "toBigInteger" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_toBigInteger"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "toBigIntegerOrNull" {
                     instructions.append(.call(
                         symbol: nil,
@@ -785,6 +796,8 @@ extension CallLowerer {
                     ("kk_string_takeLastWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "dropWhile":
                     ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
+                case "onEach":
+                    ("kk_string_onEach", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":
                     ("kk_string_splitToSequence", [loweredReceiverID] + normalizedArgIDs)
                 case "find":

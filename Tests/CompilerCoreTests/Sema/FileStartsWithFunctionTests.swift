@@ -12,24 +12,6 @@ import XCTest
 /// helpers `kk_file_startsWith_file` / `kk_file_startsWith_string` listed in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
 final class FileStartsWithFunctionTests: XCTestCase {
-    private func memberCallExprIDs(
-        named name: String,
-        in ast: ASTModule,
-        interner: StringInterner
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, _) = expr,
-                  interner.resolve(callee) == name,
-                  let range = ast.arena.exprRange(exprID),
-                  range.start.file.rawValue >= 2
-            else {
-                return nil
-            }
-            return exprID
-        }
-    }
 
     // MARK: - File overload resolves cleanly
 

@@ -273,8 +273,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - Private Helpers
-
     private func ensureJavaNIOFilePackage(
         symbols: SymbolTable,
         interner: StringInterner

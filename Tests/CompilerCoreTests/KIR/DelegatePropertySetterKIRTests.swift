@@ -2,9 +2,7 @@
 import Foundation
 import XCTest
 
-/// Tests for delegate property setter rewriting and lowering pass recording.
 final class DelegatePropertySetterKIRTests: XCTestCase {
-    // MARK: - Setter Rewrite: Observable
 
     func testObservableSetterRewritesToSetValueCall() throws {
         let source = """
@@ -38,8 +36,6 @@ final class DelegatePropertySetterKIRTests: XCTestCase {
         }
     }
 
-    // MARK: - Setter Rewrite: Vetoable
-
     func testVetoableSetterRewritesToSetValueCall() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -71,8 +67,6 @@ final class DelegatePropertySetterKIRTests: XCTestCase {
             )
         }
     }
-
-    // MARK: - StdlibDelegateLowering Pass Is Recorded
 
     func testStdlibDelegateLoweringPassIsRecordedInModule() throws {
         let source = """
