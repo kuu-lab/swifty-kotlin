@@ -60,7 +60,7 @@
 - [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-049: `reduceOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-051: `removeRange` 関数の実装
+- [x] STDLIB-TEXT-FN-051: `removeRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-053: `removeSurrounding` 関数の実装
 - [ ] STDLIB-TEXT-FN-056: `replaceAfter` 関数の実装
 - [ ] STDLIB-TEXT-FN-058: `replaceBefore` 関数の実装
