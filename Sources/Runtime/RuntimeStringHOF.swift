@@ -909,6 +909,29 @@ public func kk_string_onEach(
     return strRaw
 }
 
+// MARK: - onEachIndexed (STDLIB-TEXT-FN-040)
+
+@_cdecl("kk_string_onEachIndexed")
+public func kk_string_onEachIndexed(
+    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    guard fnPtr != 0 else { return strRaw }
+    for (index, scalar) in scalars.enumerated() {
+        var thrown = 0
+        _ = runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            lhs: index,
+            rhs: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 { outThrown?.pointee = thrown; return strRaw }
+    }
+    return strRaw
+}
+
 @_cdecl("kk_string_splitToSequence")
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

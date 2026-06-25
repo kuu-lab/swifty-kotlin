@@ -2666,6 +2666,24 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-040: String.onEachIndexed(action: (Int, Char) -> Unit): String ---
+        let intCharToUnitType = types.make(.functionType(FunctionType(
+            params: [intType, charType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerSyntheticStringExtensionFunction(
+            named: "onEachIndexed",
+            externalLinkName: "kk_string_onEachIndexed",
+            receiverType: stringType,
+            parameters: [("action", intCharToUnitType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
