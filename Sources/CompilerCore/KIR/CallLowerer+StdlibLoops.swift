@@ -579,9 +579,6 @@ extension CallLowerer {
         return timedValueExpr
     }
 
-    // MARK: - Helpers
-
-    /// Emits a `kk_system_nanoTime()` call and returns the result expression.
     private func emitNanoTimeCall(
         sema: SemaModule,
         arena: KIRArena,

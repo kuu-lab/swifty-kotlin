@@ -22,7 +22,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - abstract class can re-abstract concrete methods
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
         #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
@@ -40,7 +39,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - concrete class cannot have abstract members
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
     }
 
@@ -77,7 +75,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - final override is allowed
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
         #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
@@ -99,7 +96,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - cannot override final member
         assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
     }
 
@@ -127,7 +123,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - interface members cannot be final
         assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
     }
 
@@ -140,7 +135,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should warn - abstract is redundant in interface
         assertHasDiagnostic("KSWIFTK-SEMA-REDUNDANT-MODIFIER", in: ctx)
     }
 
@@ -153,7 +147,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - data class cannot have open members
         assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
     }
 
@@ -172,7 +165,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - cannot override with less visibility
         assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
     }
 
@@ -189,7 +181,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - same visibility is allowed
         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
         #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
@@ -207,7 +198,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - more visibility is allowed
         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
         #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
@@ -414,7 +404,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - complex inheritance with abstract override and final override
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
         #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
@@ -437,7 +426,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - override chaining with final termination
         assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
         #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }

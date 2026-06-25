@@ -1,18 +1,5 @@
 package golden.diagnostics
 
-// STDLIB-EXPERIMENTAL-001: Inventory of kotlin.experimental / kotlin marker annotations.
-// Declares each marker with @RequiresOptIn and verifies they can be defined and used.
-// This file covers:
-//   kotlin.RequiresOptIn          — the meta-annotation itself
-//   kotlin.OptIn                  — opt-in declaration
-//   kotlin.ExperimentalStdlibApi  — stdlib experimental APIs
-//   kotlin.time.ExperimentalTime  — time API
-//   kotlin.contracts.ExperimentalContracts — contracts DSL
-//   kotlin.experimental.ExperimentalTypeInference — type inference extensions
-//   (simulated) ExperimentalUnsignedTypes, ExperimentalUuidApi,
-//               ExperimentalEncodingApi, ExperimentalMultiplatform,
-//               ExperimentalSubclassOptIn
-
 @RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 annotation class ExperimentalUnsignedTypesMarker
 

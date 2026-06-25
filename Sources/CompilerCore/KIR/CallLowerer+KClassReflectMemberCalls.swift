@@ -260,6 +260,14 @@ extension CallLowerer {
                 fallbackType: sema.types.anyType
             )
 
+        // MIGRATION-REFLECT-002: KClass.nestedClasses
+        case "nestedClasses":
+            return emitRuntimeCall(
+                callee: "kk_kclass_nested_classes",
+                arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+
         case "primaryConstructor":
             return emitRuntimeCall(
                 callee: "kk_kclass_primary_constructor",

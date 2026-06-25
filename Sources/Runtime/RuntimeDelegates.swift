@@ -551,7 +551,7 @@ public func kk_delegate_get_value(_ handle: Int, _: Int, _ property: Int, _ outT
         let propName = kk_kproperty_stub_name(property)
         for i in 0..<mapBox.keys.count {
             // swiftlint:disable:next for_where
-            if kk_string_equals(mapBox.keys[i], propName) != 0 {
+            if runtimeStringFromRaw(mapBox.keys[i]) == runtimeStringFromRaw(propName) {
                 return mapBox.values[i]
             }
         }
@@ -619,7 +619,7 @@ public func kk_delegate_set_value(
         let propName = kk_kproperty_stub_name(property)
         for i in 0..<mapBox.keys.count {
             // swiftlint:disable:next for_where
-            if kk_string_equals(mapBox.keys[i], propName) != 0 {
+            if runtimeStringFromRaw(mapBox.keys[i]) == runtimeStringFromRaw(propName) {
                 mapBox.values[i] = newValue
                 return newValue
             }

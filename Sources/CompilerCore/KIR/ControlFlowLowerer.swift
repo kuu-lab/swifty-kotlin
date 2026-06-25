@@ -22,7 +22,6 @@ final class ControlFlowLowerer {
         return interner.intern(fallback)
     }
 
-    /// Check if a lowered expression is a terminator (return/throw/Nothing type).
     /// When true, no instructions should follow in the same linear block.
     func isTerminatedExpr(_ exprID: KIRExprID, arena: KIRArena, sema: SemaModule) -> Bool {
         arena.exprType(exprID) == sema.types.nothingType
@@ -523,7 +522,6 @@ final class ControlFlowLowerer {
         )
     }
 
-    /// Returns true if `type` is a Channel type.
     private func isChannelType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),

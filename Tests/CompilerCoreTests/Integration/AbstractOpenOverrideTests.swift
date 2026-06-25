@@ -31,7 +31,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - basic inheritance scenario
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
@@ -54,7 +53,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - missing abstract override
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
@@ -72,7 +70,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - missing override modifier
         assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
     }
 
@@ -98,7 +95,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - abstract override chaining
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
         #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
@@ -121,7 +117,6 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - cannot override final
         assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
     }
 
