@@ -2,20 +2,6 @@
 import XCTest
 
 final class ReflectKClassSafeCastSyntheticTests: XCTestCase {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected KClass.safeCast source to type-check, got: \(ctx.diagnostics.diagnostics)"
-            )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     func testKClassSafeCastSyntheticStubLinksToRuntimeABI() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "reflect", "KClass", "safeCast"].map { interner.intern($0) }
