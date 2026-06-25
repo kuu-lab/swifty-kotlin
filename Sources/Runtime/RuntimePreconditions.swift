@@ -85,6 +85,7 @@ public func kk_require_not_null(_ value: Int, _ outThrown: UnsafeMutablePointer<
     return value
 }
 
+// (a) RF-DEAD-002: 配線予定 → lazy !! / requireNotNull { msg } lowering (kk_check_not_null_lazy / kk_require_not_null_lazy)
 /// Lazy-message variant of kk_check_not_null.
 /// The message closure is evaluated only when the value is null.
 @_cdecl("kk_check_not_null_lazy")
