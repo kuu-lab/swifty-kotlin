@@ -1716,35 +1716,29 @@ expr e1407 name(testDir) type=Class#46 ref=s347
 expr e1408 memberCall recv=e1407 callee=mkdirs args=[] type=Boolean call=s51
 expr e1409 localDecl mkdirsResult mutable=0 type=_ init=e1408 type=Unit ref=s348
 expr e1411 name(mkdirsResult) type=Boolean ref=s348
-expr e1412 stringTemplate[lit(mkdirs result: ),expr(e1411)] type=String
-expr e1413 call callee=e1410 args=[_:e1412] type=Unit call=s45
-expr e1414 name(testDir) type=Class#46 ref=s347
-expr e1415 memberCall recv=e1414 callee=exists args=[] type=Boolean call=s48
-expr e1416 localDecl existsResult mutable=0 type=_ init=e1415 type=Unit ref=s349
-expr e1418 name(existsResult) type=Boolean ref=s349
-expr e1419 stringTemplate[lit(exists result: ),expr(e1418)] type=String
-expr e1420 call callee=e1417 args=[_:e1419] type=Unit call=s45
-expr e1421 name(testDir) type=Class#46 ref=s347
-expr e1422 memberCall recv=e1421 callee=isDirectory args=[] type=Boolean call=s49
-expr e1423 localDecl isDirResult mutable=0 type=_ init=e1422 type=Unit ref=s350
-expr e1425 name(isDirResult) type=Boolean ref=s350
-expr e1426 stringTemplate[lit(isDirectory result: ),expr(e1425)] type=String
-expr e1427 call callee=e1424 args=[_:e1426] type=Unit call=s45
-expr e1428 name(testDir) type=Class#46 ref=s347
-expr e1429 memberCall recv=e1428 callee=listFiles args=[] type=Class#5<out Class#46>? call=s52
-expr e1430 localDecl files mutable=0 type=_ init=e1429 type=Unit ref=s351
-expr e1432 name(files) type=Class#5<out Class#46>? ref=s351
-expr e1433 stringTemplate[lit(listFiles result: ),expr(e1432)] type=String
-expr e1434 call callee=e1431 args=[_:e1433] type=Unit call=s45
-expr e1435 name(testDir) type=Class#46 ref=s347
-expr e1436 memberCall recv=e1435 callee=walk args=[] type=Class#54 call=s53
-expr e1437 localDecl walkResult mutable=0 type=_ init=e1436 type=Unit ref=s352
-expr e1439 name(walkResult) type=Class#54 ref=s352
-expr e1440 stringTemplate[lit(walk result: ),expr(e1439)] type=String
-expr e1441 call callee=e1438 args=[_:e1440] type=Unit call=s45
-expr e1442 name(testDir) type=Class#46 ref=s347
-expr e1443 memberCall recv=e1442 callee=delete args=[] type=Boolean call=s50
-expr e1444 localDecl deleteResult mutable=0 type=_ init=e1443 type=Unit ref=s353
-expr e1446 name(deleteResult) type=Boolean ref=s353
-expr e1447 stringTemplate[lit(delete result: ),expr(e1446)] type=String
-expr e1448 call callee=e1445 args=[_:e1447] type=Unit call=s45
+expr e1412 call callee=e1410 args=[_:e1411] type=Unit call=s45
+expr e1413 name(testDir) type=Class#46 ref=s347
+expr e1414 memberCall recv=e1413 callee=exists args=[] type=Boolean call=s48
+expr e1415 localDecl existsResult mutable=0 type=_ init=e1414 type=Unit ref=s349
+expr e1417 name(existsResult) type=Boolean ref=s349
+expr e1418 call callee=e1416 args=[_:e1417] type=Unit call=s45
+expr e1419 name(testDir) type=Class#46 ref=s347
+expr e1420 memberCall recv=e1419 callee=isDirectory args=[] type=Boolean call=s49
+expr e1421 localDecl isDirResult mutable=0 type=_ init=e1420 type=Unit ref=s350
+expr e1423 name(isDirResult) type=Boolean ref=s350
+expr e1424 call callee=e1422 args=[_:e1423] type=Unit call=s45
+expr e1425 name(testDir) type=Class#46 ref=s347
+expr e1426 memberCall recv=e1425 callee=listFiles args=[] type=Class#5<out Class#46>? call=s52
+expr e1427 localDecl files mutable=0 type=_ init=e1426 type=Unit ref=s351
+expr e1429 name(files) type=Class#5<out Class#46>? ref=s351
+expr e1430 call callee=e1428 args=[_:e1429] type=Unit call=s45
+expr e1431 name(testDir) type=Class#46 ref=s347
+expr e1432 memberCall recv=e1431 callee=walk args=[] type=Class#54 call=s53
+expr e1433 localDecl walkResult mutable=0 type=_ init=e1432 type=Unit ref=s352
+expr e1435 name(walkResult) type=Class#54 ref=s352
+expr e1436 call callee=e1434 args=[_:e1435] type=Unit call=s45
+expr e1437 name(testDir) type=Class#46 ref=s347
+expr e1438 memberCall recv=e1437 callee=delete args=[] type=Boolean call=s50
+expr e1439 localDecl deleteResult mutable=0 type=_ init=e1438 type=Unit ref=s353
+expr e1441 name(deleteResult) type=Boolean ref=s353
+expr e1442 call callee=e1440 args=[_:e1441] type=Unit call=s45
