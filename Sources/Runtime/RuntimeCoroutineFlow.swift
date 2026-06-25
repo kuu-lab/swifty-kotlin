@@ -1283,6 +1283,7 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     return runtimeRegisterFlowHandle(derived)
 }
 
+// (a) RF-DEAD-002: 配線予定 → Flow API 完全実装タスク (kk_flow_emit_with_timestamp / count / fold / reduce)
 @_cdecl("kk_flow_emit_with_timestamp")
 public func kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag: Int, _ timestamp: UInt64) -> Int {
     if tag == RuntimeFlowTag.emit.rawValue {

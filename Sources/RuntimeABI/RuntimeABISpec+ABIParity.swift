@@ -868,10 +868,12 @@ public extension RuntimeABISpec {
             isThrowing: false),
         abiParitySpec("kk_pin_object", parameters: [
             p("objectRaw", .intptr),
-        ]),
+        ],
+            isThrowing: false),
         abiParitySpec("kk_pinned_get", parameters: [
             p("pinnedHandle", .intptr),
-        ]),
+        ],
+            isThrowing: false),
         abiParitySpec("kk_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -1067,7 +1069,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
         abiParitySpec("kk_unpin_object", parameters: [
             p("pinnedHandle", .intptr),
-        ]),
+        ],
+            isThrowing: false),
         abiParitySpec("kk_worker_execute", parameters: [
             p("workerHandle", .intptr),
             p("modeRaw", .intptr),

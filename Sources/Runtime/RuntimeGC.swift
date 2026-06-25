@@ -201,6 +201,8 @@ public func kk_gc_max_heap_bytes() -> Int {
     runtimeGCTuningState.currentMaxHeapBytes()
 }
 
+// (a) RF-DEAD-002: 配線予定 → GC global root API (CInterop / native global 変数サポート)
+// `kk_global_root_slot_*` 動的名が補間 emit だが、公開 API としての register/unregister も配線予定。
 @_cdecl("kk_register_global_root")
 public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
     guard let slot else {
@@ -275,6 +277,8 @@ public func kk_unregister_coroutine_root(_ value: UnsafeMutableRawPointer?) {
     }
 }
 
+// (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
+// RuntimeTests がテスト間でヒープオブジェクト数を検査するためのセム。
 @_cdecl("kk_runtime_heap_object_count")
 public func kk_runtime_heap_object_count() -> UInt32 {
     runtimeStorage.withGCLock { state in
@@ -282,6 +286,8 @@ public func kk_runtime_heap_object_count() -> UInt32 {
     }
 }
 
+// (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
+// RuntimeTests がテスト間でランタイム全状態をリセットするためのセム。
 @_cdecl("kk_runtime_force_reset")
 public func kk_runtime_force_reset() {
     kk_runtime_reset_gc()
