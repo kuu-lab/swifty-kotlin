@@ -427,8 +427,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - Package helpers
-
     private func registerBase64VariantObjects(
         base64Symbol: SymbolID,
         symbols: SymbolTable,
@@ -615,8 +613,6 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName(entry.externalLinkName, for: sym)
         }
     }
-
-    // MARK: - Function registration helpers
 
     private func registerBase64MemberFunction(
         named name: String,

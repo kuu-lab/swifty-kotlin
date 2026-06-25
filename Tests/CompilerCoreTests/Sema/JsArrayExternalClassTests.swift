@@ -2,25 +2,6 @@
 import XCTest
 
 final class JsArrayExternalClassTests: XCTestCase {
-    private func makeSema(
-        source: String = "fun noop() {}"
-    ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected JsArray external class surface to resolve cleanly, got: \(diagnostics)"
-            )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     func testJsArrayClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "JsArray"].map { interner.intern($0) }

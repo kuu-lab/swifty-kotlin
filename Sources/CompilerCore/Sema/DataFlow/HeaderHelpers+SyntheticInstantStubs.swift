@@ -179,8 +179,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - Instant Helpers
-
     private func ensureInstantCompanionSymbol(
         ownerSymbol: SymbolID,
         symbols: SymbolTable,

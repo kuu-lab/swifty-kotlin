@@ -1,6 +1,5 @@
 public extension RuntimeABISpec {
     static let networkFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(name: "kk_http_client_new", parameters: [], returnType: .intptr, section: "Network"),
         RuntimeABIFunctionSpec(
             name: "kk_http_client_setConnectTimeoutMillis",
             parameters: [
@@ -33,26 +32,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "clientRaw", type: .intptr),
                 RuntimeABIParameter(name: "tokenRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_get",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "urlRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_post_async",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "urlRaw", type: .intptr),
-                RuntimeABIParameter(name: "bodyRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
             section: "Network"

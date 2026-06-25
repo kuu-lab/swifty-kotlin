@@ -665,6 +665,7 @@ extension CallLowerer {
                     || calleeStr == "reduceRightOrNull"
                     || calleeStr == "sumBy"
                     || calleeStr == "sumByDouble"
+                    || calleeStr == "onEachIndexed"
                 {
                     let originalCallBinding = sema.bindings.callBindings[exprID]
                     let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
@@ -700,6 +701,7 @@ extension CallLowerer {
                     case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
                     case "sumBy": "kk_string_sumBy"
                     case "sumByDouble": "kk_string_sumByDouble"
+                    case "onEachIndexed": "kk_string_onEachIndexed"
                     default: "kk_string_reduceRightOrNull"
                     }
                     instructions.append(.call(
@@ -818,6 +820,8 @@ extension CallLowerer {
                     ("kk_string_takeLastWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "dropWhile":
                     ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
+                case "onEach":
+                    ("kk_string_onEach", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":
                     ("kk_string_splitToSequence", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
