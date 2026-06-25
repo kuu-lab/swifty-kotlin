@@ -1073,6 +1073,38 @@ extension CallTypeChecker {
                 return finalType
             }
         }
+        // String stdlib: replaceRange(startIndex, endIndex, replacement) (STDLIB-TEXT-FN-062)
+        if args.count == 3, interner.resolve(calleeName) == "replaceRange" {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            let startType = sema.types.makeNonNullable(argTypes[0])
+            let endType = sema.types.makeNonNullable(argTypes[1])
+            let replacementType = sema.types.makeNonNullable(argTypes[2])
+            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+               sema.types.isSubtype(startType, sema.types.intType),
+               sema.types.isSubtype(endType, sema.types.intType),
+               sema.types.isSubtype(replacementType, sema.types.stringType)
+            {
+                if let boundType = tryBindSyntheticStringMemberFallback(
+                    id,
+                    calleeName: calleeName,
+                    receiverType: receiverTypeForCheck,
+                    args: args,
+                    argTypes: argTypes,
+                    range: range,
+                    ctx: ctx,
+                    expectedType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    safeCall: safeCall
+                ) {
+                    return boundType
+                }
+                let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
         // String stdlib: removeRange(startIndex, endIndex) (STDLIB-TEXT-EDGE-008)
         if args.count == 2, interner.resolve(calleeName) == "removeRange" {
             let receiverTypeForCheck = safeCall
