@@ -498,6 +498,16 @@ public extension RuntimeABISpec {
             section: "Comparator"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_comparable_compareTo",
+            parameters: [
+                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
+                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Comparator",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_primitive_compareTo",
             parameters: [
                 RuntimeABIParameter(name: "lhsRaw", type: .intptr),
