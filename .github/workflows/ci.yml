@@ -40,8 +40,8 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  smoke-tests:
-    name: Smoke Tests
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,22 +63,43 @@ jobs:
           key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
       - name: Show toolchain versions
         run: swift --version
+      - name: Build compiler and tests
+        run: swift build --build-tests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+
+  smoke-tests:
+    name: Smoke Tests
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Swift and LLVM
+        uses: ./.github/actions/setup-swift-llvm
+        with:
+          swift-version: "6.2"
+      - name: Cache SPM build artifacts
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+      - name: Show toolchain versions
+        run: swift --version
       - name: Run smoke tests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "4"
-        run: bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Smoke test reproduce hint
         if: always()
         run: |
           {
             echo '## Smoke test reproduce'
             echo '```bash'
-            echo 'SWIFT_TEST_PARALLEL=4 bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
+            echo 'SWIFT_TEST_PARALLEL=4 bash Scripts/swift_test.sh --skip-build --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
+    needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -107,13 +128,6 @@ jobs:
             build-jobs: "4"
     steps:
       - uses: actions/checkout@v4
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
@@ -129,19 +143,20 @@ jobs:
         env:
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        run: bash Scripts/swift_test.sh --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/swift_test.sh --skip-build --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --skip-build --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   diff-regression-shards:
     name: kotlinc Diff Regression Shard (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [build]
     runs-on: ubuntu-latest
     # Kotlin/Java tool downloads occasionally spike on GitHub-hosted runners.
     timeout-minutes: 60
@@ -161,13 +176,6 @@ jobs:
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
       - uses: actions/checkout@v4
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
@@ -211,8 +219,6 @@ jobs:
           java -version
           kotlinc -version
           test -f "$KOTLINC_CLASSPATH"
-      - name: Build compiler
-        run: swift build -Xswiftc -swift-version -Xswiftc 6
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
