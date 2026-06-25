@@ -2,6 +2,9 @@
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
 // kk_string_equals and kk_enum_valueOf_throw are used by synthesized valueOf(String).
 
+// STDLIB-TEXT-FN-016: String.equals(other: String?)
+// Returns raw 0/1 (not kk_box_bool) because the synthesized enum valueOf
+// branches on this result via jumpIfEqual with boolLiteral(false).
 @_cdecl("kk_string_equals")
 public func kk_string_equals(_ aRaw: Int, _ bRaw: Int) -> Int {
     if bRaw == runtimeNullSentinelInt {
