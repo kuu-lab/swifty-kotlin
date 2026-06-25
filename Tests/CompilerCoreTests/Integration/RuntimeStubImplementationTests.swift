@@ -2,8 +2,6 @@
 import Foundation
 import XCTest
 
-/// Tests verifying that LLVM codegen references runtime entry points externally
-/// rather than synthesizing private helper implementations.
 final class RuntimeStubImplementationTests: XCTestCase {
     private func makeSimpleModule(interner: StringInterner) -> KIRModule {
         let arena = KIRArena()

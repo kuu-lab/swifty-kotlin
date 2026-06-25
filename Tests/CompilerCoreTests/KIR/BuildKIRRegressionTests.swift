@@ -380,19 +380,4 @@ final class BuildKIRRegressionTests: XCTestCase {
         }
     }
 
-    // MARK: - Expression Variants Scenarios
-
-    // MARK: - Reified Type Token Scenarios
-
-    // MARK: - Default Argument Callee-Context Semantics (P5-56)
-
-    // MARK: - Nested Return Propagation (P5-48)
-
-    // MARK: - if/when Control Flow (P5-51)
-
-    // MARK: - Lambda / CallableRef Lowering (P5-20)
-
-    // MARK: - P5-39: vararg call lowering / ABI regression tests
-
-    // MARK: - P5-42: Local function scope registration and KIR generation
 }
