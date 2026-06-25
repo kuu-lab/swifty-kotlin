@@ -1774,5 +1774,30 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte — end-to-end codegen
+    func testCodegenCompilesUnsignedMinOfTopLevelCalls() throws {
+        let source = """
+        fun main() {
+            println(minOf(1u, 4000000000u) == 1u)
+            println(minOf(1u, 3u, 4000000000u) == 1u)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "UnsignedComparisonMinOf",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
+        }
+    }
+
     // MARK: - Private Helpers
 }

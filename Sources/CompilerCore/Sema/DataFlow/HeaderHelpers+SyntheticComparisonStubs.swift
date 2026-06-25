@@ -170,6 +170,14 @@ extension DataFlowSemaPhase {
             comparisonsPackageSymbol: comparisonsPackageSymbol
         )
 
+        registerSyntheticMinOfUnsignedStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            comparisonsPkg: comparisonsPkg,
+            comparisonsPackageSymbol: comparisonsPackageSymbol
+        )
+
         registerCompareValuesAndCompareValuesBy(
             symbols: symbols,
             types: types,
@@ -559,6 +567,56 @@ extension DataFlowSemaPhase {
             )
             registerSyntheticComparisonFunction(
                 named: "maxOf",
+                parameterTypes: [typeID, typeID],
+                returnType: typeID,
+                parameterNames: ["a", "other"],
+                valueParameterIsVararg: [false, true],
+                packageFQName: comparisonsPkg,
+                packageSymbol: comparisonsPackageSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
+    // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte (and UShort, UInt, ULong variants)
+    private func registerSyntheticMinOfUnsignedStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        comparisonsPkg: [InternedString],
+        comparisonsPackageSymbol: SymbolID
+    ) {
+        let unsignedTypes: [(String, TypeID)] = [
+            ("UByte", types.ubyteType),
+            ("UShort", types.ushortType),
+            ("UInt", types.uintType),
+            ("ULong", types.ulongType),
+        ]
+
+        for (_, typeID) in unsignedTypes {
+            registerSyntheticComparisonFunction(
+                named: "minOf",
+                parameterTypes: [typeID, typeID],
+                returnType: typeID,
+                parameterNames: ["a", "b"],
+                packageFQName: comparisonsPkg,
+                packageSymbol: comparisonsPackageSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticComparisonFunction(
+                named: "minOf",
+                parameterTypes: [typeID, typeID, typeID],
+                returnType: typeID,
+                parameterNames: ["a", "b", "c"],
+                packageFQName: comparisonsPkg,
+                packageSymbol: comparisonsPackageSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticComparisonFunction(
+                named: "minOf",
                 parameterTypes: [typeID, typeID],
                 returnType: typeID,
                 parameterNames: ["a", "other"],
