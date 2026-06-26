@@ -39,7 +39,7 @@ extension CodegenBackendIntegrationTests {
     func testCodegenStringSliceEmptyRange() throws {
         let source = """
         fun main() {
-            println("hello".slice(listOf<Int>()))
+            println("hello".slice(0 until 0))
             println("hello".slice(2..1))
         }
         """

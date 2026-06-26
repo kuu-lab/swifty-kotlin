@@ -10,5 +10,5 @@ fun main() {
 
     println("abcde".slice(1..3))    // bcd
     println("abcde".slice(listOf(4, 2, 0))) // eca
-    println("".slice(listOf<Int>())) // (empty)
+    println("".slice(0 until 0))     // (empty via empty range)
 }
