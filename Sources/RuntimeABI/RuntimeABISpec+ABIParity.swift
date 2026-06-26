@@ -1013,10 +1013,6 @@ public extension RuntimeABISpec {
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByteOrNull", parameters: [
-            p("strRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_string_toShort", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
