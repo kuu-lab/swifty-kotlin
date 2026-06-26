@@ -2258,12 +2258,6 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
-        let intCharToUnitType = types.make(.functionType(FunctionType(
-            params: [intType, charType],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         let intCharCharToCharType = types.make(.functionType(FunctionType(
             params: [intType, charType, charType],
             returnType: charType,
@@ -2649,17 +2643,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_onEach",
             receiverType: stringType,
             parameters: [("action", charToUnitType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // --- STDLIB-TEXT-FN-040: CharSequence.onEachIndexed(action: (Int, Char) -> Unit): S ---
-        registerSyntheticStringExtensionFunction(
-            named: "onEachIndexed",
-            externalLinkName: "kk_string_onEachIndexed",
-            receiverType: stringType,
-            parameters: [("action", intCharToUnitType, false, false)],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
@@ -3632,64 +3615,6 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
-
-        // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // --- STDLIB-316: String/CharSequence.zipWithNext ---
 
