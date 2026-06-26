@@ -35,7 +35,7 @@ final class FrontendPhasesTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path, path])
             XCTAssertNoThrow(try LoadSourcesPhase().run(ctx))
             // File should be loaded only once
-            // 1 user file (deduped) + 3 bundled stdlib files (collections + text + time)
+            // 1 user file (deduped) + 2 bundled stdlib files (collections + text)
             XCTAssertEqual(ctx.sourceManager.fileIDs().count, 4, "Duplicate paths should be loaded only once (+ bundled stdlib)")
         }
     }
