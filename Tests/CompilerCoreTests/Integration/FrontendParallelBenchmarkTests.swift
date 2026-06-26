@@ -93,7 +93,7 @@ final class FrontendParallelBenchmarkTests: XCTestCase {
         XCTAssertEqual(ctx.tokensByFile.count, 9, "Expected tokens for 9 files in parallel mode (5 user + 4 bundled stdlib)")
         XCTAssertEqual(ctx.syntaxTrees.count, 9, "Expected syntax trees for 9 files in parallel mode")
         let ast = try XCTUnwrap(ctx.ast)
-        XCTAssertEqual(ast.sortedFiles.count, 8, "Expected AST files for 8 files in parallel mode")
+        XCTAssertEqual(ast.sortedFiles.count, 9, "Expected AST files for 9 files in parallel mode")
 
         for (fileID, tokens) in ctx.tokensByFile {
             XCTAssertFalse(tokens.isEmpty, "Tokens should be populated for file \(fileID.rawValue)")
