@@ -1032,6 +1032,7 @@ extension ABIMismatchTests {
         "kk_string_replaceBeforeLast_char",
         "kk_string_replaceBefore_char",
         "kk_string_replaceFirst",
+        "kk_string_replaceFirst_ignoreCase",
         "kk_string_replaceIndent",
         "kk_string_replaceIndent_default",
         "kk_string_replace_char",
