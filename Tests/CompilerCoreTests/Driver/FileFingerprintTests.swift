@@ -3,6 +3,15 @@ import Foundation
 import XCTest
 
 final class FileFingerprintTests: XCTestCase {
+    // MARK: - Init
+
+    func testInitStoresProperties() {
+        let fp = FileFingerprint(path: "/tmp/a.kt", contentHash: "abc123", mtimeNanos: 999)
+        XCTAssertEqual(fp.path, "/tmp/a.kt")
+        XCTAssertEqual(fp.contentHash, "abc123")
+        XCTAssertEqual(fp.mtimeNanos, 999)
+    }
+
     // MARK: - Compute from file contents
 
     func testComputeFromContentsProducesConsistentHash() {
@@ -60,6 +69,16 @@ final class FileFingerprintTests: XCTestCase {
         let fp1 = FileFingerprint(path: "/a.kt", contentHash: "same", mtimeNanos: 100)
         let fp2 = FileFingerprint(path: "/a.kt", contentHash: "same", mtimeNanos: 200)
         XCTAssertFalse(fp1.contentChanged(from: fp2))
+    }
+
+    // MARK: - Equatable
+
+    func testEquatable() {
+        let fp1 = FileFingerprint(path: "/a.kt", contentHash: "abc", mtimeNanos: 100)
+        let fp2 = FileFingerprint(path: "/a.kt", contentHash: "abc", mtimeNanos: 100)
+        let fp3 = FileFingerprint(path: "/a.kt", contentHash: "xyz", mtimeNanos: 100)
+        XCTAssertEqual(fp1, fp2)
+        XCTAssertNotEqual(fp1, fp3)
     }
 
     // MARK: - Codable round-trip

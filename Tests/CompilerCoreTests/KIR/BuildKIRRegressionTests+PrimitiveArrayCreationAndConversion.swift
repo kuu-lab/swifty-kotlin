@@ -2,8 +2,15 @@
 import Foundation
 import XCTest
 
+// STDLIB-004: Codegen coverage for primitive array factory calls and
+// lambda constructors.  These tests verify the KIR lowering output so
+// that any regression in the array-creation code path is caught early.
 extension BuildKIRRegressionTests {
 
+    // MARK: - Factory functions → kk_array_of
+
+    /// `intArrayOf(1, 2, 3)` must lower to `kk_array_of`, the same vararg-
+    /// preserving runtime helper used by all `*ArrayOf` factories.
     func testIntArrayOfFactoryLowersToKkArrayOf() throws {
         let source = """
         fun make() = intArrayOf(1, 2, 3)
@@ -33,6 +40,7 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    /// `byteArrayOf(1.toByte(), 2.toByte())` must also lower to `kk_array_of`.
     func testByteArrayOfFactoryLowersToKkArrayOf() throws {
         let source = """
         fun make() = byteArrayOf(1.toByte(), 127.toByte())
@@ -58,6 +66,7 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    /// `charArrayOf('a', 'b', 'c')` must lower to `kk_array_of`.
     func testCharArrayOfFactoryLowersToKkArrayOf() throws {
         let source = """
         fun make() = charArrayOf('a', 'b', 'c')
@@ -83,6 +92,10 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    // MARK: - Lambda constructors → kk_array_new + kk_array_set
+
+    /// `IntArray(3) { it * 2 }` must lower to a `kk_array_new` call followed
+    /// by a loop that fills elements via `kk_array_set`.
     func testIntArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
         let source = """
         fun make() = IntArray(3) { it * 2 }
@@ -119,6 +132,8 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    /// `ByteArray(4) { (it + 1).toByte() }` exercises the same loop-based
+    /// constructor path for the byte-width primitive type.
     func testByteArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
         let source = """
         fun make() = ByteArray(4) { (it + 1).toByte() }
@@ -148,6 +163,10 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    // MARK: - List.toIntArray / List.toByteArray conversion lowering
+
+    /// `list.toIntArray()` must lower to the dedicated `kk_list_toIntArray`
+    /// runtime call rather than the generic `toIntArray` symbol.
     func testListToIntArrayLowersToRuntimeCall() throws {
         let source = """
         fun convert(list: List<Int>) = list.toIntArray()
@@ -177,6 +196,9 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    /// `intArray.toList()` must lower to a runtime `kk_*_toList` call.
+    /// The method resolver currently selects the generic `Array<T>.toList()` path
+    /// (`kk_array_toList`) rather than the IntArray-specific stub.
     func testIntArrayToListLowersToRuntimeCall() throws {
         let source = """
         fun convert(arr: IntArray) = arr.toList()

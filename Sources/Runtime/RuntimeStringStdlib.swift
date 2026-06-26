@@ -69,13 +69,6 @@ func runtimeStringTrimWithPredicate(
 
 // MARK: - STDLIB-006/009/013 String Functions
 
-// MARK: - STDLIB-TEXT-FN-026: intern
-
-@_cdecl("kk_string_intern")
-public func kk_string_intern(_ strRaw: Int) -> Int {
-    return strRaw
-}
-
 @_cdecl("kk_string_trim")
 public func kk_string_trim(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

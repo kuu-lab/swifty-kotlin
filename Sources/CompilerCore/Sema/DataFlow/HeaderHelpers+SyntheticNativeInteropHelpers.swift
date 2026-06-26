@@ -607,7 +607,6 @@ extension DataFlowSemaPhase {
         classTypeParameterCount: Int = 0,
         flags: SymbolFlags = [.synthetic],
         annotations: [MetadataAnnotationRecord] = [],
-        externalLinkName: String? = nil,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -628,9 +627,6 @@ extension DataFlowSemaPhase {
                 && signature.classTypeParameterCount == classTypeParameterCount
         }) {
             symbols.insertFlags(flags, for: existing)
-            if let externalLinkName {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-            }
             appendMetadataAnnotations(annotations, to: existing, symbols: symbols)
             return
         }
@@ -678,9 +674,6 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
-        if let externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        }
         appendMetadataAnnotations(annotations, to: functionSymbol, symbols: symbols)
     }
 

@@ -50,6 +50,8 @@ extension DataFlowSemaPhase {
         )
     }
 
+    // MARK: - Private helpers
+
     private func ensureOnErrorActionEnumClass(
         in pkg: [InternedString],
         symbols: SymbolTable,

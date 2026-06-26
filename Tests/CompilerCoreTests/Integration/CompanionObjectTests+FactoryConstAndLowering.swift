@@ -2,7 +2,10 @@
 import Foundation
 import XCTest
 
+// MARK: - CLASS-001: End-to-end companion object (factory, const val, singleton)
+
 extension CompanionObjectTests {
+    /// Verify `Foo.create()` companion factory resolves through sema with no errors.
     func testCompanionFactoryFunctionResolvesEndToEnd() throws {
         let source = """
         package test
@@ -24,6 +27,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify `Foo.MAX_COUNT` const val access resolves through sema with no errors.
     func testCompanionConstValAccessResolvesEndToEnd() throws {
         let source = """
         package test
@@ -45,6 +49,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Combined: factory function + const val in the same companion, used from main.
     func testCompanionFactoryAndConstValCombinedEndToEnd() throws {
         let source = """
         package test
@@ -68,6 +73,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify companion factory + const val lowers to KIR with companion init synthesized.
     func testCompanionFactoryAndConstValKIRLowering() throws {
         let source = """
         package test
@@ -96,17 +102,20 @@ extension CompanionObjectTests {
             return ctx.interner.resolve(function.name)
         }
 
+        // Companion initializer must be synthesized
         XCTAssertTrue(
             functionNames.contains(where: { $0.hasPrefix("__companion_init_") }),
             "Expected synthesized companion initializer, got: \(functionNames)"
         )
 
+        // The create function must be lowered
         XCTAssertTrue(
             functionNames.contains("create"),
             "Expected companion function 'create' in KIR, got: \(functionNames)"
         )
     }
 
+    /// Verify exactly one companion singleton init function is synthesized.
     func testCompanionSingletonInitSynthesizedExactlyOnce() throws {
         let source = """
         class Host {
@@ -128,6 +137,7 @@ extension CompanionObjectTests {
         )
 
         let module = try XCTUnwrap(ctx.kir)
+        // Verify companion init function exists
         let companionInits = module.arena.declarations.compactMap { decl -> String? in
             guard case let .function(function) = decl else { return nil }
             let name = ctx.interner.resolve(function.name)
@@ -140,6 +150,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Named companion object should resolve factory calls via `ClassName.factoryFn()`.
     func testNamedCompanionFactoryResolvesEndToEnd() throws {
         let source = """
         package test
@@ -161,6 +172,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Companion lowering through the full pipeline including LoweringPhase.
     func testCompanionObjectFullPipelineLowering() throws {
         let source = """
         class Foo(val x: Int) {
@@ -183,6 +195,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Companion object with property initializer generates correct KIR body.
     func testCompanionPropertyInitializerInKIRBody() throws {
         let source = """
         class Config {
@@ -203,6 +216,8 @@ extension CompanionObjectTests {
             )
 
             let module = try XCTUnwrap(ctx.kir)
+            // Find the companion init function and verify it has a copy instruction
+            // (property initialization writes the initial value)
             let companionInitFn = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else { return nil }
                 let name = ctx.interner.resolve(function.name)

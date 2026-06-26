@@ -2,7 +2,13 @@
 import Foundation
 import XCTest
 
+// MARK: - Block Expression Multi-Statement Evaluation Tests
+
+// Covers: P5-47 — block expression with multiple statements + trailing expression
+// Spec references: J6, J9, J11
+
 final class BlockExpressionTests: XCTestCase {
+    // MARK: - AST: single expression block always produces blockExpr
 
     func testSingleExpressionBlockProducesBlockExprNode() throws {
         let source = """
@@ -22,6 +28,8 @@ final class BlockExpressionTests: XCTestCase {
             XCTAssertTrue(foundBlockExpr, "Expected at least one blockExpr in AST")
         }
     }
+
+    // MARK: - if branch with multi-statement block (return pattern)
 
     func testIfBranchMultiStatementBlockReturnPattern() throws {
         let source = """
@@ -46,6 +54,8 @@ final class BlockExpressionTests: XCTestCase {
         }
     }
 
+    // MARK: - if branch with multi-statement block and String trailing expr (return pattern)
+
     func testIfBranchMultiStatementBlockStringTrailingExpr() throws {
         let source = """
         fun greet(): String {
@@ -65,6 +75,8 @@ final class BlockExpressionTests: XCTestCase {
             XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
+
+    // MARK: - when branch with multi-statement block
 
     func testWhenBranchMultiStatementBlockInfersTrailingExprType() throws {
         let source = """
@@ -92,6 +104,8 @@ final class BlockExpressionTests: XCTestCase {
         }
     }
 
+    // MARK: - try/catch with multi-statement block
+
     func testTryCatchMultiStatementBlockInfersTrailingExprType() throws {
         let source = """
         fun compute(): Int {
@@ -115,6 +129,8 @@ final class BlockExpressionTests: XCTestCase {
         }
     }
 
+    // MARK: - Empty block has Unit type
+
     func testEmptyBlockHasUnitType() throws {
         let source = """
         fun doNothing(): Unit {
@@ -132,6 +148,8 @@ final class BlockExpressionTests: XCTestCase {
         }
     }
 
+    // MARK: - Block expression with only declarations (no trailing expr -> Unit)
+
     func testBlockWithOnlyDeclarationsHasUnitType() throws {
         let source = """
         fun main(): Unit {
@@ -148,6 +166,8 @@ final class BlockExpressionTests: XCTestCase {
             XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
+
+    // MARK: - Multi-statement block with three val declarations and trailing expr
 
     func testThreeValDeclarationsAndTrailingExpr() throws {
         let source = """
@@ -171,6 +191,8 @@ final class BlockExpressionTests: XCTestCase {
         }
     }
 
+    // MARK: - Multi-statement block with var reassignment (return pattern)
+
     func testMultiStatementBlockWithVarReassignment() throws {
         let source = """
         fun compute(): Int {
@@ -192,6 +214,8 @@ final class BlockExpressionTests: XCTestCase {
         }
     }
 
+    // MARK: - if branch with single val and trailing expr (return pattern)
+
     func testIfBranchSingleValAndTrailingExpr() throws {
         let source = """
         fun compute(): Int {
@@ -211,6 +235,8 @@ final class BlockExpressionTests: XCTestCase {
             XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
+
+    // MARK: - try/catch both branches with multi-statement blocks
 
     func testTryCatchBothBranchesMultiStatement() throws {
         let source = """
@@ -233,6 +259,8 @@ final class BlockExpressionTests: XCTestCase {
             XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
+
+    // MARK: - when expression-body with multi-statement branches
 
     func testWhenExpressionBodyMultiStatementBranches() throws {
         let source = """
@@ -259,6 +287,8 @@ final class BlockExpressionTests: XCTestCase {
             XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
+
+    // MARK: - AST structure: blockExpr has statements and trailing expression
 
     func testBlockExprASTStructure() throws {
         let source = """

@@ -14,6 +14,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        // Ensure "kotlin" and "kotlin.io" packages exist.
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         if symbols.lookup(fqName: kotlinPkg) == nil {
             _ = symbols.define(
@@ -61,6 +62,7 @@ extension DataFlowSemaPhase {
         )))
         types.closeableTypeID = closeableType
 
+        // Register `fun close(): Unit` on Closeable.
         let closeName = interner.intern("close")
         let closeFQName = closeableFQName + [closeName]
         if symbols.lookup(fqName: closeFQName) == nil {

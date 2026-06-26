@@ -1,15 +1,5 @@
 
 /// Synthetic stubs for kotlin.text.HexFormat class, companion, and extension functions.
-///
-/// MIGRATION-ENC-002: Kotlin source for the extension functions (toHexString, hexToByteArray,
-/// hexTo*) now lives at Stdlib/kotlin/io/encoding/HexFormat.kt (migration target).
-/// That file is NOT yet wired into BundledKotlinStdlib / FrontendPhases — wiring is deferred
-/// to the follow-up RF-STDLIB task to avoid the JVM-erasure conflict between the private
-/// external fun kk_* declarations and the public extension functions in the same package.
-/// Until then these stubs remain the sole dispatch path for all HexFormat APIs.
-/// The HexFormat class, companion (Default), upperCase/bytes properties, and the HexFormat { }
-/// builder DSL will also remain synthetic because the builder lambda ABI (fnPtr / closureRaw)
-/// cannot yet be expressed as a typed external fun in Kotlin source.
 extension DataFlowSemaPhase {
     func registerSyntheticHexFormatStubs(
         symbols: SymbolTable,
@@ -257,6 +247,8 @@ extension DataFlowSemaPhase {
         )
     }
 
+    // MARK: - HexFormat Helpers
+
     private func ensureHexFormatKotlinTextPackage(
         symbols: SymbolTable,
         interner: StringInterner
@@ -294,6 +286,7 @@ extension DataFlowSemaPhase {
         if let existingCompanion = symbols.companionObjectSymbol(for: ownerSymbol),
            let companionInfo = symbols.symbol(existingCompanion)
         {
+            // Ensure Default field exists
             ensureHexFormatDefaultField(
                 companionSymbol: existingCompanion,
                 companionFQName: companionInfo.fqName,

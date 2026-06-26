@@ -3,6 +3,17 @@ import Foundation
 import XCTest
 
 final class RangeSyntheticMemberLinkTests: XCTestCase {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try XCTUnwrap(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     private func externalLink(
         for owner: String,
         member: String,

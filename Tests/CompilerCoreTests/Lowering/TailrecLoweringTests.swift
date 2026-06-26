@@ -54,6 +54,8 @@ final class TailrecLoweringTests: XCTestCase {
 
     // MARK: - Unit Tests (KIR level)
 
+    /// Verify that a tailrec function's self-recursive call + returnValue
+    /// is replaced by parameter copy + jump to loop head.
     func testTailrecRewritesSelfRecursiveCallToLoop() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -108,6 +110,7 @@ final class TailrecLoweringTests: XCTestCase {
             moduleName: "TailrecTest", interner: interner
         )
 
+        // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction {
                 return id == tailrecLoopLabelBase
@@ -116,6 +119,7 @@ final class TailrecLoweringTests: XCTestCase {
         }
         XCTAssertTrue(hasLoopLabel, "Expected loop-head label L\(tailrecLoopLabelBase)")
 
+        // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
             if case let .jump(target) = instruction {
                 return target == tailrecLoopLabelBase
@@ -124,6 +128,7 @@ final class TailrecLoweringTests: XCTestCase {
         }
         XCTAssertTrue(hasJumpBack, "Expected jump back to loop head")
 
+        // The self-recursive call should be gone.
         let hasSelfCall = lowered.body.contains { instruction in
             if case let .call(sym, _, _, _, _, _, _, _) = instruction, sym == fnSymbol {
                 return true
@@ -132,6 +137,7 @@ final class TailrecLoweringTests: XCTestCase {
         }
         XCTAssertFalse(hasSelfCall, "Self-recursive call should have been eliminated")
 
+        // There should be copy instructions for parameter reassignment.
         let copyCount = lowered.body.filter { instruction in
             if case .copy = instruction { return true }
             return false
@@ -204,6 +210,7 @@ final class TailrecLoweringTests: XCTestCase {
         )
     }
 
+    /// Verify that non-tailrec functions are NOT rewritten.
     func testNonTailrecFunctionIsNotModified() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -242,6 +249,7 @@ final class TailrecLoweringTests: XCTestCase {
         )
         let ctx = makeKIRContext(moduleName: "NonTailrecTest", interner: interner)
 
+        // shouldRun should return false.
         XCTAssertFalse(TailrecLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
@@ -403,6 +411,7 @@ final class TailrecLoweringTests: XCTestCase {
         }
         XCTAssertFalse(hasDefaultStubCall, "$default stub call with mask=0 should be eliminated by tailrec lowering")
 
+        // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction {
                 return id >= tailrecLoopLabelBase
@@ -411,6 +420,7 @@ final class TailrecLoweringTests: XCTestCase {
         }
         XCTAssertTrue(hasLoopLabel, "Expected loop-head label for mask=0 $default call")
 
+        // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
             if case let .jump(target) = instruction {
                 return target >= tailrecLoopLabelBase
@@ -584,6 +594,7 @@ final class TailrecLoweringTests: XCTestCase {
         }
         XCTAssertFalse(hasDefaultStubCall, "$default stub call with mask=0 should be eliminated (slow-path mask test)")
 
+        // The loop-head label and jump should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction { return id >= tailrecLoopLabelBase }
             return false
@@ -599,6 +610,8 @@ final class TailrecLoweringTests: XCTestCase {
 
     // MARK: - Sema warning test
 
+    /// Verify that KSWIFTK-SEMA-TAILREC warning is emitted when the last
+    /// expression is not a self-recursive call.
     func testSemaTailrecWarningOnNonRecursiveBody() throws {
         let source = """
         tailrec fun notRecursive(n: Int): Int {
@@ -620,6 +633,9 @@ final class TailrecLoweringTests: XCTestCase {
 
     // MARK: - E2E integration test
 
+    /// Compile a tailrec factorial function and verify that tailrec lowering
+    /// transforms the recursion into a loop in KIR (no self-recursive calls
+    /// remain and control flow uses a loop-head label with jump).
     func testTailrecFactorialLoweredToLoop() throws {
         let source = """
         tailrec fun fact(n: Int, acc: Int = 1): Int {

@@ -58,8 +58,6 @@ extension ABILoweringPass {
             interner.intern("kk_kclass_visibility"),
             interner.intern("kk_kclass_type_parameters"),
             interner.intern("kk_kclass_supertypes"),
-            // MIGRATION-REFLECT-002: KClass member introspection
-            interner.intern("kk_kclass_nested_classes"),
             // STDLIB-REFLECT-067: KClass type-kind introspection non-throwing callees
             interner.intern("kk_kclass_is_inner"),
             interner.intern("kk_kclass_is_companion"),

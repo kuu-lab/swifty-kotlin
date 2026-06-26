@@ -48,12 +48,15 @@ extension DataFlowSemaPhase {
         symbols.setSupertypeTypeArgs([.out(typeParamType)], for: collectionInterfaceSymbol, supertype: iterableInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: collectionInterfaceSymbol, supertype: iterableInterfaceSymbol)
 
+        // Register Collection<T> members: size, isEmpty, contains (STDLIB-295)
         let collectionReceiverType = types.make(.classType(ClassType(
             classSymbol: collectionInterfaceSymbol,
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
 
+        // Helper to define a synthetic Collection function member and register
+        // its parent + function signature in one place.
         func defineCollectionFunctionMember(
             name: String,
             parameterTypes: [TypeID],
@@ -88,7 +91,9 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Registered inline because size is a .property, not a function.
+        // size: Int — Kotlin val property, registered as .property kind.
+        // NOTE: size is registered inline (not via defineCollectionFunctionMember)
+        // because it is a property (.property kind), not a function.
         let sizeName = interner.intern("size")
         let sizeFQName = collectionFQName + [sizeName]
         if symbols.lookup(fqName: sizeFQName) == nil {
@@ -104,6 +109,7 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(types.intType, for: sizeSymbol)
         }
 
+        // isEmpty(): Boolean
         defineCollectionFunctionMember(
             name: "isEmpty",
             parameterTypes: [],
@@ -111,6 +117,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
 
+        // contains(element: E): Boolean — operator for Kotlin `in`.
         // Variance note: Collection declares `out E`, but contains() uses E in
         // parameter (contravariant) position. This matches Kotlin's own declaration
         // where `contains` has `@UnsafeVariance E` — the mismatch is intentional.
@@ -149,6 +156,7 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // random(): E
         defineCollectionFunctionMember(
             name: "random",
             parameterTypes: [],
@@ -157,6 +165,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_random"
         )
 
+        // randomOrNull(): E?
         defineCollectionFunctionMember(
             name: "randomOrNull",
             parameterTypes: [],
@@ -864,6 +873,7 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: iterableInterfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: iterableInterfaceSymbol)
 
+        // Register Iterator<T> interface (STDLIB-221)
         let iteratorName = interner.intern("Iterator")
         let iteratorFQName = kotlinCollectionsPkg + [iteratorName]
         let iteratorSymbol: SymbolID = if let existing = symbols.lookup(fqName: iteratorFQName) {
@@ -900,6 +910,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
+        // Iterable.iterator(): Iterator<E>
         let iterFnName = interner.intern("iterator")
         let iterFnFQName = iterableFQName + [iterFnName]
         if symbols.lookup(fqName: iterFnFQName) == nil {
@@ -945,6 +956,7 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // Iterator.hasNext(): Boolean
         let hasNextName = interner.intern("hasNext")
         let hasNextFQName = iteratorFQName + [hasNextName]
         if symbols.lookup(fqName: hasNextFQName) == nil {
@@ -969,6 +981,7 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // Iterator.next(): T
         let nextName = interner.intern("next")
         let nextFQName = iteratorFQName + [nextName]
         if symbols.lookup(fqName: nextFQName) == nil {
@@ -1046,6 +1059,7 @@ extension DataFlowSemaPhase {
         symbols.setSupertypeTypeArgs([.out(mutableIteratorTypeParamType)], for: mutableIteratorSymbol, supertype: iteratorSymbol)
         types.setNominalSupertypeTypeArgs([.out(mutableIteratorTypeParamType)], for: mutableIteratorSymbol, supertype: iteratorSymbol)
 
+        // MutableIterator.remove(): Unit
         let removeName = interner.intern("remove")
         let removeFQName = mutableIteratorFQName + [removeName]
         if symbols.lookup(fqName: removeFQName) == nil {
@@ -1164,14 +1178,20 @@ extension DataFlowSemaPhase {
         return mutableIterableSymbol
     }
 
-    /// Idempotent — creates `kotlin.sequences.Sequence<T>` and its `iterator()` member
-    /// only if not already present.
+    /// Ensure the synthetic `kotlin.sequences.Sequence<T>` interface stub exists,
+    /// including its `operator fun iterator(): Iterator<T>` member.
+    ///
+    /// This helper is idempotent: it creates the package, interface, type parameter,
+    /// and `iterator()` member only if they are not already present.  Callers that
+    /// need a `Sequence` return type (e.g., `asSequence()` on various collection
+    /// types) should call this first and use the returned `SymbolID`.
     func ensureSyntheticSequenceStub(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString]
     ) -> SymbolID {
+        // Step 1: Ensure the kotlin.sequences package exists.
         let kotlinSequencesPkg: [InternedString] = [
             interner.intern("kotlin"), interner.intern("sequences")
         ]
@@ -1186,6 +1206,7 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // Step 2: Ensure the Sequence interface exists.
         let sequenceName = interner.intern("Sequence")
         let sequenceFQName = kotlinSequencesPkg + [sequenceName]
         let sequenceSymbol: SymbolID = if let existing = symbols.lookup(fqName: sequenceFQName) {
@@ -1201,6 +1222,7 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // Step 3: Ensure the type parameter T on Sequence exists.
         let seqTypeParamName = interner.intern("T")
         let seqTypeParamFQName = sequenceFQName + [seqTypeParamName]
         if symbols.lookup(fqName: seqTypeParamFQName) == nil {
@@ -1216,8 +1238,10 @@ extension DataFlowSemaPhase {
             types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
         }
 
-        // Register iterator() independently of the type parameter block above,
-        // so it's added even when Sequence<T> was created elsewhere.
+        // Step 4: Ensure `operator fun iterator(): Iterator<T>` exists on Sequence,
+        // independently of whether the type parameter was newly created above.
+        // This prevents the case where Sequence<T> already exists (e.g., created
+        // elsewhere) but iterator() is missing.
         let iterFnName = interner.intern("iterator")
         let iterFnFQName = sequenceFQName + [iterFnName]
         if symbols.lookup(fqName: iterFnFQName) == nil {

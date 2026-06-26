@@ -114,6 +114,132 @@ extension ASTModelsTests {
         if case .enumEntryDecl = arena.decl(enumID) {} else { XCTFail("Expected enumEntryDecl") }
     }
 
+    // MARK: - Visibility enum all cases
+
+    func testVisibilityAllCases() {
+        XCTAssertEqual(Visibility.public.rawValue, 0)
+        XCTAssertEqual(Visibility.private.rawValue, 1)
+        XCTAssertEqual(Visibility.internal.rawValue, 2)
+        XCTAssertEqual(Visibility.protected.rawValue, 3)
+    }
+
+    func testVisibilityInitFromRawValue() {
+        XCTAssertEqual(Visibility(rawValue: 0), .public)
+        XCTAssertEqual(Visibility(rawValue: 1), .private)
+        XCTAssertEqual(Visibility(rawValue: 2), .internal)
+        XCTAssertEqual(Visibility(rawValue: 3), .protected)
+        XCTAssertNil(Visibility(rawValue: 4))
+        XCTAssertNil(Visibility(rawValue: -1))
+    }
+
+    // MARK: - Modifiers all flags and combinations
+
+    func testModifiersAllIndividualFlags() {
+        let allFlags: [(Modifiers, Int32)] = [
+            (.public, 1 << 0),
+            (.internal, 1 << 1),
+            (.private, 1 << 2),
+            (.protected, 1 << 3),
+            (.final, 1 << 4),
+            (.open, 1 << 5),
+            (.abstract, 1 << 6),
+            (.sealed, 1 << 7),
+            (.data, 1 << 8),
+            (.annotationClass, 1 << 9),
+            (.inline, 1 << 10),
+            (.suspend, 1 << 11),
+            (.tailrec, 1 << 12),
+            (.operator, 1 << 13),
+            (.infix, 1 << 14),
+            (.crossinline, 1 << 15),
+            (.noinline, 1 << 16),
+            (.vararg, 1 << 17),
+            (.external, 1 << 18),
+            (.expect, 1 << 19),
+            (.actual, 1 << 20),
+            (.value, 1 << 21),
+            (.enumModifier, 1 << 22),
+        ]
+        for (flag, expected) in allFlags {
+            XCTAssertEqual(flag.rawValue, expected, "Flag with rawValue \(flag.rawValue) expected \(expected)")
+        }
+    }
+
+    func testModifiersEmptySet() {
+        let empty: Modifiers = []
+        XCTAssertTrue(empty.isEmpty)
+        XCTAssertEqual(empty.rawValue, 0)
+        XCTAssertFalse(empty.contains(.public))
+    }
+
+    func testModifiersCombinationAccessModifiers() {
+        let combo: Modifiers = [.public, .final, .data]
+        XCTAssertTrue(combo.contains(.public))
+        XCTAssertTrue(combo.contains(.final))
+        XCTAssertTrue(combo.contains(.data))
+        XCTAssertFalse(combo.contains(.private))
+        XCTAssertFalse(combo.contains(.abstract))
+    }
+
+    func testModifiersCombinationFunctionModifiers() {
+        let combo: Modifiers = [.suspend, .inline, .tailrec, .operator, .infix]
+        XCTAssertTrue(combo.contains(.suspend))
+        XCTAssertTrue(combo.contains(.inline))
+        XCTAssertTrue(combo.contains(.tailrec))
+        XCTAssertTrue(combo.contains(.operator))
+        XCTAssertTrue(combo.contains(.infix))
+        XCTAssertFalse(combo.contains(.crossinline))
+    }
+
+    func testModifiersCombinationParameterModifiers() {
+        let combo: Modifiers = [.crossinline, .noinline, .vararg]
+        XCTAssertTrue(combo.contains(.crossinline))
+        XCTAssertTrue(combo.contains(.noinline))
+        XCTAssertTrue(combo.contains(.vararg))
+        XCTAssertFalse(combo.contains(.suspend))
+    }
+
+    func testModifiersCombinationPlatformModifiers() {
+        let combo: Modifiers = [.external, .expect, .actual]
+        XCTAssertTrue(combo.contains(.external))
+        XCTAssertTrue(combo.contains(.expect))
+        XCTAssertTrue(combo.contains(.actual))
+        XCTAssertFalse(combo.contains(.value))
+    }
+
+    func testModifiersCombinationClassModifiers() {
+        let combo: Modifiers = [.abstract, .sealed, .open, .value, .enumModifier, .annotationClass]
+        XCTAssertTrue(combo.contains(.abstract))
+        XCTAssertTrue(combo.contains(.sealed))
+        XCTAssertTrue(combo.contains(.open))
+        XCTAssertTrue(combo.contains(.value))
+        XCTAssertTrue(combo.contains(.enumModifier))
+        XCTAssertTrue(combo.contains(.annotationClass))
+        XCTAssertFalse(combo.contains(.final))
+    }
+
+    func testModifiersUnionAndIntersection() {
+        let a: Modifiers = [.public, .final]
+        let b: Modifiers = [.final, .data]
+        let union = a.union(b)
+        XCTAssertTrue(union.contains(.public))
+        XCTAssertTrue(union.contains(.final))
+        XCTAssertTrue(union.contains(.data))
+        let intersection = a.intersection(b)
+        XCTAssertTrue(intersection.contains(.final))
+        XCTAssertFalse(intersection.contains(.public))
+        XCTAssertFalse(intersection.contains(.data))
+    }
+
+    func testModifiersSymmetricDifference() {
+        let a: Modifiers = [.public, .final]
+        let b: Modifiers = [.final, .open]
+        let diff = a.symmetricDifference(b)
+        XCTAssertTrue(diff.contains(.public))
+        XCTAssertTrue(diff.contains(.open))
+        XCTAssertFalse(diff.contains(.final))
+    }
+
     // MARK: - TypeRef variants
 
     func testTypeRefNamedVariant() {

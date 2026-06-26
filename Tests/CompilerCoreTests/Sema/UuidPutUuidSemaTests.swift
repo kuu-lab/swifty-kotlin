@@ -2,8 +2,40 @@
 import Foundation
 import XCTest
 
+// MARK: - ByteArray.putUuid / ByteArray.uuid sema stub tests
+//
+// Verifies that the two kotlin.uuid extension functions on ByteArray are
+// registered with the correct ABI link names, receiver types, parameter types,
+// return types, and @ExperimentalUuidApi opt-in annotations.
+
 final class UuidPutUuidSemaTests: XCTestCase {
 
+    // MARK: - Shared fixture
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try XCTUnwrap(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
+    private func allExternalLinks(
+        fqPath: [String],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Set<String> {
+        let interned = fqPath.map { interner.intern($0) }
+        return Set(
+            sema.symbols.lookupAll(fqName: interned)
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
+    }
+
+    /// Finds the first symbol at `fqPath` whose receiver type matches `byteArraySymbol`.
     private func findByteArrayExtensionSymbol(
         fqPath: [String],
         byteArraySymbol: SymbolID,

@@ -98,4 +98,12 @@ final class CompilationContextTests: XCTestCase {
         XCTAssertEqual(ctx.frontendJobs, 4)
     }
 
+    // MARK: - phaseTimer
+
+    func testPhaseTimerCanBeSet() {
+        let ctx = makeCompilationContext(inputs: ["/a.kt"])
+        XCTAssertNil(ctx.phaseTimer)
+        ctx.phaseTimer = PhaseTimer()
+        XCTAssertNotNil(ctx.phaseTimer)
+    }
 }

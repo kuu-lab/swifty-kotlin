@@ -86,6 +86,72 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // MIGRATION-TEXT-008: flatMap / fold / reduce / scan / forEach / onEach
+    func testCodegenStringSourceHOFAccumulationsAndIteration() throws {
+        let source = """
+        fun main() {
+            println("abc".flatMap { listOf(it, it) })
+            var foldCount = 0
+            println("abc".fold("seed") { acc, ch -> foldCount = foldCount + 1; acc })
+            println(foldCount)
+            var foldIndexedCount = 0
+            println("abc".foldIndexed("seed") { index, acc, ch -> foldIndexedCount = foldIndexedCount + 1; acc })
+            println(foldIndexedCount)
+            println("abc".reduce { acc, ch -> if (ch > acc) ch else acc })
+            println("abc".reduceIndexed { index, acc, ch -> if (index == 1) ch else acc })
+            println("abc".scan(0) { acc, ch -> acc })
+            println("abc".scanIndexed(0) { index, acc, ch -> acc })
+            println("abc".runningFold("seed") { acc, ch -> acc })
+            println("abc".runningFoldIndexed("seed") { index, acc, ch -> acc })
+            println("abc".runningReduce { acc, ch -> if (ch > acc) ch else acc })
+            println("abc".runningReduceIndexed { index, acc, ch -> if (index > 0) ch else acc })
+            var trace = ""
+            "ab".forEach { ch -> trace = trace + ch.toString() }
+            println(trace)
+            "cd".forEachIndexed { index, ch -> trace = trace + index.toString() + ch.toString() }
+            println(trace)
+            println("xy".onEach { ch -> trace = trace + ch.toString() })
+            println("z".onEachIndexed { index, ch -> trace = trace + index.toString() + ch.toString() })
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringHOFSourceText008",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                [a, a, b, b, c, c]
+                seed
+                3
+                seed
+                3
+                c
+                b
+                [0, 0, 0, 0]
+                [0, 0, 0, 0]
+                [seed, seed, seed, seed]
+                [seed, seed, seed, seed]
+                [a, b, c]
+                [a, b, c]
+                ab
+                ab0c1d
+                xy
+                z
+                """
+                + "\n"
+            )
+        }
+    }
+
     // TEST-TEXT-018: all / any / none / count
     func testCodegenStringPredicateAggregates() throws {
         let source = """

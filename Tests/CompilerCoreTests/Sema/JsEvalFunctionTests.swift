@@ -2,6 +2,23 @@
 import XCTest
 
 final class JsEvalFunctionTests: XCTestCase {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnostics = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected eval synthetic function surface to resolve cleanly, got: \(diagnostics)"
+            )
+            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     func testEvalFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let packageFQName = ["kotlin", "js"].map { interner.intern($0) }

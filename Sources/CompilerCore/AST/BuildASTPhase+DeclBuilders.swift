@@ -28,7 +28,6 @@ extension BuildASTPhase {
             typeParams: typeParams,
             primaryConstructorParams: primaryConstructorParams,
             primaryConstructorModifiers: declarationPrimaryConstructorModifiers(from: nodeID, in: arena),
-            primaryConstructorAnnotations: declarationPrimaryConstructorAnnotations(from: nodeID, in: arena, interner: interner),
             hasPrimaryConstructorSyntax: declarationHasPrimaryConstructorSyntax(from: nodeID, in: arena),
             superTypeEntries: declarationSuperTypeEntries(from: nodeID, in: arena, interner: interner, astArena: astArena),
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
@@ -42,56 +41,6 @@ extension BuildASTPhase {
             nestedObjects: members.nestedObjects,
             companionObject: members.companionObject
         )
-    }
-
-    /// Extracts annotations placed on the primary constructor in a class header,
-    /// e.g. `class Foo @Inject constructor()`.
-    func declarationPrimaryConstructorAnnotations(
-        from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
-    ) -> [AnnotationNode] {
-        let tokens = collectTokens(from: nodeID, in: arena)
-        var sawClassKeyword = false
-        var sawClassName = false
-        var angleBracketDepth = 0
-        var annotations: [AnnotationNode] = []
-        var index = 0
-
-        while index < tokens.count {
-            let token = tokens[index]
-            if !sawClassKeyword {
-                if case .keyword(.class) = token.kind { sawClassKeyword = true }
-                index += 1
-                continue
-            }
-            if !sawClassName {
-                if case .identifier = token.kind { sawClassName = true }
-                else if case .backtickedIdentifier = token.kind { sawClassName = true }
-                index += 1
-                continue
-            }
-            if token.kind == .symbol(.lessThan) { angleBracketDepth += 1; index += 1; continue }
-            if token.kind == .symbol(.greaterThan) { angleBracketDepth = max(0, angleBracketDepth - 1); index += 1; continue }
-            if angleBracketDepth > 0 { index += 1; continue }
-            switch token.kind {
-            case .keyword(.constructor), .softKeyword(.constructor),
-                 .symbol(.lParen), .symbol(.colon), .symbol(.lBrace):
-                return annotations
-            case .symbol(.at):
-                if let parsed = AnnotationParsingSupport.parseAnnotation(
-                    from: tokens, start: index, interner: interner, allowUseSiteTarget: false
-                ) {
-                    annotations.append(parsed.annotation)
-                    index = parsed.nextIndex
-                } else {
-                    index += 1
-                }
-                continue
-            default:
-                break
-            }
-            index += 1
-        }
-        return annotations
     }
 
     /// Extracts modifiers attached to the primary constructor declaration in a
@@ -561,22 +510,9 @@ extension BuildASTPhase {
             return
         }
 
-        // Parse leading annotations (e.g. @field:FieldMark, @Deprecated("msg"))
-        // and skip past them so their colons are not confused with the name:type colon.
-        var parsedAnnotations: [AnnotationNode] = []
-        var annotationScanIndex = 0
-        while annotationScanIndex < withoutDefault.count,
-              withoutDefault[annotationScanIndex].kind == .symbol(.at) {
-            if let parsed = AnnotationParsingSupport.parseAnnotation(
-                from: withoutDefault, start: annotationScanIndex, interner: interner, allowUseSiteTarget: true
-            ) {
-                parsedAnnotations.append(parsed.annotation)
-                annotationScanIndex = parsed.nextIndex
-            } else {
-                annotationScanIndex += 1
-            }
-        }
-        let afterAnnotations = annotationScanIndex
+        // Skip leading annotations (e.g. @field:FieldMark, @Deprecated("msg"))
+        // so their colons are not confused with the parameter name:type colon.
+        let afterAnnotations = skipLeadingAnnotations(in: withoutDefault)
 
         let colonIndex = withoutDefault[afterAnnotations...].firstIndex(where: { token in
             if case .symbol(.colon) = token.kind {
@@ -643,8 +579,7 @@ extension BuildASTPhase {
             isMutableProperty: isVarProperty,
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
-            defaultValue: defaultValueExpr,
-            annotations: parsedAnnotations
+            defaultValue: defaultValueExpr
         ))
     }
 

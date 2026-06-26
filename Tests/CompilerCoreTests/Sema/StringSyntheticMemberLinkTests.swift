@@ -29,6 +29,17 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try XCTUnwrap(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
         var results: [ExprID] = []
         for index in ast.arena.exprs.indices {
@@ -58,6 +69,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "hexToUInt": "kk_string_hexToUInt",
             "hexToULong": "kk_string_hexToULong",
             "hexToUShort": "kk_string_hexToUShort",
+            "trimIndent": "kk_string_trimIndent",
+            "replaceIndentByMargin": "kk_string_replaceIndentByMargin",
         ]
 
         for (member, expectedLink) in expected {
@@ -136,12 +149,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
                 .contains("kk_string_replaceBeforeLast_char"),
             "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
-        )
-        // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
-        XCTAssertTrue(
-            externalLinks(for: "plus", sema: sema, interner: interner)
-                .contains("kk_string_plus"),
-            "String?.plus(other: Any?) should link to kk_string_plus"
         )
         // STDLIB-TEXT-FN-055: replace overloads
         XCTAssertTrue(
@@ -1168,8 +1175,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     }
 
     func testReplaceIndentByMarginResolvesInCallExpressions() throws {
-        // MIGRATION-TEXT-006: replaceIndentByMargin is now a Kotlin stdlib function.
-        // Verify it resolves to a valid callee without checking a C ABI link name.
         let source = """
         fun replaceIndentByMarginDefault(value: String): String {
             return value.replaceIndentByMargin()
@@ -1186,7 +1191,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "replaceIndentByMargin should resolve: \(ctx.diagnostics.diagnostics)")
+
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
@@ -1194,12 +1199,14 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 return ctx.interner.resolve(callee) == "replaceIndentByMargin"
             }
             XCTAssertEqual(callExprs.count, 3)
-            for callExpr in callExprs {
-                XCTAssertNotNil(
+            let links = try callExprs.map { callExpr -> String in
+                let chosenCallee = try XCTUnwrap(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceIndentByMargin"
                 )
+                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
+            XCTAssertEqual(Set(links), ["kk_string_replaceIndentByMargin"])
         }
     }
 

@@ -88,10 +88,6 @@ extension CallLowerer {
             }
         }
 
-        if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("kk_comparable_compareTo")
-        }
-
         if memberName == "binarySearch",
            let runtimeName = arrayBinarySearchRuntimeName(
                for: nonNullReceiverType,

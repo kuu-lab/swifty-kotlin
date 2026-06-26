@@ -13,11 +13,11 @@ final class AnalyzerTests: XCTestCase {
         """
         let analysis = Analyzer().analyze(uri: uri, text: source)
 
-        XCTAssertNotNil(analysis.context.ast)
-        XCTAssertNotNil(analysis.fileID)
+        XCTAssertNotNil(analysis.context.ast, "Frontend should build an AST for valid input")
+        XCTAssertNotNil(analysis.fileID, "The analyzed document should be registered in the source manager")
 
         let errors = analysis.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(errors.isEmpty, "\(errors)")
+        XCTAssertTrue(errors.isEmpty, "Valid program should not produce error diagnostics: \(errors)")
     }
 
     func testAnalyzeReportsDiagnosticsForBrokenProgram() {
@@ -30,11 +30,11 @@ final class AnalyzerTests: XCTestCase {
         let analysis = Analyzer().analyze(uri: uri, text: source)
         let diagnostics = DiagnosticsFeature.lspDiagnostics(for: analysis)
 
-        XCTAssertFalse(diagnostics.isEmpty)
+        XCTAssertFalse(diagnostics.isEmpty, "Malformed program should produce diagnostics")
         for diagnostic in diagnostics {
             XCTAssertEqual(diagnostic.source, "kswiftk")
-            XCTAssertNotNil(diagnostic.severity)
-            XCTAssertNotNil(diagnostic.code)
+            XCTAssertNotNil(diagnostic.severity, "Each diagnostic should carry an LSP severity")
+            XCTAssertNotNil(diagnostic.code, "Each diagnostic should carry a KSWIFTK code")
         }
     }
 

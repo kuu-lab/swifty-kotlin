@@ -251,15 +251,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_readonly_set_toMutableSet",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_list_to_mutable_set",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),

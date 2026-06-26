@@ -30,6 +30,9 @@ public extension RuntimeABISpec {
             p("p0", .intptr),
             p("p1", .intptr),
         ]),
+        abiParitySpec("kk_kclass_js", parameters: [
+            p("kclassRaw", .intptr),
+        ]),
         abiParitySpec("kk_annotation_class_name", parameters: [
             p("p0", .intptr),
         ]),
@@ -698,10 +701,6 @@ public extension RuntimeABISpec {
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_kclass_nested_classes", parameters: [
-            p("kclassRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_kclass_type_parameters", parameters: [
             p("kclassRaw", .intptr),
         ],
@@ -868,12 +867,10 @@ public extension RuntimeABISpec {
             isThrowing: false),
         abiParitySpec("kk_pin_object", parameters: [
             p("objectRaw", .intptr),
-        ],
-            isThrowing: false),
+        ]),
         abiParitySpec("kk_pinned_get", parameters: [
             p("pinnedHandle", .intptr),
-        ],
-            isThrowing: false),
+        ]),
         abiParitySpec("kk_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
@@ -1013,6 +1010,10 @@ public extension RuntimeABISpec {
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        abiParitySpec("kk_string_toByteOrNull", parameters: [
+            p("strRaw", .intptr),
+        ],
+            isThrowing: false),
         abiParitySpec("kk_string_toShort", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -1065,8 +1066,7 @@ public extension RuntimeABISpec {
             isThrowing: false),
         abiParitySpec("kk_unpin_object", parameters: [
             p("pinnedHandle", .intptr),
-        ],
-            isThrowing: false),
+        ]),
         abiParitySpec("kk_worker_execute", parameters: [
             p("workerHandle", .intptr),
             p("modeRaw", .intptr),

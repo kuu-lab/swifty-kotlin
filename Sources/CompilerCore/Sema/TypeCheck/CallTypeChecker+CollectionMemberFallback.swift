@@ -883,6 +883,7 @@ extension CallTypeChecker {
             knownNames.getValue,
             knownNames.getOrDefault,
             interner.intern("plus"),
+            interner.intern("minus"),
         ]
         if listOnlyMembers.contains(memberName) {
             return isListReceiver
@@ -895,9 +896,6 @@ extension CallTypeChecker {
         }
         if memberName == interner.intern("elementAtOrElse") {
             return isListReceiver
-        }
-        if memberName == interner.intern("minus") {
-            return isMapReceiver || isListReceiver || isSetReceiver
         }
         if mapOnlyMembers.contains(memberName) {
             return isMapReceiver
@@ -1080,10 +1078,8 @@ extension CallTypeChecker {
             return (isMutableListReceiver || isMutableSetReceiver) && argCount == 0
         case knownNames.putAll:
             return isMutableMapReceiver && argCount == 1
-        case interner.intern("plus"):
+        case interner.intern("plus"), interner.intern("minus"):
             return isMapReceiver && argCount == 1
-        case interner.intern("minus"):
-            return (isMapReceiver || isListReceiver || isSetReceiver) && argCount == 1
         case interner.intern("fold"), interner.intern("foldRight"), interner.intern("foldIndexed"), interner.intern("foldRightIndexed"), interner.intern("scan"), interner.intern("scanIndexed"), interner.intern("runningFold"), interner.intern("runningFoldIndexed"), interner.intern("subList"):
             return argCount == 2
         case interner.intern("slice"):

@@ -104,6 +104,9 @@ extension KIRLoweringDriver {
         let ast = shared.ast
         let sema = shared.sema
         let arena = shared.arena
+        let isBundledStdlibFile = compilationCtx.sourceManager
+            .path(of: file.fileID)
+            .hasPrefix("__bundled_")
 
         var declIDs: [KIRDeclID] = []
         for declID in file.topLevelDecls {
@@ -134,7 +137,8 @@ extension KIRLoweringDriver {
 
             case let .funDecl(function):
                 declIDs.append(contentsOf: lowerTopLevelFunDecl(
-                    function, symbol: symbol, shared: shared
+                    function, symbol: symbol, shared: shared,
+                    isBundledStdlib: isBundledStdlibFile
                 ))
 
             case let .propertyDecl(propertyDecl):

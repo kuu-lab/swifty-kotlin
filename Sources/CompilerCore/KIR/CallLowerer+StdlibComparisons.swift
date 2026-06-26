@@ -439,6 +439,7 @@ extension CallLowerer {
             instructions: &instructions
         )
 
+        // Step 1: tmp = maxOf(a, b) / minOf(a, b)
         let cond1 = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
         instructions.append(.binary(op: comparisonOp, lhs: aExpr, rhs: bExpr, result: cond1))
 
@@ -453,6 +454,7 @@ extension CallLowerer {
         instructions.append(.copy(from: bExpr, to: tmp))
         instructions.append(.label(afterFirstLabel))
 
+        // Step 2: result = maxOf(tmp, c) / minOf(tmp, c)
         let cond2 = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
         instructions.append(.binary(op: comparisonOp, lhs: tmp, rhs: cExpr, result: cond2))
 

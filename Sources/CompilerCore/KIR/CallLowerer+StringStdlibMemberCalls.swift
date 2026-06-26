@@ -299,7 +299,6 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 let calleeStr = interner.resolve(calleeName)
-
                 if calleeStr == "toInt" {
                     instructions.append(.call(
                         symbol: nil,
@@ -351,17 +350,6 @@ extension CallLowerer {
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toBigInteger" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toBigInteger"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
                         thrownResult: nil
                     ))
                     return result
@@ -572,17 +560,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "intern" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_intern"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "trim" {
                     instructions.append(.call(
                         symbol: nil,
@@ -654,7 +631,6 @@ extension CallLowerer {
                     || calleeStr == "reduceRightOrNull"
                     || calleeStr == "sumBy"
                     || calleeStr == "sumByDouble"
-                    || calleeStr == "onEachIndexed"
                 {
                     let originalCallBinding = sema.bindings.callBindings[exprID]
                     let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
@@ -690,7 +666,6 @@ extension CallLowerer {
                     case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
                     case "sumBy": "kk_string_sumBy"
                     case "sumByDouble": "kk_string_sumByDouble"
-                    case "onEachIndexed": "kk_string_onEachIndexed"
                     default: "kk_string_reduceRightOrNull"
                     }
                     instructions.append(.call(
@@ -791,14 +766,7 @@ extension CallLowerer {
                 case "matches":
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
 
-                case "mapIndexed":
-                    ("kk_string_mapIndexed", [loweredReceiverID] + normalizedArgIDs)
-                case "mapNotNull":
-                    ("kk_string_mapNotNull", [loweredReceiverID] + normalizedArgIDs)
-                case "filterIndexed":
-                    ("kk_string_filterIndexed", [loweredReceiverID] + normalizedArgIDs)
-                case "filterNot":
-                    ("kk_string_filterNot", [loweredReceiverID] + normalizedArgIDs)
+
                 case "indexOfFirst":
                     ("kk_string_indexOfFirst", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfLast":
@@ -809,8 +777,6 @@ extension CallLowerer {
                     ("kk_string_takeLastWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "dropWhile":
                     ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
-                case "onEach":
-                    ("kk_string_onEach", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":
                     ("kk_string_splitToSequence", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
@@ -872,6 +838,7 @@ extension CallLowerer {
                 }
                 if let runtimeCall {
                     let stringHOFCanThrow = calleeStr == "indexOfFirst"
+                        || calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"

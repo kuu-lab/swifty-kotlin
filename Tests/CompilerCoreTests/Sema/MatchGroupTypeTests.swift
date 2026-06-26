@@ -8,6 +8,20 @@ import XCTest
 /// and that source-level access through `MatchResult.groups[..]` type-checks
 /// without diagnostics.
 final class MatchGroupTypeTests: XCTestCase {
+
+    // MARK: - Shared sema fixture
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try XCTUnwrap(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     // MARK: - 1. Class symbol registration
 
     func testMatchGroupClassSymbolIsRegistered() throws {

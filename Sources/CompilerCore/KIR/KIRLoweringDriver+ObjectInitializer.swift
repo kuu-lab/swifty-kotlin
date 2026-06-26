@@ -192,6 +192,8 @@ extension KIRLoweringDriver {
         return nil
     }
 
+    // MARK: - Helpers
+
     private func emitObjectBodyInitializers(
         _ objectDecl: ObjectDecl,
         shared: KIRLoweringSharedContext,

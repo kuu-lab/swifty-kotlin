@@ -3,8 +3,8 @@ import Foundation
 import XCTest
 
 /// STDLIB-TEXT-FN-001: Validates that `CharSequence.all(predicate)` resolves
-/// through Sema for String receivers and lowers to the runtime helper
-/// `kk_string_all`. The synthetic surface signature is
+/// through Sema for String receivers and lowers through the bundled Kotlin
+/// source implementation. The source surface signature is
 /// `String.all(predicate: (Char) -> Boolean): Boolean`.
 final class StringAllFunctionTests: XCTestCase {
     private func allMemberCallExprIDs(
@@ -62,9 +62,9 @@ final class StringAllFunctionTests: XCTestCase {
         }
     }
 
-    /// Sema should expose `String.all` as a synthetic extension function whose
-    /// external link name is `kk_string_all`.
-    func testStringAllLinksToRuntimeHelper() throws {
+    /// Sema should expose `String.all` as a bundled Kotlin source extension
+    /// function instead of a synthetic runtime ABI stub.
+    func testStringAllResolvesToBundledSourceFunction() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -80,19 +80,19 @@ final class StringAllFunctionTests: XCTestCase {
                     else { return false }
                     return signature.returnType == sema.types.booleanType
                 },
-                "Expected String.all synthetic to be registered"
+                "Expected String.all bundled source function to be registered"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: stringReceiverSymbol),
-                "kk_string_all"
+            XCTAssertNil(sema.symbols.externalLinkName(for: stringReceiverSymbol))
+            XCTAssertFalse(
+                sema.symbols.symbol(stringReceiverSymbol)?.flags.contains(.synthetic) ?? true,
+                "String.all should now be a parsed Kotlin source function"
             )
         }
     }
 
-    /// Lowering should emit a `kk_string_all` call site for each invocation in
-    /// the source program and propagate the throw flag so that thrown
-    /// exceptions from the predicate can bubble up.
-    func testStringAllLowersToRuntimeHelper() throws {
+    /// Lowering should keep `String.all` as a source function call and avoid
+    /// reintroducing the old `kk_string_all` runtime ABI call site.
+    func testStringAllDoesNotLowerToRuntimeHelper() throws {
         let source = """
         fun main() {
             val numeric = "123"
@@ -108,12 +108,11 @@ final class StringAllFunctionTests: XCTestCase {
 
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let allFlags = try XCTUnwrap(
-                throwFlags["kk_string_all"],
-                "Expected kk_string_all call sites to appear in main()"
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            XCTAssertFalse(
+                callees.contains("kk_string_all"),
+                "String.all should lower through bundled Kotlin source, got: \(callees)"
             )
-            XCTAssertEqual(allFlags.count, 2, "Expected two kk_string_all invocations")
         }
     }
 }

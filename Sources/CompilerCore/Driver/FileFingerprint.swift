@@ -35,6 +35,8 @@ public struct FileFingerprint: Equatable, Codable {
         contentHash != other.contentHash
     }
 
+    // MARK: - Private helpers
+
     private static func sha256Hex(_ data: Data) -> String {
         if data.isEmpty {
             return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"

@@ -13,6 +13,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         comparableSymbol: SymbolID
     ) {
+        // Set up primitive types to implement Comparable<Self>
         let kotlinPkg = [interner.intern("kotlin")]
 
         let primitiveTypeNames = ["Int", "Long", "Double", "Float", "Char", "Boolean", "UInt", "ULong", "UByte", "UShort"]
@@ -20,6 +21,7 @@ extension DataFlowSemaPhase {
         for typeName in primitiveTypeNames {
             let primitiveSymbol = ensureClassSymbol(named: typeName, in: kotlinPkg, symbols: symbols, interner: interner)
 
+            // Set up Comparable<Self> as a supertype
             let primitiveType = types.make(.classType(ClassType(
                 classSymbol: primitiveSymbol,
                 args: [],
@@ -68,6 +70,7 @@ extension DataFlowSemaPhase {
             for: compareToSymbol
         )
 
+        // Register null-safe comparison extensions
         registerNullSafeComparisonExtensions(
             symbols: symbols,
             types: types,
@@ -86,6 +89,7 @@ extension DataFlowSemaPhase {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         let extensionsPkg = kotlinPkg + [interner.intern("comparisons")]
 
+        // Ensure comparisons package exists
         if symbols.lookup(fqName: extensionsPkg) == nil {
             _ = symbols.define(
                 kind: .package,
@@ -97,6 +101,7 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // Register null-safe compareTo for nullable types
         registerNullSafeCompareTo(
             symbols: symbols,
             types: types,
@@ -147,6 +152,7 @@ extension DataFlowSemaPhase {
         )))
         let nullableFunctionTParamType = types.makeNullable(functionTParamType)
 
+        // Create upper bound: T : Comparable<T>
         let comparableUpperBounds: [TypeID] = [types.make(.classType(ClassType(
             classSymbol: comparableSymbol,
             args: [.in(functionTParamType)],

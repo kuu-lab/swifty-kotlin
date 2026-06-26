@@ -74,37 +74,7 @@ extension BuildASTPhase {
         var entries: [EnumEntryDecl] = []
         entries.reserveCapacity(segments.count)
         for segment in segments {
-            // Skip segments that contain declaration keywords — these are class member
-            // declarations that appear in non-enum class bodies, not enum entries.
-            let hasDeclKeyword = segment.contains(where: { token in
-                switch token.kind {
-                case .keyword(.val), .keyword(.var), .keyword(.fun),
-                     .keyword(.class), .keyword(.object), .keyword(.interface),
-                     .keyword(.typealias), .keyword(.constructor), .softKeyword(.constructor):
-                    return true
-                default:
-                    return false
-                }
-            })
-            if hasDeclKeyword { continue }
-
-            var annotations: [AnnotationNode] = []
-            var annotIndex = 0
-            while annotIndex < segment.count, segment[annotIndex].kind == .symbol(.at) {
-                if let parsed = AnnotationParsingSupport.parseAnnotation(
-                    from: segment, start: annotIndex, interner: interner, allowUseSiteTarget: false
-                ) {
-                    // Skip annotations that had an invalid (property) use-site target —
-                    // those belong to property declarations, not enum entries.
-                    if !parsed.hadInvalidUseSiteTarget {
-                        annotations.append(parsed.annotation)
-                    }
-                    annotIndex = parsed.nextIndex
-                } else {
-                    annotIndex += 1
-                }
-            }
-            guard let nameToken = segment[annotIndex...].first(where: { token in
+            guard let nameToken = segment.first(where: { token in
                 internedIdentifier(from: token, interner: interner) != nil
             }), let name = internedIdentifier(from: nameToken, interner: interner) else {
                 continue
@@ -112,8 +82,7 @@ extension BuildASTPhase {
             let end = segment.last?.range.end ?? nameToken.range.end
             entries.append(EnumEntryDecl(
                 range: SourceRange(start: nameToken.range.start, end: end),
-                name: name,
-                annotations: annotations
+                name: name
             ))
         }
         return entries

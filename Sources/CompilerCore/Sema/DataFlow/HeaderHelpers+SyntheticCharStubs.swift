@@ -604,6 +604,8 @@ extension DataFlowSemaPhase {
         )
     }
 
+    // MARK: - STDLIB-003-ABI-001/002/003 registration helpers
+
     /// Register `fun Char.digitToInt(radix: Int): Int` synthetic stub.
     func registerDigitToIntRadixStub(
         symbols: SymbolTable,
@@ -764,6 +766,8 @@ extension DataFlowSemaPhase {
         }
         return enumType
     }
+
+    // MARK: - Native Char.Companion helpers
 
     private func registerNativeCharCompanionHelpers(
         symbols: SymbolTable,

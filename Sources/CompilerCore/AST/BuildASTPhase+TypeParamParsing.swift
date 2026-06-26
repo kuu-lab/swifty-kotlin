@@ -17,6 +17,8 @@ extension BuildASTPhase {
         return []
     }
 
+    // MARK: - Type parameter token parsing helpers
+
     private func parseTypeParamTokens(
         _ tokens: [Token],
         interner: StringInterner,
@@ -144,6 +146,8 @@ extension BuildASTPhase {
         return parseWhereClauseEntries(tokens: tokens, startIndex: startIndex,
                                        interner: interner, astArena: astArena)
     }
+
+    // MARK: - Where clause helpers
 
     private func findWhereKeywordIndex(in tokens: [Token]) -> Int? {
         var depth = BracketDepth()

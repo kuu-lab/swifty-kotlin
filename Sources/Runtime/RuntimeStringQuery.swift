@@ -299,29 +299,3 @@ public func kk_string_trimEnd_predicate(
         context: "trimEnd predicate"
     )
 }
-
-// MARK: - STDLIB-TEXT-FN-044: String.random()
-
-@_cdecl("kk_string_random")
-public func kk_string_random(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard !codeUnits.isEmpty else {
-        runtimeSetThrown(outThrown, message: "NoSuchElementException: Char sequence is empty.")
-        return 0
-    }
-    let index = Int.random(in: 0 ..< codeUnits.count)
-    return kk_box_char(Int(codeUnits[index]))
-}
-
-@_cdecl("kk_string_random_random")
-public func kk_string_random_random(_ strRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard !codeUnits.isEmpty else {
-        runtimeSetThrown(outThrown, message: "NoSuchElementException: Char sequence is empty.")
-        return 0
-    }
-    let index = runtimeRandomIndex(count: codeUnits.count, randomRaw: randomRaw)
-    return kk_box_char(Int(codeUnits[index]))
-}

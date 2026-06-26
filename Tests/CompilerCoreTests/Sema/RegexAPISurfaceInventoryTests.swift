@@ -2,8 +2,37 @@
 import Foundation
 import XCTest
 
+// MARK: - STDLIB-REGEX-001: kotlin.text.Regex API Surface Inventory
+//
+// This file catalogues *every* Regex-related symbol that the sema layer registers
+// as a synthetic stub and verifies that:
+//   • the symbol exists in the symbol table after sema
+//   • it is wired to the expected ABI / external-link name
+//   • class-member lookups use the correct fully-qualified path
+//     (kotlin.text.<ClassName>.<member>)
+//   • top-level constructor overloads and companion methods are all present
+//
+// Scope: signature-level / sema-level only — runtime correctness is covered by
+//        RuntimeRegexTests and STDLIB-REGEX-003 (commit #1208).
+
 final class RegexAPISurfaceInventoryTests: XCTestCase {
 
+    // MARK: - Shared sema fixture
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try XCTUnwrap(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
+    // MARK: - Lookup helpers
+
+    /// External link for a kotlin.text-level symbol (top-level or class member).
     private func externalLink(
         fqPath: [String],
         sema: SemaModule,
@@ -12,6 +41,19 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         let interned = fqPath.map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: interned) else { return nil }
         return sema.symbols.externalLinkName(for: sym)
+    }
+
+    /// All external links registered under the given FQ path.
+    private func allExternalLinks(
+        fqPath: [String],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Set<String> {
+        let interned = fqPath.map { interner.intern($0) }
+        return Set(
+            sema.symbols.lookupAll(fqName: interned)
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
     }
 
     // MARK: - 1. Constructors

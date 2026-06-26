@@ -11,9 +11,7 @@ final class CoroutineLoweringPass: LoweringPass {
     }
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        module.ensureFeaturesScanned()
-        if module.features.contains(.hasSuspendFunction) { return true }
-        let coroutineCallees: Set<InternedString> = [
+        let callCallees: Set<InternedString> = [
             ctx.interner.intern("runBlocking"),
             ctx.interner.intern("launch"),
             ctx.interner.intern("async"),
@@ -62,7 +60,46 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_flow_empty"),
             ctx.interner.intern("kk_flow_as_flow"),
         ]
-        return !coroutineCallees.isDisjoint(with: module.usedCallees)
+        let virtualCallees: Set<InternedString> = [
+            ctx.interner.intern("collect"),
+            ctx.interner.intern("map"),
+            ctx.interner.intern("filter"),
+            ctx.interner.intern("take"),
+            ctx.interner.intern("transform"),
+            ctx.interner.intern("single"),
+            ctx.interner.intern("takeWhile"),
+            ctx.interner.intern("dropWhile"),
+            ctx.interner.intern("flatMapConcat"),
+            ctx.interner.intern("flatMapMerge"),
+            ctx.interner.intern("flatMapLatest"),
+            ctx.interner.intern("buffer"),
+            ctx.interner.intern("conflate"),
+            ctx.interner.intern("flowOn"),
+            ctx.interner.intern("debounce"),
+            ctx.interner.intern("sample"),
+            ctx.interner.intern("delayEach"),
+            ctx.interner.intern("asFlow"),
+        ]
+        for decl in module.arena.declarations {
+            if case let .function(function) = decl {
+                if function.isSuspend { return true }
+                for instruction in function.body {
+                    switch instruction {
+                    case let .call(_, callee, _, _, _, _, _, _):
+                        if callCallees.contains(callee) {
+                            return true
+                        }
+                    case let .virtualCall(_, callee, _, _, _, _, _, _):
+                        if virtualCallees.contains(callee) {
+                            return true
+                        }
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+        return false
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
@@ -112,10 +149,7 @@ final class CoroutineLoweringPass: LoweringPass {
             // caller continuation so the runtime can resume them without blocking.
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
-            ctx.interner.intern("kk_job_await_completion"),
-            // CORO-004: withContext suspends the caller while the dispatched block
-            // runs on another dispatcher; the runtime resumes via callerState.resume.
-            kxMiniWithContextCallee,
+            ctx.interner.intern("kk_job_await_completion")
         ]
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString] = [
             kxMiniRunBlockingCallee: runtimeRunBlockingCallee,

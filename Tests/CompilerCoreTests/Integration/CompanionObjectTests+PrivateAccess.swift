@@ -2,7 +2,10 @@
 import Foundation
 import XCTest
 
+// MARK: - STDLIB-OBJ-016: Companion Object Private Access Tests
+
 extension CompanionObjectTests {
+    /// Verify companion object can access private constructor
     func testCompanionAccessPrivateConstructor() throws {
         let source = """
         class Foo private constructor(val value: Int) {
@@ -23,6 +26,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify companion object can access private properties
     func testCompanionAccessPrivateProperty() throws {
         let source = """
         class Bar {
@@ -45,6 +49,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify companion object can access private methods
     func testCompanionAccessPrivateMethod() throws {
         let source = """
         class Baz {
@@ -67,6 +72,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify class can access companion's private members
     func testClassAccessCompanionPrivateMembers() throws {
         let source = """
         class Container {
@@ -93,6 +99,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify companion with private constructor and factory pattern
     func testCompanionFactoryPatternWithPrivateConstructor() throws {
         let source = """
         data class Person private constructor(
@@ -126,6 +133,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify companion access to private constructor with parameters
     func testCompanionPrivateConstructorWithParameters() throws {
         let source = """
         class Config private constructor(
@@ -163,6 +171,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify that non-companion objects cannot access private members
     func testNonCompanionObjectCannotAccessPrivateMembers() throws {
         let source = """
         class Outer {
@@ -182,6 +191,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify that external code cannot access private constructor directly
     func testExternalCannotAccessPrivateConstructor() throws {
         let source = """
         class Secure private constructor(val data: String) {
@@ -203,6 +213,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify KIR lowering works with private constructor access
     func testCompanionPrivateConstructorKIRLowering() throws {
         let source = """
         class Item private constructor(val id: Int) {
@@ -234,6 +245,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify companion extension functions work
     func testCompanionExtensionFunction() throws {
         let source = """
         class MyClass {
@@ -255,6 +267,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify companion extension properties work
     func testCompanionExtensionProperty() throws {
         let source = """
         class Data {
@@ -276,6 +289,7 @@ extension CompanionObjectTests {
         )
     }
 
+    /// Verify named companion extension functions
     func testNamedCompanionExtensionFunction() throws {
         let source = """
         class Service {

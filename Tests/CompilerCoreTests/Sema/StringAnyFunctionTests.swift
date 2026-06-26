@@ -2,8 +2,8 @@
 import XCTest
 
 /// STDLIB-TEXT-FN-002: Validates that `CharSequence.any(predicate)` resolves
-/// through Sema for `String` / `CharSequence` receivers, dispatching to the
-/// runtime link name `kk_string_any`.
+/// through Sema for `String` / `CharSequence` receivers via the bundled Kotlin
+/// source implementation.
 final class StringAnyFunctionTests: XCTestCase {
     func testAnyWithPredicateResolvesInSource() throws {
         let ctx = makeContextFromSource("""

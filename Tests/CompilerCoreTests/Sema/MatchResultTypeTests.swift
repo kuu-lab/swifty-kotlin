@@ -7,6 +7,20 @@ import XCTest
 /// registered in the symbol table after sema, with all expected properties and
 /// functions wired to their runtime ABI link names.
 final class MatchResultTypeTests: XCTestCase {
+
+    // MARK: - Shared sema fixture
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try XCTUnwrap(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     // MARK: - 1. MatchResult class symbol
 
     func testMatchResultClassSymbolIsRegistered() throws {

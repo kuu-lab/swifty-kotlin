@@ -29,6 +29,7 @@ extension DataFlowSemaPhase {
         if let existing = symbols.lookup(fqName: sequenceFQName) {
             return existing
         }
+        // Ensure the kotlin.sequences package exists
         let sequencesPkg: [InternedString] = [
             interner.intern("kotlin"),
             interner.intern("sequences"),
@@ -51,6 +52,7 @@ extension DataFlowSemaPhase {
             visibility: .public,
             flags: [.synthetic]
         )
+        // Register type parameter T for Sequence<T>
         let typeParamName = interner.intern("T")
         let typeParamFQName = sequenceFQName + [typeParamName]
         let typeParamSymbol = symbols.define(
@@ -165,6 +167,7 @@ extension DataFlowSemaPhase {
         if let existing = symbols.lookup(fqName: iterableFQName) {
             return existing
         }
+        // Ensure the kotlin.collections package exists
         let collectionsPkg: [InternedString] = [
             interner.intern("kotlin"),
             interner.intern("collections"),
@@ -187,6 +190,7 @@ extension DataFlowSemaPhase {
             visibility: .public,
             flags: [.synthetic]
         )
+        // Register type parameter T for Iterable<T>
         let typeParamName = interner.intern("T")
         let typeParamFQName = iterableFQName + [typeParamName]
         let typeParamSymbol = symbols.define(

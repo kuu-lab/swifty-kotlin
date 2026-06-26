@@ -48,6 +48,16 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
 
     private static let packagePath = ["kotlin", "native", "concurrent"]
 
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     func testTargetInventoryHasExpectedShape() {
         // Structural invariants only — no magic totals. A previous version asserted exact
         // sizes (`== 31`, `== 28`, `== 3`) which forced every PR adding/promoting a stub

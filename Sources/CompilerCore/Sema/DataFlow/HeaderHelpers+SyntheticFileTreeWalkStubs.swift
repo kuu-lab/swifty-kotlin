@@ -36,6 +36,7 @@ extension DataFlowSemaPhase {
               let fileType = symbols.propertyType(for: fileSymbol)
         else { return }
 
+        // Build List<File> type for toList() return
         let listSymbol = resolveListSymbolForFileTreeWalk(symbols: symbols, interner: interner)
         let listOfFileType: TypeID = if let listSym = listSymbol {
             types.make(.classType(ClassType(
@@ -244,6 +245,8 @@ extension DataFlowSemaPhase {
             )
         }
     }
+
+    // MARK: - Private helpers
 
     private func ensureFileTreeWalkClassSymbol(
         in pkg: [InternedString],

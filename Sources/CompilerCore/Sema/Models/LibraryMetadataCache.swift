@@ -162,6 +162,8 @@ final class LibraryMetadataCache {
         signatureCache.count
     }
 
+    // MARK: - Helpers
+
     private static func fileMtimeNanos(path: String) -> Int64 {
         let url = URL(fileURLWithPath: path)
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),

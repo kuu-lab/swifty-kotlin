@@ -21,9 +21,14 @@ private final class CapturedIDBuffer: @unchecked Sendable {
 final class StringInternerTests: XCTestCase {
     // MARK: - InternedString
 
-    func testInternedStringInvalidAndDefault() {
-        XCTAssertEqual(InternedString.invalid.rawValue, -1)
-        XCTAssertEqual(InternedString(), InternedString.invalid)
+    func testInternedStringInvalidDefault() {
+        let invalid = InternedString.invalid
+        XCTAssertEqual(invalid.rawValue, -1)
+    }
+
+    func testInternedStringDefaultInitIsInvalid() {
+        let s = InternedString()
+        XCTAssertEqual(s.rawValue, -1)
     }
 
     func testInternedStringWithRawValue() {
@@ -95,7 +100,9 @@ final class StringInternerTests: XCTestCase {
         for word in words {
             ids.append(interner.intern(word))
         }
+        // All IDs should be unique
         XCTAssertEqual(Set(ids).count, words.count)
+        // All should resolve back
         for (i, word) in words.enumerated() {
             XCTAssertEqual(interner.resolve(ids[i]), word)
         }
@@ -106,6 +113,8 @@ final class StringInternerTests: XCTestCase {
         let id0 = interner.intern("a")
         let id1 = interner.intern("b")
         let id2 = interner.intern("c")
+        // IDs should be distinct and increase monotonically,
+        // but exact raw values are an implementation detail.
         XCTAssertNotEqual(id0, InternedString.invalid)
         XCTAssertNotEqual(id1, InternedString.invalid)
         XCTAssertNotEqual(id2, InternedString.invalid)

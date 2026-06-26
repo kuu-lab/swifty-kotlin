@@ -397,25 +397,6 @@ extension BuildASTPhase {
         return annotations
     }
 
-    /// Parses leading annotations from an arbitrary token array, stopping at a
-    /// declaration introducer keyword. Used when annotations may be in sibling
-    /// tokens preceding the declaration node in the CST.
-    func annotationsFromTokens(_ tokens: [Token], interner: StringInterner) -> [AnnotationNode] {
-        var annotations: [AnnotationNode] = []
-        var index = 0
-        while index < tokens.count {
-            let token = tokens[index]
-            if isDeclarationStart(token.kind) { break }
-            guard token.kind == .symbol(.at) else { index += 1; continue }
-            guard let parsed = AnnotationParsingSupport.parseAnnotation(
-                from: tokens, start: index, interner: interner, allowUseSiteTarget: true
-            ) else { index += 1; continue }
-            annotations.append(parsed.annotation)
-            index = parsed.nextIndex
-        }
-        return annotations
-    }
-
     /// Checks if a token represents a declaration start keyword.
     private func isDeclarationStart(_ kind: TokenKind) -> Bool {
         switch kind {

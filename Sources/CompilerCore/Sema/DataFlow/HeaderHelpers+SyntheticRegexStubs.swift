@@ -466,6 +466,8 @@ extension DataFlowSemaPhase {
         )
     }
 
+    // MARK: - Helpers
+
     /// Defines a nested class symbol inside `parentFQName` if it doesn't already exist.
     private func ensureNestedClassSymbol(
         named name: String,
@@ -733,6 +735,7 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(pkgSymbol, for: symbol)
         }
 
+        // Register enum entries
         let entries = [
             "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL", "LITERAL",
             "UNIX_LINES", "COMMENTS", "CANON_EQ",
@@ -799,6 +802,8 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
     }
+
+    // MARK: - STDLIB-REGEX-094: Package-level String extension helpers
 
     /// Registers a package-level extension function on String (e.g. `kotlin.text.replaceFirst`).
     private func registerRegexStringExtensionFunction(
@@ -870,6 +875,8 @@ extension DataFlowSemaPhase {
             for: functionSymbol
         )
     }
+
+    // MARK: - STDLIB-REGEX-094: Regex.Companion helpers
 
     /// Ensures a Companion object symbol exists for the Regex class and returns its FQ name.
     private func ensureRegexCompanionSymbol(

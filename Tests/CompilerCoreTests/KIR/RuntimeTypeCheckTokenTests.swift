@@ -4,6 +4,8 @@ import XCTest
 
 final class RuntimeTypeCheckTokenTests: XCTestCase {
 
+    // MARK: - classify() Tests
+
     func testClassifyBuiltinTypes() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -113,6 +115,8 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         XCTAssertEqual(descriptor.category.base, RuntimeTypeCheckToken.unknownBase)
     }
 
+    // MARK: - encode() Consistency Tests
+
     func testEncodeConsistencyWithClassify() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -212,6 +216,8 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         XCTAssertEqual(encoded, manuallyEncoded)
     }
 
+    // MARK: - simpleName() Consistency Tests
+
     func testSimpleNameConsistencyWithCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -273,6 +279,8 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         }
     }
 
+    // MARK: - Catch/Is Token Consistency Tests
+
     func testCatchTokenMatchesIsToken() throws {
         let source = """
         class MyException : Exception()
@@ -322,6 +330,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         }
     }
 
+    // MARK: - Type Alias Resolution Test
 
     func testTypeAliasResolvesToCorrectToken() {
         let interner = StringInterner()

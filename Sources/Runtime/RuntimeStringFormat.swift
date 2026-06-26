@@ -445,20 +445,13 @@ public func kk_string_trimIndent(_ strRaw: Int) -> Int {
 
 @_cdecl("kk_string_trimMargin_default")
 public func kk_string_trimMargin_default(_ strRaw: Int) -> Int {
-    kk_string_trimMargin(strRaw, runtimeDefaultTrimMarginPrefixRaw, nil)
+    kk_string_trimMargin(strRaw, runtimeDefaultTrimMarginPrefixRaw)
 }
 
 @_cdecl("kk_string_trimMargin")
-public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
+public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
-    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "marginPrefix must be non-blank string."
-        )
-        return runtimeMakeStringRaw("")
-    }
     return runtimeMakeStringRaw(runtimeTrimMargin(source, marginPrefix: marginPrefix))
 }
 
@@ -521,8 +514,8 @@ public func __string_trimIndent(_ strRaw: Int) -> Int {
 }
 
 @_cdecl("__string_trimMargin")
-public func __string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_trimMargin(strRaw, marginPrefixRaw, outThrown)
+public func __string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int) -> Int {
+    return kk_string_trimMargin(strRaw, marginPrefixRaw)
 }
 
 @_cdecl("__string_prependIndent")

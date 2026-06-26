@@ -11,8 +11,12 @@ final class TailrecLoweringPass: LoweringPass {
     }
 
     func shouldRun(module: KIRModule, ctx _: KIRContext) -> Bool {
-        module.ensureFeaturesScanned()
-        return module.features.contains(.hasTailrecFunction)
+        for decl in module.arena.declarations {
+            if case let .function(function) = decl, function.isTailrec {
+                return true
+            }
+        }
+        return false
     }
 
     func run(module: KIRModule, ctx _: KIRContext) throws {

@@ -2,7 +2,9 @@
 import Foundation
 import XCTest
 
+/// REFL-003: Tests for KFunction / KProperty type identity on callable references.
 final class CallableRefTypeIdentityTests: XCTestCase {
+    // MARK: - Sema binding tests
 
     func testSemaBindsFunctionRefKindForCallableReference() throws {
         let source = """
@@ -91,6 +93,8 @@ final class CallableRefTypeIdentityTests: XCTestCase {
         XCTAssertEqual(refKind, .functionRef, "Overloaded ::target should be marked as a function reference.")
     }
 
+    // MARK: - KIR lowering tests
+
     func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
         let source = """
         fun inc(x: Int): Int = x + 1
@@ -129,14 +133,17 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             try runToKIR(ctx)
 
             let module = try XCTUnwrap(ctx.kir)
+            // Property callable refs are lowered inline in main.
             let allCallees = module.arena.declarations.flatMap { decl -> [String] in
                 guard case let .function(function) = decl else { return [] }
                 return extractCallees(from: function.body, interner: ctx.interner)
             }
+            // Verify the property ref is tagged with the KProperty tag.
             XCTAssertTrue(
                 allCallees.contains("kk_callable_ref_tag_kproperty"),
                 "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
             )
+            // Verify it does not accidentally tag as kfunction.
             XCTAssertFalse(
                 allCallees.contains("kk_callable_ref_tag_kfunction"),
                 "Property callable ref should NOT be tagged as KFunction."
@@ -160,6 +167,7 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
+            // Find the tagging call and verify its arguments.
             let tagCall = mainBody.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
@@ -171,8 +179,11 @@ final class CallableRefTypeIdentityTests: XCTestCase {
                 return
             }
 
+            // arguments[0] = callable value, arguments[1] = name, arguments[2] = arity,
+            // arguments[3] = isSuspend flag.
             XCTAssertEqual(arguments.count, 4)
 
+            // Verify the name argument is the string "add".
             if let nameExpr = module.arena.expr(arguments[1]),
                case let .stringLiteral(nameInterned) = nameExpr
             {
@@ -181,6 +192,7 @@ final class CallableRefTypeIdentityTests: XCTestCase {
                 XCTFail("Second argument to tag call should be string literal 'add'.")
             }
 
+            // Verify the arity argument is 2 (two value parameters).
             if let arityExpr = module.arena.expr(arguments[2]),
                case let .intLiteral(arityValue) = arityExpr
             {
@@ -189,6 +201,7 @@ final class CallableRefTypeIdentityTests: XCTestCase {
                 XCTFail("Third argument to tag call should be int literal for arity.")
             }
 
+            // Non-suspend callable refs should emit an isSuspend flag of 0.
             if let suspendExpr = module.arena.expr(arguments[3]),
                case let .intLiteral(isSuspendValue) = suspendExpr
             {
@@ -224,6 +237,8 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Non-throwing verification
 
     func testCallableRefTagCallsAreNonThrowing() throws {
         let source = """

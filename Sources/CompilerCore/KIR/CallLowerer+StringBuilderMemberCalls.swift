@@ -70,15 +70,7 @@ extension CallLowerer {
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let sbNames = KnownCompilerNames(interner: interner)
                 let runtimeCallee: String? = if calleeName == sbNames.insert {
-                    {
-                        let argType = normalizedArgIDs.dropFirst().first.flatMap { arena.exprType($0) }
-                        let nonNull = argType.map { sema.types.makeNonNullable($0) }
-                        if nonNull == sema.types.make(.primitive(.boolean, .nonNull)) { return "kk_string_builder_insert_bool" }
-                        if nonNull == sema.types.make(.primitive(.char, .nonNull)) { return "kk_string_builder_insert_char" }
-                        if nonNull == sema.types.make(.primitive(.float, .nonNull)) { return "kk_string_builder_insert_float" }
-                        if nonNull == sema.types.make(.primitive(.double, .nonNull)) { return "kk_string_builder_insert_double" }
-                        return "kk_string_builder_insert_obj"
-                    }()
+                    "kk_string_builder_insert_obj"
                 } else if calleeName == sbNames.delete {
                     "kk_string_builder_delete_obj"
                 } else if calleeName == sbNames.deleteRange {

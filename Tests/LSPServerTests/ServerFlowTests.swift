@@ -27,8 +27,9 @@ final class ServerFlowTests: XCTestCase {
 
         let sent = LSPTestSupport.decodeMessages(from: output)
 
+        // initialize response carries server capabilities.
         let initializeResponse = sent.first { ($0["id"] as? Int) == 1 }
-        XCTAssertNotNil(initializeResponse)
+        XCTAssertNotNil(initializeResponse, "Expected an initialize response")
         if let result = initializeResponse?["result"] as? [String: Any],
            let capabilities = result["capabilities"] as? [String: Any]
         {
@@ -39,13 +40,15 @@ final class ServerFlowTests: XCTestCase {
             XCTFail("initialize result should contain capabilities")
         }
 
+        // A publishDiagnostics notification is emitted for the opened document.
         let publish = sent.first { ($0["method"] as? String) == "textDocument/publishDiagnostics" }
-        XCTAssertNotNil(publish)
+        XCTAssertNotNil(publish, "Expected a publishDiagnostics notification")
         if let params = publish?["params"] as? [String: Any] {
             XCTAssertEqual(params["uri"] as? String, uri)
             XCTAssertNotNil(params["diagnostics"])
         }
 
-        XCTAssertTrue(sent.contains { ($0["id"] as? Int) == 2 })
+        // shutdown response present.
+        XCTAssertTrue(sent.contains { ($0["id"] as? Int) == 2 }, "Expected a shutdown response")
     }
 }

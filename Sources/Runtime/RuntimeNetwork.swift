@@ -911,6 +911,11 @@ public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int
     return networkStringRaw(value)
 }
 
+@_cdecl("kk_http_client_new")
+public func kk_http_client_new() -> Int {
+    registerRuntimeObject(RuntimeHTTPClientBox())
+}
+
 @_cdecl("kk_http_client_setConnectTimeoutMillis")
 public func kk_http_client_setConnectTimeoutMillis(_ clientRaw: Int, _ timeoutMillis: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
@@ -945,6 +950,27 @@ public func kk_http_client_setBearerToken(_ clientRaw: Int, _ tokenRaw: Int) -> 
     }
     client.setBearerToken(networkString(from: tokenRaw, caller: #function))
     return 0
+}
+
+@_cdecl("kk_http_client_get")
+public func kk_http_client_get(_ clientRaw: Int, _ urlRaw: Int) -> Int {
+    runtimeHTTPPerformBlockingRequest(
+        clientRaw: clientRaw,
+        method: "GET",
+        urlString: networkString(from: urlRaw, caller: #function),
+        body: nil
+    )
+}
+
+@_cdecl("kk_http_client_post_async")
+public func kk_http_client_post_async(_ clientRaw: Int, _ urlRaw: Int, _ bodyRaw: Int, _ continuation: Int) -> Int {
+    runtimeHTTPSuspendRequest(
+        clientRaw: clientRaw,
+        method: "POST",
+        urlRaw: urlRaw,
+        bodyRaw: bodyRaw,
+        continuation: continuation
+    )
 }
 
 @_cdecl("kk_http_response_url")

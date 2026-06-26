@@ -1,7 +1,11 @@
 @testable import CompilerCore
 import XCTest
 
+/// CODE-001: Regression tests ensuring `finally` blocks execute on
+/// `return`, `break`, and `continue` inside try-finally.
 final class FinallyExecutionOnControlFlowTests: XCTestCase {
+
+    // MARK: - return inside try-finally
 
     func testReturnInsideTryFinallyInlinesFinallyBeforeReturn() throws {
         let source = """
@@ -21,6 +25,8 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
+            // The `return 42` path should call cleanup() *before* the returnValue
+            // instruction. Find all cleanup calls and all returnValue instructions.
             let cleanupCallIndices = body.indices.filter { index in
                 guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
                 return ctx.interner.resolve(callee) == "cleanup"
@@ -30,6 +36,7 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                 return false
             }
 
+            // There should be at least one cleanup call inlined before a return.
             XCTAssertGreaterThanOrEqual(
                 cleanupCallIndices.count, 1,
                 "Expected at least one inlined cleanup() call for finally block"
@@ -39,6 +46,7 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                 "Expected at least one returnValue instruction"
             )
 
+            // At least one cleanup call should appear before a returnValue instruction.
             let hasCleanupBeforeReturn = cleanupCallIndices.contains { cleanupIndex in
                 returnValueIndices.contains { returnIndex in
                     cleanupIndex < returnIndex
@@ -94,6 +102,8 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - break inside try-finally
 
     func testBreakInsideTryFinallyInlinesFinallyBeforeBreak() throws {
         let source = """
@@ -160,6 +170,8 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - continue inside try-finally
 
     func testContinueInsideTryFinallyInlinesFinallyBeforeContinue() throws {
         let source = """
@@ -239,6 +251,8 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Context stack push/pop
 
     func testFinallyBlockStackPushPopSymmetry() {
         let ctx = KIRLoweringContext()

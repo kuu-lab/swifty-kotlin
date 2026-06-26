@@ -55,6 +55,8 @@ enum CommandRunner {
     private static let drainTimeoutSeconds: TimeInterval = 20
     private static let terminationGracePeriodSeconds: TimeInterval = 1
 
+    /// Resolves the absolute path for an executable by searching the PATH environment variable.
+    /// Falls back to the provided default path if the executable is not found in PATH.
     static func resolveExecutable(_ name: String, fallback: String) -> String {
         let fileManager = FileManager.default
         if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {

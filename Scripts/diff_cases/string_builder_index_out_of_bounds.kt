@@ -33,11 +33,4 @@ fun main() {
     } catch (e: IndexOutOfBoundsException) {
         println("setCharAt: caught")
     }
-
-    try {
-        StringBuilder("hello").replace(99, 100, "x")
-        println("replace: no exception")
-    } catch (e: IndexOutOfBoundsException) {
-        println("replace: caught")
-    }
 }

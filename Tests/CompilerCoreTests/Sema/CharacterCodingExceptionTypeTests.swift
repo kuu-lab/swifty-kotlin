@@ -9,6 +9,16 @@ import XCTest
 /// for the registration site and the constructors are routed to the runtime
 /// link `kk_throwable_new`.
 final class CharacterCodingExceptionTypeTests: XCTestCase {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     // MARK: - Symbol surface
 
     func testCharacterCodingExceptionIsRegisteredAsClassInKotlinTextPackage() throws {

@@ -5,6 +5,8 @@ import XCTest
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - Delegate Lowering Precondition Violation Tests
 
+    /// Verify that a `lazy(...)` call WITHOUT a subsequent `copy to $delegate_`
+    /// field does not crash and is left unchanged by the delegate lowering pass.
     func testLazyCallWithoutDelegateFieldDoesNotCrash() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -72,6 +74,8 @@ extension LoweringABIAndPropertyRegressionTests {
         )
     }
 
+    /// Verify that an observable-like call with a copy to $delegate_ but with
+    /// zero arguments (missing initial value and callback) does not crash.
     func testObservableDelegateWithMissingArgsPassesThrough() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -135,6 +139,8 @@ extension LoweringABIAndPropertyRegressionTests {
         ))
     }
 
+    /// Verify that an unknown delegate callee name (not lazy/observable/vetoable)
+    /// with a $delegate_ copy preserves the original instructions unchanged.
     func testUnknownDelegateKindPreservesOriginalInstructions() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -208,6 +214,8 @@ extension LoweringABIAndPropertyRegressionTests {
         XCTAssertFalse(callees.contains("kk_vetoable_create"))
     }
 
+    /// Verify that ABI boxing is correctly applied when delegate getter return
+    /// type differs from the property declaration type.
     func testDelegateGetterReturnTypeMismatchInsertsBoxing() throws {
         let interner = StringInterner()
         let arena = KIRArena()

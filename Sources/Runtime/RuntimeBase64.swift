@@ -33,6 +33,7 @@ private final class RuntimeBase64Box {
 
 // MARK: - Private Helpers
 
+/// Converts a PaddingOption raw Int to the enum, defaulting to .present.
 private func paddingOption(from raw: Int) -> Base64PaddingOption {
     Base64PaddingOption(rawValue: raw) ?? .present
 }
@@ -54,12 +55,14 @@ private func base64BoxOrDefault(from raw: Int) -> RuntimeBase64Box {
     base64Box(from: raw) ?? RuntimeBase64Box(variant: .standard, paddingOption: .present)
 }
 
+/// Extracts a Swift String from a runtime raw Int.
 private func base64StringFromRaw(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt { return nil }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return extractString(from: ptr)
 }
 
+/// Wraps a Swift String into a runtime raw Int.
 private func base64MakeStringRaw(_ value: String) -> Int {
     Int(bitPattern: value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { ptr in
@@ -68,12 +71,14 @@ private func base64MakeStringRaw(_ value: String) -> Int {
     })
 }
 
+/// Wraps a [UInt8] byte sequence into a runtime ByteArray (RuntimeListBox).
 private func base64MakeByteArrayRaw(_ bytes: [UInt8]) -> Int {
     // Kotlin ByteArray elements are signed (Int8 bit-pattern stored as Int)
     let intElements = bytes.map { Int(Int8(bitPattern: $0)) }
     return registerRuntimeObject(RuntimeListBox(elements: intElements))
 }
 
+/// Extracts a [UInt8] from a runtime ByteArray (ArrayBox or ListBox) / List raw Int.
 private func base64BytesFromRaw(_ raw: Int) -> [UInt8]? {
     if raw == runtimeNullSentinelInt { return nil }
     if let list = runtimeListBox(from: raw) {
@@ -85,10 +90,12 @@ private func base64BytesFromRaw(_ raw: Int) -> [UInt8]? {
     return nil
 }
 
+/// Strips padding characters from a base64 string.
 private func stripPadding(_ s: String) -> String {
     s.replacingOccurrences(of: "=", with: "")
 }
 
+/// Adds padding to bring length to next multiple of 4.
 private func addPadding(_ s: String) -> String {
     let rem = s.count % 4
     guard rem != 0 else { return s }
@@ -104,6 +111,7 @@ private func mimeFilterBase64Alphabet(_ s: String) -> String {
     String(s.unicodeScalars.filter { mimeBase64ScalarSet.contains($0) })
 }
 
+/// Validates that no padding characters appear in the string.
 private func containsPadding(_ s: String) -> Bool {
     s.contains("=")
 }
@@ -123,8 +131,6 @@ public func kk_base64_padding_present_optional() -> Int { Base64PaddingOption.pr
 public func kk_base64_padding_absent_optional() -> Int { Base64PaddingOption.absentOptional.rawValue }
 
 // MARK: - Configured Base64 instances
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-ENC-001 (Base64 instance / withPadding API)
-// 以下 kk_base64_withPadding_* / kk_base64_{encode,encodeToByteArray}_instance は全て同タスクに紐付く。
 
 @_cdecl("kk_base64_withPadding_default")
 public func kk_base64_withPadding_default(_ paddingOptionRaw: Int) -> Int {

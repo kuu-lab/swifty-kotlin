@@ -5,6 +5,8 @@
 /// merge conflicts between parallel stdlib PRs adding new entries to this package.
 extension DataFlowSemaPhase {
 
+    // MARK: - Helpers
+
     func ensureNativeConcurrentEnum(
         named name: String,
         entries: [String],

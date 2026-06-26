@@ -1,3 +1,17 @@
+/// Synthetic stubs for java.io.File type.
+///
+/// Covers:
+/// - STDLIB-320: `File(String)` constructor, `readText`, `writeText`, `readLines`
+/// - STDLIB-664: `appendText(text: String)` member function
+/// - STDLIB-321: `name`, `path` properties; `exists()`, `isFile()`, `isDirectory()` query methods
+/// - STDLIB-322: `forEachLine(action:)` member function
+/// - STDLIB-323: `delete()`, `mkdirs()`, `listFiles()`, `walk()` filesystem operations
+/// - STDLIB-664: `appendText(text: String)` member function
+/// - STDLIB-567: `bufferedReader()` returning `BufferedReader` with `readLine()`, `readLines()`, `close()`
+///
+/// Each stub registers the java.io.File class, its constructor, member properties,
+/// and member functions in the symbol table so that name resolution and type
+/// checking succeed without requiring a full java.io runtime on the classpath.
 extension DataFlowSemaPhase {
     func registerSyntheticFileIOStubs(
         symbols: SymbolTable,
@@ -56,7 +70,9 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        registerFileConstructor( // STDLIB-320
+        // MARK: - File(String) constructor (STDLIB-320)
+
+        registerFileConstructor(
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("path", types.stringType)],
@@ -65,7 +81,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileConstructor( // STDLIB-IO-087
+        // MARK: - File(parent, child) constructor (STDLIB-IO-087)
+
+        registerFileConstructor(
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [("parent", types.stringType), ("child", types.stringType)],
@@ -134,7 +152,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-PROP-002
+        // MARK: - File extension property (STDLIB-IO-PROP-002)
+
+        // `kotlin.io.File.extension` is a non-null `String` extension property that
+        // returns the substring after the last `.` of the file name. When the file
+        // name contains no dot, the property returns an empty string. This matches
+        // Kotlin's stdlib `kotlin.io.FileTreeWalk.kt` definition. The Sema layer
+        // exposes it as a synthetic member on `java.io.File` because KSwiftK does
+        // not yet model Kotlin extension properties separately from members.
         registerFileMemberProperty(
             named: "extension",
             externalLinkName: "kk_file_extension",
@@ -247,7 +272,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-036: File.resolveSibling overloads
+        // MARK: - File.resolveSibling (STDLIB-IO-FN-036)
+        //
+        // Two overloads matching kotlin.io.File:
+        //   fun File.resolveSibling(relative: File): File
+        //   fun File.resolveSibling(relative: String): File
+        // Both replace the last path component of the receiver with `relative`,
+        // mirroring kotlin.io.File.resolveSibling semantics.
+
         registerFileMemberFunction(
             named: "resolveSibling",
             externalLinkName: "kk_file_resolveSibling_file",
@@ -270,7 +302,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileMemberFunction( // STDLIB-IO-FN-024
+        // MARK: - File.normalize (STDLIB-IO-FN-024)
+        //
+        // Kotlin signature: fun File.normalize(): File
+        // Returns a new File whose path has been normalized by resolving any `.`
+        // and `..` components, and by removing redundant separators.  The operation
+        // is purely lexical — no filesystem access — matching kotlin-stdlib behaviour.
+
+        registerFileMemberFunction(
             named: "normalize",
             externalLinkName: "kk_file_normalize",
             ownerSymbol: fileSymbol,
@@ -281,7 +320,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-037: File.startsWith overloads
+        // MARK: - File.startsWith (STDLIB-IO-FN-037)
+        //
+        // Two overloads matching kotlin.io.File:
+        //   fun File.startsWith(other: File): Boolean
+        //   fun File.startsWith(other: String): Boolean
+        // Both compare path components against the receiver, returning true when
+        // the receiver's path begins with all components of `other`.
+
         registerFileMemberFunction(
             named: "startsWith",
             externalLinkName: "kk_file_startsWith_file",
@@ -304,7 +350,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileMemberFunction( // STDLIB-IO-FN-038
+        // MARK: - STDLIB-IO-FN-038: File.toRelativeString(base: File): String
+        //
+        // Produces the relative path string from `base` to `this`, mirroring the
+        // semantics of `kotlin.io.File.toRelativeString`. The synthetic stub
+        // binds to the runtime helper `kk_file_toRelativeString`, which is
+        // responsible for raising `IllegalArgumentException` via the standard
+        // `outThrown` channel when the two paths cannot share a common root.
+        registerFileMemberFunction(
             named: "toRelativeString",
             externalLinkName: "kk_file_toRelativeString",
             ownerSymbol: fileSymbol,
@@ -315,7 +368,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-320: File read/write methods
+        // MARK: - File read/write methods (STDLIB-320)
+
         registerFileMemberFunction(
             named: "readText",
             externalLinkName: "kk_file_readText",
@@ -338,7 +392,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileMemberFunction( // STDLIB-664
+        // MARK: - File.appendText() (STDLIB-664)
+
+        registerFileMemberFunction(
             named: "appendText",
             externalLinkName: "kk_file_appendText",
             ownerSymbol: fileSymbol,
@@ -371,7 +427,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // ByteArray is represented as List<Int> in the runtime (STDLIB-665)
+        // MARK: - File.readBytes() (STDLIB-665)
+
+        // ByteArray is represented as List<Int> in the runtime
         let intType = types.intType
         let listOfIntType: TypeID = if let listSym = listSymbol {
             types.make(.classType(ClassType(
@@ -394,8 +452,13 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-001: Register both ByteArray and List<Int> overloads
+        // MARK: - File.appendBytes() (STDLIB-IO-FN-001)
+        //
+        // Kotlin signature: `fun File.appendBytes(array: ByteArray): Unit`
+        // ByteArray is represented internally as List<Int>; we register both
+        // the ByteArray-typed overload (user-facing) and List<Int> (internal)
         // so that both `byteArrayOf(...)` and `listOf(...)` argument styles resolve.
+
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
         let appendBytesByteArrayType: TypeID
         if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
@@ -419,7 +482,9 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerFileMemberFunction( // STDLIB-322
+        // MARK: - File line-by-line operations (STDLIB-322)
+
+        registerFileMemberFunction(
             named: "forEachLine",
             externalLinkName: "kk_file_forEachLine",
             ownerSymbol: fileSymbol,
@@ -430,7 +495,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-016: forEachBlock overloads
+        // MARK: - File.forEachBlock(action) and File.forEachBlock(blockSize, action) (STDLIB-IO-FN-016)
         let byteArrayToIntToUnitType = types.make(.functionType(FunctionType(
             params: [listOfIntType, types.intType],
             returnType: types.unitType,
@@ -458,7 +523,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-566: File.useLines
+        // MARK: - File.useLines {} (STDLIB-566)
+
+        // (List<String>) -> T  (represented as Any for generic return)
         let listOfStringToAnyType = types.make(.functionType(FunctionType(
             params: [listOfStringType],
             returnType: types.anyType,
@@ -527,6 +594,11 @@ extension DataFlowSemaPhase {
 
         // MARK: - Reader / BufferedReader types and File.bufferedReader() (STDLIB-567)
 
+        // `java.io.Reader` is the abstract supertype of `BufferedReader` and is
+        // the receiver of `kotlin.io` extension functions such as
+        // `Reader.readText()` (STDLIB-IO-FN-033). We register it as a synthetic
+        // class so that extension calls on any concrete reader instance (which
+        // is currently always a `BufferedReader`) resolve correctly.
         let readerSymbol = ensureClassSymbol(
             named: "Reader",
             in: javaIOPkg,
@@ -552,6 +624,7 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(readerType, for: readerSymbol)
         symbols.setPropertyType(bufferedReaderType, for: bufferedReaderSymbol)
 
+        // File.bufferedReader() -> BufferedReader
         registerFileMemberFunction(
             named: "bufferedReader",
             externalLinkName: "kk_file_bufferedReader",
@@ -563,6 +636,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BufferedReader.readLine() -> String?
         registerFileMemberFunction(
             named: "readLine",
             externalLinkName: "kk_buffered_reader_readLine",
@@ -574,6 +648,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BufferedReader.readLines() -> List<String>
         registerFileMemberFunction(
             named: "readLines",
             externalLinkName: "kk_buffered_reader_readLines",
@@ -585,6 +660,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BufferedReader.close() -> Unit
         registerFileMemberFunction(
             named: "close",
             externalLinkName: "kk_buffered_reader_close",
@@ -596,8 +672,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Reader supertype lets extension functions resolve on BufferedReader;
-        // Closeable supertype (STDLIB-IO-093) lets `.use {}` work.
+        // Register BufferedReader as a Reader/Closeable subtype.
+        // - Reader supertype lets `Reader.readText()` (STDLIB-IO-FN-033) resolve
+        //   when invoked on a `BufferedReader` value (the only concrete reader
+        //   currently produced by `File.bufferedReader()` etc.).
+        // - Closeable supertype (STDLIB-IO-093) lets `.use {}` work:
+        //   `file.bufferedReader().use { reader -> ... }`.
         if let closeableSymbol = types.closeableInterfaceSymbol {
             symbols.setDirectSupertypes([closeableSymbol], for: readerSymbol)
             types.setNominalDirectSupertypes([closeableSymbol], for: readerSymbol)
@@ -607,7 +687,10 @@ extension DataFlowSemaPhase {
             symbols.setDirectSupertypes([readerSymbol], for: bufferedReaderSymbol)
             types.setNominalDirectSupertypes([readerSymbol], for: bufferedReaderSymbol)
         }
-        registerFileMemberFunction( // STDLIB-IO-091
+        // MARK: - BufferedWriter type and File.bufferedWriter() (STDLIB-IO-091)
+
+        // BufferedReader.read() -> Int  (STDLIB-IO-091)
+        registerFileMemberFunction(
             named: "read",
             externalLinkName: "kk_buffered_reader_read",
             ownerSymbol: bufferedReaderSymbol,
@@ -618,7 +701,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileMemberFunction( // STDLIB-IO-091
+        // BufferedReader.ready() -> Boolean  (STDLIB-IO-091)
+        registerFileMemberFunction(
             named: "ready",
             externalLinkName: "kk_buffered_reader_ready",
             ownerSymbol: bufferedReaderSymbol,
@@ -629,7 +713,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-022: Registered as operator so for-loop lowering resolves it.
+        // BufferedReader.iterator() -> Iterator<String>  (STDLIB-IO-FN-022)
+        //
+        // The standard library declares `iterator()` as an `operator` extension on
+        // `BufferedReader` so that `for (line in reader) { ... }` is a shorthand
+        // for iterating over the reader's lines. We register the function as a
+        // synthetic *operator* member here so it can be picked up both by
+        // explicit calls (`reader.iterator()`) and by the for-loop lowering
+        // (which requires the `.operatorFunction` flag).
         let iteratorOfStringType = syntheticIteratorType(
             elementType: types.stringType,
             symbols: symbols,
@@ -646,8 +737,10 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Promote to operator so `for (line in reader)` resolution succeeds.
-        // Look up after registration because registerFileMemberFunction doesn't return the SymbolID.
+        // Promote the synthetic iterator member to an operator function so that
+        // implicit `for (line in reader)` resolution succeeds. We look up the
+        // symbol after registration because `registerFileMemberFunction` does
+        // not surface the newly defined SymbolID.
         let iteratorFQName: [InternedString] = (symbols.symbol(bufferedReaderSymbol)?.fqName ?? [])
             + [interner.intern("iterator")]
         for candidate in symbols.lookupAll(fqName: iteratorFQName) {
@@ -660,8 +753,14 @@ extension DataFlowSemaPhase {
             symbols.insertFlags(.operatorFunction, for: candidate)
         }
 
-        // STDLIB-IO-FN-040: Lambda parameter modelled as List<String> for
-        // parity with File.useLines — both use RuntimeListBox at runtime.
+        // BufferedReader.useLines { lines: List<String> -> T } (STDLIB-IO-FN-040)
+        //
+        // Kotlin declares `useLines` as an extension function on `kotlin.io.Reader`
+        // (which `BufferedReader` extends). The lambda is invoked with the receiver's
+        // remaining lines as a `Sequence<String>`, and the reader is closed before
+        // the function returns. We model the lambda parameter as `List<String>` for
+        // parity with the existing `File.useLines` stub — both flow through the same
+        // runtime helper shape (lines materialised eagerly into a `RuntimeListBox`).
         let listOfStringToAnyTypeBR = types.make(.functionType(FunctionType(
             params: [listOfStringType],
             returnType: types.anyType,
@@ -679,7 +778,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileMemberFunction( // STDLIB-IO-FN-017
+        // BufferedReader.forEachLine { line: String -> Unit } (STDLIB-IO-FN-017)
+        //
+        // Kotlin declares `forEachLine` as an extension function on `kotlin.io.Reader`
+        // (which `BufferedReader` extends). The lambda receives each line as a `String`
+        // and returns `Unit`. We model it as a member of `java.io.BufferedReader` so
+        // user code can call `file.bufferedReader().forEachLine { line -> ... }`.
+        // Unlike `useLines`, the reader is NOT automatically closed after iteration.
+        registerFileMemberFunction(
             named: "forEachLine",
             externalLinkName: "kk_buffered_reader_forEachLine",
             ownerSymbol: bufferedReaderSymbol,
@@ -728,6 +834,7 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([writerSymbol], for: bufferedWriterSymbol)
         }
 
+        // File.bufferedWriter() -> BufferedWriter
         registerFileMemberFunction(
             named: "bufferedWriter",
             externalLinkName: "kk_file_bufferedWriter",
@@ -739,6 +846,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BufferedWriter.write(text: String) -> Unit
         registerFileMemberFunction(
             named: "write",
             externalLinkName: "kk_buffered_writer_write",
@@ -750,6 +858,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BufferedWriter.newLine() -> Unit
         registerFileMemberFunction(
             named: "newLine",
             externalLinkName: "kk_buffered_writer_new_line",
@@ -761,6 +870,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BufferedWriter.flush() -> Unit
         registerFileMemberFunction(
             named: "flush",
             externalLinkName: "kk_buffered_writer_flush",
@@ -772,6 +882,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // BufferedWriter.close() -> Unit
         registerFileMemberFunction(
             named: "close",
             externalLinkName: "kk_buffered_writer_close",
@@ -783,7 +894,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - InputStream / OutputStream / Resource access (STDLIB-IO-092/093)
+        // MARK: - InputStream / OutputStream (STDLIB-IO-092)
+
+        // MARK: - Resource access (STDLIB-IO-093)
 
         let javaLangPkg = ensurePackage(
             path: ["java", "lang"],
@@ -916,7 +1029,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-011: Two overloads avoid relying on default-argument synthesis.
+        // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset = Charsets.UTF_8): ByteArrayInputStream
+        // Lives in kotlin.io as an extension function on String. Two overloads are
+        // exposed so callers can resolve both `value.byteInputStream()` and
+        // `value.byteInputStream(Charsets.UTF_16)` without relying on default-argument
+        // synthesis. ByteArrayInputStream → InputStream → Closeable, so the return
+        // type carries `.use {}` compatibility through existing supertype wiring.
         let kotlinIOPkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin"), interner.intern("io")],
             symbols: symbols
@@ -995,7 +1113,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-029: ByteArray modelled as List<Int>, matching File.readBytes().
+        // MARK: - InputStream.readBytes() (STDLIB-IO-FN-029)
+        //
+        // Kotlin defines:
+        //   public fun InputStream.readBytes(): ByteArray
+        //
+        // Reads all remaining bytes from `this` and returns them as a freshly
+        // allocated ByteArray.  We model ByteArray as List<Int>, matching the
+        // representation used by File.readBytes() / Path.readBytes().
+        //
+        // Note: this extension does NOT close the receiver — callers typically
+        // wrap the call in `.use { it.readBytes() }`.  Sema only needs to
+        // resolve the call shape; the runtime drains the stream.
         registerFileMemberFunction(
             named: "readBytes",
             externalLinkName: "kk_input_stream_readAllBytes",
@@ -1052,7 +1181,13 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - BufferedInputStream and InputStream.buffered() (STDLIB-IO-FN-003)
-
+        //
+        // Kotlin defines:
+        //   public inline fun InputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedInputStream
+        // We model BufferedInputStream as a java.io.InputStream subtype and expose
+        // both the zero-arg and bufferSize overloads as member-style synthetic stubs
+        // on InputStream so user code can call `inputStream.buffered()` or
+        // `inputStream.buffered(8 * 1024)` and receive a BufferedInputStream value.
         let bufferedInputStreamSymbol = ensureClassSymbol(
             named: "BufferedInputStream",
             in: javaIOPkg,
@@ -1067,6 +1202,7 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(bufferedInputStreamType, for: bufferedInputStreamSymbol)
 
+        // BufferedInputStream extends InputStream so it inherits Closeable + read/skip/etc.
         symbols.setDirectSupertypes([inputStreamSymbol], for: bufferedInputStreamSymbol)
         types.setNominalDirectSupertypes([inputStreamSymbol], for: bufferedInputStreamSymbol)
 
@@ -1083,6 +1219,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // InputStream.buffered() -> BufferedInputStream (uses DEFAULT_BUFFER_SIZE = 8 * 1024)
         registerFileMemberFunction(
             named: "buffered",
             externalLinkName: "kk_input_stream_buffered_default",
@@ -1094,6 +1231,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // InputStream.buffered(bufferSize: Int) -> BufferedInputStream
         registerFileMemberFunction(
             named: "buffered",
             externalLinkName: "kk_input_stream_buffered",
@@ -1105,7 +1243,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerKotlinIOExtensionFunction( // STDLIB-IO-FN-013
+        // STDLIB-IO-FN-013: InputStream.copyTo(out, bufferSize) -> Long
+        //
+        // Kotlin signature:
+        //   public fun InputStream.copyTo(
+        //       out: OutputStream,
+        //       bufferSize: Int = DEFAULT_BUFFER_SIZE
+        //   ): Long
+        //
+        // Registered as a kotlin.io extension function on InputStream.
+        // Two overloads: one with an explicit bufferSize and one that
+        // relies on the default (DEFAULT_BUFFER_SIZE = 8 * 1024).
+        registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
             receiverType: inputStreamType,
@@ -1198,8 +1347,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-004: Runtime is identity-compatible (RuntimeOutputStreamBox
-        // already buffers), so the return type stays OutputStream.
+        // STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize) extension members.
+        // Returns an OutputStream that wraps the receiver with buffering. The runtime
+        // implementation is identity-compatible: the underlying RuntimeOutputStreamBox
+        // already streams through the OS, so the wrapped handle is the same instance.
+        // This satisfies Kotlin's `fun OutputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedOutputStream`
+        // contract at the Sema surface — callers can chain `.write(...)` / `.flush()` / `.close()` etc.
         registerFileMemberFunction(
             named: "buffered",
             externalLinkName: "kk_output_stream_buffered",
@@ -1275,7 +1428,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerKotlinIOExtensionProperty( // STDLIB-IO-PROP-003
+        // MARK: - File.invariantSeparatorsPath (STDLIB-IO-PROP-003)
+        //
+        // Kotlin signature: `public val File.invariantSeparatorsPath: String`
+        // declared in the `kotlin.io` package.  Returns the file path with the
+        // platform-specific separator replaced by a forward slash `/`.
+        registerKotlinIOExtensionProperty(
             named: "invariantSeparatorsPath",
             packageFQName: kotlinIOPkg,
             receiverType: fileType,
@@ -1285,7 +1443,11 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-009
+        // MARK: - OutputStream.bufferedWriter(charset) (STDLIB-IO-FN-009)
+        //
+        // Kotlin signature: `public fun OutputStream.bufferedWriter(
+        //     charset: Charset = Charsets.UTF_8
+        // ): BufferedWriter`  declared in the `kotlin.io` package.
         let kotlinTextPkgFQName = ensurePackage(
             path: ["kotlin", "text"],
             symbols: symbols,
@@ -1343,6 +1505,7 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([closeableSymbol], for: printWriterSymbol)
         }
 
+        // File.printWriter() -> PrintWriter
         registerFileMemberFunction(
             named: "printWriter",
             externalLinkName: "kk_file_printWriter",
@@ -1354,6 +1517,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // PrintWriter.print(text: String) -> Unit
         registerFileMemberFunction(
             named: "print",
             externalLinkName: "kk_print_writer_print",
@@ -1365,6 +1529,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // PrintWriter.println(text: String) -> Unit
         registerFileMemberFunction(
             named: "println",
             externalLinkName: "kk_print_writer_println",
@@ -1376,6 +1541,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // PrintWriter.println() -> Unit  (no-arg overload)
         registerFileMemberFunction(
             named: "println",
             externalLinkName: "kk_print_writer_println_no_arg",
@@ -1387,6 +1553,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // PrintWriter.write(text: String) -> Unit
         registerFileMemberFunction(
             named: "write",
             externalLinkName: "kk_print_writer_write",
@@ -1398,6 +1565,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // PrintWriter.flush() -> Unit
         registerFileMemberFunction(
             named: "flush",
             externalLinkName: "kk_print_writer_flush",
@@ -1409,6 +1577,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // PrintWriter.close() -> Unit
         registerFileMemberFunction(
             named: "close",
             externalLinkName: "kk_print_writer_close",
@@ -1420,7 +1589,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerKotlinIOExtensionFunction( // STDLIB-IO-FN-015
+        // MARK: - File.copyTo(target, overwrite, bufferSize) (STDLIB-IO-FN-015)
+        //
+        // Kotlin signature: `public fun File.copyTo(
+        //     target: File,
+        //     overwrite: Boolean = false,
+        //     bufferSize: Int = DEFAULT_BUFFER_SIZE
+        // ): File` declared in the `kotlin.io` package.
+        registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
             receiverType: fileType,
@@ -1437,7 +1613,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerKotlinIOExtensionFunction( // STDLIB-IO-FN-033
+        // MARK: - Reader.readText() (STDLIB-IO-FN-033)
+        //
+        // Kotlin signature: `public fun Reader.readText(): String` declared in
+        // the `kotlin.io` package. Reads the entire remaining content of the
+        // receiver into a single `String`. Mirrors the stdlib semantics of
+        // exhausting the reader; the runtime helper `kk_reader_readText`
+        // delegates to `RuntimeBufferedReaderBox.readText()`.
+        registerKotlinIOExtensionFunction(
             named: "readText",
             packageFQName: kotlinIOPkg,
             receiverType: readerType,
@@ -1448,7 +1631,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-014: Two overloads because codegen doesn't synthesise default-value calls.
+        // MARK: - Reader.copyTo(out: Writer, bufferSize: Int) -> Long  (STDLIB-IO-FN-014)
+        //
+        // Kotlin signature:
+        //   public fun Reader.copyTo(out: Writer, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long
+        // declared in the `kotlin.io` package.  Copies the receiver's remaining
+        // characters into `out` using an internal buffer of `bufferSize` chars
+        // (Kotlin's default is 16 * 1024 = 16384) and returns the total number
+        // of characters transferred.  Neither the receiver nor `out` is closed.
+        //
+        // We register both the two-arg form (with `bufferSize`'s default-value
+        // marker) and a zero-arg overload that routes to a `_default` runtime
+        // variant — matching how Path extensions handle defaulted parameters
+        // because codegen does not currently synthesise default-value calls.
+        // Two-arg overload (explicit bufferSize required): reader.copyTo(writer, 1024)
         registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
@@ -1465,7 +1661,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Single-arg overload (default bufferSize)
+        // Single-arg overload (default bufferSize): reader.copyTo(writer)
+        // Registers as a separate overload to avoid ambiguity between this
+        // and the two-arg form.
         registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
@@ -1477,12 +1675,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-020 / STDLIB-IO-FN-021
+        // MARK: - ByteArray.inputStream() and ByteArray.inputStream(offset, length) (STDLIB-IO-FN-020 / STDLIB-IO-FN-021)
+        //
+        // Kotlin stdlib declares two overloads in kotlin.io:
+        //   fun ByteArray.inputStream(): ByteArrayInputStream
+        //   fun ByteArray.inputStream(offset: Int, length: Int): ByteArrayInputStream
+        //
+        // We register both on the ByteArray class symbol so that extension-receiver
+        // resolution succeeds for both `bytes.inputStream()` and
+        // `bytes.inputStream(offset, length)`.
         if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
             let byteArrayType = types.make(.classType(ClassType(
                 classSymbol: byteArraySymbol, args: [], nullability: .nonNull
             )))
 
+            // STDLIB-IO-FN-020: ByteArray.inputStream() -> ByteArrayInputStream
             registerSyntheticStringExtensionFunction(
                 named: "inputStream",
                 externalLinkName: "kk_bytearray_inputStream",
@@ -1494,6 +1701,7 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
+            // STDLIB-IO-FN-021: ByteArray.inputStream(offset: Int, length: Int) -> ByteArrayInputStream
             registerSyntheticStringExtensionFunction(
                 named: "inputStream",
                 externalLinkName: "kk_bytearray_inputStream_range",
@@ -1509,7 +1717,9 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // STDLIB-IO-FN-006: Writer.buffered overloads
+        // MARK: - kotlin.io.Writer.buffered (STDLIB-IO-FN-006)
+        // Writer.buffered(): BufferedWriter
+        // Writer.buffered(bufferSize: Int): BufferedWriter
         registerFilePackageExtensionFunction(
             named: "buffered",
             packageFQName: kotlinIOPkg,
@@ -1531,7 +1741,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-007
+        // STDLIB-IO-FN-007: kotlin.io.InputStream.bufferedReader(charset)
+        // Top-level extension function on java.io.InputStream returning BufferedReader.
+        // Signature: fun InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader
+        // charsetFQName is already defined above (line 1042) as kotlinTextPkg + ["Charset"]
         let resolvedCharsetType: TypeID = {
             if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
                 return types.make(.classType(ClassType(
@@ -1555,7 +1768,13 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerKotlinIOExtensionProperty( // STDLIB-IO-PROP-004
+        // MARK: - File.isRooted extension property (STDLIB-IO-PROP-004)
+        //
+        // Kotlin signature: `public val File.isRooted: Boolean` declared in the
+        // `kotlin.io` package. Returns `true` if this file's path begins with a
+        // root component (e.g. `/` on Unix, drive letter on Windows). Backed by
+        // the runtime helper `kk_file_isRooted`.
+        registerKotlinIOExtensionProperty(
             named: "isRooted",
             packageFQName: kotlinIOPkg,
             receiverType: fileType,
@@ -1565,8 +1784,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-012: Only the (target, overwrite) overload is modelled;
-        // the onError lambda parameter is not supported.
+        // MARK: - File.copyRecursively(target, overwrite) (STDLIB-IO-FN-012)
+        //
+        // Kotlin signature:
+        //   public fun File.copyRecursively(
+        //       target: File,
+        //       overwrite: Boolean = false,
+        //       onError: (File, IOException) -> OnErrorAction = { _, exception -> throw exception }
+        //   ): Boolean
+        //
+        // This stub covers the primary (target, overwrite) overload.  The `onError`
+        // lambda parameter is not modelled here; callers relying on the default
+        // error handler (re-throw) are fully supported by the runtime implementation.
         registerKotlinIOExtensionFunction(
             named: "copyRecursively",
             packageFQName: kotlinIOPkg,
@@ -1583,6 +1812,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
+
+    // MARK: - Private Helpers
 
     func resolveListSymbol(
         symbols: SymbolTable,
@@ -1660,6 +1891,10 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Registers a top-level extension function in a Kotlin package
+    /// (e.g. `kotlin.io`) whose receiver is a class symbol such as
+    /// `java.io.OutputStream`.  Used for stdlib extensions like
+    /// `OutputStream.bufferedWriter(charset)` (STDLIB-IO-FN-009).
     private func registerKotlinIOExtensionFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -1754,6 +1989,10 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Registers a top-level extension property in a Kotlin package (e.g.
+    /// `kotlin.io`) whose receiver is a class symbol such as `java.io.File`.
+    /// Used for stdlib extensions like `File.invariantSeparatorsPath`
+    /// (STDLIB-IO-PROP-003).
     private func registerKotlinIOExtensionProperty(
         named name: String,
         packageFQName: [InternedString],
@@ -1941,8 +2180,11 @@ extension DataFlowSemaPhase {
         return javaIOPkg
     }
 
-    /// Mirrors `registerPathExtensionFunction` from SyntheticPathStubs,
-    /// scoped to FileIO to avoid leaking helpers between extension files.
+    /// Register a top-level Kotlin extension function in `packageFQName` with the
+    /// provided receiver. Mirrors `registerPathExtensionFunction` from
+    /// `HeaderHelpers+SyntheticPathStubs.swift`, scoped to FileIO so that
+    /// extensions on `InputStream` / `OutputStream` can live next to the rest
+    /// of the FileIO stubs without leaking helpers between extension files.
     private func registerExtensionFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -2131,6 +2373,8 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(returnType, for: propertySymbol)
     }
 
+    /// Registers a synthetic top-level extension function on a receiver type within
+    /// a package (e.g. `kotlin.io.Writer.buffered()`).
     private func registerFilePackageExtensionFunction(
         named name: String,
         packageFQName: [InternedString],

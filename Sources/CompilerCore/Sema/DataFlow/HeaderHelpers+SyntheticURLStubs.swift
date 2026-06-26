@@ -154,6 +154,7 @@ extension DataFlowSemaPhase {
 
         // MARK: - URL.readText() (STDLIB-IO-FN-035)
         //
+        // Kotlin signature: `public fun URL.readText(charset: Charset = Charsets.UTF_8): String`
         // declared in the `kotlin.io` package.  Reads the entire content reachable
         // via the URL into a String.  We register a no-arg overload that defaults
         // to UTF-8 (matching the no-arg call pattern `url.readText()`).

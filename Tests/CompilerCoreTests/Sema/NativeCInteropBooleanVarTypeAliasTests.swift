@@ -3,6 +3,20 @@ import Foundation
 import XCTest
 
 final class NativeCInteropBooleanVarTypeAliasTests: XCTestCase {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected BooleanVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+            result = (try XCTUnwrap(ctx.sema), ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     private func symbol(
         _ fqPath: [String],
         sema: SemaModule,

@@ -9,6 +9,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        // Ensure java.math package hierarchy
         let javaMathPkg = ensurePackage(
             path: ["java", "math"],
             symbols: symbols,
@@ -324,6 +325,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
+
+    // MARK: - BigInteger Helpers
 
     private func ensureBigIntegerCompanionSymbol(
         ownerSymbol: SymbolID,

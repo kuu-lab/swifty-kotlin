@@ -616,6 +616,8 @@ final class MetadataEncoder {
         return lines.joined(separator: "\n") + "\n"
     }
 
+    // MARK: - Layout Serialization Helpers
+
     func serializeFieldOffsets(
         _ offsets: [SymbolID: Int],
         symbols: SymbolTable,

@@ -3,6 +3,18 @@ import Foundation
 @testable import Runtime
 import XCTest
 
+// STDLIB-PROP-001: Edge case coverage for kotlin.properties delegates.
+//
+// Covers gaps identified in the STDLIB-PROP-001 task:
+//   - notNull(): read before assignment traps, allows reassignment, rejects zero-value set
+//   - observable(): callback fires *after* change (post-condition); multiple sets accumulate;
+//     no callback when fnPtr == 0; value type is same after callback rejection (observable doesn't veto)
+//   - vetoable(): callback fires *before* change (pre-condition); partial-reject sequences;
+//     no callback when fnPtr == 0; veto preserves old value across multiple attempts
+//   - lazy: publication mode initializes only once when winner is determined by race
+//   - kk_delegate_get_value / kk_delegate_set_value generic shims: dispatch to correct box type
+//   - kk_kproperty_stub: name/returnType metadata available inside callbacks
+
 // MARK: - Module-level callback state (C function pointers cannot capture context)
 
 private final class EdgeCaseCallbackState: @unchecked Sendable {

@@ -210,6 +210,16 @@ final class DiagnosticEngineTests: XCTestCase {
         XCTAssertEqual(engine.diagnostics[2].code, "N1")
     }
 
+    // MARK: - Diagnostic Equality
+
+    func testDiagnosticEquality() {
+        let d1 = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
+        let d2 = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
+        let d3 = Diagnostic(severity: .warning, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
+        XCTAssertEqual(d1, d2)
+        XCTAssertNotEqual(d1, d3)
+    }
+
     func testDiagnosticWithSecondaryRanges() {
         let range1 = makeRange(start: 0, end: 5)
         let range2 = makeRange(start: 10, end: 15)
@@ -397,6 +407,14 @@ final class DiagnosticEngineTests: XCTestCase {
             withActions.count, 10,
             "Registry should have at least 10 diagnostics with codeActions"
         )
+    }
+
+    // MARK: - DiagnosticsFormat
+
+    func testDiagnosticsFormatRawValues() {
+        XCTAssertEqual(DiagnosticsFormat(rawValue: "text"), .text)
+        XCTAssertEqual(DiagnosticsFormat(rawValue: "json"), .json)
+        XCTAssertNil(DiagnosticsFormat(rawValue: "xml"))
     }
 
     // MARK: - codeActions on Diagnostic

@@ -113,6 +113,8 @@ extension BuildASTPhase {
         ))
     }
 
+    // MARK: - Local Fun Parsing Helpers
+
     private func parseReturnTypeAnnotation(
         from statementTokens: [Token],
         index: inout Int,

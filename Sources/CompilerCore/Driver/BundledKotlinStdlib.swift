@@ -18,10 +18,6 @@ enum BundledKotlinStdlib {
     // dispatch wiring happen in the follow-up RF-LOWER tasks.
     // maxWith / minWith are omitted here because they call Comparator.compare, which is not
     // yet lowerable to a linkable symbol when bundled functions are codegen'd unconditionally.
-    //
-    // MIGRATION-COL-013: Set HOF implementations in Kotlin source.
-    // sorted/first/last are already routed to kk_set_* by CallLowerer+UnresolvedMemberCalls
-    // for Set receivers, so they are excluded here to avoid duplicate resolution.
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
@@ -244,166 +240,6 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
     }
     return bestElem
 }
-
-public fun <T> List<T>.reversed(): List<T> {
-    val result = mutableListOf<T>()
-    var i = size - 1
-    while (i >= 0) {
-        result.add(this[i])
-        i--
-    }
-    return result
-}
-
-public fun <T : Comparable<T>> List<T>.sorted(): List<T> {
-    val result = mutableListOf<T>()
-    var i = 0
-    while (i < size) {
-        val element = this[i]
-        var insertAt = result.size
-        while (insertAt > 0 && result[insertAt - 1].compareTo(element) > 0) {
-            insertAt--
-        }
-        result.add(insertAt, element)
-        i++
-    }
-    return result
-}
-
-public fun <T, R : Comparable<R>> List<T>.sortedBy(selector: (T) -> R): List<T> {
-    val result = mutableListOf<T>()
-    val keys = mutableListOf<R>()
-    var i = 0
-    while (i < size) {
-        val element = this[i]
-        val key = selector(element)
-        var insertAt = keys.size
-        while (insertAt > 0 && keys[insertAt - 1].compareTo(key) > 0) {
-            insertAt--
-        }
-        keys.add(insertAt, key)
-        result.add(insertAt, element)
-        i++
-    }
-    return result
-}
-
-public fun <T, R : Comparable<R>> List<T>.sortedByDescending(selector: (T) -> R): List<T> {
-    val result = mutableListOf<T>()
-    val keys = mutableListOf<R>()
-    var i = 0
-    while (i < size) {
-        val element = this[i]
-        val key = selector(element)
-        var insertAt = keys.size
-        while (insertAt > 0 && keys[insertAt - 1].compareTo(key) < 0) {
-            insertAt--
-        }
-        keys.add(insertAt, key)
-        result.add(insertAt, element)
-        i++
-    }
-    return result
-}
-
-public fun <T> List<T>.sortedWith(comparator: (T, T) -> Int): List<T> {
-    val result = mutableListOf<T>()
-    var i = 0
-    while (i < size) {
-        val element = this[i]
-        var insertAt = result.size
-        while (insertAt > 0 && comparator(result[insertAt - 1], element) > 0) {
-            insertAt--
-        }
-        result.add(insertAt, element)
-        i++
-    }
-    return result
-}
-
-public fun <T> List<T>.shuffled(): List<T> = shuffled(Random.Default)
-
-public fun <T> List<T>.shuffled(random: Random): List<T> {
-    val result = mutableListOf<T>()
-    var copyIndex = 0
-    while (copyIndex < size) {
-        result.add(this[copyIndex])
-        copyIndex++
-    }
-
-    var i = result.size - 1
-    while (i > 0) {
-        val j = random.nextInt(i + 1)
-        val tmp = result[i]
-        result[i] = result[j]
-        result[j] = tmp
-        i--
-    }
-    return result
-}
-
-// MIGRATION-COL-013
-
-internal fun <T> Set<T>.filter(predicate: (T) -> Boolean): List<T> {
-    val result = mutableListOf<T>()
-    for (element in this) {
-        if (predicate(element)) result.add(element)
-    }
-    return result
-}
-
-internal fun <T, R> Set<T>.map(transform: (T) -> R): List<R> {
-    val result = mutableListOf<R>()
-    for (element in this) {
-        result.add(transform(element))
-    }
-    return result
-}
-
-internal fun <T, R> Set<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
-    val result = mutableListOf<R>()
-    for (element in this) {
-        for (subElement in transform(element)) {
-            result.add(subElement)
-        }
-    }
-    return result
-}
-
-internal fun <T> Set<T>.forEach(action: (T) -> Unit) {
-    for (element in this) {
-        action(element)
-    }
-}
-
-internal fun <T> Set<T>.count(predicate: (T) -> Boolean): Int {
-    var count = 0
-    for (element in this) {
-        if (predicate(element)) count++
-    }
-    return count
-}
-
-internal fun <T> Set<T>.any(predicate: (T) -> Boolean): Boolean {
-    for (element in this) {
-        if (predicate(element)) return true
-    }
-    return false
-}
-
-internal fun <T> Set<T>.all(predicate: (T) -> Boolean): Boolean {
-    for (element in this) {
-        if (!predicate(element)) return false
-    }
-    return true
-}
-
-internal fun <T> Set<T>.none(predicate: (T) -> Boolean): Boolean {
-    for (element in this) {
-        if (predicate(element)) return false
-    }
-    return true
-}
 """
 
     static let kotlinTextSource = """
@@ -445,9 +281,275 @@ fun String.padEnd(length: Int, padChar: Char = ' '): String {
     return sb.toString()
 }
 
-// MIGRATION-TEXT-005: String case conversion and locale wrappers
+// MIGRATION-TEXT-008: String HOF functions in Kotlin source
 
-public fun String.lowercase(): String {
+fun String.filter(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val ch = this[i]
+        if (predicate(ch)) sb.append(ch)
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.filterNot(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val ch = this[i]
+        if (!predicate(ch)) sb.append(ch)
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.filterIndexed(predicate: (Int, Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val ch = this[i]
+        if (predicate(i, ch)) sb.append(ch)
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun <R> String.map(transform: (Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        result.add(transform(this[i]))
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.mapIndexed(transform: (Int, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        result.add(transform(i, this[i]))
+        i += 1
+    }
+    return result
+}
+
+fun <R : Any> String.mapNotNull(transform: (Char) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        val value = transform(this[i])
+        if (value != null) result.add(value)
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.flatMap(transform: (Char) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        val values = transform(this[i])
+        for (value in values) {
+            result.add(value)
+        }
+        i += 1
+    }
+    return result
+}
+
+fun String.count(predicate: (Char) -> Boolean): Int {
+    var total = 0
+    var i = 0
+    while (i < length) {
+        if (predicate(this[i])) total += 1
+        i += 1
+    }
+    return total
+}
+
+fun String.any(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    while (i < length) {
+        if (predicate(this[i])) return true
+        i += 1
+    }
+    return false
+}
+
+fun String.all(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    while (i < length) {
+        if (!predicate(this[i])) return false
+        i += 1
+    }
+    return true
+}
+
+fun String.none(predicate: (Char) -> Boolean): Boolean {
+    var i = 0
+    while (i < length) {
+        if (predicate(this[i])) return false
+        i += 1
+    }
+    return true
+}
+
+fun String.forEach(action: (Char) -> Unit) {
+    var i = 0
+    while (i < length) {
+        action(this[i])
+        i += 1
+    }
+}
+
+fun String.forEachIndexed(action: (Int, Char) -> Unit) {
+    var i = 0
+    while (i < length) {
+        action(i, this[i])
+        i += 1
+    }
+}
+
+fun String.onEach(action: (Char) -> Unit): String {
+    this.forEach(action)
+    return this
+}
+
+fun String.onEachIndexed(action: (Int, Char) -> Unit): String {
+    this.forEachIndexed(action)
+    return this
+}
+
+fun <R> String.fold(initial: R, operation: (R, Char) -> R): R {
+    var accumulator = initial
+    var i = 0
+    while (i < length) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+fun <R> String.foldIndexed(initial: R, operation: (Int, R, Char) -> R): R {
+    var accumulator = initial
+    var i = 0
+    while (i < length) {
+        accumulator = operation(i, accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+fun __kk_emptyStringReduce(): Nothing {
+    throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+}
+
+fun String.reduce(operation: (Char, Char) -> Char): Char {
+    if (length == 0) __kk_emptyStringReduce()
+    var accumulator = this[0]
+    var i = 1
+    while (i < length) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+fun String.reduceIndexed(operation: (Int, Char, Char) -> Char): Char {
+    if (length == 0) __kk_emptyStringReduce()
+    var accumulator = this[0]
+    var i = 1
+    while (i < length) {
+        accumulator = operation(i, accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+fun <R> String.runningFold(initial: R, operation: (R, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < length) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.scan(initial: R, operation: (R, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < length) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.runningFoldIndexed(initial: R, operation: (Int, R, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < length) {
+        accumulator = operation(i, accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.scanIndexed(initial: R, operation: (Int, R, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < length) {
+        accumulator = operation(i, accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+fun String.runningReduce(operation: (Char, Char) -> Char): List<Char> {
+    if (length == 0) return mutableListOf<Char>()
+    val result = mutableListOf<Char>()
+    var accumulator = this[0]
+    result.add(accumulator)
+    var i = 1
+    while (i < length) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+fun String.runningReduceIndexed(operation: (Int, Char, Char) -> Char): List<Char> {
+    if (length == 0) return mutableListOf<Char>()
+    val result = mutableListOf<Char>()
+    var accumulator = this[0]
+    result.add(accumulator)
+    var i = 1
+    while (i < length) {
+        accumulator = operation(i, accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+fun String.lowercase(): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     var i = 0
@@ -458,7 +560,7 @@ public fun String.lowercase(): String {
     return sb.toString()
 }
 
-public fun String.uppercase(): String {
+fun String.uppercase(): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     var i = 0
@@ -469,36 +571,29 @@ public fun String.uppercase(): String {
     return sb.toString()
 }
 
-public fun String.capitalize(): String {
+fun String.lowercase(locale: java.util.Locale): String =
+    this.__kk_lowercase_locale(locale)
+
+fun String.uppercase(locale: java.util.Locale): String =
+    this.__kk_uppercase_locale(locale)
+
+fun String.capitalize(): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(this[0].uppercase())
     var i = 1
-    while (i < length) {
-        sb.append(this[i])
-        i += 1
-    }
+    while (i < length) { sb.append(this[i]); i += 1 }
     return sb.toString()
 }
 
-public fun String.replaceFirstChar(transform: (Char) -> Char): String {
+fun String.replaceFirstChar(transform: (Char) -> Char): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(transform(this[0]))
     var i = 1
-    while (i < length) {
-        sb.append(this[i])
-        i += 1
-    }
+    while (i < length) { sb.append(this[i]); i += 1 }
     return sb.toString()
 }
-
-public fun String.lowercase(locale: java.util.Locale): String =
-    this.__kk_lowercase_locale(locale)
-
-public fun String.uppercase(locale: java.util.Locale): String =
-    this.__kk_uppercase_locale(locale)
-
 
 // MIGRATION-TEXT-007: String.encodeToByteArray — delegate to private C-bridge primitives
 
@@ -522,251 +617,5 @@ fun ByteArray.decodeToString(startIndex: Int, endIndex: Int): String =
 
 fun ByteArray.decodeToString(startIndex: Int, endIndex: Int, throwOnInvalidSequence: Boolean): String =
     this.__kk_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
-
-// MIGRATION-TEXT-006: String indent and format functions
-
-private fun String.kk_drop(n: Int): String {
-    val sb = StringBuilder()
-    var i = n
-    while (i < length) { sb.append(this[i]); i++ }
-    return sb.toString()
-}
-
-private fun String.hasPrefix(prefix: String): Boolean {
-    if (prefix.length > length) return false
-    var i = 0
-    while (i < prefix.length) {
-        if (this[i] != prefix[i]) return false
-        i++
-    }
-    return true
-}
-
-private fun String.splitIntoLines(): List<String> {
-    val result = mutableListOf<String>()
-    var sb = StringBuilder()
-    var i = 0
-    while (i < length) {
-        val c = this[i]
-        if (c == '\\r') {
-            result.add(sb.toString())
-            sb = StringBuilder()
-            if (i + 1 < length && this[i + 1] == '\\n') {
-                i++
-            }
-        } else if (c == '\\n') {
-            result.add(sb.toString())
-            sb = StringBuilder()
-        } else {
-            sb.append(c)
-        }
-        i++
-    }
-    result.add(sb.toString())
-    return result
-}
-
-private fun String.leadingWhitespaceCount(): Int {
-    var count = 0
-    while (count < length) {
-        val c = this[count]
-        if (c != ' ' && c != '\\t') break
-        count++
-    }
-    return count
-}
-
-private fun String.isBlankLine(): Boolean {
-    var i = 0
-    while (i < length) {
-        val c = this[i]
-        if (c != ' ' && c != '\\t') return false
-        i++
-    }
-    return true
-}
-
-private fun trimBlankEdges(lines: List<String>): List<String> {
-    val n = lines.size
-    var start = 0
-    var end = n
-    while (start < end && lines[start].isBlankLine()) start++
-    while (end > start && lines[end - 1].isBlankLine()) end--
-    val result = mutableListOf<String>()
-    var i = start
-    while (i < end) {
-        result.add(lines[i])
-        i++
-    }
-    return result
-}
-
-public fun String.trimIndent(): String {
-    val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
-    var minIndent = -1
-    for (line in lines) {
-        if (!line.isBlankLine()) {
-            val cnt = line.leadingWhitespaceCount()
-            if (minIndent == -1 || cnt < minIndent) minIndent = cnt
-        }
-    }
-    if (minIndent < 0) minIndent = 0
-    val sb = StringBuilder()
-    var first = true
-    for (line in lines) {
-        if (!first) sb.append('\\n')
-        if (line.isBlankLine()) {
-            sb.append("")
-        } else {
-            sb.append(line.kk_drop(minIndent))
-        }
-        first = false
-    }
-    return sb.toString()
-}
-
-public fun String.trimMargin(marginPrefix: String = "|"): String {
-    val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
-    val sb = StringBuilder()
-    var first = true
-    for (line in lines) {
-        if (!first) sb.append('\\n')
-        var i = 0
-        while (i < line.length && (line[i] == ' ' || line[i] == '\\t')) i++
-        val trimmedLeading = line.kk_drop(i)
-        if (trimmedLeading.hasPrefix(marginPrefix)) {
-            sb.append(trimmedLeading.kk_drop(marginPrefix.length))
-        } else {
-            sb.append(line)
-        }
-        first = false
-    }
-    return sb.toString()
-}
-
-public fun String.indent(): String = indent(4)
-
-public fun String.indent(n: Int): String {
-    if (n == 0) return this
-    val lines = splitIntoLines()
-    val sb = StringBuilder()
-    var first = true
-    for (line in lines) {
-        if (!first) sb.append('\n')
-        if (n > 0) {
-            var j = 0
-            while (j < n) { sb.append(' '); j++ }
-            sb.append(line)
-        } else {
-            val remove = -n
-            val leading = line.leadingWhitespaceCount()
-            val drop = if (remove < leading) remove else leading
-            sb.append(line.kk_drop(drop))
-        }
-        first = false
-    }
-    return sb.toString()
-}
-
-public fun String.prependIndent(indent: String = "    "): String {
-    val lines = splitIntoLines()
-    if (lines.isEmpty()) return this
-    val sb = StringBuilder()
-    var first = true
-    for (line in lines) {
-        if (!first) sb.append('\\n')
-        sb.append(indent)
-        sb.append(line)
-        first = false
-    }
-    return sb.toString()
-}
-
-public fun String.replaceIndent(newIndent: String = ""): String {
-    val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
-    var minIndent = -1
-    for (line in lines) {
-        if (!line.isBlankLine()) {
-            val cnt = line.leadingWhitespaceCount()
-            if (minIndent == -1 || cnt < minIndent) minIndent = cnt
-        }
-    }
-    if (minIndent < 0) minIndent = 0
-    val sb = StringBuilder()
-    var first = true
-    for (line in lines) {
-        if (!first) sb.append('\\n')
-        if (line.isBlankLine()) {
-            sb.append("")
-        } else {
-            sb.append(newIndent)
-            sb.append(line.kk_drop(minIndent))
-        }
-        first = false
-    }
-    return sb.toString()
-}
-
-public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: String = "|"): String {
-    if (marginPrefix.isBlankLine()) {
-        throw IllegalArgumentException("marginPrefix must be non-blank string.")
-    }
-    val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
-    val sb = StringBuilder()
-    var first = true
-    for (line in lines) {
-        if (!first) sb.append('\\n')
-        var i = 0
-        while (i < line.length && (line[i] == ' ' || line[i] == '\\t')) i++
-        val trimmedLeading = line.kk_drop(i)
-        if (trimmedLeading.hasPrefix(marginPrefix)) {
-            sb.append(newIndent)
-            sb.append(trimmedLeading.kk_drop(marginPrefix.length))
-        } else {
-            sb.append(line)
-        }
-        first = false
-    }
-    return sb.toString()
-}
-
-"""
-
-    // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
-    // toList / toSet / toMutableList use forEach as the iteration primitive
-    // (intercepted by CollectionLiteralLoweringPass to kk_sequence_forEach).
-    //
-    // Terminal HOFs (first, last, single, count, any, all, none, …) are resolved
-    // via synthetic stubs (HeaderHelpers+SyntheticSequenceTerminalStubs.swift) to
-    // the C-level kk_sequence_* entry points in RuntimeSequence.swift.  They are
-    // NOT included here to avoid scope pollution that would break Sema resolution
-    // for List / Collection / Set receivers with the same member names.
-    static let kotlinSequencesSource = """
-package kotlin.sequences
-
-// MIGRATION-SEQ-003
-
-public fun <T> Sequence<T>.toList(): List<T> {
-    val result = mutableListOf<T>()
-    for (element in this) { result.add(element) }
-    return result
-}
-
-public fun <T> Sequence<T>.toMutableList(): MutableList<T> {
-    val result = mutableListOf<T>()
-    for (element in this) { result.add(element) }
-    return result
-}
-
-public fun <T> Sequence<T>.toSet(): Set<T> {
-    val result = mutableSetOf<T>()
-    for (element in this) { result.add(element) }
-    return result
-}
-
 """
 }

@@ -1,6 +1,14 @@
 /// Returns the existing symbol for `pkg.name` if one was already registered,
 /// otherwise defines a fresh synthetic `kind: .object` symbol there and
 /// returns it.
+///
+/// Previously copy-pasted as a `private` method in
+/// `HeaderHelpers+SyntheticStringStubs.swift`,
+/// `HeaderHelpers+SyntheticRandomStubs.swift`,
+/// `HeaderHelpers+SyntheticCoroutineStubs.swift`, and
+/// `HeaderHelpers+SyntheticTODOAndIOStubs.swift` (the last two using the
+/// shorter `ensureObjectSymbol` name). Centralized here so future edits land
+/// in a single place.
 func ensureSyntheticObjectSymbol(
     named name: String,
     in pkg: [InternedString],

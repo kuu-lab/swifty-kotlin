@@ -15,6 +15,22 @@ final class ReaderCopyToFunctionTests: XCTestCase {
 
     // MARK: - Helpers
 
+    private func memberCallExprIDs(
+        named name: String,
+        in ast: ASTModule,
+        interner: StringInterner
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, callee, _, _, _) = expr,
+                  interner.resolve(callee) == name
+            else {
+                return nil
+            }
+            return exprID
+        }
+    }
 
     // MARK: - Two-arg overload resolves and types as Long
 

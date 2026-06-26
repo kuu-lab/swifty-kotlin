@@ -1366,7 +1366,6 @@ public func kk_list_find(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outT
     return runtimeNullSentinelInt
 }
 
-// (a) RF-DEAD-002: 配線予定 → List.firstOrNull { predicate } lowering
 @_cdecl("kk_list_firstOrNull_predicate")
 public func kk_list_firstOrNull_predicate(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
@@ -2970,8 +2969,6 @@ public func kk_mutable_list_sortDescending_primitive(_ listRaw: Int, _ kindRaw: 
 }
 
 // MARK: - Set higher-order functions (STDLIB-268)
-// (a) RF-DEAD-002: 配線予定 → TEST-COL-012 (Set HOF Codegen 統合テスト追加)
-// 以下 kk_set_map / filterNot / flatMap / forEach / mapNotNull / count_predicate は全て同タスクに紐付く。
 
 @_cdecl("kk_set_map")
 public func kk_set_map(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

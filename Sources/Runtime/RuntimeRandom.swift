@@ -204,6 +204,11 @@ public func kk_random_create_seeded(_ seed: Int) -> Int {
     runtimeCreateSeededRandom(seed: seed)
 }
 
+@_cdecl("kk_java_random_new_seed")
+public func kk_java_random_new_seed(_ seed: Int) -> Int {
+    runtimeCreateSeededRandom(seed: seed)
+}
+
 // MARK: - SecureRandom Constructor / Factory
 
 @_cdecl("kk_secure_random_get_instance")

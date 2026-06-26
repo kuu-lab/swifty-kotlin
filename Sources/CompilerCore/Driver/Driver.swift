@@ -65,6 +65,10 @@ public final class CompilerDriver {
         return finalizeRun(ctx: ctx, printDiagnostics: printDiagnostics, timePhasesEnabled: prepared.timePhasesEnabled)
     }
 
+    // MARK: - Incremental compilation helpers
+
+    /// Checks whether incremental compilation is enabled via frontend flags
+    /// or cache path.
     private func isIncrementalEnabled(options: CompilerOptions) -> Bool {
         if options.incrementalCachePath != nil {
             return true
@@ -72,6 +76,8 @@ public final class CompilerDriver {
         return options.frontendFlags.contains("incremental")
     }
 
+    /// Resolves the cache directory path, falling back to a default derived
+    /// from the output path.
     private func resolveIncrementalCachePath(options: CompilerOptions) -> String {
         if let explicit = options.incrementalCachePath {
             return explicit

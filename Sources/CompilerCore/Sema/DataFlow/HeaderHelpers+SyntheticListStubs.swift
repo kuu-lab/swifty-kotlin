@@ -1919,6 +1919,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
         }
+        // Register a type parameter T on Sequence so generic substitution works.
         let seqTypeParamName = interner.intern("T")
         let seqTypeParamFQName = sequenceFQName + [seqTypeParamName]
         if symbols.lookup(fqName: seqTypeParamFQName) == nil {

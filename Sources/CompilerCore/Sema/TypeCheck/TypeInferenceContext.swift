@@ -154,6 +154,8 @@ struct TypeInferenceContext {
         return (visible, invisible)
     }
 
+    // MARK: - Cached helpers
+
     /// Looks up a symbol, using the sema cache when available.
     func cachedSymbol(_ id: SymbolID) -> SemanticSymbol? {
         if let cache = semaCacheContext {
@@ -169,6 +171,8 @@ struct TypeInferenceContext {
         }
         return scope.lookup(name)
     }
+
+    // MARK: - DslMarker helpers
 
     /// Collects the FQ names of all @DslMarker meta-annotations that apply to
     /// the given type.  A type carries a DslMarker if it is a class/interface

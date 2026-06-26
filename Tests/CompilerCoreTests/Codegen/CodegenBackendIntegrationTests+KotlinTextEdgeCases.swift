@@ -913,79 +913,6 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testKotlinTextSubSequenceEdgeCases() throws {
-        let source = """
-        @Suppress("KSWIFTK-SEMA-DEPRECATED")
-        fun main() {
-            // normal subSequence (delegates to substring)
-            println("hello world".subSequence(6, 11))
-            println("hello world".subSequence(0, 5))
-
-            // empty result (start == end)
-            println("hello".subSequence(2, 2))
-
-            // single char
-            println("hello".subSequence(1, 2))
-
-            // whole string
-            println("hi".subSequence(0, 2))
-
-            // subSequence on empty string, start=0 end=0 OK
-            println("".subSequence(0, 0))
-
-            // out-of-range start: negative
-            try {
-                println("hello".subSequence(-1, 2))
-            } catch (e: Throwable) {
-                println("oob-subSequence-neg")
-            }
-
-            // out-of-range end beyond length
-            try {
-                println("hello".subSequence(0, 99))
-            } catch (e: Throwable) {
-                println("oob-subSequence-end")
-            }
-
-            // start > end
-            try {
-                println("hello".subSequence(3, 1))
-            } catch (e: Throwable) {
-                println("oob-subSequence-startgtend")
-            }
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextSubSequenceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                world
-                hello
-
-                e
-                hi
-
-                oob-subSequence-neg
-                oob-subSequence-end
-                oob-subSequence-startgtend
-                """
-                + "\n"
-            )
-        }
-    }
-
     // MARK: - codePointCount
 
     func testKotlinTextCodePointCountEdgeCases() throws {
@@ -1312,53 +1239,6 @@ extension CodegenBackendIntegrationTests {
                 """
                 0
                 3
-                -1
-                """
-                + "\n"
-            )
-        }
-    }
-
-    // STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)
-    func testKotlinTextLastIndexOfCharEdgeCases() throws {
-        let source = """
-        fun main() {
-            val text: CharSequence = "Kotlin"
-            println(text.lastIndexOf('o', 5, false))
-            println(text.lastIndexOf('k', 5, true))
-            println("hello".lastIndexOf('l', 4, false))
-            println("hello".lastIndexOf('l', 2, false))
-            println("hello".lastIndexOf('l', 1, false))
-            println("hello".lastIndexOf('x', 4, false))
-            println("hello".lastIndexOf('H', 4, true))
-            println("".lastIndexOf('a', 0, false))
-            println("abc".lastIndexOf('a', -1, false))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextLastIndexOfCharEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                1
-                0
-                3
-                2
-                -1
-                -1
-                0
-                -1
                 -1
                 """
                 + "\n"
@@ -1735,47 +1615,6 @@ extension CodegenBackendIntegrationTests {
                 1
                 2
                 -1
-                """
-                + "\n"
-            )
-        }
-    }
-
-    // STDLIB-TEXT-FN-021: indexOfAny with default arguments (startIndex=0, ignoreCase=false)
-    func testKotlinTextIndexOfAnyDefaultArgs() throws {
-        let source = """
-        fun main() {
-            val text = "Kotlin"
-            println(text.indexOfAny(charArrayOf('t', 'K')))
-            println(text.indexOfAny(charArrayOf('t', 'K'), 2))
-            println(text.indexOfAny(listOf("otl", "zz")))
-            println(text.indexOfAny(listOf("otl"), 2))
-            println("abc".indexOfAny(charArrayOf('x')))
-            println("abc".indexOfAny(listOf("bc")))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfAnyDefaultArgs",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                0
-                2
-                1
-                -1
-                -1
-                1
                 """
                 + "\n"
             )

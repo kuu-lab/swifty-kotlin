@@ -2,6 +2,25 @@
 import XCTest
 
 final class NativeSetterAnnotationTests: XCTestCase {
+    private func makeSema(
+        source: String = "fun noop() {}"
+    ) throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnostics = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected nativeSetter annotation surface to resolve cleanly, got: \(diagnostics)"
+            )
+            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     func testNativeSetterAnnotationIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "js", "nativeSetter"].map { interner.intern($0) }

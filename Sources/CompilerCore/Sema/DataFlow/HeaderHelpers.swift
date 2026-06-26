@@ -20,8 +20,8 @@ extension DataFlowSemaPhase {
             propertyDecl.annotations
         case let .typeAliasDecl(typeAliasDecl):
             typeAliasDecl.annotations
-        case let .enumEntryDecl(enumEntryDecl):
-            enumEntryDecl.annotations
+        default:
+            []
         }
     }
 
@@ -1042,17 +1042,20 @@ extension DataFlowSemaPhase {
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsParseIntStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsParseIntRadixStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsJsonStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsTypeOfStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
         // Function interfaces are registered by TODO/IO stubs, so patch KProperty function supertypes here.
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsParseFloatStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
@@ -1068,12 +1071,11 @@ extension DataFlowSemaPhase {
         // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
         // The Phase file preserves the exact original call order.
         registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlyMapStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlySetStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
+        // Trailing platform-interop batch (Wasm + Js + late Reflect stubs).
+        // To add a new Js/Wasm interop stub, edit
+        // HeaderHelpers+SyntheticPhase_PlatformAndJS.swift instead of this file.
+        // The Phase file preserves the exact original call order.
+        registerSyntheticPhase_PlatformAndJS(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

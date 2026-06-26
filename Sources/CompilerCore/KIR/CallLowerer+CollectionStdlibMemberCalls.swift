@@ -162,7 +162,6 @@ extension CallLowerer {
 
         if args.count == 1,
            calleeName == interner.intern("plusElement") || calleeName == interner.intern("minusElement")
-               || calleeName == interner.intern("minus")
         {
             let chosenLinkName = chosenBase64Callee.flatMap { sema.symbols.externalLinkName(for: $0) }
             let returnsList = boundType.map { resultType in
@@ -182,42 +181,10 @@ extension CallLowerer {
                     interner.intern("Iterable"),
                 ]
             }()
-            let isPlusCallee = calleeName == interner.intern("plusElement")
-            let isMinusCallee = calleeName == interner.intern("minusElement")
-                || calleeName == interner.intern("minus")
-            let runtimeCallee = isPlusCallee
+            let runtimeCallee = calleeName == interner.intern("plusElement")
                 ? "kk_list_plus_element"
                 : "kk_list_minus_element"
-            // For `minus`, check whether the argument is itself a collection (List/Set/Array).
-            // If so, route to kk_list_minus_collection rather than kk_list_minus_element.
-            let argIsCollection: Bool
-            if calleeName == interner.intern("minus"), let firstArgExpr = args.first?.expr {
-                let argType = sema.bindings.exprTypes[firstArgExpr] ?? sema.types.anyType
-                let nonNullArgType = sema.types.makeNonNullable(argType)
-                argIsCollection = isConcreteListLikeType(nonNullArgType, sema: sema, interner: interner)
-                    || isSetLikeType(nonNullArgType, sema: sema, interner: interner)
-                    || isConcreteArrayLikeType(nonNullArgType, sema: sema, interner: interner)
-            } else {
-                argIsCollection = false
-            }
-            // When `minus` has a collection argument, dispatch to kk_list_minus_collection.
-            if isMinusCallee && argIsCollection {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_list_minus_collection"),
-                    arguments: [loweredReceiverID] + normalizedArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            // `returnsList` is not safe for `minus` because collection-minus overloads
-            // (e.g. Iterable<T>.minus(elements: Iterable<T>)) also return List<T>.
-            let listReturnFallback = calleeName != interner.intern("minus") && returnsList
-            if (isPlusCallee || isMinusCallee),
-               chosenLinkName == runtimeCallee || listReturnFallback || receiverIsIterable
-            {
+            if chosenLinkName == runtimeCallee || returnsList || receiverIsIterable {
                 instructions.append(.call(
                     symbol: chosenBase64Callee,
                     callee: interner.intern(runtimeCallee),

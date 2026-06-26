@@ -70,6 +70,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
+        // Build Map<K, V> return types when Map symbol is available.
         let mapName = interner.intern("Map")
         let mutableMapName = interner.intern("MutableMap")
         let mapSymbol = symbols.lookup(fqName: collectionsPkg + [mapName])

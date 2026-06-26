@@ -1276,28 +1276,6 @@ final class CallLowerer {
             return (implicitReceiver, interner.intern(argCallee))
         }
 
-        // STDLIB-TEXT-FN-024: For insert(index, value), dispatch to typed overloads.
-        if interner.resolve(sourceCalleeName) == "insert", loweredArguments.count == 2 {
-            let argCallee: String
-            if let argType = arena.exprType(loweredArguments[1]) {
-                let nonNull = sema.types.makeNonNullable(argType)
-                if nonNull == sema.types.booleanType {
-                    argCallee = "kk_string_builder_insert_bool"
-                } else if nonNull == sema.types.charType {
-                    argCallee = "kk_string_builder_insert_char"
-                } else if nonNull == sema.types.make(.primitive(.float, .nonNull)) {
-                    argCallee = "kk_string_builder_insert_float"
-                } else if nonNull == sema.types.make(.primitive(.double, .nonNull)) {
-                    argCallee = "kk_string_builder_insert_double"
-                } else {
-                    argCallee = "kk_string_builder_insert_obj"
-                }
-            } else {
-                argCallee = "kk_string_builder_insert_obj"
-            }
-            return (implicitReceiver, interner.intern(argCallee))
-        }
-
         let callee: String? = switch (interner.resolve(sourceCalleeName), loweredArguments.count) {
         case ("appendLine", 0):
             "kk_string_builder_append_line_noarg_obj"
@@ -1317,6 +1295,8 @@ final class CallLowerer {
             "kk_string_builder_deleteCharAt"
         case ("deleteAt", 1):
             "kk_string_builder_deleteAt"
+        case ("insert", 2):
+            "kk_string_builder_insert_obj"
         case ("delete", 2):
             "kk_string_builder_delete_obj"
         case ("deleteRange", 2):

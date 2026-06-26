@@ -4,7 +4,8 @@ extension KIRLoweringDriver {
     func lowerTopLevelFunDecl(
         _ function: FunDecl,
         symbol: SymbolID,
-        shared: KIRLoweringSharedContext
+        shared: KIRLoweringSharedContext,
+        isBundledStdlib: Bool = false
     ) -> [KIRDeclID] {
         let sema = shared.sema
         let arena = shared.arena
@@ -26,7 +27,8 @@ extension KIRLoweringDriver {
             return false
         }
         let effectiveInline: Bool = function.isInline || hasLambdaParam
-        let isInlineOnly = !function.isInline && hasLambdaParam
+        // Bundled stdlib HOFs can be called as ordinary source functions, so keep a linkable body.
+        let isInlineOnly = !isBundledStdlib && !function.isInline && hasLambdaParam
         let kirID = arena.appendDecl(.function(KIRFunction(
             symbol: symbol, name: function.name, params: params,
             returnType: returnType, body: Array(body),

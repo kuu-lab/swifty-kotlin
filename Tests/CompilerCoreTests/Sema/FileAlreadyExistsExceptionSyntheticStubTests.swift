@@ -6,6 +6,16 @@ import XCTest
 /// File-based constructor overloads, and routes to the shared
 /// `kk_throwable_new` runtime entry point.
 final class FileAlreadyExistsExceptionSyntheticStubTests: XCTestCase {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     func testFileAlreadyExistsExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 

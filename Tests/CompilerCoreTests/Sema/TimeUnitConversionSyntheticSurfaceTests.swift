@@ -5,6 +5,20 @@ import XCTest
 /// Surface coverage for STDLIB-TIME-FN-012: `DurationUnit.toTimeUnit()` and the
 /// synthetic `java.util.concurrent.TimeUnit` enum it returns.
 final class TimeUnitConversionSyntheticSurfaceTests: XCTestCase {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            XCTAssertTrue(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected TimeUnit surface source to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+            result = (try XCTUnwrap(ctx.sema), ctx.interner)
+        }
+        return try XCTUnwrap(result)
+    }
+
     func testTimeUnitEnumEntriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let timeUnitFQName = [

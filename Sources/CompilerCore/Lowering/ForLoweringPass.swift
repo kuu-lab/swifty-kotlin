@@ -1,10 +1,20 @@
 
-final class ForLoweringPass: LoweringPass, ParallelLoweringPass {
+final class ForLoweringPass: LoweringPass {
     static let name = "ForLowering"
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        module.ensureFeaturesScanned()
-        return module.usedCallees.contains(ctx.interner.intern("kk_for_lowered"))
+        let marker = ctx.interner.intern("kk_for_lowered")
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else { continue }
+            for instruction in function.body {
+                if case let .call(_, callee, _, _, _, _, _, _) = instruction,
+                   callee == marker
+                {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {

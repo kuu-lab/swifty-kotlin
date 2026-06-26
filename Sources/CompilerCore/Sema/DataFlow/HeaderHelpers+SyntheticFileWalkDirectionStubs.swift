@@ -45,6 +45,8 @@ extension DataFlowSemaPhase {
         )
     }
 
+    // MARK: - Private helpers
+
     private func ensureFileWalkDirectionEnumClass(
         in pkg: [InternedString],
         symbols: SymbolTable,

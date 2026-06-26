@@ -138,6 +138,8 @@ extension DataFlowSemaPhase {
         }
     }
 
+    // MARK: - Helpers
+
     private func nestedClassIsInner(_ declID: DeclID, env: VarianceCheckEnv) -> Bool {
         guard let decl = env.ast.arena.decl(declID),
               case let .classDecl(classDecl) = decl else { return false }

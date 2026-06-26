@@ -441,8 +441,6 @@ private func runtimeParallelReduceElements(
     return acc
 }
 
-// (a) RF-DEAD-002: 配線予定 → STDLIB-PERF-155 (ParallelStream / asParallel 実装)
-// 以下 kk_parallel_stream_* / kk_parallel_pool_new は全て同タスクに紐付く。
 @_cdecl("kk_parallel_pool_new")
 public func kk_parallel_pool_new(_ workerCountRaw: Int) -> Int {
     registerRuntimeObject(RuntimeParallelPoolBox(workerCount: workerCountRaw))

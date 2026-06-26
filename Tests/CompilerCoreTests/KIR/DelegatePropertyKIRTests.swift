@@ -7,7 +7,11 @@ import Glibc
 #endif
 import XCTest
 
+/// Tests for P5-79: property delegation (`by`) full desugaring.
+/// Covers KIR lowering, StdlibDelegateLoweringPass, and end-to-end compilation
+/// of lazy, observable, vetoable, and custom delegate properties.
 final class DelegatePropertyKIRTests: XCTestCase {
+    // MARK: - KIR Lowering: Lazy Delegate
 
     func testLazyDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
@@ -52,6 +56,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
         }
     }
 
+    // MARK: - KIR Lowering: Observable Delegate
+
     func testObservableDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
         import kotlin.properties.Delegates
@@ -77,6 +83,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
                           "Expected kk_observable_get_value in main body, got: \(callees)")
         }
     }
+
+    // MARK: - KIR Lowering: Vetoable Delegate
 
     func testVetoableDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
@@ -104,6 +112,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
         }
     }
 
+    // MARK: - KIR Lowering: Custom Delegate
+
     func testCustomDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
         val x by myCustomDelegate()
@@ -113,6 +123,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
+            // Custom delegates may produce diagnostics for unresolved symbols,
+            // but the KIR lowering path should still emit custom delegate calls.
             let module = try XCTUnwrap(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
@@ -144,6 +156,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
         }
     }
 
+    // MARK: - StdlibDelegateLoweringPass: Lazy Rewrite
+
     func testStdlibDelegateLoweringRewritesLazyAccessToGetValue() throws {
         let source = """
         val x by lazy { 42 }
@@ -158,12 +172,16 @@ final class DelegatePropertyKIRTests: XCTestCase {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
+            // After lowering, kk_lazy_get_value should still be present.
             XCTAssertTrue(callees.contains("kk_lazy_get_value"),
                           "Expected kk_lazy_get_value after lowering, got: \(callees)")
+            // Raw kk_property_access should NOT remain for delegate fields.
             XCTAssertFalse(callees.contains("kk_property_access"),
                            "kk_property_access should be rewritten after StdlibDelegateLowering")
         }
     }
+
+    // MARK: - StdlibDelegateLoweringPass: Custom Rewrite
 
     func testStdlibDelegateLoweringRewritesCustomAccessToGetValue() throws {
         let source = """
@@ -179,12 +197,15 @@ final class DelegatePropertyKIRTests: XCTestCase {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
+            // After lowering, custom delegate access should stay on the synthesized accessor path.
             XCTAssertTrue(callees.contains("get"),
                           "Expected synthesized property getter after lowering, got: \(callees)")
             XCTAssertFalse(callees.contains("kk_property_access"),
                            "kk_property_access should be rewritten after PropertyLowering")
         }
     }
+
+    // MARK: - Sema: Delegate Type Checking
 
     func testSemaDelegatePropertyWithLazyCompilesWithoutErrors() throws {
         let source = """
@@ -234,6 +255,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
         }
     }
 
+    // MARK: - Delegate Kind Detection
+
     func testDetectDelegateKindLazyProducesLazyCreate() throws {
         let source = """
         val x by lazy { 42 }
@@ -247,6 +270,7 @@ final class DelegatePropertyKIRTests: XCTestCase {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
+            // Lazy detection should produce kk_lazy_create, NOT kk_custom_delegate_create.
             XCTAssertTrue(callees.contains("kk_lazy_create"),
                           "lazy delegate should be detected as lazy kind, got: \(callees)")
             XCTAssertFalse(callees.contains("kk_custom_delegate_create"),
@@ -267,6 +291,7 @@ final class DelegatePropertyKIRTests: XCTestCase {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
+            // Unknown delegate should stay on the custom delegate path via its own constructor/factory.
             XCTAssertTrue(callees.contains("someUnknownDelegate"),
                           "unknown delegate should be detected as custom kind, got: \(callees)")
             XCTAssertFalse(callees.contains("kk_lazy_create"),
@@ -297,6 +322,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
                            "Delegates.notNull should not fall back to custom delegate create, got: \(callees)")
         }
     }
+
+    // MARK: - End-to-End: Lazy Delegate Compilation
 
     func testLazyDelegateEndToEndCompilesToExecutable() throws {
         let source = """
@@ -364,14 +391,22 @@ final class DelegatePropertyKIRTests: XCTestCase {
             }
             if process.isRunning {
                 process.terminate()
+                // Wait for process to exit after terminate to avoid zombie processes
                 let terminateDeadline = Date().addingTimeInterval(1.0)
                 while process.isRunning, Date() < terminateDeadline {
                     Thread.sleep(forTimeInterval: 0.05)
                 }
                 if process.isRunning {
-                    kill(process.processIdentifier, SIGKILL)
-                    let killDeadline = Date().addingTimeInterval(1.0)
-                    while process.isRunning, Date() < killDeadline {
+                    // Note: There's a race condition between this check and the kill() call where the process
+                    // could exit and the PID could be reused. This is a fundamental limitation of the kill() API.
+                    let killResult = kill(process.processIdentifier, SIGKILL)
+                    if killResult != 0 && errno != ESRCH {
+                        // kill() failed with error other than ESRCH (no such process)
+                        // ESRCH is expected if process exited between isRunning check and kill call
+                        // Other errors are unusual but we continue anyway
+                    }
+                    let sigkillDeadline = Date().addingTimeInterval(1.0)
+                    while process.isRunning, Date() < sigkillDeadline {
                         Thread.sleep(forTimeInterval: 0.05)
                     }
                 }
@@ -385,6 +420,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
             let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
 
             XCTAssertNotEqual(process.terminationStatus, 0, "Reading notNull before assignment should fail")
+            // fatalError / abort output is not reliably captured on Process stdout/stderr pipes
+            // across platforms; the important invariant is a non-zero exit (trap path).
             if !stderr.isEmpty || !stdout.isEmpty {
                 let combined = stderr + stdout
                 XCTAssertTrue(
@@ -396,6 +433,8 @@ final class DelegatePropertyKIRTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Multiple Delegate Properties
 
     func testMultipleLazyDelegatePropertiesCompileAndLower() throws {
         let source = """
@@ -415,11 +454,14 @@ final class DelegatePropertyKIRTests: XCTestCase {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
+            // Should have at least 2 kk_lazy_create calls (one per property).
             let createCount = callees.filter { $0 == "kk_lazy_create" }.count
             XCTAssertGreaterThanOrEqual(createCount, 2,
                                         "Expected at least 2 kk_lazy_create calls for 2 lazy properties, got \(createCount)")
         }
     }
+
+    // MARK: - Delegate Property With Explicit Type Annotation
 
     func testDelegatePropertyWithExplicitTypeAnnotation() throws {
         let source = """

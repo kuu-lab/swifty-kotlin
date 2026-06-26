@@ -41,8 +41,6 @@ func runtimeResetDebugState() {
     runtimeSetAssertionsEnabled(runtimeInitialAssertionsEnabled())
 }
 
-// (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
-// RuntimeTests がテスト間で assert 状態を検査・リセットするためのセム。
 @_cdecl("kk_assertions_enabled")
 public func kk_assertions_enabled() -> Int {
     runtimeAreAssertionsEnabled() ? 1 : 0

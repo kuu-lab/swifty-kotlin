@@ -6,6 +6,19 @@ import XCTest
 /// on `kotlin.io.path.Path` is wired through Sema with the expected
 /// charset/bufferSize/options signature and resolves to `kk_path_bufferedReader`.
 final class PathBufferedReaderFunctionTests: XCTestCase {
+    private func memberCallExprIDs(named name: String, in ast: ASTModule, interner: StringInterner) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, callee, _, _, _) = expr,
+                  interner.resolve(callee) == name
+            else {
+                return nil
+            }
+            return exprID
+        }
+    }
+
     func testPathBufferedReaderExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import java.io.BufferedReader
