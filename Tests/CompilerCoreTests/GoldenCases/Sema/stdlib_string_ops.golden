@@ -55,8 +55,8 @@ symbol s53 kind=function fq=kotlin.text.firstOrNull vis=public flags=synthetic s
 symbol s54 kind=function fq=kotlin.text.equals vis=public flags=synthetic sig=recv=String params=[String?] ret=Boolean
 symbol s55 kind=function fq=kotlin.text.equals vis=public flags=synthetic sig=recv=String params=[String?,Boolean] ret=Boolean
 symbol s56 kind=function fq=kotlin.text.replaceFirst vis=public flags=synthetic sig=recv=String params=[String,String] ret=String
-symbol s57 kind=function fq=kotlin.text.replaceRange vis=public flags=synthetic sig=recv=String params=[Int,String] ret=String
-symbol s58 kind=function fq=kotlin.text.replaceRange vis=public flags=synthetic sig=recv=String params=[Int,Int,String] ret=String
+symbol s57 kind=function fq=kotlin.text.replaceFirst vis=public flags=synthetic sig=recv=String params=[String,String,Boolean] ret=String
+symbol s58 kind=function fq=kotlin.text.replaceRange vis=public flags=synthetic sig=recv=String params=[Int,String] ret=String
 symbol s59 kind=class fq=kotlin.text.Charset vis=public flags=synthetic type=Class#59
 symbol s60 kind=function fq=kotlin.text.__kk_encodeToByteArray vis=public flags=synthetic sig=recv=String params=[] ret=Class#22
 symbol s61 kind=function fq=kotlin.text.__kk_encodeToByteArray_range vis=public flags=synthetic sig=recv=String params=[Int,Int] ret=Class#22
@@ -288,8 +288,8 @@ symbol s286 kind=function fq=golden.sema.useReplaceIndent vis=public flags=_ sig
 symbol s287 kind=function fq=golden.sema.useEquals vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol s288 kind=function fq=golden.sema.useEqualsIgnoreCase vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol s289 kind=function fq=golden.sema.useReplaceFirst vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol s290 kind=function fq=golden.sema.useReplaceRange vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol s291 kind=function fq=golden.sema.useReplaceRangeIndices vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol s290 kind=function fq=golden.sema.useReplaceFirstIgnoreCase vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol s291 kind=function fq=golden.sema.useReplaceRange vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol s292 kind=local fq=__local_0.i vis=private flags=mutable type=Int
 symbol s293 kind=local fq=__local_1.sz vis=private flags=_ type=Int
 symbol s294 kind=local fq=__local_2.element vis=private flags=_ type=T#81
@@ -565,8 +565,8 @@ file f3 package=golden.sema
   decl d105 fun useEquals sym=s287
   decl d106 fun useEqualsIgnoreCase sym=s288
   decl d107 fun useReplaceFirst sym=s289
-  decl d108 fun useReplaceRange sym=s290
-  decl d109 fun useReplaceRangeIndices sym=s291
+  decl d108 fun useReplaceFirstIgnoreCase sym=s290
+  decl d109 fun useReplaceRange sym=s291
 expr e1 call callee=e0 args=[] type=Boolean call=s9 targs=[T#79]
 expr e3 string(Collection is empty.) type=String
 expr e4 call callee=e2 args=[_:e3] type=Class#71 call=s73
@@ -2443,14 +2443,14 @@ expr e2073 string(abcabc) type=String
 expr e2074 string(abc) type=String
 expr e2075 string(X) type=String
 expr e2076 memberCall recv=e2073 callee=replaceFirst args=[_:e2074,_:e2075] type=String call=s56
-expr e2077 string(hello) type=String
-expr e2078 int(0) type=Int
-expr e2079 int(2) type=Int
-expr e2080 binary(rangeTo) lhs=e2078 rhs=e2079 type=Int
-expr e2081 string(HE) type=String
-expr e2082 memberCall recv=e2077 callee=replaceRange args=[_:e2080,_:e2081] type=String call=s57
-expr e2083 string(hello) type=String
-expr e2084 int(1) type=Int
-expr e2085 int(4) type=Int
-expr e2086 string(EL) type=String
-expr e2087 memberCall recv=e2083 callee=replaceRange args=[_:e2084,_:e2085,_:e2086] type=String call=s58
+expr e2077 string(abcABC) type=String
+expr e2078 string(abc) type=String
+expr e2079 string(X) type=String
+expr e2080 bool(true) type=Boolean
+expr e2081 memberCall recv=e2077 callee=replaceFirst args=[_:e2078,_:e2079,ignoreCase:e2080] type=String call=s57
+expr e2082 string(hello) type=String
+expr e2083 int(0) type=Int
+expr e2084 int(2) type=Int
+expr e2085 binary(rangeTo) lhs=e2083 rhs=e2084 type=Int
+expr e2086 string(HE) type=String
+expr e2087 memberCall recv=e2082 callee=replaceRange args=[_:e2085,_:e2086] type=String call=s58

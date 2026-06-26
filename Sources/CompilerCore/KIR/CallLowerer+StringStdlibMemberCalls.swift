@@ -1330,6 +1330,28 @@ extension CallLowerer {
             }
         }
 
+        // STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase) — 3-arg overload
+        if args.count == 3, interner.resolve(calleeName) == "replaceFirst" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let thirdArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[2].expr] ?? sema.types.anyType
+            )
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               sema.types.isSubtype(thirdArgType, sema.types.booleanType)
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_replaceFirst_ignoreCase"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         // String stdlib: removeRange(startIndex, endIndex) (STDLIB-TEXT-EDGE-008)
         if args.count == 2, interner.resolve(calleeName) == "removeRange" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
