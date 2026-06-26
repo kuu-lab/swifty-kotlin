@@ -18,6 +18,10 @@ enum BundledKotlinStdlib {
     // dispatch wiring happen in the follow-up RF-LOWER tasks.
     // maxWith / minWith are omitted here because they call Comparator.compare, which is not
     // yet lowerable to a linkable symbol when bundled functions are codegen'd unconditionally.
+    //
+    // MIGRATION-COL-013: Set HOF implementations in Kotlin source.
+    // sorted/first/last are already routed to kk_set_* by CallLowerer+UnresolvedMemberCalls
+    // for Set receivers, so they are excluded here to avoid duplicate resolution.
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
@@ -239,6 +243,166 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
         i += 1
     }
     return bestElem
+}
+
+public fun <T> List<T>.reversed(): List<T> {
+    val result = mutableListOf<T>()
+    var i = size - 1
+    while (i >= 0) {
+        result.add(this[i])
+        i--
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> List<T>.sorted(): List<T> {
+    val result = mutableListOf<T>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        var insertAt = result.size
+        while (insertAt > 0 && result[insertAt - 1].compareTo(element) > 0) {
+            insertAt--
+        }
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T, R : Comparable<R>> List<T>.sortedBy(selector: (T) -> R): List<T> {
+    val result = mutableListOf<T>()
+    val keys = mutableListOf<R>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        val key = selector(element)
+        var insertAt = keys.size
+        while (insertAt > 0 && keys[insertAt - 1].compareTo(key) > 0) {
+            insertAt--
+        }
+        keys.add(insertAt, key)
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T, R : Comparable<R>> List<T>.sortedByDescending(selector: (T) -> R): List<T> {
+    val result = mutableListOf<T>()
+    val keys = mutableListOf<R>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        val key = selector(element)
+        var insertAt = keys.size
+        while (insertAt > 0 && keys[insertAt - 1].compareTo(key) < 0) {
+            insertAt--
+        }
+        keys.add(insertAt, key)
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T> List<T>.sortedWith(comparator: (T, T) -> Int): List<T> {
+    val result = mutableListOf<T>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        var insertAt = result.size
+        while (insertAt > 0 && comparator(result[insertAt - 1], element) > 0) {
+            insertAt--
+        }
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T> List<T>.shuffled(): List<T> = shuffled(Random.Default)
+
+public fun <T> List<T>.shuffled(random: Random): List<T> {
+    val result = mutableListOf<T>()
+    var copyIndex = 0
+    while (copyIndex < size) {
+        result.add(this[copyIndex])
+        copyIndex++
+    }
+
+    var i = result.size - 1
+    while (i > 0) {
+        val j = random.nextInt(i + 1)
+        val tmp = result[i]
+        result[i] = result[j]
+        result[j] = tmp
+        i--
+    }
+    return result
+}
+
+// MIGRATION-COL-013
+
+internal fun <T> Set<T>.filter(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (predicate(element)) result.add(element)
+    }
+    return result
+}
+
+internal fun <T, R> Set<T>.map(transform: (T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        result.add(transform(element))
+    }
+    return result
+}
+
+internal fun <T, R> Set<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        for (subElement in transform(element)) {
+            result.add(subElement)
+        }
+    }
+    return result
+}
+
+internal fun <T> Set<T>.forEach(action: (T) -> Unit) {
+    for (element in this) {
+        action(element)
+    }
+}
+
+internal fun <T> Set<T>.count(predicate: (T) -> Boolean): Int {
+    var count = 0
+    for (element in this) {
+        if (predicate(element)) count++
+    }
+    return count
+}
+
+internal fun <T> Set<T>.any(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (predicate(element)) return true
+    }
+    return false
+}
+
+internal fun <T> Set<T>.all(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (!predicate(element)) return false
+    }
+    return true
+}
+
+internal fun <T> Set<T>.none(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (predicate(element)) return false
+    }
+    return true
 }
 """
 
