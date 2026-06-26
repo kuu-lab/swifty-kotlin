@@ -11,10 +11,6 @@ final class StringIsBlankFunctionTests: XCTestCase {
             return s.isBlank()
         }
 
-        fun isCharSequenceBlank(s: CharSequence): Boolean {
-            return s.isBlank()
-        }
-
         fun isBlankLiteral(): Boolean {
             return "   ".isBlank()
         }
