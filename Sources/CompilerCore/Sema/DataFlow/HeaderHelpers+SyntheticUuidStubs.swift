@@ -12,7 +12,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // Ensure kotlin.uuid package hierarchy
         let kotlinUuidPkg = ensureUuidPackageHierarchy(
             symbols: symbols,
             interner: interner
@@ -381,8 +380,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
     }
-
-    // MARK: - Uuid Helpers
 
     private func ensureUuidPackageHierarchy(
         symbols: SymbolTable,

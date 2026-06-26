@@ -142,6 +142,8 @@ public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> In
     return Int(bitPattern: opaque)
 }
 
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-PROP-001 / STDLIB-REFLECT-062 (KProperty 完全メタデータ実装)
+// kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility} は全て同タスクに紐付く。
 // STDLIB-REFLECT-062: extended create with full KProperty metadata
 @_cdecl("kk_kproperty_stub_create_full")
 public func kk_kproperty_stub_create_full(
@@ -517,6 +519,7 @@ public func kk_custom_delegate_set_value(_ handle: Int, _ thisRef: Int, _ proper
 
 // MARK: - Generic Delegate Operator Shims
 
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-PROP-001 (delegated property getValue / setValue lowering)
 /// Bridges compiler-emitted delegated property accessors that still lower to
 /// `getValue` / `setValue` symbols instead of direct runtime helper names.
 @_cdecl("kk_delegate_get_value")
@@ -551,7 +554,7 @@ public func kk_delegate_get_value(_ handle: Int, _: Int, _ property: Int, _ outT
         let propName = kk_kproperty_stub_name(property)
         for i in 0..<mapBox.keys.count {
             // swiftlint:disable:next for_where
-            if kk_string_equals(mapBox.keys[i], propName) != 0 {
+            if runtimeStringFromRaw(mapBox.keys[i]) == runtimeStringFromRaw(propName) {
                 return mapBox.values[i]
             }
         }
@@ -619,7 +622,7 @@ public func kk_delegate_set_value(
         let propName = kk_kproperty_stub_name(property)
         for i in 0..<mapBox.keys.count {
             // swiftlint:disable:next for_where
-            if kk_string_equals(mapBox.keys[i], propName) != 0 {
+            if runtimeStringFromRaw(mapBox.keys[i]) == runtimeStringFromRaw(propName) {
                 mapBox.values[i] = newValue
                 return newValue
             }

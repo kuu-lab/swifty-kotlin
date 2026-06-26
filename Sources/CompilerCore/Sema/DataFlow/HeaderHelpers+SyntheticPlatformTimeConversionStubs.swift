@@ -73,23 +73,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        let kotlinJsPkg = ensurePackage(path: ["kotlin", "js"], symbols: symbols, interner: interner)
-        let kotlinJsPkgSymbol = symbols.lookup(fqName: kotlinJsPkg)
-        let jsDateSymbol = ensureClassSymbol(
-            named: "Date",
-            in: kotlinJsPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let kotlinJsPkgSymbol {
-            symbols.setParentSymbol(kotlinJsPkgSymbol, for: jsDateSymbol)
-        }
-        let jsDateType = types.make(.classType(ClassType(
-            classSymbol: jsDateSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
         // --- STDLIB-TIME-FN-006 / STDLIB-TIME-FN-012:
         //     TimeUnit.toDurationUnit() <-> DurationUnit.toTimeUnit() ---
         // DurationUnit is registered earlier by registerSyntheticDurationStubs; look it up
@@ -128,15 +111,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_duration_to_java_duration",
             receiverType: kotlinDurationType,
             returnType: javaDurationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerPlatformTimeExtensionFunction(
-            named: "toJSDate",
-            externalLinkName: "kk_instant_to_js_date",
-            receiverType: kotlinInstantType,
-            returnType: jsDateType,
             packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner

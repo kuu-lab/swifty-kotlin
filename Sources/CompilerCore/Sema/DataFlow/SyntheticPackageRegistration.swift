@@ -2,12 +2,6 @@
 /// `kind: .package` symbol for every prefix that does not already exist.
 /// Returns the input path unchanged for callers that chain into further
 /// definitions.
-///
-/// Previously copy-pasted as a `private` method in
-/// `HeaderHelpers+SyntheticFunctionTypeStubs.swift`,
-/// `HeaderHelpers+SyntheticTestStubs.swift`, and
-/// `HeaderHelpers+SyntheticTODOAndIOStubs.swift`. Centralized here so future
-/// edits land in a single place.
 func ensureSyntheticPackageHierarchy(
     fqName path: [InternedString],
     symbols: SymbolTable

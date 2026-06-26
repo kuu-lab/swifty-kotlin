@@ -280,8 +280,6 @@ extension NativeEmitter.FunctionEmissionState {
         }
     }
 
-    // MARK: - Private helpers
-
     private func updateDebugLocation(
         instructionIndex: Int,
         function: KIRFunction,

@@ -541,8 +541,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         return updated
     }
 
-    // MARK: - Helpers
-
     private func makeTemporaryExpr(
         arena: KIRArena,
         nextTempID: inout Int32,

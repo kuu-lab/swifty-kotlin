@@ -29,17 +29,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
         var results: [ExprID] = []
         for index in ast.arena.exprs.indices {

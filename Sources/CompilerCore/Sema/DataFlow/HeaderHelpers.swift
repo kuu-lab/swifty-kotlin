@@ -1042,9 +1042,7 @@ extension DataFlowSemaPhase {
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsParseIntStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsJsonStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
@@ -1068,11 +1066,12 @@ extension DataFlowSemaPhase {
         // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
         // The Phase file preserves the exact original call order.
         registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
-        // Trailing platform-interop batch (Wasm + Js + late Reflect stubs).
-        // To add a new Js/Wasm interop stub, edit
-        // HeaderHelpers+SyntheticPhase_PlatformAndJS.swift instead of this file.
-        // The Phase file preserves the exact original call order.
-        registerSyntheticPhase_PlatformAndJS(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsCollectionsReadonlyMapStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsCollectionsReadonlySetStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

@@ -45,7 +45,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // Register size property for Array<T>
         let sizeReturnType = types.intType
         let sizeName = interner.intern("size")
         let sizeFQName = arrayFQName + [sizeName]
@@ -63,7 +62,6 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName("kk_array_size", for: sizeSym)
         }
 
-        // Register toList() method for Array<T>
         let toListName = interner.intern("toList")
         let toListFQName = arrayFQName + [toListName]
         if symbols.lookup(fqName: toListFQName) == nil {
@@ -910,7 +908,6 @@ extension DataFlowSemaPhase {
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
-            // Ensure the class symbol exists, whether previously defined or not.
             let sym: SymbolID = if let existing = symbols.lookup(fqName: fqName) {
                 existing
             } else {
@@ -959,7 +956,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register toList() methods for primitive arrays
         let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
         let listInterfaceSym = symbols.lookup(fqName: listFQName)
 
@@ -1040,7 +1036,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register asList() view methods for unsigned primitive arrays
         let unsignedPrimitiveArrayNames = [
             "UByteArray",
             "UShortArray",
@@ -1112,7 +1107,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register signed primitive array to unsigned primitive array view conversions.
         let unsignedViewConversions: [(source: String, target: String, member: String, external: String)] = [
             ("ByteArray", "UByteArray", "asUByteArray", "kk_byteArray_asUByteArray"),
             ("ShortArray", "UShortArray", "asUShortArray", "kk_shortArray_asUShortArray"),
@@ -1226,7 +1220,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register unsigned primitive array to signed primitive array view conversions.
         let signedViewConversions: [(source: String, target: String, member: String, external: String)] = [
             ("UByteArray", "ByteArray", "asByteArray", "kk_uByteArray_asByteArray"),
             ("UShortArray", "ShortArray", "asShortArray", "kk_uShortArray_asShortArray"),

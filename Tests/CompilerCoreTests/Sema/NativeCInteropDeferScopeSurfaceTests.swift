@@ -2,16 +2,6 @@
 import XCTest
 
 final class NativeCInteropDeferScopeSurfaceTests: XCTestCase {
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected DeferScope surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        return (try XCTUnwrap(ctx.sema), ctx.interner)
-    }
-
     private func cinteropSymbol(
         _ path: [String],
         sema: SemaModule,

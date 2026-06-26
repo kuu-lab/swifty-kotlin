@@ -1901,8 +1901,6 @@ extension ExprLowerer {
         }
     }
 
-    // MARK: - Container Operator Helpers (STDLIB-OP-032)
-
     /// Emits a contains call instruction, dispatching to a user-defined operator fun contains
     /// if sema recorded a CallBinding, or falling back to the kk_op_contains runtime stub.
     private func appendContainsCall(
