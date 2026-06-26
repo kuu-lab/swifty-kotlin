@@ -648,6 +648,7 @@ extension CallLowerer {
                 || calleeStr == "chunkedSequence"
                 || calleeStr == "firstNotNullOf"
                 || calleeStr == "firstNotNullOfOrNull"
+                || calleeStr == "reduce"
                 || calleeStr == "reduceOrNull"
                 || calleeStr == "reduceRightIndexed"
                 || calleeStr == "reduceRightIndexedOrNull"
@@ -696,7 +697,6 @@ extension CallLowerer {
                     let runtimeCallee = switch calleeStr {
                     case "firstNotNullOf": "kk_string_firstNotNullOf"
                     case "firstNotNullOfOrNull": "kk_string_firstNotNullOfOrNull"
-                    case "reduce": "kk_string_reduce"
                     case "reduceOrNull": "kk_string_reduceOrNull"
                     case "reduceRightIndexed": "kk_string_reduceRightIndexed"
                     case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
@@ -829,6 +829,8 @@ extension CallLowerer {
                     ("kk_string_find", [loweredReceiverID] + normalizedArgIDs)
                 case "findLast":
                     ("kk_string_findLast", [loweredReceiverID] + normalizedArgIDs)
+                case "reduce":
+                    ("kk_string_reduce", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
@@ -885,6 +887,7 @@ extension CallLowerer {
                 if let runtimeCall {
                     let stringHOFCanThrow = calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
+                        || calleeStr == "reduce"
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
