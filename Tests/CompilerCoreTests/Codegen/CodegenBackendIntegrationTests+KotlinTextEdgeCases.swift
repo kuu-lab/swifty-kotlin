@@ -913,6 +913,79 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testKotlinTextSubSequenceEdgeCases() throws {
+        let source = """
+        @Suppress("KSWIFTK-SEMA-DEPRECATED")
+        fun main() {
+            // normal subSequence (delegates to substring)
+            println("hello world".subSequence(6, 11))
+            println("hello world".subSequence(0, 5))
+
+            // empty result (start == end)
+            println("hello".subSequence(2, 2))
+
+            // single char
+            println("hello".subSequence(1, 2))
+
+            // whole string
+            println("hi".subSequence(0, 2))
+
+            // subSequence on empty string, start=0 end=0 OK
+            println("".subSequence(0, 0))
+
+            // out-of-range start: negative
+            try {
+                println("hello".subSequence(-1, 2))
+            } catch (e: Throwable) {
+                println("oob-subSequence-neg")
+            }
+
+            // out-of-range end beyond length
+            try {
+                println("hello".subSequence(0, 99))
+            } catch (e: Throwable) {
+                println("oob-subSequence-end")
+            }
+
+            // start > end
+            try {
+                println("hello".subSequence(3, 1))
+            } catch (e: Throwable) {
+                println("oob-subSequence-startgtend")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextSubSequenceEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                world
+                hello
+
+                e
+                hi
+
+                oob-subSequence-neg
+                oob-subSequence-end
+                oob-subSequence-startgtend
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - codePointCount
 
     func testKotlinTextCodePointCountEdgeCases() throws {
