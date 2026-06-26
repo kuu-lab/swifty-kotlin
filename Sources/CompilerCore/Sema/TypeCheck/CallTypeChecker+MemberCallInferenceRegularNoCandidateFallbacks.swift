@@ -415,13 +415,6 @@ extension CallTypeChecker {
                         interner: interner,
                         fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
                     )
-                case "toBigDecimalOrNull":
-                    sema.types.makeNullable(makeSyntheticNominalType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
-                    ))
                 case "toBigInteger":
                     makeSyntheticNominalType(
                         symbols: sema.symbols,
@@ -1224,7 +1217,7 @@ extension CallTypeChecker {
                    "filter", "map", "count", "any", "all", "none",
                    "indexOfFirst", "indexOfLast",
                    "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
-                   "takeWhile", "takeLastWhile", "dropWhile", "find", "findLast", "splitToSequence",
+                   "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
                    "trim", "trimStart", "trimEnd",
                    "zipWithNext",
                    "partition",
@@ -1475,7 +1468,7 @@ extension CallTypeChecker {
                 case "count": sema.types.intType
                 case "indexOfFirst", "indexOfLast": sema.types.intType
                 case "any", "all", "none": sema.types.booleanType
-                case "filterIndexed", "filterNot", "takeWhile", "takeLastWhile", "dropWhile": sema.types.stringType
+                case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
                 case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
                 case "splitToSequence": sequenceStringType
                 case "partition": pairStringStringType

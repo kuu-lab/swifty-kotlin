@@ -56,8 +56,6 @@ fun useIsNotEmpty(): Boolean = "x".isNotEmpty()
 
 fun useIsBlank(): Boolean = "  ".isBlank()
 
-fun useIsBlankOnCharSequence(cs: CharSequence): Boolean = cs.isBlank()
-
 fun useIsNotBlank(): Boolean = "x".isNotBlank()
 
 fun useFirst(): Char = "hello".first()

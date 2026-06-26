@@ -103,8 +103,8 @@ final class NothingTypeFlowTests: XCTestCase {
                 return false
             }
 
-            // 2 user if-expressions (ifCase + tryCase), bundled stdlib adds more
-            XCTAssertEqual(ifExprIDs.count, 2, "Expected 2 if-expressions typed as Int via Nothing-as-bottom LUB")
+            // 2 user if-expressions (ifCase + tryCase) + 1 from bundled stdlib indent(n:)
+            XCTAssertEqual(ifExprIDs.count, 3, "Expected 3 if-expressions typed as Int via Nothing-as-bottom LUB")
             XCTAssertFalse(whenExprIDs.isEmpty)
             XCTAssertFalse(tryExprIDs.isEmpty)
 
