@@ -123,6 +123,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // vararg overload: fun minOf(a: Float, vararg other: Float): Float (STDLIB-COMP-FN-040).
+        registerSyntheticComparisonFunction(
+            named: "minOf",
+            parameterTypes: [types.floatType, types.floatType],
+            returnType: types.floatType,
+            parameterNames: ["a", "other"],
+            valueParameterIsVararg: [false, true],
+            packageFQName: comparisonsPkg,
+            packageSymbol: comparisonsPackageSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticMaxOfComparableStubs(
             symbols: symbols,
             types: types,
