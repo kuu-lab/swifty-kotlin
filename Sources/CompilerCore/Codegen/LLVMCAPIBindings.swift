@@ -18,6 +18,7 @@ final class LLVMCAPIBindings {
     typealias LLVMContextDisposeFn = @convention(c) (LLVMContextRef?) -> Void
     typealias LLVMModuleCreateWithNameInContextFn = @convention(c) (UnsafePointer<CChar>?, LLVMContextRef?) -> LLVMModuleRef?
     typealias LLVMDisposeModuleFn = @convention(c) (LLVMModuleRef?) -> Void
+    typealias LLVMLinkModules2Fn = @convention(c) (LLVMModuleRef?, LLVMModuleRef?) -> LLVMBool
     typealias LLVMPrintModuleToStringFn = @convention(c) (LLVMModuleRef?) -> UnsafeMutablePointer<CChar>?
     typealias LLVMDisposeMessageFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
     typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
@@ -218,6 +219,7 @@ final class LLVMCAPIBindings {
         LLVMDIBuilderRef?,
         UnsafeMutablePointer<UInt64>?, Int
     ) -> LLVMMetadataRef?
+    let linkModules2Fn: LLVMLinkModules2Fn?
     private let handle: UnsafeMutableRawPointer
     let contextCreateFn: LLVMContextCreateFn
     let contextDisposeFn: LLVMContextDisposeFn
@@ -410,7 +412,8 @@ final class LLVMCAPIBindings {
         diBuilderCreateParameterVariableFn: LLVMDIBuilderCreateParameterVariableFn? = nil,
         diBuilderCreateAutoVariableFn: LLVMDIBuilderCreateAutoVariableFn? = nil,
         diBuilderInsertDeclareAtEndFn: LLVMDIBuilderInsertDeclareAtEndFn? = nil,
-        diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn? = nil
+        diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn? = nil,
+        linkModules2Fn: LLVMLinkModules2Fn? = nil
     ) {
         self.handle = handle
         self.contextCreateFn = contextCreateFn
@@ -508,6 +511,7 @@ final class LLVMCAPIBindings {
         self.diBuilderCreateAutoVariableFn = diBuilderCreateAutoVariableFn
         self.diBuilderInsertDeclareAtEndFn = diBuilderInsertDeclareAtEndFn
         self.diBuilderCreateExpressionFn = diBuilderCreateExpressionFn
+        self.linkModules2Fn = linkModules2Fn
     }
 
     deinit {
