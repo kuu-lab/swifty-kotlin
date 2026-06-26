@@ -1,13 +1,13 @@
 symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
 symbol s1 kind=property fq=kotlin.random.Random.Default vis=public flags=synthetic type=Class#0
-symbol s2 kind=function fq=kotlin.random.Random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Int
-symbol s3 kind=function fq=kotlin.random.Random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int] ret=Int
-symbol s4 kind=function fq=kotlin.random.Random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int,Int] ret=Int
-symbol s5 kind=function fq=kotlin.random.Random.nextFloat vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Float
-symbol s6 kind=function fq=kotlin.random.Random.nextDouble vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Double
-symbol s7 kind=function fq=kotlin.random.Random.nextDouble vis=public flags=synthetic sig=recv=Class#0 params=[Double] ret=Double
-symbol s8 kind=function fq=kotlin.random.Random.nextDouble vis=public flags=synthetic sig=recv=Class#0 params=[Double,Double] ret=Double
-symbol s9 kind=function fq=kotlin.random.Random.nextBoolean vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Boolean
+symbol s2 kind=function fq=kotlin.random.nextBoolean vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Boolean
+symbol s3 kind=function fq=kotlin.random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Int
+symbol s4 kind=function fq=kotlin.random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int] ret=Int
+symbol s5 kind=function fq=kotlin.random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int,Int] ret=Int
+symbol s6 kind=function fq=kotlin.random.nextFloat vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Float
+symbol s7 kind=function fq=kotlin.random.nextDouble vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Double
+symbol s8 kind=function fq=kotlin.random.nextDouble vis=public flags=synthetic sig=recv=Class#0 params=[Double] ret=Double
+symbol s9 kind=function fq=kotlin.random.nextDouble vis=public flags=synthetic sig=recv=Class#0 params=[Double,Double] ret=Double
 symbol s10 kind=interface fq=kotlin.collections.Iterable vis=public flags=synthetic
 symbol s11 kind=interface fq=kotlin.sequences.Sequence vis=public flags=synthetic
 symbol s12 kind=property fq=kotlin.collections.Collection.size vis=public flags=synthetic type=Int
@@ -1356,7 +1356,7 @@ expr e1000 name(random) type=Class#0 ref=s169
 expr e1001 name(i) type=Int ref=s319
 expr e1002 int(1) type=Int
 expr e1003 binary(add) lhs=e1001 rhs=e1002 type=Int
-expr e1004 memberCall recv=e1000 callee=nextInt args=[_:e1003] type=Int call=s3
+expr e1004 memberCall recv=e1000 callee=nextInt args=[_:e1003] type=Int call=s4
 expr e1005 localDecl j mutable=0 type=_ init=e1004 type=Unit ref=s320
 expr e1006 name(result) type=Class#20<T#168> ref=s317
 expr e1007 name(i) type=Int ref=s319
@@ -1758,32 +1758,32 @@ expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s359
 expr e1434 name(result) type=Class#26<T#235> ref=s358
 expr e1435 return value=e1434 type=Nothing
 expr e1436 name(Random) type=Class#0 ref=s0
-expr e1437 memberCall recv=e1436 callee=nextInt args=[] type=Int call=s2
+expr e1437 memberCall recv=e1436 callee=nextInt args=[] type=Int call=s3
 expr e1438 localDecl a mutable=0 type=_ init=e1437 type=Unit ref=s360
 expr e1439 name(Random) type=Class#0 ref=s0
 expr e1440 int(10) type=Int
-expr e1441 memberCall recv=e1439 callee=nextInt args=[_:e1440] type=Int call=s3
+expr e1441 memberCall recv=e1439 callee=nextInt args=[_:e1440] type=Int call=s4
 expr e1442 localDecl b mutable=0 type=_ init=e1441 type=Unit ref=s361
 expr e1443 name(Random) type=Class#0 ref=s0
 expr e1444 int(1) type=Int
 expr e1445 int(10) type=Int
-expr e1446 memberCall recv=e1443 callee=nextInt args=[_:e1444,_:e1445] type=Int call=s4
+expr e1446 memberCall recv=e1443 callee=nextInt args=[_:e1444,_:e1445] type=Int call=s5
 expr e1447 localDecl c mutable=0 type=_ init=e1446 type=Unit ref=s362
 expr e1448 name(Random) type=Class#0 ref=s0
-expr e1449 memberCall recv=e1448 callee=nextDouble args=[] type=Double call=s6
+expr e1449 memberCall recv=e1448 callee=nextDouble args=[] type=Double call=s7
 expr e1450 localDecl d mutable=0 type=_ init=e1449 type=Unit ref=s363
 expr e1451 name(Random) type=Class#0 ref=s0
-expr e1452 memberCall recv=e1451 callee=nextBoolean args=[] type=Boolean call=s9
+expr e1452 memberCall recv=e1451 callee=nextBoolean args=[] type=Boolean call=s2
 expr e1453 localDecl e mutable=0 type=_ init=e1452 type=Unit ref=s364
 expr e1454 name(Random) type=Class#0 ref=s0
-expr e1455 memberCall recv=e1454 callee=nextFloat args=[] type=Float call=s5
+expr e1455 memberCall recv=e1454 callee=nextFloat args=[] type=Float call=s6
 expr e1456 localDecl f mutable=0 type=_ init=e1455 type=Unit ref=s365
 expr e1457 name(Random) type=Class#0 ref=s0
 expr e1458 double(5.0) type=Double
-expr e1459 memberCall recv=e1457 callee=nextDouble args=[_:e1458] type=Double call=s7
+expr e1459 memberCall recv=e1457 callee=nextDouble args=[_:e1458] type=Double call=s8
 expr e1460 localDecl g mutable=0 type=_ init=e1459 type=Unit ref=s366
 expr e1461 name(Random) type=Class#0 ref=s0
 expr e1462 double(1.0) type=Double
 expr e1463 double(10.0) type=Double
-expr e1464 memberCall recv=e1461 callee=nextDouble args=[_:e1462,_:e1463] type=Double call=s8
+expr e1464 memberCall recv=e1461 callee=nextDouble args=[_:e1462,_:e1463] type=Double call=s9
 expr e1465 localDecl h mutable=0 type=_ init=e1464 type=Unit ref=s367

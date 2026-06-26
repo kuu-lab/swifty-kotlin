@@ -1,7 +1,7 @@
 symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
 symbol s1 kind=property fq=kotlin.random.Random.Default vis=public flags=synthetic type=Class#0
-symbol s2 kind=class fq=kotlin.ranges.IntRange vis=public flags=synthetic
-symbol s3 kind=function fq=kotlin.random.Random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int] ret=Int
+symbol s2 kind=function fq=kotlin.random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[Int] ret=Int
+symbol s3 kind=class fq=kotlin.ranges.IntRange vis=public flags=synthetic
 symbol s4 kind=interface fq=kotlin.collections.Iterable vis=public flags=synthetic
 symbol s5 kind=interface fq=kotlin.sequences.Sequence vis=public flags=synthetic
 symbol s6 kind=property fq=kotlin.collections.Collection.size vis=public flags=synthetic type=Int
@@ -22,7 +22,7 @@ symbol s20 kind=interface fq=kotlin.collections.MutableSet vis=public flags=synt
 symbol s21 kind=typeParameter fq=kotlin.collections.MutableSet.E vis=private flags=_
 symbol s22 kind=function fq=kotlin.collections.MutableSet.add vis=public flags=synthetic sig=recv=Class#20<T#21> params=[T#21] ret=Boolean
 symbol s23 kind=class fq=kotlin.ByteArray vis=public flags=synthetic type=Class#23
-symbol s24 kind=function fq=kotlin.ranges.IntRange.toList vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Class#7<out Int>
+symbol s24 kind=function fq=kotlin.ranges.IntRange.toList vis=public flags=synthetic sig=recv=Class#3 params=[] ret=Class#7<out Int>
 symbol s25 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol s26 kind=class fq=java.util.Locale vis=public flags=synthetic type=Class#26
 symbol s27 kind=function fq=kotlin.text.__kk_lowercase_locale vis=public flags=synthetic sig=recv=String params=[Class#26] ret=String
@@ -1353,7 +1353,7 @@ expr e1000 name(random) type=Class#0 ref=s164
 expr e1001 name(i) type=Int ref=s319
 expr e1002 int(1) type=Int
 expr e1003 binary(add) lhs=e1001 rhs=e1002 type=Int
-expr e1004 memberCall recv=e1000 callee=nextInt args=[_:e1003] type=Int call=s3
+expr e1004 memberCall recv=e1000 callee=nextInt args=[_:e1003] type=Int call=s2
 expr e1005 localDecl j mutable=0 type=_ init=e1004 type=Unit ref=s320
 expr e1006 name(result) type=Class#14<T#163> ref=s317
 expr e1007 name(i) type=Int ref=s319
@@ -1777,5 +1777,5 @@ expr e1456 memberCall recv=e1455 callee=toList args=[] type=Class#7<out Int>
 expr e1457 int(1) type=Int
 expr e1458 int(5) type=Int
 expr e1459 binary(rangeTo) lhs=e1457 rhs=e1458 type=Int
-expr e1460 memberCall recv=e1459 callee=reversed args=[] type=Class#2
+expr e1460 memberCall recv=e1459 callee=reversed args=[] type=Class#3
 expr e1461 memberCall recv=e1460 callee=toList args=[] type=Class#7<out Int> call=s24
