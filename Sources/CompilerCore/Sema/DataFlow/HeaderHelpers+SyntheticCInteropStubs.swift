@@ -1748,7 +1748,36 @@ extension DataFlowSemaPhase {
             returnType: pinReturnType,
             typeParameterSymbols: [pinTypeParameterSymbol],
             typeParameterUpperBoundsList: [[types.anyType]],
+            externalLinkName: "kk_pin_object",
             flags: [.synthetic, .inlineFunction],
+            symbols: symbols,
+            interner: interner
+        )
+        // Pinned<T>.get(): T — STDLIB-CINTEROP-FN-009
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "get",
+            ownerSymbol: pinnedSymbol,
+            receiverType: pinnedType,
+            parameters: [],
+            returnType: pinnedTypeParameterType,
+            typeParameterSymbols: [pinnedTypeParameterSymbol],
+            typeParameterUpperBoundsList: [[types.anyType]],
+            classTypeParameterCount: 1,
+            externalLinkName: "kk_pinned_get",
+            symbols: symbols,
+            interner: interner
+        )
+        // Pinned<T>.unpin(): Unit — STDLIB-CINTEROP-FN-009
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "unpin",
+            ownerSymbol: pinnedSymbol,
+            receiverType: pinnedType,
+            parameters: [],
+            returnType: types.unitType,
+            typeParameterSymbols: [pinnedTypeParameterSymbol],
+            typeParameterUpperBoundsList: [[types.anyType]],
+            classTypeParameterCount: 1,
+            externalLinkName: "kk_unpin_object",
             symbols: symbols,
             interner: interner
         )

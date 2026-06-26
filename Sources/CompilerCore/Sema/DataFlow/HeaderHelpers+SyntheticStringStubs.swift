@@ -2258,6 +2258,12 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        let intCharToUnitType = types.make(.functionType(FunctionType(
+            params: [intType, charType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
         let intCharCharToCharType = types.make(.functionType(FunctionType(
             params: [intType, charType, charType],
             returnType: charType,
@@ -2626,6 +2632,34 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_dropWhile",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // --- STDLIB-TEXT-FN-039: String.onEach(action: (Char) -> Unit): String ---
+        let charToUnitType = types.make(.functionType(FunctionType(
+            params: [charType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerSyntheticStringExtensionFunction(
+            named: "onEach",
+            externalLinkName: "kk_string_onEach",
+            receiverType: stringType,
+            parameters: [("action", charToUnitType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // --- STDLIB-TEXT-FN-040: CharSequence.onEachIndexed(action: (Int, Char) -> Unit): S ---
+        registerSyntheticStringExtensionFunction(
+            named: "onEachIndexed",
+            externalLinkName: "kk_string_onEachIndexed",
+            receiverType: stringType,
+            parameters: [("action", intCharToUnitType, false, false)],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,

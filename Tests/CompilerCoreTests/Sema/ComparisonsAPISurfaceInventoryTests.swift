@@ -2,45 +2,7 @@
 import Foundation
 import XCTest
 
-// MARK: - STDLIB-COMP-001: kotlin.comparisons API Surface Inventory
-//
-// This file fixes the canonical API list for kotlin.comparisons and kotlin.Comparator
-// and verifies that every symbol is (or is not) registered after sema.
-//
-// Coverage:
-//   • Comparator<T> interface: compare, thenBy, thenByDescending, thenComparator,
-//     thenDescending, reversed, nullsFirst, nullsLast
-//   • Factory top-levels: compareBy (single-selector & multi-selector), compareByDescending,
-//     naturalOrder, reverseOrder
-//   • Comparison top-levels: compareValues, compareValuesBy (arities 1–3)
-//   • minOf / maxOf with Comparator overloads (kotlin.comparisons package)
-//   • coerceIn range overloads (kotlin.ranges — inventory-level cross-check only)
-//
-// Scope: sema / symbol-table level only.
-//   Runtime correctness is in RuntimeComparatorTests (COMP-003 / #1202).
-//   Overload resolution is in ComparatorOverloadResolutionTests (COMP-002 / #1257).
-//
-// Gap convention:
-//   APIs not yet registered by the sema layer are marked with `_Gap` suffix and
-//   assert the *current absence* with a short follow-up note. Flip `XCTAssertNil` /
-//   `XCTAssertTrue(links.isEmpty)` to the positive assertion once implemented.
-
 final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
-
-    // MARK: - Shared sema fixture
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
-    // MARK: - Lookup helpers
 
     private func externalLink(
         fqPath: [String],
@@ -50,18 +12,6 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
         let interned = fqPath.map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: interned) else { return nil }
         return sema.symbols.externalLinkName(for: sym)
-    }
-
-    private func allExternalLinks(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Set<String> {
-        let interned = fqPath.map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: interned)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
     }
 
     private func symbolExists(
