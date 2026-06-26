@@ -2,6 +2,32 @@
   "version": 1,
   "diagnostics": [
     {
+      "file": "__bundled_kotlin/text/StringIndentFormat.kt",
+      "range": {
+        "start": { "line": 40, "character": 25 },
+        "end": { "line": 40, "character": 26 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin/text/StringIndentFormat.kt",
+      "range": {
+        "start": { "line": 217, "character": 0 },
+        "end": { "line": 305, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
       "file": "override_generic_return_violation.kt",
       "range": {
         "start": { "line": 9, "character": 4 },

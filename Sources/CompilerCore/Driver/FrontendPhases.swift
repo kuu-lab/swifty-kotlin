@@ -82,7 +82,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/reflect/KClassAnnotationRegistration",
         "kotlin/sequences/SequenceWindowChunk",
         "kotlin/text/StringBuilder",
-        "kotlin/text/StringIndentFormat",
         "kotlin/text/StringSearchReplace",
         "kotlin/text/StringSplitJoin",
         "kotlin/uuid/Uuid",
