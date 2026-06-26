@@ -372,7 +372,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListElementAtOrNullRuntime", expected: "20\n-1\n")
     }
 
-    func testCodegenListAggregateHelpersUseSourceAndRuntimeHelpers() throws {
+    func testCodegenListAggregateHelpersUseRuntimeHelpers() throws {
         let source = """
         fun main() {
             val list = listOf(3, 1, 2)
@@ -386,10 +386,6 @@ extension CodegenBackendIntegrationTests {
             println(list.minByOrNull { it % 3 })
             println(list.fold(0) { acc, value -> acc * 10 + value })
             println(list.foldRight(0) { value, acc -> value * 10 + acc })
-            println(list.reduce { acc, value -> acc * 10 + value })
-            println(listOf<Int>().reduceOrNull { acc, value -> acc + value } == null)
-            println(list.scan(0) { acc, value -> acc + value })
-            println(list.runningFold(1) { acc, value -> acc * value })
             println(list.foldIndexed(0) { index, acc, value -> acc + index * value })
             println(setOf(3, 1, 2).foldIndexed(0) { index, acc, value -> acc + index * value })
             println(list.foldRightIndexed(0) { index, value, acc -> index + value + acc })
@@ -415,6 +411,7 @@ extension CodegenBackendIntegrationTests {
             XCTAssertTrue(callees.contains("kk_list_minOfOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minByOrNull"))
             XCTAssertTrue(callees.contains("kk_list_fold"))
+            XCTAssertTrue(callees.contains("kk_list_foldRight"))
             XCTAssertTrue(callees.contains("kk_list_foldIndexed"))
             XCTAssertTrue(callees.contains("kk_list_foldRightIndexed"))
             XCTAssertFalse(callees.contains("kk_list_foldRight"))

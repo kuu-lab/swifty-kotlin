@@ -1648,6 +1648,7 @@ struct CollectionLiteralLookupTables {
 
         stringProducingCallees = [
             interner.intern("kk_string_concat"),
+            interner.intern("kk_string_intern"),
             interner.intern("kk_string_trim"),
             interner.intern("kk_string_lowercase"),
             interner.intern("kk_string_uppercase"),
@@ -1679,11 +1680,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_substringBeforeLast_char"),
             interner.intern("kk_string_substringAfterLast"),
             interner.intern("kk_string_substringAfterLast_char"),
-            interner.intern("kk_string_prependIndent_default"),
-            interner.intern("kk_string_prependIndent"),
-            interner.intern("kk_string_replaceIndent_default"),
-            interner.intern("kk_string_replaceIndent"),
-            interner.intern("kk_string_replaceIndentByMargin"),
             kkStringFilterName,
             interner.intern("kk_build_string"),
             interner.intern("kk_build_string_with_capacity"),

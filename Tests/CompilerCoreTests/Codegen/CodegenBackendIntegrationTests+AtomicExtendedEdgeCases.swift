@@ -253,6 +253,26 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "AtomicBooleanAsJavaAtomic", expected: "ok\n")
     }
 
+    func testCodegenAsKotlinAtomicIntOverload() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import java.util.concurrent.atomic.AtomicInteger
+        import kotlin.concurrent.atomics.asKotlinAtomic
+
+        fun main() {
+            val intAtomic = AtomicInteger(1).asKotlinAtomic()
+            println(intAtomic.load())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicIntOverload", emit: .executable, outputPath: outputBase)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n")
+        }
+    }
+
     func testCodegenAsKotlinAtomicArrayStoreAndLoad() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)

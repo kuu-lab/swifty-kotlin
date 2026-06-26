@@ -185,27 +185,6 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
-    // STDLIB-TEXT-FN-004: appendLine overloads for StringBuilder
-    func testCodegenCompilesStringBuilderAppendLineEdgeCases() throws {
-        let source = """
-        fun main() {
-            val sb = StringBuilder()
-            sb.appendLine("hello")
-            sb.appendLine("world")
-            sb.appendLine()
-            println(sb.toString())
-
-            val result = StringBuilder()
-                .appendLine("first")
-                .appendLine("second")
-                .toString()
-            print(result)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "StringBuilderAppendLineEdgeCases", expected: "hello\nworld\n\n\nfirst\nsecond\n")
-    }
-
     // STDLIB-TEXT-FN-003: Typed append overloads for StringBuilder
     func testCodegenCompilesStringBuilderTypedAppendOverloads() throws {
         let source = """

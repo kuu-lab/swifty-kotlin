@@ -377,28 +377,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toBigDecimal" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimal"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toBigDecimalOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimalOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -587,6 +565,17 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_string_withIndex"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "intern" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_intern"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
