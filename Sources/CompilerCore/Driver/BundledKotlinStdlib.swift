@@ -631,4 +631,38 @@ public fun Duration.isPositive(): Boolean = this.__kk_duration_isPositive()
 
 public fun Duration.isInfinite(): Boolean = this.__kk_duration_isInfinite()
 """
+
+    // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
+    // toList / toSet / toMutableList use forEach as the iteration primitive
+    // (intercepted by CollectionLiteralLoweringPass to kk_sequence_forEach).
+    //
+    // Terminal HOFs (first, last, single, count, any, all, none, …) are resolved
+    // via synthetic stubs (HeaderHelpers+SyntheticSequenceTerminalStubs.swift) to
+    // the C-level kk_sequence_* entry points in RuntimeSequence.swift.  They are
+    // NOT included here to avoid scope pollution that would break Sema resolution
+    // for List / Collection / Set receivers with the same member names.
+    static let kotlinSequencesSource = """
+package kotlin.sequences
+
+// MIGRATION-SEQ-003
+
+public fun <T> Sequence<T>.toList(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) { result.add(element) }
+    return result
+}
+
+public fun <T> Sequence<T>.toMutableList(): MutableList<T> {
+    val result = mutableListOf<T>()
+    for (element in this) { result.add(element) }
+    return result
+}
+
+public fun <T> Sequence<T>.toSet(): Set<T> {
+    val result = mutableSetOf<T>()
+    for (element in this) { result.add(element) }
+    return result
+}
+
+"""
 }
