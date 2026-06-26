@@ -99,9 +99,21 @@ final class LambdaClosureConversionPass: LoweringPass {
         let markerCallee = ctx.interner.intern("<lambda>")
         if module.usedCallees.contains(markerCallee) { return true }
         let lambdaPrefix = "kk_lambda_"
+        let callSiteIndex = CallSiteIndex.build(from: module)
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else { continue }
-            if ctx.interner.resolve(function.name).hasPrefix(lambdaPrefix) {
+            let name = ctx.interner.resolve(function.name)
+            if name.hasPrefix(lambdaPrefix),
+               detectCaptureParamCount(
+                   function: function,
+                   lambdaExprID: lambdaExprID(from: function.name, interner: ctx.interner),
+                   callSiteIndex: callSiteIndex
+               ) > 0,
+               !callSiteIndex.isCalledWithCanThrow(
+                   symbol: function.symbol,
+                   name: function.name
+               )
+            {
                 return true
             }
         }
