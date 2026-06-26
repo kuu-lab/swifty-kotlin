@@ -572,6 +572,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "intern" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_intern"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "trim" {
                     instructions.append(.call(
                         symbol: nil,

@@ -45,7 +45,7 @@
 - [x] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
 - [x] STDLIB-TEXT-FN-024: `insert` 関数の実装
 - [x] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
-- [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
+- [x] STDLIB-TEXT-FN-026: `intern` 関数の実装
 - [x] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
 - [x] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
 - [x] STDLIB-TEXT-FN-033: `iterator` 関数の実装
@@ -70,7 +70,7 @@
 - [ ] STDLIB-TEXT-FN-067: `singleOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-068: `slice` 関数の実装
 - [ ] STDLIB-TEXT-FN-070: `splitToSequence` 関数の実装
-- [ ] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
+- [x] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
 - [x] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [x] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
 - [x] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
@@ -99,15 +99,15 @@
 - [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
 - [ ] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
-- [ ] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
+- [x] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
-- [ ] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
+- [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
-- [ ] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
+- [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
-- [ ] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
+- [x] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
 - [ ] STDLIB-COMP-FN-038: `minOf` 関数の実装（Float版、2引数）
 - [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-040: `minOf` 関数の実装（Float版、vararg）
