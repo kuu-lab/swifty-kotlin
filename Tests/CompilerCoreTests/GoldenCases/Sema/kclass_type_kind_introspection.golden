@@ -357,15 +357,18 @@ symbol s355 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s356 kind=local fq=__local_106.sb vis=private flags=_ type=Class#46
 symbol s357 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s358 kind=local fq=__local_108.result vis=private flags=_ type=Class#14<T#225>
-symbol s359 kind=local fq=__local_109.result vis=private flags=_ type=Class#14<T#227>
-symbol s360 kind=local fq=__local_110.result vis=private flags=_ type=Class#20<T#229>
-symbol s361 kind=local fq=__local_111.dataCheck vis=private flags=_ type=Boolean
-symbol s362 kind=local fq=__local_112.sealedCheck vis=private flags=_ type=Boolean
-symbol s363 kind=local fq=__local_113.enumCheck vis=private flags=_ type=Boolean
-symbol s364 kind=local fq=__local_114.valueCheck vis=private flags=_ type=Boolean
-symbol s365 kind=local fq=__local_115.interfaceCheck vis=private flags=_ type=Boolean
-symbol s366 kind=local fq=__local_116.objectCheck vis=private flags=_ type=Boolean
-symbol s367 kind=local fq=__local_117.funCheck vis=private flags=_ type=Boolean
+symbol s359 kind=local fq=__for_1411.element vis=private flags=_
+symbol s360 kind=local fq=__local_109.result vis=private flags=_ type=Class#14<T#227>
+symbol s361 kind=local fq=__for_1422.element vis=private flags=_
+symbol s362 kind=local fq=__local_110.result vis=private flags=_ type=Class#20<T#229>
+symbol s363 kind=local fq=__for_1433.element vis=private flags=_
+symbol s364 kind=local fq=__local_111.dataCheck vis=private flags=_ type=Boolean
+symbol s365 kind=local fq=__local_112.sealedCheck vis=private flags=_ type=Boolean
+symbol s366 kind=local fq=__local_113.enumCheck vis=private flags=_ type=Boolean
+symbol s367 kind=local fq=__local_114.valueCheck vis=private flags=_ type=Boolean
+symbol s368 kind=local fq=__local_115.interfaceCheck vis=private flags=_ type=Boolean
+symbol s369 kind=local fq=__local_116.objectCheck vis=private flags=_ type=Boolean
+symbol s370 kind=local fq=__local_117.funCheck vis=private flags=_ type=Boolean
 file f0 package=kotlin.collections
   decl d0 fun first sym=s50
   decl d1 fun first sym=s52
@@ -1738,94 +1741,97 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s223
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s37
 expr e1404 call callee=e1403 args=[] type=Class#14<T#225>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s358
-expr e1410 name(result) type=Class#14<T#225> ref=s358
-expr e1411 name(element) type=T#176 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s17
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#176) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#14<T#225> ref=s358
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#14<T#227>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s359
-expr e1424 name(result) type=Class#14<T#227> ref=s359
-expr e1425 name(element) type=T#176 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s17
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#176) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#14<T#227> ref=s359
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#20<T#229>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s360
-expr e1438 name(result) type=Class#20<T#229> ref=s360
-expr e1439 name(element) type=T#176 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s22
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#176) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#20<T#229> ref=s360
-expr e1444 return value=e1443 type=Nothing
-expr e1445 name(Point) type=Any ref=s230
-expr e1446 callableRef recv=e1445 member=class type=KClass<Class#230>
-expr e1447 memberCall recv=e1446 callee=isData args=[] type=Boolean
-expr e1448 localDecl dataCheck mutable=0 type=_ init=e1447 type=Unit ref=s361
-expr e1449 name(Shape) type=Any ref=s231
-expr e1450 callableRef recv=e1449 member=class type=KClass<Class#231>
-expr e1451 memberCall recv=e1450 callee=isSealed args=[] type=Boolean
-expr e1452 localDecl sealedCheck mutable=0 type=_ init=e1451 type=Unit ref=s362
-expr e1453 name(Color) type=Class#232 ref=s232
-expr e1454 callableRef recv=e1453 member=class type=KClass<Class#232>
-expr e1455 memberCall recv=e1454 callee=isEnum args=[] type=Boolean
-expr e1456 localDecl enumCheck mutable=0 type=_ init=e1455 type=Unit ref=s363
-expr e1457 name(Meters) type=Any ref=s233
-expr e1458 callableRef recv=e1457 member=class type=KClass<Class#233>
-expr e1459 memberCall recv=e1458 callee=isValue args=[] type=Boolean
-expr e1460 localDecl valueCheck mutable=0 type=_ init=e1459 type=Unit ref=s364
-expr e1461 name(Printable) type=Any ref=s234
-expr e1462 callableRef recv=e1461 member=class type=KClass<Class#234>
-expr e1463 memberCall recv=e1462 callee=isInterface args=[] type=Boolean
-expr e1464 localDecl interfaceCheck mutable=0 type=_ init=e1463 type=Unit ref=s365
-expr e1465 name(Singleton) type=Class#235 ref=s235
-expr e1466 callableRef recv=e1465 member=class type=KClass<Class#235>
-expr e1467 memberCall recv=e1466 callee=isObject args=[] type=Boolean
-expr e1468 localDecl objectCheck mutable=0 type=_ init=e1467 type=Unit ref=s366
-expr e1469 name(Transformer) type=Any ref=s237
-expr e1470 callableRef recv=e1469 member=class type=KClass<Class#237>
-expr e1471 memberCall recv=e1470 callee=isFun args=[] type=Boolean
-expr e1472 localDecl funCheck mutable=0 type=_ init=e1471 type=Unit ref=s367
-expr e1473 name(dataCheck) type=Boolean ref=s361
-expr e1474 name(sealedCheck) type=Boolean ref=s362
-expr e1475 binary(logicalAnd) lhs=e1473 rhs=e1474 type=Boolean
-expr e1476 name(enumCheck) type=Boolean ref=s363
-expr e1477 binary(logicalAnd) lhs=e1475 rhs=e1476 type=Boolean
-expr e1478 name(valueCheck) type=Boolean ref=s364
-expr e1479 binary(logicalAnd) lhs=e1477 rhs=e1478 type=Boolean
-expr e1480 name(interfaceCheck) type=Boolean ref=s365
-expr e1481 binary(logicalAnd) lhs=e1479 rhs=e1480 type=Boolean
-expr e1482 name(objectCheck) type=Boolean ref=s366
-expr e1483 binary(logicalAnd) lhs=e1481 rhs=e1482 type=Boolean
-expr e1484 name(funCheck) type=Boolean ref=s367
-expr e1485 binary(logicalAnd) lhs=e1483 rhs=e1484 type=Boolean
-expr e1486 return value=e1485 type=Nothing
+expr e1406 this type=Class#5<T#225>
+expr e1407 name(result) type=Class#14<T#225> ref=s358
+expr e1408 name(element) type=T#225 ref=s359
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s17
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s359
+expr e1412 name(result) type=Class#14<T#225> ref=s358
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#14<T#227>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s360
+expr e1417 this type=Class#5<T#227>
+expr e1418 name(result) type=Class#14<T#227> ref=s360
+expr e1419 name(element) type=T#227 ref=s361
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s17
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s361
+expr e1423 name(result) type=Class#14<T#227> ref=s360
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#20<T#229>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s362
+expr e1428 this type=Class#5<T#229>
+expr e1429 name(result) type=Class#20<T#229> ref=s362
+expr e1430 name(element) type=T#229 ref=s363
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s22
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s363
+expr e1434 name(result) type=Class#20<T#229> ref=s362
+expr e1435 return value=e1434 type=Nothing
+expr e1436 name(Point) type=Any ref=s230
+expr e1437 callableRef recv=e1436 member=class type=KClass<Class#230>
+expr e1438 memberCall recv=e1437 callee=isData args=[] type=Boolean
+expr e1439 localDecl dataCheck mutable=0 type=_ init=e1438 type=Unit ref=s364
+expr e1440 name(Shape) type=Any ref=s231
+expr e1441 callableRef recv=e1440 member=class type=KClass<Class#231>
+expr e1442 memberCall recv=e1441 callee=isSealed args=[] type=Boolean
+expr e1443 localDecl sealedCheck mutable=0 type=_ init=e1442 type=Unit ref=s365
+expr e1444 name(Color) type=Class#232 ref=s232
+expr e1445 callableRef recv=e1444 member=class type=KClass<Class#232>
+expr e1446 memberCall recv=e1445 callee=isEnum args=[] type=Boolean
+expr e1447 localDecl enumCheck mutable=0 type=_ init=e1446 type=Unit ref=s366
+expr e1448 name(Meters) type=Any ref=s233
+expr e1449 callableRef recv=e1448 member=class type=KClass<Class#233>
+expr e1450 memberCall recv=e1449 callee=isValue args=[] type=Boolean
+expr e1451 localDecl valueCheck mutable=0 type=_ init=e1450 type=Unit ref=s367
+expr e1452 name(Printable) type=Any ref=s234
+expr e1453 callableRef recv=e1452 member=class type=KClass<Class#234>
+expr e1454 memberCall recv=e1453 callee=isInterface args=[] type=Boolean
+expr e1455 localDecl interfaceCheck mutable=0 type=_ init=e1454 type=Unit ref=s368
+expr e1456 name(Singleton) type=Class#235 ref=s235
+expr e1457 callableRef recv=e1456 member=class type=KClass<Class#235>
+expr e1458 memberCall recv=e1457 callee=isObject args=[] type=Boolean
+expr e1459 localDecl objectCheck mutable=0 type=_ init=e1458 type=Unit ref=s369
+expr e1460 name(Transformer) type=Any ref=s237
+expr e1461 callableRef recv=e1460 member=class type=KClass<Class#237>
+expr e1462 memberCall recv=e1461 callee=isFun args=[] type=Boolean
+expr e1463 localDecl funCheck mutable=0 type=_ init=e1462 type=Unit ref=s370
+expr e1464 name(dataCheck) type=Boolean ref=s364
+expr e1465 name(sealedCheck) type=Boolean ref=s365
+expr e1466 binary(logicalAnd) lhs=e1464 rhs=e1465 type=Boolean
+expr e1467 name(enumCheck) type=Boolean ref=s366
+expr e1468 binary(logicalAnd) lhs=e1466 rhs=e1467 type=Boolean
+expr e1469 name(valueCheck) type=Boolean ref=s367
+expr e1470 binary(logicalAnd) lhs=e1468 rhs=e1469 type=Boolean
+expr e1471 name(interfaceCheck) type=Boolean ref=s368
+expr e1472 binary(logicalAnd) lhs=e1470 rhs=e1471 type=Boolean
+expr e1473 name(objectCheck) type=Boolean ref=s369
+expr e1474 binary(logicalAnd) lhs=e1472 rhs=e1473 type=Boolean
+expr e1475 name(funCheck) type=Boolean ref=s370
+expr e1476 binary(logicalAnd) lhs=e1474 rhs=e1475 type=Boolean
+expr e1477 return value=e1476 type=Nothing
+expr e1478 name(klass) type=Class#0<*> ref=s240
+expr e1479 memberCall recv=e1478 callee=isData args=[] type=Boolean
+expr e1480 string(data) type=String
+expr e1481 name(klass) type=Class#0<*> ref=s240
+expr e1482 memberCall recv=e1481 callee=isSealed args=[] type=Boolean
+expr e1483 string(sealed) type=String
+expr e1484 name(klass) type=Class#0<*> ref=s240
+expr e1485 memberCall recv=e1484 callee=isEnum args=[] type=Boolean
+expr e1486 string(enum) type=String
 expr e1487 name(klass) type=Class#0<*> ref=s240
-expr e1488 memberCall recv=e1487 callee=isData args=[] type=Boolean
-expr e1489 string(data) type=String
+expr e1488 memberCall recv=e1487 callee=isValue args=[] type=Boolean
+expr e1489 string(value) type=String
 expr e1490 name(klass) type=Class#0<*> ref=s240
-expr e1491 memberCall recv=e1490 callee=isSealed args=[] type=Boolean
-expr e1492 string(sealed) type=String
+expr e1491 memberCall recv=e1490 callee=isInterface args=[] type=Boolean
+expr e1492 string(interface) type=String
 expr e1493 name(klass) type=Class#0<*> ref=s240
-expr e1494 memberCall recv=e1493 callee=isEnum args=[] type=Boolean
-expr e1495 string(enum) type=String
+expr e1494 memberCall recv=e1493 callee=isObject args=[] type=Boolean
+expr e1495 string(object) type=String
 expr e1496 name(klass) type=Class#0<*> ref=s240
-expr e1497 memberCall recv=e1496 callee=isValue args=[] type=Boolean
-expr e1498 string(value) type=String
-expr e1499 name(klass) type=Class#0<*> ref=s240
-expr e1500 memberCall recv=e1499 callee=isInterface args=[] type=Boolean
-expr e1501 string(interface) type=String
-expr e1502 name(klass) type=Class#0<*> ref=s240
-expr e1503 memberCall recv=e1502 callee=isObject args=[] type=Boolean
-expr e1504 string(object) type=String
-expr e1505 name(klass) type=Class#0<*> ref=s240
-expr e1506 memberCall recv=e1505 callee=isFun args=[] type=Boolean
-expr e1507 string(fun) type=String
-expr e1508 string(other) type=String
-expr e1509 when subject=_ branches=[e1488->e1489,e1491->e1492,e1494->e1495,e1497->e1498,e1500->e1501,e1503->e1504,e1506->e1507] else=e1508 type=String
-expr e1510 return value=e1509 type=Nothing
+expr e1497 memberCall recv=e1496 callee=isFun args=[] type=Boolean
+expr e1498 string(fun) type=String
+expr e1499 string(other) type=String
+expr e1500 when subject=_ branches=[e1479->e1480,e1482->e1483,e1485->e1486,e1488->e1489,e1491->e1492,e1494->e1495,e1497->e1498] else=e1499 type=String
+expr e1501 return value=e1500 type=Nothing

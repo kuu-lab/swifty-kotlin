@@ -434,24 +434,27 @@ symbol s432 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s433 kind=local fq=__local_106.sb vis=private flags=_ type=Class#46
 symbol s434 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s435 kind=local fq=__local_108.result vis=private flags=_ type=Class#13<T#226>
-symbol s436 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#228>
-symbol s437 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#230>
-symbol s438 kind=local fq=__local_111.adult vis=private flags=_ type=Class#231
-symbol s439 kind=local fq=__local_112.child vis=private flags=_ type=Class#231
-symbol s440 kind=local fq=__local_113.custom vis=private flags=_ type=Class#231
-symbol s441 kind=local fq=__local_114.db vis=private flags=_ type=Class#244
-symbol s442 kind=local fq=__local_115.calc vis=private flags=_ type=Class#253
-symbol s443 kind=local fq=__local_116.logger vis=private flags=_ type=Class#263
-symbol s444 kind=local fq=__local_117.basic vis=private flags=_ type=Class#273
-symbol s445 kind=local fq=__local_118.premium vis=private flags=_ type=Class#273
-symbol s446 kind=local fq=__local_119.catalog vis=private flags=_ type=Class#273
-symbol s447 kind=local fq=__local_120.validEmail vis=private flags=_ type=Class#289?
-symbol s448 kind=local fq=__local_121.invalidEmail vis=private flags=_ type=Class#289?
-symbol s449 kind=local fq=__local_122.outer vis=private flags=_ type=Class#298
-symbol s450 kind=local fq=__local_123.client1 vis=private flags=_ type=<error>
-symbol s451 kind=local fq=__local_124.client2 vis=private flags=_ type=<error>
-symbol s452 kind=local fq=__local_125.file1 vis=private flags=_ type=<error>
-symbol s453 kind=local fq=__local_126.file2 vis=private flags=_ type=<error>
+symbol s436 kind=local fq=__for_1411.element vis=private flags=_
+symbol s437 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#228>
+symbol s438 kind=local fq=__for_1422.element vis=private flags=_
+symbol s439 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#230>
+symbol s440 kind=local fq=__for_1433.element vis=private flags=_
+symbol s441 kind=local fq=__local_111.adult vis=private flags=_ type=Class#231
+symbol s442 kind=local fq=__local_112.child vis=private flags=_ type=Class#231
+symbol s443 kind=local fq=__local_113.custom vis=private flags=_ type=Class#231
+symbol s444 kind=local fq=__local_114.db vis=private flags=_ type=Class#244
+symbol s445 kind=local fq=__local_115.calc vis=private flags=_ type=Class#253
+symbol s446 kind=local fq=__local_116.logger vis=private flags=_ type=Class#263
+symbol s447 kind=local fq=__local_117.basic vis=private flags=_ type=Class#273
+symbol s448 kind=local fq=__local_118.premium vis=private flags=_ type=Class#273
+symbol s449 kind=local fq=__local_119.catalog vis=private flags=_ type=Class#273
+symbol s450 kind=local fq=__local_120.validEmail vis=private flags=_ type=Class#289?
+symbol s451 kind=local fq=__local_121.invalidEmail vis=private flags=_ type=Class#289?
+symbol s452 kind=local fq=__local_122.outer vis=private flags=_ type=Class#298
+symbol s453 kind=local fq=__local_123.client1 vis=private flags=_ type=<error>
+symbol s454 kind=local fq=__local_124.client2 vis=private flags=_ type=<error>
+symbol s455 kind=local fq=__local_125.file1 vis=private flags=_ type=<error>
+symbol s456 kind=local fq=__local_126.file2 vis=private flags=_ type=<error>
 file f0 package=kotlin.collections
   decl d0 fun first sym=s51
   decl d1 fun first sym=s53
@@ -1830,249 +1833,252 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s224
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s37
 expr e1404 call callee=e1403 args=[] type=Class#13<T#226>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s435
-expr e1410 name(result) type=Class#13<T#226> ref=s435
-expr e1411 name(element) type=T#177 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s16
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#177) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#13<T#226> ref=s435
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#13<T#228>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s436
-expr e1424 name(result) type=Class#13<T#228> ref=s436
-expr e1425 name(element) type=T#177 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s16
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#177) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#13<T#228> ref=s436
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#19<T#230>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s437
-expr e1438 name(result) type=Class#19<T#230> ref=s437
-expr e1439 name(element) type=T#177 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s21
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#177) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#19<T#230> ref=s437
-expr e1444 return value=e1443 type=Nothing
-expr e1446 name(name) type=String ref=s238
-expr e1447 int(18) type=Int
-expr e1448 call callee=e1445 args=[_:e1446,_:e1447] type=Class#231 call=s232
-expr e1450 name(name) type=String ref=s240
-expr e1451 int(0) type=Int
-expr e1452 call callee=e1449 args=[_:e1450,_:e1451] type=Class#231 call=s232
-expr e1454 name(name) type=String ref=s242
-expr e1455 name(age) type=Int ref=s243
-expr e1456 call callee=e1453 args=[_:e1454,_:e1455] type=Class#231 call=s232
-expr e1457 name(name) type=String ref=s234
-expr e1458 name(age) type=Int ref=s235
-expr e1459 stringTemplate[expr(e1457),lit( (),expr(e1458),lit())] type=String
-expr e1460 string(jdbc:default) type=String
-expr e1461 int(10) type=Int
-expr e1462 name(db) type=Class#244 ref=s250
-expr e1463 memberCall recv=e1462 callee=connection args=[] type=String ref=s246
-expr e1464 name(db) type=Class#244 ref=s252
-expr e1465 memberCall recv=e1464 callee=maxConnections args=[] type=Int ref=s247
-expr e1466 name(x) type=Int ref=s256
-expr e1467 int(0) type=Int
-expr e1468 binary(greaterThan) lhs=e1466 rhs=e1467 type=Boolean
-expr e1469 name(x) type=Int ref=s258
-expr e1470 name(x) type=Int ref=s258
-expr e1471 binary(multiply) lhs=e1469 rhs=e1470 type=Int
-expr e1472 name(calculator) type=Class#253 ref=s261
-expr e1473 name(x) type=Int ref=s262
-expr e1474 memberCall recv=e1472 callee=validateInput args=[_:e1473] type=Boolean call=s255
-expr e1475 name(calculator) type=Class#253 ref=s261
-expr e1476 name(x) type=Int ref=s262
-expr e1477 memberCall recv=e1475 callee=square args=[_:e1476] type=Int call=s257
-expr e1478 return value=e1477 type=Nothing
-expr e1479 blockExpr stmts=[] trailing=e1478 type=Nothing
-expr e1480 if cond=e1474 then=e1479 else=_ type=Unit
-expr e1481 int(0) type=Int
+expr e1406 this type=Class#4<T#226>
+expr e1407 name(result) type=Class#13<T#226> ref=s435
+expr e1408 name(element) type=T#226 ref=s436
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s16
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s436
+expr e1412 name(result) type=Class#13<T#226> ref=s435
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#13<T#228>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s437
+expr e1417 this type=Class#4<T#228>
+expr e1418 name(result) type=Class#13<T#228> ref=s437
+expr e1419 name(element) type=T#228 ref=s438
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s16
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s438
+expr e1423 name(result) type=Class#13<T#228> ref=s437
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#19<T#230>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s439
+expr e1428 this type=Class#4<T#230>
+expr e1429 name(result) type=Class#19<T#230> ref=s439
+expr e1430 name(element) type=T#230 ref=s440
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s21
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s440
+expr e1434 name(result) type=Class#19<T#230> ref=s439
+expr e1435 return value=e1434 type=Nothing
+expr e1437 name(name) type=String ref=s238
+expr e1438 int(18) type=Int
+expr e1439 call callee=e1436 args=[_:e1437,_:e1438] type=Class#231 call=s232
+expr e1441 name(name) type=String ref=s240
+expr e1442 int(0) type=Int
+expr e1443 call callee=e1440 args=[_:e1441,_:e1442] type=Class#231 call=s232
+expr e1445 name(name) type=String ref=s242
+expr e1446 name(age) type=Int ref=s243
+expr e1447 call callee=e1444 args=[_:e1445,_:e1446] type=Class#231 call=s232
+expr e1448 name(name) type=String ref=s234
+expr e1449 name(age) type=Int ref=s235
+expr e1450 stringTemplate[expr(e1448),lit( (),expr(e1449),lit())] type=String
+expr e1451 string(jdbc:default) type=String
+expr e1452 int(10) type=Int
+expr e1453 name(db) type=Class#244 ref=s250
+expr e1454 memberCall recv=e1453 callee=connection args=[] type=String ref=s246
+expr e1455 name(db) type=Class#244 ref=s252
+expr e1456 memberCall recv=e1455 callee=maxConnections args=[] type=Int ref=s247
+expr e1457 name(x) type=Int ref=s256
+expr e1458 int(0) type=Int
+expr e1459 binary(greaterThan) lhs=e1457 rhs=e1458 type=Boolean
+expr e1460 name(x) type=Int ref=s258
+expr e1461 name(x) type=Int ref=s258
+expr e1462 binary(multiply) lhs=e1460 rhs=e1461 type=Int
+expr e1463 name(calculator) type=Class#253 ref=s261
+expr e1464 name(x) type=Int ref=s262
+expr e1465 memberCall recv=e1463 callee=validateInput args=[_:e1464] type=Boolean call=s255
+expr e1466 name(calculator) type=Class#253 ref=s261
+expr e1467 name(x) type=Int ref=s262
+expr e1468 memberCall recv=e1466 callee=square args=[_:e1467] type=Int call=s257
+expr e1469 return value=e1468 type=Nothing
+expr e1470 blockExpr stmts=[] trailing=e1469 type=Nothing
+expr e1471 if cond=e1465 then=e1470 else=_ type=Unit
+expr e1472 int(0) type=Int
+expr e1473 return value=e1472 type=Nothing
+expr e1474 string(AppLogger) type=String
+expr e1475 string(INFO) type=String
+expr e1476 name(level) type=String ref=s272
+expr e1477 name(message) type=String ref=s270
+expr e1478 stringTemplate[lit([),expr(e1476),lit(] ),expr(e1477)] type=String
+expr e1479 name(Companion) type=Class#268 ref=s268
+expr e1480 name(message) type=String ref=s266
+expr e1481 memberCall recv=e1479 callee=format args=[_:e1480] type=String call=s269
 expr e1482 return value=e1481 type=Nothing
-expr e1483 string(AppLogger) type=String
-expr e1484 string(INFO) type=String
-expr e1485 name(level) type=String ref=s272
-expr e1486 name(message) type=String ref=s270
-expr e1487 stringTemplate[lit([),expr(e1485),lit(] ),expr(e1486)] type=String
-expr e1488 name(Companion) type=Class#268 ref=s268
-expr e1489 name(message) type=String ref=s266
-expr e1490 memberCall recv=e1488 callee=format args=[_:e1489] type=String call=s269
-expr e1491 return value=e1490 type=Nothing
-expr e1492 name(Companion) type=Class#268 ref=s268
-expr e1493 memberCall recv=e1492 callee=tag args=[] type=String ref=s271
-expr e1494 return value=e1493 type=Nothing
-expr e1496 name(name) type=String ref=s281
-expr e1497 stringTemplate[lit(basic-),expr(e1496)] type=String
-expr e1498 name(name) type=String ref=s281
-expr e1499 double(0.0) type=Double
-expr e1500 call callee=e1495 args=[_:e1497,_:e1498,_:e1499] type=Class#273 call=s274
-expr e1502 name(name) type=String ref=s283
-expr e1503 stringTemplate[lit(premium-),expr(e1502)] type=String
-expr e1504 name(name) type=String ref=s283
-expr e1505 name(price) type=Double ref=s284
-expr e1506 call callee=e1501 args=[_:e1503,_:e1504,_:e1505] type=Class#273 call=s274
-expr e1508 name(id) type=String ref=s286
-expr e1509 name(name) type=String ref=s287
-expr e1510 name(price) type=Double ref=s288
-expr e1511 call callee=e1507 args=[_:e1508,_:e1509,_:e1510] type=Class#273 call=s274
-expr e1512 name(name) type=String ref=s277
-expr e1513 name(price) type=Double ref=s278
-expr e1514 name(id) type=String ref=s276
-expr e1515 stringTemplate[expr(e1512),lit( (),expr(e1513),lit() - ID: ),expr(e1514)] type=String
-expr e1517 name(address) type=String ref=s295
-expr e1518 call callee=e1516 args=[_:e1517] type=Boolean call=s296
-expr e1520 name(address) type=String ref=s295
-expr e1521 call callee=e1519 args=[_:e1520] type=Class#289 call=s290
-expr e1522 return value=e1521 type=Nothing
-expr e1523 blockExpr stmts=[] trailing=e1522 type=Nothing
-expr e1524 if cond=e1518 then=e1523 else=_ type=Unit
-expr e1525 name(null) type=Nothing?
-expr e1526 return value=e1525 type=Nothing
-expr e1527 name(address) type=String ref=s297
-expr e1528 string(@) type=String
-expr e1529 memberCall recv=e1527 callee=contains args=[_:e1528] type=Boolean call=s27
-expr e1530 name(address) type=String ref=s297
-expr e1531 string(.) type=String
-expr e1532 memberCall recv=e1530 callee=contains args=[_:e1531] type=Boolean call=s27
-expr e1533 binary(logicalAnd) lhs=e1529 rhs=e1532 type=Boolean
-expr e1534 return value=e1533 type=Nothing
-expr e1535 name(address) type=String ref=s292
-expr e1536 string(outer) type=String
-expr e1537 string(companion) type=String
-expr e1538 name(outer) type=Class#298 ref=s304
-expr e1539 memberCall recv=e1538 callee=outerSecret args=[] type=String ref=s301
-expr e1540 name(companionSecret) type=String ref=s306
-expr e1541 name(Companion) type=Class#302 ref=s302
-expr e1542 memberCall recv=e1541 callee=companionSecret args=[] type=String ref=s306
-expr e1544 call callee=e1543 args=[] type=Class#307 call=s308
-expr e1546 call callee=e1545 args=[] type=Class#307 call=s308
-expr e1548 call callee=e1547 args=[] type=Class#311 call=s312
-expr e1550 call callee=e1549 args=[] type=Class#311 call=s312
-expr e1551 int(30000) type=Int
-expr e1552 int(1000) type=Int
-expr e1553 name(User) type=Class#236 ref=s231
-expr e1554 string(Alice) type=String
-expr e1555 memberCall recv=e1553 callee=createAdult args=[_:e1554] type=Class#231 call=s237
-expr e1556 localDecl adult mutable=0 type=_ init=e1555 type=Unit ref=s438
-expr e1557 name(User) type=Class#236 ref=s231
-expr e1558 string(Bob) type=String
-expr e1559 memberCall recv=e1557 callee=createChild args=[_:e1558] type=Class#231 call=s239
-expr e1560 localDecl child mutable=0 type=_ init=e1559 type=Unit ref=s439
-expr e1561 name(User) type=Class#236 ref=s231
-expr e1562 string(Charlie) type=String
-expr e1563 int(25) type=Int
-expr e1564 memberCall recv=e1561 callee=fromNameAndAge args=[_:e1562,_:e1563] type=Class#231 call=s241
-expr e1565 localDecl custom mutable=0 type=_ init=e1564 type=Unit ref=s440
-expr e1567 name(adult) type=Class#231 ref=s438
-expr e1568 memberCall recv=e1567 callee=getInfo args=[] type=String call=s233
-expr e1569 call callee=e1566 args=[_:e1568] type=Unit call=s50
-expr e1571 name(child) type=Class#231 ref=s439
-expr e1572 memberCall recv=e1571 callee=getInfo args=[] type=String call=s233
-expr e1573 call callee=e1570 args=[_:e1572] type=Unit call=s50
-expr e1575 name(custom) type=Class#231 ref=s440
-expr e1576 memberCall recv=e1575 callee=getInfo args=[] type=String call=s233
-expr e1577 call callee=e1574 args=[_:e1576] type=Unit call=s50
-expr e1579 call callee=e1578 args=[] type=Class#244 call=s245
-expr e1580 localDecl db mutable=0 type=_ init=e1579 type=Unit ref=s441
-expr e1582 name(Database) type=Class#248 ref=s244
-expr e1583 name(db) type=Class#244 ref=s441
-expr e1584 memberCall recv=e1582 callee=getConnection args=[_:e1583] type=String call=s249
-expr e1585 call callee=e1581 args=[_:e1584] type=Unit call=s50
-expr e1587 name(Database) type=Class#248 ref=s244
-expr e1588 name(db) type=Class#244 ref=s441
-expr e1589 memberCall recv=e1587 callee=getMaxConnections args=[_:e1588] type=Int call=s251
-expr e1590 call callee=e1586 args=[_:e1589] type=Unit call=s50
-expr e1592 call callee=e1591 args=[] type=Class#253 call=s254
-expr e1593 localDecl calc mutable=0 type=_ init=e1592 type=Unit ref=s442
-expr e1595 name(Calculator) type=Class#259 ref=s253
-expr e1596 name(calc) type=Class#253 ref=s442
-expr e1597 int(5) type=Int
-expr e1598 memberCall recv=e1595 callee=safeSquare args=[_:e1596,_:e1597] type=Int call=s260
-expr e1599 call callee=e1594 args=[_:e1598] type=Unit call=s50
-expr e1601 name(Calculator) type=Class#259 ref=s253
-expr e1602 name(calc) type=Class#253 ref=s442
-expr e1603 int(1) type=Int
-expr e1604 unary(unaryMinus) operand=e1603 type=Int
-expr e1605 memberCall recv=e1601 callee=safeSquare args=[_:e1602,_:e1604] type=Int call=s260
-expr e1606 call callee=e1600 args=[_:e1605] type=Unit call=s50
-expr e1608 call callee=e1607 args=[] type=Class#263 call=s264
-expr e1609 localDecl logger mutable=0 type=_ init=e1608 type=Unit ref=s443
-expr e1611 name(logger) type=Class#263 ref=s443
-expr e1612 string(Test message) type=String
-expr e1613 memberCall recv=e1611 callee=log args=[_:e1612] type=String call=s265
-expr e1614 call callee=e1610 args=[_:e1613] type=Unit call=s50
-expr e1616 name(logger) type=Class#263 ref=s443
-expr e1617 memberCall recv=e1616 callee=getTag args=[] type=String call=s267
-expr e1618 call callee=e1615 args=[_:e1617] type=Unit call=s50
+expr e1483 name(Companion) type=Class#268 ref=s268
+expr e1484 memberCall recv=e1483 callee=tag args=[] type=String ref=s271
+expr e1485 return value=e1484 type=Nothing
+expr e1487 name(name) type=String ref=s281
+expr e1488 stringTemplate[lit(basic-),expr(e1487)] type=String
+expr e1489 name(name) type=String ref=s281
+expr e1490 double(0.0) type=Double
+expr e1491 call callee=e1486 args=[_:e1488,_:e1489,_:e1490] type=Class#273 call=s274
+expr e1493 name(name) type=String ref=s283
+expr e1494 stringTemplate[lit(premium-),expr(e1493)] type=String
+expr e1495 name(name) type=String ref=s283
+expr e1496 name(price) type=Double ref=s284
+expr e1497 call callee=e1492 args=[_:e1494,_:e1495,_:e1496] type=Class#273 call=s274
+expr e1499 name(id) type=String ref=s286
+expr e1500 name(name) type=String ref=s287
+expr e1501 name(price) type=Double ref=s288
+expr e1502 call callee=e1498 args=[_:e1499,_:e1500,_:e1501] type=Class#273 call=s274
+expr e1503 name(name) type=String ref=s277
+expr e1504 name(price) type=Double ref=s278
+expr e1505 name(id) type=String ref=s276
+expr e1506 stringTemplate[expr(e1503),lit( (),expr(e1504),lit() - ID: ),expr(e1505)] type=String
+expr e1508 name(address) type=String ref=s295
+expr e1509 call callee=e1507 args=[_:e1508] type=Boolean call=s296
+expr e1511 name(address) type=String ref=s295
+expr e1512 call callee=e1510 args=[_:e1511] type=Class#289 call=s290
+expr e1513 return value=e1512 type=Nothing
+expr e1514 blockExpr stmts=[] trailing=e1513 type=Nothing
+expr e1515 if cond=e1509 then=e1514 else=_ type=Unit
+expr e1516 name(null) type=Nothing?
+expr e1517 return value=e1516 type=Nothing
+expr e1518 name(address) type=String ref=s297
+expr e1519 string(@) type=String
+expr e1520 memberCall recv=e1518 callee=contains args=[_:e1519] type=Boolean call=s27
+expr e1521 name(address) type=String ref=s297
+expr e1522 string(.) type=String
+expr e1523 memberCall recv=e1521 callee=contains args=[_:e1522] type=Boolean call=s27
+expr e1524 binary(logicalAnd) lhs=e1520 rhs=e1523 type=Boolean
+expr e1525 return value=e1524 type=Nothing
+expr e1526 name(address) type=String ref=s292
+expr e1527 string(outer) type=String
+expr e1528 string(companion) type=String
+expr e1529 name(outer) type=Class#298 ref=s304
+expr e1530 memberCall recv=e1529 callee=outerSecret args=[] type=String ref=s301
+expr e1531 name(companionSecret) type=String ref=s306
+expr e1532 name(Companion) type=Class#302 ref=s302
+expr e1533 memberCall recv=e1532 callee=companionSecret args=[] type=String ref=s306
+expr e1535 call callee=e1534 args=[] type=Class#307 call=s308
+expr e1537 call callee=e1536 args=[] type=Class#307 call=s308
+expr e1539 call callee=e1538 args=[] type=Class#311 call=s312
+expr e1541 call callee=e1540 args=[] type=Class#311 call=s312
+expr e1542 int(30000) type=Int
+expr e1543 int(1000) type=Int
+expr e1544 name(User) type=Class#236 ref=s231
+expr e1545 string(Alice) type=String
+expr e1546 memberCall recv=e1544 callee=createAdult args=[_:e1545] type=Class#231 call=s237
+expr e1547 localDecl adult mutable=0 type=_ init=e1546 type=Unit ref=s441
+expr e1548 name(User) type=Class#236 ref=s231
+expr e1549 string(Bob) type=String
+expr e1550 memberCall recv=e1548 callee=createChild args=[_:e1549] type=Class#231 call=s239
+expr e1551 localDecl child mutable=0 type=_ init=e1550 type=Unit ref=s442
+expr e1552 name(User) type=Class#236 ref=s231
+expr e1553 string(Charlie) type=String
+expr e1554 int(25) type=Int
+expr e1555 memberCall recv=e1552 callee=fromNameAndAge args=[_:e1553,_:e1554] type=Class#231 call=s241
+expr e1556 localDecl custom mutable=0 type=_ init=e1555 type=Unit ref=s443
+expr e1558 name(adult) type=Class#231 ref=s441
+expr e1559 memberCall recv=e1558 callee=getInfo args=[] type=String call=s233
+expr e1560 call callee=e1557 args=[_:e1559] type=Unit call=s50
+expr e1562 name(child) type=Class#231 ref=s442
+expr e1563 memberCall recv=e1562 callee=getInfo args=[] type=String call=s233
+expr e1564 call callee=e1561 args=[_:e1563] type=Unit call=s50
+expr e1566 name(custom) type=Class#231 ref=s443
+expr e1567 memberCall recv=e1566 callee=getInfo args=[] type=String call=s233
+expr e1568 call callee=e1565 args=[_:e1567] type=Unit call=s50
+expr e1570 call callee=e1569 args=[] type=Class#244 call=s245
+expr e1571 localDecl db mutable=0 type=_ init=e1570 type=Unit ref=s444
+expr e1573 name(Database) type=Class#248 ref=s244
+expr e1574 name(db) type=Class#244 ref=s444
+expr e1575 memberCall recv=e1573 callee=getConnection args=[_:e1574] type=String call=s249
+expr e1576 call callee=e1572 args=[_:e1575] type=Unit call=s50
+expr e1578 name(Database) type=Class#248 ref=s244
+expr e1579 name(db) type=Class#244 ref=s444
+expr e1580 memberCall recv=e1578 callee=getMaxConnections args=[_:e1579] type=Int call=s251
+expr e1581 call callee=e1577 args=[_:e1580] type=Unit call=s50
+expr e1583 call callee=e1582 args=[] type=Class#253 call=s254
+expr e1584 localDecl calc mutable=0 type=_ init=e1583 type=Unit ref=s445
+expr e1586 name(Calculator) type=Class#259 ref=s253
+expr e1587 name(calc) type=Class#253 ref=s445
+expr e1588 int(5) type=Int
+expr e1589 memberCall recv=e1586 callee=safeSquare args=[_:e1587,_:e1588] type=Int call=s260
+expr e1590 call callee=e1585 args=[_:e1589] type=Unit call=s50
+expr e1592 name(Calculator) type=Class#259 ref=s253
+expr e1593 name(calc) type=Class#253 ref=s445
+expr e1594 int(1) type=Int
+expr e1595 unary(unaryMinus) operand=e1594 type=Int
+expr e1596 memberCall recv=e1592 callee=safeSquare args=[_:e1593,_:e1595] type=Int call=s260
+expr e1597 call callee=e1591 args=[_:e1596] type=Unit call=s50
+expr e1599 call callee=e1598 args=[] type=Class#263 call=s264
+expr e1600 localDecl logger mutable=0 type=_ init=e1599 type=Unit ref=s446
+expr e1602 name(logger) type=Class#263 ref=s446
+expr e1603 string(Test message) type=String
+expr e1604 memberCall recv=e1602 callee=log args=[_:e1603] type=String call=s265
+expr e1605 call callee=e1601 args=[_:e1604] type=Unit call=s50
+expr e1607 name(logger) type=Class#263 ref=s446
+expr e1608 memberCall recv=e1607 callee=getTag args=[] type=String call=s267
+expr e1609 call callee=e1606 args=[_:e1608] type=Unit call=s50
+expr e1610 name(Product) type=Class#279 ref=s273
+expr e1611 string(Widget) type=String
+expr e1612 memberCall recv=e1610 callee=createBasicProduct args=[_:e1611] type=Class#273 call=s280
+expr e1613 localDecl basic mutable=0 type=_ init=e1612 type=Unit ref=s447
+expr e1614 name(Product) type=Class#279 ref=s273
+expr e1615 string(Gadget) type=String
+expr e1616 double(99.99) type=Double
+expr e1617 memberCall recv=e1614 callee=createPremiumProduct args=[_:e1615,_:e1616] type=Class#273 call=s282
+expr e1618 localDecl premium mutable=0 type=_ init=e1617 type=Unit ref=s448
 expr e1619 name(Product) type=Class#279 ref=s273
-expr e1620 string(Widget) type=String
-expr e1621 memberCall recv=e1619 callee=createBasicProduct args=[_:e1620] type=Class#273 call=s280
-expr e1622 localDecl basic mutable=0 type=_ init=e1621 type=Unit ref=s444
-expr e1623 name(Product) type=Class#279 ref=s273
-expr e1624 string(Gadget) type=String
-expr e1625 double(99.99) type=Double
-expr e1626 memberCall recv=e1623 callee=createPremiumProduct args=[_:e1624,_:e1625] type=Class#273 call=s282
-expr e1627 localDecl premium mutable=0 type=_ init=e1626 type=Unit ref=s445
-expr e1628 name(Product) type=Class#279 ref=s273
-expr e1629 string(P123) type=String
-expr e1630 string(Thingamajig) type=String
-expr e1631 double(49.95) type=Double
-expr e1632 memberCall recv=e1628 callee=fromCatalog args=[_:e1629,_:e1630,_:e1631] type=Class#273 call=s285
-expr e1633 localDecl catalog mutable=0 type=_ init=e1632 type=Unit ref=s446
-expr e1635 name(basic) type=Class#273 ref=s444
-expr e1636 memberCall recv=e1635 callee=getDescription args=[] type=String call=s275
-expr e1637 call callee=e1634 args=[_:e1636] type=Unit call=s50
-expr e1639 name(premium) type=Class#273 ref=s445
-expr e1640 memberCall recv=e1639 callee=getDescription args=[] type=String call=s275
-expr e1641 call callee=e1638 args=[_:e1640] type=Unit call=s50
-expr e1643 name(catalog) type=Class#273 ref=s446
-expr e1644 memberCall recv=e1643 callee=getDescription args=[] type=String call=s275
-expr e1645 call callee=e1642 args=[_:e1644] type=Unit call=s50
-expr e1646 name(EmailAddress) type=Class#293 ref=s289
-expr e1647 string(test@example.com) type=String
-expr e1648 memberCall recv=e1646 callee=create args=[_:e1647] type=Class#289? call=s294
-expr e1649 localDecl validEmail mutable=0 type=_ init=e1648 type=Unit ref=s447
-expr e1650 name(EmailAddress) type=Class#293 ref=s289
-expr e1651 string(invalid-email) type=String
-expr e1652 memberCall recv=e1650 callee=create args=[_:e1651] type=Class#289? call=s294
-expr e1653 localDecl invalidEmail mutable=0 type=_ init=e1652 type=Unit ref=s448
-expr e1655 name(validEmail) type=Class#289? ref=s447
-expr e1656 safeMemberCall recv=e1655 callee=toString args=[] type=String? call=s291
-expr e1657 call callee=e1654 args=[_:e1656] type=Unit call=s50
-expr e1659 name(invalidEmail) type=Class#289? ref=s448
-expr e1660 safeMemberCall recv=e1659 callee=toString args=[] type=String? call=s291
-expr e1661 call callee=e1658 args=[_:e1660] type=Unit call=s50
-expr e1663 call callee=e1662 args=[] type=Class#298 call=s299
-expr e1664 localDecl outer mutable=0 type=_ init=e1663 type=Unit ref=s449
-expr e1666 name(OuterClass) type=Class#302 ref=s298
-expr e1667 name(outer) type=Class#298 ref=s449
-expr e1668 memberCall recv=e1666 callee=getOuterSecret args=[_:e1667] type=String call=s303
-expr e1669 call callee=e1665 args=[_:e1668] type=Unit call=s50
-expr e1671 name(OuterClass) type=Class#302 ref=s298
-expr e1672 memberCall recv=e1671 callee=getCompanionSecret args=[] type=String call=s305
-expr e1673 call callee=e1670 args=[_:e1672] type=Unit call=s50
-expr e1675 name(outer) type=Class#298 ref=s449
-expr e1676 memberCall recv=e1675 callee=getCompanionSecretFromOuter args=[] type=String call=s300
-expr e1677 call callee=e1674 args=[_:e1676] type=Unit call=s50
-expr e1678 name(NetworkClient) type=Class#307 ref=s307
-expr e1679 memberCall recv=e1678 callee=createDefault args=[] type=<error>
-expr e1680 localDecl client1 mutable=0 type=_ init=e1679 type=Unit ref=s450
-expr e1681 name(NetworkClient) type=Class#307 ref=s307
-expr e1682 int(5000) type=Int
-expr e1683 memberCall recv=e1681 callee=createWithTimeout args=[_:e1682] type=<error>
-expr e1684 localDecl client2 mutable=0 type=_ init=e1683 type=Unit ref=s451
-expr e1686 name(NetworkClient) type=Class#307 ref=s307
-expr e1687 memberCall recv=e1686 callee=defaultTimeout args=[] type=<error>
-expr e1688 stringTemplate[lit(Default timeout: ),expr(e1687)] type=String
-expr e1689 call callee=e1685 args=[_:e1688] type=Unit call=s50
-expr e1690 name(FileManager) type=Class#311 ref=s311
-expr e1691 memberCall recv=e1690 callee=createFile args=[] type=<error>
-expr e1692 localDecl file1 mutable=0 type=_ init=e1691 type=Unit ref=s452
-expr e1693 name(FileManager) type=Class#311 ref=s311
-expr e1694 memberCall recv=e1693 callee=createReadOnly args=[] type=<error>
-expr e1695 localDecl file2 mutable=0 type=_ init=e1694 type=Unit ref=s453
-expr e1697 name(FileManager) type=Class#311 ref=s311
-expr e1698 memberCall recv=e1697 callee=maxFiles args=[] type=<error>
-expr e1699 stringTemplate[lit(Max files: ),expr(e1698)] type=String
-expr e1700 call callee=e1696 args=[_:e1699] type=Unit call=s50
+expr e1620 string(P123) type=String
+expr e1621 string(Thingamajig) type=String
+expr e1622 double(49.95) type=Double
+expr e1623 memberCall recv=e1619 callee=fromCatalog args=[_:e1620,_:e1621,_:e1622] type=Class#273 call=s285
+expr e1624 localDecl catalog mutable=0 type=_ init=e1623 type=Unit ref=s449
+expr e1626 name(basic) type=Class#273 ref=s447
+expr e1627 memberCall recv=e1626 callee=getDescription args=[] type=String call=s275
+expr e1628 call callee=e1625 args=[_:e1627] type=Unit call=s50
+expr e1630 name(premium) type=Class#273 ref=s448
+expr e1631 memberCall recv=e1630 callee=getDescription args=[] type=String call=s275
+expr e1632 call callee=e1629 args=[_:e1631] type=Unit call=s50
+expr e1634 name(catalog) type=Class#273 ref=s449
+expr e1635 memberCall recv=e1634 callee=getDescription args=[] type=String call=s275
+expr e1636 call callee=e1633 args=[_:e1635] type=Unit call=s50
+expr e1637 name(EmailAddress) type=Class#293 ref=s289
+expr e1638 string(test@example.com) type=String
+expr e1639 memberCall recv=e1637 callee=create args=[_:e1638] type=Class#289? call=s294
+expr e1640 localDecl validEmail mutable=0 type=_ init=e1639 type=Unit ref=s450
+expr e1641 name(EmailAddress) type=Class#293 ref=s289
+expr e1642 string(invalid-email) type=String
+expr e1643 memberCall recv=e1641 callee=create args=[_:e1642] type=Class#289? call=s294
+expr e1644 localDecl invalidEmail mutable=0 type=_ init=e1643 type=Unit ref=s451
+expr e1646 name(validEmail) type=Class#289? ref=s450
+expr e1647 safeMemberCall recv=e1646 callee=toString args=[] type=String? call=s291
+expr e1648 call callee=e1645 args=[_:e1647] type=Unit call=s50
+expr e1650 name(invalidEmail) type=Class#289? ref=s451
+expr e1651 safeMemberCall recv=e1650 callee=toString args=[] type=String? call=s291
+expr e1652 call callee=e1649 args=[_:e1651] type=Unit call=s50
+expr e1654 call callee=e1653 args=[] type=Class#298 call=s299
+expr e1655 localDecl outer mutable=0 type=_ init=e1654 type=Unit ref=s452
+expr e1657 name(OuterClass) type=Class#302 ref=s298
+expr e1658 name(outer) type=Class#298 ref=s452
+expr e1659 memberCall recv=e1657 callee=getOuterSecret args=[_:e1658] type=String call=s303
+expr e1660 call callee=e1656 args=[_:e1659] type=Unit call=s50
+expr e1662 name(OuterClass) type=Class#302 ref=s298
+expr e1663 memberCall recv=e1662 callee=getCompanionSecret args=[] type=String call=s305
+expr e1664 call callee=e1661 args=[_:e1663] type=Unit call=s50
+expr e1666 name(outer) type=Class#298 ref=s452
+expr e1667 memberCall recv=e1666 callee=getCompanionSecretFromOuter args=[] type=String call=s300
+expr e1668 call callee=e1665 args=[_:e1667] type=Unit call=s50
+expr e1669 name(NetworkClient) type=Class#307 ref=s307
+expr e1670 memberCall recv=e1669 callee=createDefault args=[] type=<error>
+expr e1671 localDecl client1 mutable=0 type=_ init=e1670 type=Unit ref=s453
+expr e1672 name(NetworkClient) type=Class#307 ref=s307
+expr e1673 int(5000) type=Int
+expr e1674 memberCall recv=e1672 callee=createWithTimeout args=[_:e1673] type=<error>
+expr e1675 localDecl client2 mutable=0 type=_ init=e1674 type=Unit ref=s454
+expr e1677 name(NetworkClient) type=Class#307 ref=s307
+expr e1678 memberCall recv=e1677 callee=defaultTimeout args=[] type=<error>
+expr e1679 stringTemplate[lit(Default timeout: ),expr(e1678)] type=String
+expr e1680 call callee=e1676 args=[_:e1679] type=Unit call=s50
+expr e1681 name(FileManager) type=Class#311 ref=s311
+expr e1682 memberCall recv=e1681 callee=createFile args=[] type=<error>
+expr e1683 localDecl file1 mutable=0 type=_ init=e1682 type=Unit ref=s455
+expr e1684 name(FileManager) type=Class#311 ref=s311
+expr e1685 memberCall recv=e1684 callee=createReadOnly args=[] type=<error>
+expr e1686 localDecl file2 mutable=0 type=_ init=e1685 type=Unit ref=s456
+expr e1688 name(FileManager) type=Class#311 ref=s311
+expr e1689 memberCall recv=e1688 callee=maxFiles args=[] type=<error>
+expr e1690 stringTemplate[lit(Max files: ),expr(e1689)] type=String
+expr e1691 call callee=e1687 args=[_:e1690] type=Unit call=s50

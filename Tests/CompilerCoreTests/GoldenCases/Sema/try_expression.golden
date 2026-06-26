@@ -363,18 +363,21 @@ symbol s361 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s362 kind=local fq=__local_106.sb vis=private flags=_ type=Class#46
 symbol s363 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s364 kind=local fq=__local_108.result vis=private flags=_ type=Class#13<T#225>
-symbol s365 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#227>
-symbol s366 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#229>
-symbol s367 kind=local fq=__try_1455_catch_0.e vis=internal flags=_ type=Class#39
-symbol s368 kind=local fq=__try_1462_catch_0.e vis=internal flags=_ type=Class#40
-symbol s369 kind=local fq=__try_1462_catch_1.e vis=internal flags=_ type=Class#39
-symbol s370 kind=local fq=__try_1472_catch_0.e vis=internal flags=_ type=Class#39
-symbol s371 kind=local fq=__try_1477_catch_0.e vis=internal flags=_ type=Class#39
-symbol s372 kind=local fq=__local_111.x vis=private flags=_ type=String
-symbol s373 kind=local fq=__try_1506_catch_0.e vis=internal flags=_ type=Class#230
-symbol s374 kind=local fq=__try_1506_catch_1.e vis=internal flags=_ type=Class#232
-symbol s375 kind=local fq=__local_112.x vis=private flags=mutable type=Int
-symbol s376 kind=local fq=__try_1521_catch_0.e vis=internal flags=_ type=Class#230
+symbol s365 kind=local fq=__for_1411.element vis=private flags=_
+symbol s366 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#227>
+symbol s367 kind=local fq=__for_1422.element vis=private flags=_
+symbol s368 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#229>
+symbol s369 kind=local fq=__for_1433.element vis=private flags=_
+symbol s370 kind=local fq=__try_1446_catch_0.e vis=internal flags=_ type=Class#39
+symbol s371 kind=local fq=__try_1453_catch_0.e vis=internal flags=_ type=Class#40
+symbol s372 kind=local fq=__try_1453_catch_1.e vis=internal flags=_ type=Class#39
+symbol s373 kind=local fq=__try_1463_catch_0.e vis=internal flags=_ type=Class#39
+symbol s374 kind=local fq=__try_1468_catch_0.e vis=internal flags=_ type=Class#39
+symbol s375 kind=local fq=__local_111.x vis=private flags=_ type=String
+symbol s376 kind=local fq=__try_1497_catch_0.e vis=internal flags=_ type=Class#230
+symbol s377 kind=local fq=__try_1497_catch_1.e vis=internal flags=_ type=Class#232
+symbol s378 kind=local fq=__local_112.x vis=private flags=mutable type=Int
+symbol s379 kind=local fq=__try_1512_catch_0.e vis=internal flags=_ type=Class#230
 file f0 package=kotlin.collections
   decl d0 fun first sym=s50
   decl d1 fun first sym=s52
@@ -1749,101 +1752,104 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s223
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s36
 expr e1404 call callee=e1403 args=[] type=Class#13<T#225>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s364
-expr e1410 name(result) type=Class#13<T#225> ref=s364
-expr e1411 name(element) type=T#176 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s16
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#176) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#13<T#225> ref=s364
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#13<T#227>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s365
-expr e1424 name(result) type=Class#13<T#227> ref=s365
-expr e1425 name(element) type=T#176 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s16
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#176) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#13<T#227> ref=s365
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#19<T#229>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s366
-expr e1438 name(result) type=Class#19<T#229> ref=s366
-expr e1439 name(element) type=T#176 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s21
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#176) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#19<T#229> ref=s366
-expr e1444 return value=e1443 type=Nothing
-expr e1445 name(flag) type=Boolean ref=s235
-expr e1446 string(ok) type=String
-expr e1448 string(fail) type=String
-expr e1449 call callee=e1447 args=[_:e1448] type=<error>
-expr e1450 throw value=e1449 type=Nothing
-expr e1451 if cond=e1445 then=e1446 else=e1450 type=String
-expr e1452 blockExpr stmts=[] trailing=e1451 type=String
-expr e1453 string(error) type=String
-expr e1454 blockExpr stmts=[] trailing=e1453 type=String ref=s367
-expr e1455 try body=e1452 catches=[e1454] finally=_ type=String
-expr e1456 string(ok) type=String
-expr e1457 blockExpr stmts=[] trailing=e1456 type=String
-expr e1458 string(arg) type=String
-expr e1459 blockExpr stmts=[] trailing=e1458 type=String ref=s368
-expr e1460 string(other) type=String
-expr e1461 blockExpr stmts=[] trailing=e1460 type=String ref=s369
-expr e1462 try body=e1457 catches=[e1459,e1461] finally=_ type=String
-expr e1463 string(result) type=String
-expr e1464 blockExpr stmts=[] trailing=e1463 type=String
-expr e1465 blockExpr stmts=[] trailing=_ type=Unit
-expr e1466 try body=e1464 catches=[] finally=e1465 type=String
-expr e1467 string(ok) type=String
-expr e1468 blockExpr stmts=[] trailing=e1467 type=String
-expr e1469 string(err) type=String
-expr e1470 blockExpr stmts=[] trailing=e1469 type=String ref=s370
-expr e1471 blockExpr stmts=[] trailing=_ type=Unit
-expr e1472 try body=e1468 catches=[e1470] finally=e1471 type=String
-expr e1473 string(ok) type=String
-expr e1474 blockExpr stmts=[] trailing=e1473 type=String
-expr e1475 string(err) type=String
-expr e1476 blockExpr stmts=[] trailing=e1475 type=String ref=s371
-expr e1477 try body=e1474 catches=[e1476] finally=_ type=String
-expr e1478 localDecl x mutable=0 type=t391 init=e1477 type=Unit ref=s372
-expr e1479 name(x) type=String ref=s372
-expr e1480 return value=e1479 type=Nothing
-expr e1481 string(ok) type=String
-expr e1482 blockExpr stmts=[] trailing=e1481 type=String
-expr e1483 int(123) type=Int
-expr e1484 blockExpr stmts=[] trailing=e1483 type=Int
-expr e1485 try body=e1482 catches=[] finally=e1484 type=String
-expr e1486 name(flag) type=Int ref=s242
-expr e1487 int(0) type=Int
-expr e1488 binary(equal) lhs=e1486 rhs=e1487 type=Boolean
-expr e1489 string(ok) type=String
-expr e1490 name(flag) type=Int ref=s242
-expr e1491 int(1) type=Int
-expr e1492 binary(equal) lhs=e1490 rhs=e1491 type=Boolean
-expr e1494 call callee=e1493 args=[] type=Class#230 call=s231
-expr e1495 throw value=e1494 type=Nothing
-expr e1497 call callee=e1496 args=[] type=Class#232 call=s233
-expr e1498 throw value=e1497 type=Nothing
-expr e1499 if cond=e1492 then=e1495 else=e1498 type=Nothing
-expr e1500 if cond=e1488 then=e1489 else=e1499 type=String
-expr e1501 blockExpr stmts=[] trailing=e1500 type=String
-expr e1502 string(handled) type=String
-expr e1503 blockExpr stmts=[] trailing=e1502 type=String ref=s373
-expr e1504 int(7) type=Int
-expr e1505 blockExpr stmts=[] trailing=e1504 type=Int ref=s374
-expr e1506 try body=e1501 catches=[e1503,e1505] finally=_ type=Any
-expr e1507 localDecl x mutable=1 type=t397 init=_ type=Unit ref=s375
-expr e1508 name(flag) type=Boolean ref=s244
-expr e1510 call callee=e1509 args=[] type=Class#230 call=s231
-expr e1511 throw value=e1510 type=Nothing
-expr e1513 call callee=e1512 args=[] type=Class#232 call=s233
-expr e1514 throw value=e1513 type=Nothing
-expr e1515 if cond=e1508 then=e1511 else=e1514 type=Nothing
-expr e1516 blockExpr stmts=[] trailing=e1515 type=Nothing
-expr e1518 int(7) type=Int
-expr e1519 localAssign x value=e1518 type=Unit ref=s375
-expr e1520 blockExpr stmts=[e1519] trailing=_ type=Unit ref=s376
-expr e1521 try body=e1516 catches=[e1520] finally=_ type=Unit
-expr e1522 name(x) type=Int ref=s375
-expr e1523 return value=e1522 type=Nothing
+expr e1406 this type=Class#4<T#225>
+expr e1407 name(result) type=Class#13<T#225> ref=s364
+expr e1408 name(element) type=T#225 ref=s365
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s16
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s365
+expr e1412 name(result) type=Class#13<T#225> ref=s364
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#13<T#227>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s366
+expr e1417 this type=Class#4<T#227>
+expr e1418 name(result) type=Class#13<T#227> ref=s366
+expr e1419 name(element) type=T#227 ref=s367
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s16
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s367
+expr e1423 name(result) type=Class#13<T#227> ref=s366
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#19<T#229>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s368
+expr e1428 this type=Class#4<T#229>
+expr e1429 name(result) type=Class#19<T#229> ref=s368
+expr e1430 name(element) type=T#229 ref=s369
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s21
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s369
+expr e1434 name(result) type=Class#19<T#229> ref=s368
+expr e1435 return value=e1434 type=Nothing
+expr e1436 name(flag) type=Boolean ref=s235
+expr e1437 string(ok) type=String
+expr e1439 string(fail) type=String
+expr e1440 call callee=e1438 args=[_:e1439] type=<error>
+expr e1441 throw value=e1440 type=Nothing
+expr e1442 if cond=e1436 then=e1437 else=e1441 type=String
+expr e1443 blockExpr stmts=[] trailing=e1442 type=String
+expr e1444 string(error) type=String
+expr e1445 blockExpr stmts=[] trailing=e1444 type=String ref=s370
+expr e1446 try body=e1443 catches=[e1445] finally=_ type=String
+expr e1447 string(ok) type=String
+expr e1448 blockExpr stmts=[] trailing=e1447 type=String
+expr e1449 string(arg) type=String
+expr e1450 blockExpr stmts=[] trailing=e1449 type=String ref=s371
+expr e1451 string(other) type=String
+expr e1452 blockExpr stmts=[] trailing=e1451 type=String ref=s372
+expr e1453 try body=e1448 catches=[e1450,e1452] finally=_ type=String
+expr e1454 string(result) type=String
+expr e1455 blockExpr stmts=[] trailing=e1454 type=String
+expr e1456 blockExpr stmts=[] trailing=_ type=Unit
+expr e1457 try body=e1455 catches=[] finally=e1456 type=String
+expr e1458 string(ok) type=String
+expr e1459 blockExpr stmts=[] trailing=e1458 type=String
+expr e1460 string(err) type=String
+expr e1461 blockExpr stmts=[] trailing=e1460 type=String ref=s373
+expr e1462 blockExpr stmts=[] trailing=_ type=Unit
+expr e1463 try body=e1459 catches=[e1461] finally=e1462 type=String
+expr e1464 string(ok) type=String
+expr e1465 blockExpr stmts=[] trailing=e1464 type=String
+expr e1466 string(err) type=String
+expr e1467 blockExpr stmts=[] trailing=e1466 type=String ref=s374
+expr e1468 try body=e1465 catches=[e1467] finally=_ type=String
+expr e1469 localDecl x mutable=0 type=t391 init=e1468 type=Unit ref=s375
+expr e1470 name(x) type=String ref=s375
+expr e1471 return value=e1470 type=Nothing
+expr e1472 string(ok) type=String
+expr e1473 blockExpr stmts=[] trailing=e1472 type=String
+expr e1474 int(123) type=Int
+expr e1475 blockExpr stmts=[] trailing=e1474 type=Int
+expr e1476 try body=e1473 catches=[] finally=e1475 type=String
+expr e1477 name(flag) type=Int ref=s242
+expr e1478 int(0) type=Int
+expr e1479 binary(equal) lhs=e1477 rhs=e1478 type=Boolean
+expr e1480 string(ok) type=String
+expr e1481 name(flag) type=Int ref=s242
+expr e1482 int(1) type=Int
+expr e1483 binary(equal) lhs=e1481 rhs=e1482 type=Boolean
+expr e1485 call callee=e1484 args=[] type=Class#230 call=s231
+expr e1486 throw value=e1485 type=Nothing
+expr e1488 call callee=e1487 args=[] type=Class#232 call=s233
+expr e1489 throw value=e1488 type=Nothing
+expr e1490 if cond=e1483 then=e1486 else=e1489 type=Nothing
+expr e1491 if cond=e1479 then=e1480 else=e1490 type=String
+expr e1492 blockExpr stmts=[] trailing=e1491 type=String
+expr e1493 string(handled) type=String
+expr e1494 blockExpr stmts=[] trailing=e1493 type=String ref=s376
+expr e1495 int(7) type=Int
+expr e1496 blockExpr stmts=[] trailing=e1495 type=Int ref=s377
+expr e1497 try body=e1492 catches=[e1494,e1496] finally=_ type=Any
+expr e1498 localDecl x mutable=1 type=t397 init=_ type=Unit ref=s378
+expr e1499 name(flag) type=Boolean ref=s244
+expr e1501 call callee=e1500 args=[] type=Class#230 call=s231
+expr e1502 throw value=e1501 type=Nothing
+expr e1504 call callee=e1503 args=[] type=Class#232 call=s233
+expr e1505 throw value=e1504 type=Nothing
+expr e1506 if cond=e1499 then=e1502 else=e1505 type=Nothing
+expr e1507 blockExpr stmts=[] trailing=e1506 type=Nothing
+expr e1509 int(7) type=Int
+expr e1510 localAssign x value=e1509 type=Unit ref=s378
+expr e1511 blockExpr stmts=[e1510] trailing=_ type=Unit ref=s379
+expr e1512 try body=e1507 catches=[e1511] finally=_ type=Unit
+expr e1513 name(x) type=Int ref=s378
+expr e1514 return value=e1513 type=Nothing

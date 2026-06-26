@@ -349,13 +349,16 @@ symbol s347 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s348 kind=local fq=__local_106.sb vis=private flags=_ type=Class#45
 symbol s349 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s350 kind=local fq=__local_108.result vis=private flags=_ type=Class#13<T#227>
-symbol s351 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#229>
-symbol s352 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#231>
-symbol s353 kind=local fq=__local_111.seq vis=private flags=_ type=Class#4<out Int>
-symbol s354 kind=local fq=__local_112.dest1 vis=private flags=_ type=Class#13<String>
-symbol s355 kind=local fq=__local_113.result1 vis=private flags=_ type=Class#13<String>
-symbol s356 kind=local fq=__local_114.dest2 vis=private flags=_ type=Class#13<String>
-symbol s357 kind=local fq=__local_115.result2 vis=private flags=_ type=Class#13<String>
+symbol s351 kind=local fq=__for_1411.element vis=private flags=_
+symbol s352 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#229>
+symbol s353 kind=local fq=__for_1422.element vis=private flags=_
+symbol s354 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#231>
+symbol s355 kind=local fq=__for_1433.element vis=private flags=_
+symbol s356 kind=local fq=__local_111.seq vis=private flags=_ type=Class#4<out Int>
+symbol s357 kind=local fq=__local_112.dest1 vis=private flags=_ type=Class#13<String>
+symbol s358 kind=local fq=__local_113.result1 vis=private flags=_ type=Class#13<String>
+symbol s359 kind=local fq=__local_114.dest2 vis=private flags=_ type=Class#13<String>
+symbol s360 kind=local fq=__local_115.result2 vis=private flags=_ type=Class#13<String>
 file f0 package=kotlin.collections
   decl d0 fun first sym=s52
   decl d1 fun first sym=s54
@@ -1719,68 +1722,71 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s225
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s36
 expr e1404 call callee=e1403 args=[] type=Class#13<T#227>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s350
-expr e1410 name(result) type=Class#13<T#227> ref=s350
-expr e1411 name(element) type=T#178 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s16
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#178) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#13<T#227> ref=s350
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#13<T#229>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s351
-expr e1424 name(result) type=Class#13<T#229> ref=s351
-expr e1425 name(element) type=T#178 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s16
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#178) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#13<T#229> ref=s351
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#19<T#231>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s352
-expr e1438 name(result) type=Class#19<T#231> ref=s352
-expr e1439 name(element) type=T#178 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s21
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#178) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#19<T#231> ref=s352
-expr e1444 return value=e1443 type=Nothing
-expr e1446 int(1) type=Int
-expr e1447 int(2) type=Int
-expr e1448 int(3) type=Int
-expr e1449 int(4) type=Int
-expr e1450 call callee=e1445 args=[_:e1446,_:e1447,_:e1448,_:e1449] type=Class#4<out Int> call=s50 targs=[Int]
-expr e1451 localDecl seq mutable=0 type=_ init=e1450 type=Unit ref=s353
-expr e1453 call callee=e1452 args=[] type=Class#13<String>
-expr e1454 localDecl dest1 mutable=0 type=_ init=e1453 type=Unit ref=s354
-expr e1455 name(seq) type=Class#4<out Int> ref=s353
-expr e1456 name(dest1) type=Class#13<String> ref=s354
-expr e1459 name(it) type=Int ref=s-3
-expr e1460 memberCall recv=e1459 callee=toString args=[] type=String
-expr e1461 lambda params=[] body=e1460 label=mapTo type=(Int) -> String
-expr e1462 memberCall recv=e1455 callee=mapTo args=[_:e1456,_:e1461] type=Class#13<String>
-expr e1463 localDecl result1 mutable=0 type=_ init=e1462 type=Unit ref=s355
-expr e1465 name(result1) type=Class#13<String> ref=s355
-expr e1466 call callee=e1464 args=[_:e1465] type=Unit call=s49
-expr e1468 call callee=e1467 args=[] type=Class#13<String>
-expr e1469 localDecl dest2 mutable=0 type=_ init=e1468 type=Unit ref=s356
-expr e1470 name(seq) type=Class#4<out Int> ref=s353
-expr e1471 name(dest2) type=Class#13<String> ref=s356
-expr e1486 name(index) type=Int ref=s-4
-expr e1487 int(2) type=Int
-expr e1488 binary(modulo) lhs=e1486 rhs=e1487 type=Int
-expr e1489 int(0) type=Int
-expr e1490 binary(equal) lhs=e1488 rhs=e1489 type=Boolean
-expr e1491 name(index) type=Int ref=s-4
-expr e1492 memberCall recv=e1491 callee=toString args=[] type=String
-expr e1493 string(:) type=String
-expr e1494 binary(add) lhs=e1492 rhs=e1493 type=String
-expr e1495 name(value) type=Int ref=s-5
-expr e1496 memberCall recv=e1495 callee=toString args=[] type=String
-expr e1497 binary(add) lhs=e1494 rhs=e1496 type=String
-expr e1498 name(null) type=Nothing?
-expr e1499 if cond=e1490 then=e1497 else=e1498 type=String?
-expr e1500 lambda params=[index,value] body=e1499 label=mapIndexedNotNullTo type=(Int, Int) -> String?
-expr e1501 memberCall recv=e1470 callee=mapIndexedNotNullTo args=[_:e1471,_:e1500] type=Class#13<String>
-expr e1502 localDecl result2 mutable=0 type=_ init=e1501 type=Unit ref=s357
-expr e1504 name(result2) type=Class#13<String> ref=s357
-expr e1505 call callee=e1503 args=[_:e1504] type=Unit call=s49
+expr e1406 this type=Class#4<T#227>
+expr e1407 name(result) type=Class#13<T#227> ref=s350
+expr e1408 name(element) type=T#227 ref=s351
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s16
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s351
+expr e1412 name(result) type=Class#13<T#227> ref=s350
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#13<T#229>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s352
+expr e1417 this type=Class#4<T#229>
+expr e1418 name(result) type=Class#13<T#229> ref=s352
+expr e1419 name(element) type=T#229 ref=s353
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s16
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s353
+expr e1423 name(result) type=Class#13<T#229> ref=s352
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#19<T#231>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s354
+expr e1428 this type=Class#4<T#231>
+expr e1429 name(result) type=Class#19<T#231> ref=s354
+expr e1430 name(element) type=T#231 ref=s355
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s21
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s355
+expr e1434 name(result) type=Class#19<T#231> ref=s354
+expr e1435 return value=e1434 type=Nothing
+expr e1437 int(1) type=Int
+expr e1438 int(2) type=Int
+expr e1439 int(3) type=Int
+expr e1440 int(4) type=Int
+expr e1441 call callee=e1436 args=[_:e1437,_:e1438,_:e1439,_:e1440] type=Class#4<out Int> call=s50 targs=[Int]
+expr e1442 localDecl seq mutable=0 type=_ init=e1441 type=Unit ref=s356
+expr e1444 call callee=e1443 args=[] type=Class#13<String>
+expr e1445 localDecl dest1 mutable=0 type=_ init=e1444 type=Unit ref=s357
+expr e1446 name(seq) type=Class#4<out Int> ref=s356
+expr e1447 name(dest1) type=Class#13<String> ref=s357
+expr e1450 name(it) type=Int ref=s-0
+expr e1451 memberCall recv=e1450 callee=toString args=[] type=String
+expr e1452 lambda params=[] body=e1451 label=mapTo type=(Int) -> String
+expr e1453 memberCall recv=e1446 callee=mapTo args=[_:e1447,_:e1452] type=Class#13<String>
+expr e1454 localDecl result1 mutable=0 type=_ init=e1453 type=Unit ref=s358
+expr e1456 name(result1) type=Class#13<String> ref=s358
+expr e1457 call callee=e1455 args=[_:e1456] type=Unit call=s49
+expr e1459 call callee=e1458 args=[] type=Class#13<String>
+expr e1460 localDecl dest2 mutable=0 type=_ init=e1459 type=Unit ref=s359
+expr e1461 name(seq) type=Class#4<out Int> ref=s356
+expr e1462 name(dest2) type=Class#13<String> ref=s359
+expr e1477 name(index) type=Int ref=s-1
+expr e1478 int(2) type=Int
+expr e1479 binary(modulo) lhs=e1477 rhs=e1478 type=Int
+expr e1480 int(0) type=Int
+expr e1481 binary(equal) lhs=e1479 rhs=e1480 type=Boolean
+expr e1482 name(index) type=Int ref=s-1
+expr e1483 memberCall recv=e1482 callee=toString args=[] type=String
+expr e1484 string(:) type=String
+expr e1485 binary(add) lhs=e1483 rhs=e1484 type=String
+expr e1486 name(value) type=Int ref=s-2
+expr e1487 memberCall recv=e1486 callee=toString args=[] type=String
+expr e1488 binary(add) lhs=e1485 rhs=e1487 type=String
+expr e1489 name(null) type=Nothing?
+expr e1490 if cond=e1481 then=e1488 else=e1489 type=String?
+expr e1491 lambda params=[index,value] body=e1490 label=mapIndexedNotNullTo type=(Int, Int) -> String?
+expr e1492 memberCall recv=e1461 callee=mapIndexedNotNullTo args=[_:e1462,_:e1491] type=Class#13<String>
+expr e1493 localDecl result2 mutable=0 type=_ init=e1492 type=Unit ref=s360
+expr e1495 name(result2) type=Class#13<String> ref=s360
+expr e1496 call callee=e1494 args=[_:e1495] type=Unit call=s49

@@ -347,12 +347,15 @@ symbol s345 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s346 kind=local fq=__local_106.sb vis=private flags=_ type=Class#45
 symbol s347 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s348 kind=local fq=__local_108.result vis=private flags=_ type=Class#13<T#225>
-symbol s349 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#227>
-symbol s350 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#229>
-symbol s351 kind=local fq=__local_111.i vis=private flags=_ type=Int
-symbol s352 kind=local fq=__local_112.l vis=private flags=_ type=Long
-symbol s353 kind=local fq=__local_113.d vis=private flags=_ type=Double
-symbol s354 kind=local fq=__local_114.f vis=private flags=_ type=Float
+symbol s349 kind=local fq=__for_1411.element vis=private flags=_
+symbol s350 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#227>
+symbol s351 kind=local fq=__for_1422.element vis=private flags=_
+symbol s352 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#229>
+symbol s353 kind=local fq=__for_1433.element vis=private flags=_
+symbol s354 kind=local fq=__local_111.i vis=private flags=_ type=Int
+symbol s355 kind=local fq=__local_112.l vis=private flags=_ type=Long
+symbol s356 kind=local fq=__local_113.d vis=private flags=_ type=Double
+symbol s357 kind=local fq=__local_114.f vis=private flags=_ type=Float
 file f0 package=kotlin.collections
   decl d0 fun first sym=s50
   decl d1 fun first sym=s52
@@ -1716,71 +1719,74 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s223
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s36
 expr e1404 call callee=e1403 args=[] type=Class#13<T#225>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s348
-expr e1410 name(result) type=Class#13<T#225> ref=s348
-expr e1411 name(element) type=T#176 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s16
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#176) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#13<T#225> ref=s348
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#13<T#227>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s349
-expr e1424 name(result) type=Class#13<T#227> ref=s349
-expr e1425 name(element) type=T#176 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s16
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#176) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#13<T#227> ref=s349
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#19<T#229>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s350
-expr e1438 name(result) type=Class#19<T#229> ref=s350
-expr e1439 name(element) type=T#176 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s21
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#176) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#19<T#229> ref=s350
-expr e1444 return value=e1443 type=Nothing
-expr e1445 int(42) type=Int
-expr e1446 localDecl i mutable=0 type=t385 init=e1445 type=Unit ref=s351
-expr e1447 name(i) type=Int ref=s351
-expr e1448 memberCall recv=e1447 callee=toLong args=[] type=Long
-expr e1449 localDecl l mutable=0 type=t386 init=e1448 type=Unit ref=s352
-expr e1450 name(i) type=Int ref=s351
-expr e1451 memberCall recv=e1450 callee=toDouble args=[] type=Double
-expr e1452 localDecl d mutable=0 type=t387 init=e1451 type=Unit ref=s353
-expr e1453 name(i) type=Int ref=s351
-expr e1454 memberCall recv=e1453 callee=toFloat args=[] type=Float
-expr e1455 localDecl f mutable=0 type=t388 init=e1454 type=Unit ref=s354
-expr e1457 name(l) type=Long ref=s352
-expr e1458 call callee=e1456 args=[_:e1457] type=Unit call=s49
-expr e1460 name(d) type=Double ref=s353
-expr e1461 call callee=e1459 args=[_:e1460] type=Unit call=s49
-expr e1463 name(f) type=Float ref=s354
-expr e1464 call callee=e1462 args=[_:e1463] type=Unit call=s49
-expr e1466 name(l) type=Long ref=s352
-expr e1467 memberCall recv=e1466 callee=toInt args=[] type=Int
-expr e1468 call callee=e1465 args=[_:e1467] type=Unit call=s49
-expr e1470 name(d) type=Double ref=s353
-expr e1471 memberCall recv=e1470 callee=toInt args=[] type=Int
-expr e1472 call callee=e1469 args=[_:e1471] type=Unit call=s49
-expr e1474 name(d) type=Double ref=s353
-expr e1475 memberCall recv=e1474 callee=toLong args=[] type=Long
-expr e1476 call callee=e1473 args=[_:e1475] type=Unit call=s49
-expr e1478 name(f) type=Float ref=s354
-expr e1479 memberCall recv=e1478 callee=toInt args=[] type=Int
-expr e1480 call callee=e1477 args=[_:e1479] type=Unit call=s49
-expr e1482 name(f) type=Float ref=s354
-expr e1483 memberCall recv=e1482 callee=toLong args=[] type=Long
-expr e1484 call callee=e1481 args=[_:e1483] type=Unit call=s49
-expr e1486 name(f) type=Float ref=s354
-expr e1487 memberCall recv=e1486 callee=toDouble args=[] type=Double
-expr e1488 call callee=e1485 args=[_:e1487] type=Unit call=s49
-expr e1491 memberCall recv=e1490 callee=MAX_VALUE args=[] type=Long
-expr e1492 call callee=e1489 args=[_:e1491] type=Unit call=s49
-expr e1495 memberCall recv=e1494 callee=MIN_VALUE args=[] type=Long
-expr e1496 call callee=e1493 args=[_:e1495] type=Unit call=s49
-expr e1499 memberCall recv=e1498 callee=MAX_VALUE args=[] type=Double
-expr e1500 call callee=e1497 args=[_:e1499] type=Unit call=s49
-expr e1503 memberCall recv=e1502 callee=MAX_VALUE args=[] type=Float
-expr e1504 call callee=e1501 args=[_:e1503] type=Unit call=s49
+expr e1406 this type=Class#4<T#225>
+expr e1407 name(result) type=Class#13<T#225> ref=s348
+expr e1408 name(element) type=T#225 ref=s349
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s16
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s349
+expr e1412 name(result) type=Class#13<T#225> ref=s348
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#13<T#227>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s350
+expr e1417 this type=Class#4<T#227>
+expr e1418 name(result) type=Class#13<T#227> ref=s350
+expr e1419 name(element) type=T#227 ref=s351
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s16
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s351
+expr e1423 name(result) type=Class#13<T#227> ref=s350
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#19<T#229>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s352
+expr e1428 this type=Class#4<T#229>
+expr e1429 name(result) type=Class#19<T#229> ref=s352
+expr e1430 name(element) type=T#229 ref=s353
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s21
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s353
+expr e1434 name(result) type=Class#19<T#229> ref=s352
+expr e1435 return value=e1434 type=Nothing
+expr e1436 int(42) type=Int
+expr e1437 localDecl i mutable=0 type=t385 init=e1436 type=Unit ref=s354
+expr e1438 name(i) type=Int ref=s354
+expr e1439 memberCall recv=e1438 callee=toLong args=[] type=Long
+expr e1440 localDecl l mutable=0 type=t386 init=e1439 type=Unit ref=s355
+expr e1441 name(i) type=Int ref=s354
+expr e1442 memberCall recv=e1441 callee=toDouble args=[] type=Double
+expr e1443 localDecl d mutable=0 type=t387 init=e1442 type=Unit ref=s356
+expr e1444 name(i) type=Int ref=s354
+expr e1445 memberCall recv=e1444 callee=toFloat args=[] type=Float
+expr e1446 localDecl f mutable=0 type=t388 init=e1445 type=Unit ref=s357
+expr e1448 name(l) type=Long ref=s355
+expr e1449 call callee=e1447 args=[_:e1448] type=Unit call=s49
+expr e1451 name(d) type=Double ref=s356
+expr e1452 call callee=e1450 args=[_:e1451] type=Unit call=s49
+expr e1454 name(f) type=Float ref=s357
+expr e1455 call callee=e1453 args=[_:e1454] type=Unit call=s49
+expr e1457 name(l) type=Long ref=s355
+expr e1458 memberCall recv=e1457 callee=toInt args=[] type=Int
+expr e1459 call callee=e1456 args=[_:e1458] type=Unit call=s49
+expr e1461 name(d) type=Double ref=s356
+expr e1462 memberCall recv=e1461 callee=toInt args=[] type=Int
+expr e1463 call callee=e1460 args=[_:e1462] type=Unit call=s49
+expr e1465 name(d) type=Double ref=s356
+expr e1466 memberCall recv=e1465 callee=toLong args=[] type=Long
+expr e1467 call callee=e1464 args=[_:e1466] type=Unit call=s49
+expr e1469 name(f) type=Float ref=s357
+expr e1470 memberCall recv=e1469 callee=toInt args=[] type=Int
+expr e1471 call callee=e1468 args=[_:e1470] type=Unit call=s49
+expr e1473 name(f) type=Float ref=s357
+expr e1474 memberCall recv=e1473 callee=toLong args=[] type=Long
+expr e1475 call callee=e1472 args=[_:e1474] type=Unit call=s49
+expr e1477 name(f) type=Float ref=s357
+expr e1478 memberCall recv=e1477 callee=toDouble args=[] type=Double
+expr e1479 call callee=e1476 args=[_:e1478] type=Unit call=s49
+expr e1482 memberCall recv=e1481 callee=MAX_VALUE args=[] type=Long
+expr e1483 call callee=e1480 args=[_:e1482] type=Unit call=s49
+expr e1486 memberCall recv=e1485 callee=MIN_VALUE args=[] type=Long
+expr e1487 call callee=e1484 args=[_:e1486] type=Unit call=s49
+expr e1490 memberCall recv=e1489 callee=MAX_VALUE args=[] type=Double
+expr e1491 call callee=e1488 args=[_:e1490] type=Unit call=s49
+expr e1494 memberCall recv=e1493 callee=MAX_VALUE args=[] type=Float
+expr e1495 call callee=e1492 args=[_:e1494] type=Unit call=s49

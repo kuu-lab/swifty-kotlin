@@ -376,8 +376,11 @@ symbol s374 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s375 kind=local fq=__local_106.sb vis=private flags=_ type=Class#68
 symbol s376 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s377 kind=local fq=__local_108.result vis=private flags=_ type=Class#13<T#247>
-symbol s378 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#249>
-symbol s379 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#251>
+symbol s378 kind=local fq=__for_1411.element vis=private flags=_
+symbol s379 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#249>
+symbol s380 kind=local fq=__for_1422.element vis=private flags=_
+symbol s381 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#251>
+symbol s382 kind=local fq=__for_1433.element vis=private flags=_
 file f0 package=kotlin.collections
   decl d0 fun first sym=s72
   decl d1 fun first sym=s74
@@ -1748,79 +1751,82 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s245
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s59
 expr e1404 call callee=e1403 args=[] type=Class#13<T#247>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s377
-expr e1410 name(result) type=Class#13<T#247> ref=s377
-expr e1411 name(element) type=T#198 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s16
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#198) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#13<T#247> ref=s377
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#13<T#249>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s378
-expr e1424 name(result) type=Class#13<T#249> ref=s378
-expr e1425 name(element) type=T#198 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s16
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#198) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#13<T#249> ref=s378
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#19<T#251>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s379
-expr e1438 name(result) type=Class#19<T#251> ref=s379
-expr e1439 name(element) type=T#198 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s21
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#198) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#19<T#251> ref=s379
-expr e1444 return value=e1443 type=Nothing
-expr e1445 name(IntProgression) type=Class#24 ref=s23
-expr e1446 int(1) type=Int
-expr e1447 int(10) type=Int
-expr e1448 int(2) type=Int
-expr e1449 memberCall recv=e1445 callee=fromClosedRange args=[_:e1446,_:e1447,_:e1448] type=Class#23 call=s25
-expr e1450 memberCall recv=e1449 callee=toList args=[] type=Class#6<out Int> call=s26
-expr e1451 name(LongProgression) type=Class#30 ref=s29
-expr e1452 long(1) type=Long
-expr e1453 long(10) type=Long
-expr e1454 int(3) type=Int
-expr e1455 memberCall recv=e1451 callee=fromClosedRange args=[_:e1452,_:e1453,_:e1454] type=Class#29 call=s31
-expr e1456 memberCall recv=e1455 callee=toList args=[] type=Class#6<out Long> call=s32
-expr e1457 name(CharProgression) type=Class#34 ref=s33
-expr e1458 char(97) type=Char
-expr e1459 char(103) type=Char
-expr e1460 int(2) type=Int
-expr e1461 memberCall recv=e1457 callee=fromClosedRange args=[_:e1458,_:e1459,_:e1460] type=Class#33 call=s35
-expr e1462 memberCall recv=e1461 callee=toList args=[] type=Class#6<out Char> call=s36
-expr e1463 name(UIntProgression) type=Class#39 ref=s38
-expr e1464 uint(1) type=UInt
-expr e1465 uint(10) type=UInt
-expr e1466 int(2) type=Int
-expr e1467 memberCall recv=e1463 callee=fromClosedRange args=[_:e1464,_:e1465,_:e1466] type=Class#38 call=s40
-expr e1468 memberCall recv=e1467 callee=toList args=[] type=Class#6<out UInt> call=s41
-expr e1469 name(ULongProgression) type=Class#43 ref=s42
-expr e1470 ulong(1) type=ULong
-expr e1471 ulong(10) type=ULong
-expr e1472 int(3) type=Int
-expr e1473 memberCall recv=e1469 callee=fromClosedRange args=[_:e1470,_:e1471,_:e1472] type=Class#42 call=s44
-expr e1474 memberCall recv=e1473 callee=toList args=[] type=Class#6<out ULong> call=s45
-expr e1475 name(CharProgression) type=Class#34 ref=s33
-expr e1476 char(97) type=Char
-expr e1477 char(104) type=Char
-expr e1478 int(1) type=Int
-expr e1479 memberCall recv=e1475 callee=fromClosedRange args=[_:e1476,_:e1477,_:e1478] type=Class#33 call=s35
-expr e1480 int(3) type=Int
-expr e1481 memberCall recv=e1479 callee=step args=[_:e1480] type=Class#33 call=s37
-expr e1482 memberCall recv=e1481 callee=toList args=[] type=Class#6<out Char> call=s36
-expr e1483 name(IntProgression) type=Class#24 ref=s23
+expr e1406 this type=Class#4<T#247>
+expr e1407 name(result) type=Class#13<T#247> ref=s377
+expr e1408 name(element) type=T#247 ref=s378
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s16
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s378
+expr e1412 name(result) type=Class#13<T#247> ref=s377
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#13<T#249>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s379
+expr e1417 this type=Class#4<T#249>
+expr e1418 name(result) type=Class#13<T#249> ref=s379
+expr e1419 name(element) type=T#249 ref=s380
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s16
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s380
+expr e1423 name(result) type=Class#13<T#249> ref=s379
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#19<T#251>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s381
+expr e1428 this type=Class#4<T#251>
+expr e1429 name(result) type=Class#19<T#251> ref=s381
+expr e1430 name(element) type=T#251 ref=s382
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s21
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s382
+expr e1434 name(result) type=Class#19<T#251> ref=s381
+expr e1435 return value=e1434 type=Nothing
+expr e1436 name(IntProgression) type=Class#24 ref=s23
+expr e1437 int(1) type=Int
+expr e1438 int(10) type=Int
+expr e1439 int(2) type=Int
+expr e1440 memberCall recv=e1436 callee=fromClosedRange args=[_:e1437,_:e1438,_:e1439] type=Class#23 call=s25
+expr e1441 memberCall recv=e1440 callee=toList args=[] type=Class#6<out Int> call=s26
+expr e1442 name(LongProgression) type=Class#30 ref=s29
+expr e1443 long(1) type=Long
+expr e1444 long(10) type=Long
+expr e1445 int(3) type=Int
+expr e1446 memberCall recv=e1442 callee=fromClosedRange args=[_:e1443,_:e1444,_:e1445] type=Class#29 call=s31
+expr e1447 memberCall recv=e1446 callee=toList args=[] type=Class#6<out Long> call=s32
+expr e1448 name(CharProgression) type=Class#34 ref=s33
+expr e1449 char(97) type=Char
+expr e1450 char(103) type=Char
+expr e1451 int(2) type=Int
+expr e1452 memberCall recv=e1448 callee=fromClosedRange args=[_:e1449,_:e1450,_:e1451] type=Class#33 call=s35
+expr e1453 memberCall recv=e1452 callee=toList args=[] type=Class#6<out Char> call=s36
+expr e1454 name(UIntProgression) type=Class#39 ref=s38
+expr e1455 uint(1) type=UInt
+expr e1456 uint(10) type=UInt
+expr e1457 int(2) type=Int
+expr e1458 memberCall recv=e1454 callee=fromClosedRange args=[_:e1455,_:e1456,_:e1457] type=Class#38 call=s40
+expr e1459 memberCall recv=e1458 callee=toList args=[] type=Class#6<out UInt> call=s41
+expr e1460 name(ULongProgression) type=Class#43 ref=s42
+expr e1461 ulong(1) type=ULong
+expr e1462 ulong(10) type=ULong
+expr e1463 int(3) type=Int
+expr e1464 memberCall recv=e1460 callee=fromClosedRange args=[_:e1461,_:e1462,_:e1463] type=Class#42 call=s44
+expr e1465 memberCall recv=e1464 callee=toList args=[] type=Class#6<out ULong> call=s45
+expr e1466 name(CharProgression) type=Class#34 ref=s33
+expr e1467 char(97) type=Char
+expr e1468 char(104) type=Char
+expr e1469 int(1) type=Int
+expr e1470 memberCall recv=e1466 callee=fromClosedRange args=[_:e1467,_:e1468,_:e1469] type=Class#33 call=s35
+expr e1471 int(3) type=Int
+expr e1472 memberCall recv=e1470 callee=step args=[_:e1471] type=Class#33 call=s37
+expr e1473 memberCall recv=e1472 callee=toList args=[] type=Class#6<out Char> call=s36
+expr e1474 name(IntProgression) type=Class#24 ref=s23
+expr e1475 int(1) type=Int
+expr e1476 int(9) type=Int
+expr e1477 int(2) type=Int
+expr e1478 memberCall recv=e1474 callee=fromClosedRange args=[_:e1475,_:e1476,_:e1477] type=Class#23 call=s25
+expr e1479 memberCall recv=e1478 callee=reversed args=[] type=Class#23 call=s27
+expr e1480 memberCall recv=e1479 callee=toList args=[] type=Class#6<out Int> call=s26
+expr e1481 name(IntProgression) type=Class#24 ref=s23
+expr e1482 int(10) type=Int
+expr e1483 int(1) type=Int
 expr e1484 int(1) type=Int
-expr e1485 int(9) type=Int
-expr e1486 int(2) type=Int
-expr e1487 memberCall recv=e1483 callee=fromClosedRange args=[_:e1484,_:e1485,_:e1486] type=Class#23 call=s25
-expr e1488 memberCall recv=e1487 callee=reversed args=[] type=Class#23 call=s27
-expr e1489 memberCall recv=e1488 callee=toList args=[] type=Class#6<out Int> call=s26
-expr e1490 name(IntProgression) type=Class#24 ref=s23
-expr e1491 int(10) type=Int
-expr e1492 int(1) type=Int
-expr e1493 int(1) type=Int
-expr e1494 memberCall recv=e1490 callee=fromClosedRange args=[_:e1491,_:e1492,_:e1493] type=Class#23 call=s25
-expr e1495 memberCall recv=e1494 callee=isEmpty args=[] type=Boolean call=s28
+expr e1485 memberCall recv=e1481 callee=fromClosedRange args=[_:e1482,_:e1483,_:e1484] type=Class#23 call=s25
+expr e1486 memberCall recv=e1485 callee=isEmpty args=[] type=Boolean call=s28

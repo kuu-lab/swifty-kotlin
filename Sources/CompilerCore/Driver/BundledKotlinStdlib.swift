@@ -614,19 +614,19 @@ package kotlin.sequences
 
 public fun <T> Sequence<T>.toList(): List<T> {
     val result = mutableListOf<T>()
-    forEach { element -> result.add(element) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun <T> Sequence<T>.toMutableList(): MutableList<T> {
     val result = mutableListOf<T>()
-    forEach { element -> result.add(element) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun <T> Sequence<T>.toSet(): Set<T> {
     val result = mutableSetOf<T>()
-    forEach { element -> result.add(element) }
+    for (element in this) { result.add(element) }
     return result
 }
 

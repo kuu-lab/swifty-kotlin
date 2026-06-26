@@ -362,13 +362,16 @@ symbol s360 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s361 kind=local fq=__local_106.sb vis=private flags=_ type=Class#49
 symbol s362 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s363 kind=local fq=__local_108.result vis=private flags=_ type=Class#13<T#229>
-symbol s364 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#231>
-symbol s365 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#233>
-symbol s366 kind=local fq=__local_111.x vis=private flags=_ type=String?
-symbol s367 kind=local fq=__local_112.flag vis=private flags=_ type=Boolean
-symbol s368 kind=local fq=__local_113.flag2 vis=private flags=_ type=Boolean
-symbol s369 kind=local fq=__local_114.y vis=private flags=_ type=String?
-symbol s370 kind=local fq=__local_115.result vis=private flags=_ type=Boolean
+symbol s364 kind=local fq=__for_1411.element vis=private flags=_
+symbol s365 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#231>
+symbol s366 kind=local fq=__for_1422.element vis=private flags=_
+symbol s367 kind=local fq=__local_110.result vis=private flags=_ type=Class#19<T#233>
+symbol s368 kind=local fq=__for_1433.element vis=private flags=_
+symbol s369 kind=local fq=__local_111.x vis=private flags=_ type=String?
+symbol s370 kind=local fq=__local_112.flag vis=private flags=_ type=Boolean
+symbol s371 kind=local fq=__local_113.flag2 vis=private flags=_ type=Boolean
+symbol s372 kind=local fq=__local_114.y vis=private flags=_ type=String?
+symbol s373 kind=local fq=__local_115.result vis=private flags=_ type=Boolean
 file f0 package=kotlin.collections
   decl d0 fun first sym=s54
   decl d1 fun first sym=s56
@@ -1737,123 +1740,126 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s227
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s36
 expr e1404 call callee=e1403 args=[] type=Class#13<T#229>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s363
-expr e1410 name(result) type=Class#13<T#229> ref=s363
-expr e1411 name(element) type=T#180 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s16
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#180) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#13<T#229> ref=s363
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#13<T#231>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s364
-expr e1424 name(result) type=Class#13<T#231> ref=s364
-expr e1425 name(element) type=T#180 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s16
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#180) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#13<T#231> ref=s364
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#19<T#233>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s365
-expr e1438 name(result) type=Class#19<T#233> ref=s365
-expr e1439 name(element) type=T#180 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s21
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#180) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#19<T#233> ref=s365
-expr e1444 return value=e1443 type=Nothing
-expr e1453 call callee=e1452 args=[] type=Class#47 call=s48
-expr e1454 name(value) type=Any? ref=s235
-expr e1455 name(null) type=Nothing?
-expr e1456 binary(notEqual) lhs=e1454 rhs=e1455 type=Boolean
-expr e1457 memberCall recv=e1453 callee=implies args=[_:e1456] type=<error>
-expr e1458 lambda params=[] body=e1457 label=contract type=Class#46.() -> Unit
-expr e1459 call callee=e1445 args=[_:e1458] type=Unit
-expr e1460 name(value) type=Any? ref=s235
-expr e1461 name(null) type=Nothing?
-expr e1462 binary(equal) lhs=e1460 rhs=e1461 type=Boolean
-expr e1464 call callee=e1463 args=[] type=Class#39 call=s42
-expr e1465 throw value=e1464 type=Nothing
-expr e1466 if cond=e1462 then=e1465 else=_ type=Unit
-expr e1467 name(value) type=Any? ref=s235
-expr e1468 return value=e1467 type=Nothing
-expr e1473 call callee=e1472 args=[] type=Class#47 call=s48
-expr e1474 lambda params=[] body=e1473 label=contract type=Class#46.() -> Unit
-expr e1475 call callee=e1469 args=[_:e1474] type=Unit
-expr e1476 name(x) type=Int ref=s237
-expr e1477 int(0) type=Int
-expr e1478 binary(lessThan) lhs=e1476 rhs=e1477 type=Boolean
-expr e1480 call callee=e1479 args=[] type=Class#39 call=s42
-expr e1481 throw value=e1480 type=Nothing
-expr e1482 if cond=e1478 then=e1481 else=_ type=Unit
-expr e1488 bool(true) type=Boolean
-expr e1489 call callee=e1487 args=[_:e1488] type=Class#47 call=s48
-expr e1490 lambda params=[] body=e1489 label=contract type=Class#46.() -> Unit
-expr e1491 call callee=e1483 args=[_:e1490] type=Unit
-expr e1492 name(condition) type=Boolean ref=s239
-expr e1493 unary(not) operand=e1492 type=Boolean
-expr e1495 call callee=e1494 args=[] type=Class#39 call=s42
-expr e1496 throw value=e1495 type=Nothing
-expr e1497 if cond=e1493 then=e1496 else=_ type=Unit
-expr e1498 bool(true) type=Boolean
-expr e1499 return value=e1498 type=Nothing
+expr e1406 this type=Class#4<T#229>
+expr e1407 name(result) type=Class#13<T#229> ref=s363
+expr e1408 name(element) type=T#229 ref=s364
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s16
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s364
+expr e1412 name(result) type=Class#13<T#229> ref=s363
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#13<T#231>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s365
+expr e1417 this type=Class#4<T#231>
+expr e1418 name(result) type=Class#13<T#231> ref=s365
+expr e1419 name(element) type=T#231 ref=s366
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s16
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s366
+expr e1423 name(result) type=Class#13<T#231> ref=s365
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#19<T#233>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s367
+expr e1428 this type=Class#4<T#233>
+expr e1429 name(result) type=Class#19<T#233> ref=s367
+expr e1430 name(element) type=T#233 ref=s368
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s21
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s368
+expr e1434 name(result) type=Class#19<T#233> ref=s367
+expr e1435 return value=e1434 type=Nothing
+expr e1444 call callee=e1443 args=[] type=Class#47 call=s48
+expr e1445 name(value) type=Any? ref=s235
+expr e1446 name(null) type=Nothing?
+expr e1447 binary(notEqual) lhs=e1445 rhs=e1446 type=Boolean
+expr e1448 memberCall recv=e1444 callee=implies args=[_:e1447] type=<error>
+expr e1449 lambda params=[] body=e1448 label=contract type=Class#46.() -> Unit
+expr e1450 call callee=e1436 args=[_:e1449] type=Unit
+expr e1451 name(value) type=Any? ref=s235
+expr e1452 name(null) type=Nothing?
+expr e1453 binary(equal) lhs=e1451 rhs=e1452 type=Boolean
+expr e1455 call callee=e1454 args=[] type=Class#39 call=s42
+expr e1456 throw value=e1455 type=Nothing
+expr e1457 if cond=e1453 then=e1456 else=_ type=Unit
+expr e1458 name(value) type=Any? ref=s235
+expr e1459 return value=e1458 type=Nothing
+expr e1464 call callee=e1463 args=[] type=Class#47 call=s48
+expr e1465 lambda params=[] body=e1464 label=contract type=Class#46.() -> Unit
+expr e1466 call callee=e1460 args=[_:e1465] type=Unit
+expr e1467 name(x) type=Int ref=s237
+expr e1468 int(0) type=Int
+expr e1469 binary(lessThan) lhs=e1467 rhs=e1468 type=Boolean
+expr e1471 call callee=e1470 args=[] type=Class#39 call=s42
+expr e1472 throw value=e1471 type=Nothing
+expr e1473 if cond=e1469 then=e1472 else=_ type=Unit
+expr e1479 bool(true) type=Boolean
+expr e1480 call callee=e1478 args=[_:e1479] type=Class#47 call=s48
+expr e1481 lambda params=[] body=e1480 label=contract type=Class#46.() -> Unit
+expr e1482 call callee=e1474 args=[_:e1481] type=Unit
+expr e1483 name(condition) type=Boolean ref=s239
+expr e1484 unary(not) operand=e1483 type=Boolean
+expr e1486 call callee=e1485 args=[] type=Class#39 call=s42
+expr e1487 throw value=e1486 type=Nothing
+expr e1488 if cond=e1484 then=e1487 else=_ type=Unit
+expr e1489 bool(true) type=Boolean
+expr e1490 return value=e1489 type=Nothing
+expr e1496 bool(false) type=Boolean
+expr e1497 call callee=e1495 args=[_:e1496] type=Class#47 call=s48
+expr e1498 lambda params=[] body=e1497 label=contract type=Class#46.() -> Unit
+expr e1499 call callee=e1491 args=[_:e1498] type=Unit
+expr e1500 name(condition) type=Boolean ref=s241
+expr e1502 call callee=e1501 args=[] type=Class#39 call=s42
+expr e1503 throw value=e1502 type=Nothing
+expr e1504 if cond=e1500 then=e1503 else=_ type=Unit
 expr e1505 bool(false) type=Boolean
-expr e1506 call callee=e1504 args=[_:e1505] type=Class#47 call=s48
-expr e1507 lambda params=[] body=e1506 label=contract type=Class#46.() -> Unit
-expr e1508 call callee=e1500 args=[_:e1507] type=Unit
-expr e1509 name(condition) type=Boolean ref=s241
-expr e1511 call callee=e1510 args=[] type=Class#39 call=s42
-expr e1512 throw value=e1511 type=Nothing
-expr e1513 if cond=e1509 then=e1512 else=_ type=Unit
-expr e1514 bool(false) type=Boolean
-expr e1515 return value=e1514 type=Nothing
-expr e1518 call callee=e1517 args=[] type=Class#47 call=s48
-expr e1519 name(value) type=Any? ref=s243
-expr e1520 name(null) type=Nothing?
-expr e1521 binary(notEqual) lhs=e1519 rhs=e1520 type=Boolean
-expr e1522 memberCall recv=e1518 callee=implies args=[_:e1521] type=<error>
-expr e1524 bool(true) type=Boolean
-expr e1525 call callee=e1523 args=[_:e1524] type=Class#47 call=s48
-expr e1526 blockExpr stmts=[e1522] trailing=e1525 type=Class#47
-expr e1527 lambda params=[] body=e1526 label=contract type=Class#46.() -> Unit
-expr e1528 call callee=e1516 args=[_:e1527] type=Unit
-expr e1529 name(value) type=Any? ref=s243
-expr e1530 name(null) type=Nothing?
-expr e1531 binary(equal) lhs=e1529 rhs=e1530 type=Boolean
-expr e1533 call callee=e1532 args=[] type=Class#39 call=s42
-expr e1534 throw value=e1533 type=Nothing
-expr e1535 if cond=e1531 then=e1534 else=_ type=Unit
-expr e1536 name(condition) type=Boolean ref=s244
-expr e1537 unary(not) operand=e1536 type=Boolean
-expr e1539 call callee=e1538 args=[] type=Class#39 call=s42
-expr e1540 throw value=e1539 type=Nothing
-expr e1541 if cond=e1537 then=e1540 else=_ type=Unit
-expr e1542 bool(true) type=Boolean
-expr e1543 return value=e1542 type=Nothing
-expr e1544 string(hello) type=String
-expr e1545 localDecl x mutable=0 type=t395 init=e1544 type=Unit ref=s366
-expr e1547 name(x) type=String? ref=s366
-expr e1548 call callee=e1546 args=[_:e1547] type=Any call=s234
-expr e1550 name(x) type=String? ref=s366
-expr e1551 memberCall recv=e1550 callee=length args=[] type=<error>
-expr e1552 call callee=e1549 args=[_:e1551] type=Unit call=s53
-expr e1554 int(42) type=Int
-expr e1555 call callee=e1553 args=[_:e1554] type=Unit call=s236
-expr e1557 bool(true) type=Boolean
-expr e1558 call callee=e1556 args=[_:e1557] type=Boolean call=s238
-expr e1559 localDecl flag mutable=0 type=_ init=e1558 type=Unit ref=s367
-expr e1561 name(flag) type=Boolean ref=s367
-expr e1562 call callee=e1560 args=[_:e1561] type=Unit call=s53
-expr e1564 bool(false) type=Boolean
-expr e1565 call callee=e1563 args=[_:e1564] type=Boolean call=s240
-expr e1566 localDecl flag2 mutable=0 type=_ init=e1565 type=Unit ref=s368
-expr e1568 name(flag2) type=Boolean ref=s368
-expr e1569 call callee=e1567 args=[_:e1568] type=Unit call=s53
-expr e1570 string(world) type=String
-expr e1571 localDecl y mutable=0 type=t396 init=e1570 type=Unit ref=s369
-expr e1573 name(y) type=String? ref=s369
-expr e1574 bool(true) type=Boolean
-expr e1575 call callee=e1572 args=[_:e1573,_:e1574] type=Boolean call=s242
-expr e1576 localDecl result mutable=0 type=_ init=e1575 type=Unit ref=s370
-expr e1578 name(result) type=Boolean ref=s370
-expr e1579 call callee=e1577 args=[_:e1578] type=Unit call=s53
+expr e1506 return value=e1505 type=Nothing
+expr e1509 call callee=e1508 args=[] type=Class#47 call=s48
+expr e1510 name(value) type=Any? ref=s243
+expr e1511 name(null) type=Nothing?
+expr e1512 binary(notEqual) lhs=e1510 rhs=e1511 type=Boolean
+expr e1513 memberCall recv=e1509 callee=implies args=[_:e1512] type=<error>
+expr e1515 bool(true) type=Boolean
+expr e1516 call callee=e1514 args=[_:e1515] type=Class#47 call=s48
+expr e1517 blockExpr stmts=[e1513] trailing=e1516 type=Class#47
+expr e1518 lambda params=[] body=e1517 label=contract type=Class#46.() -> Unit
+expr e1519 call callee=e1507 args=[_:e1518] type=Unit
+expr e1520 name(value) type=Any? ref=s243
+expr e1521 name(null) type=Nothing?
+expr e1522 binary(equal) lhs=e1520 rhs=e1521 type=Boolean
+expr e1524 call callee=e1523 args=[] type=Class#39 call=s42
+expr e1525 throw value=e1524 type=Nothing
+expr e1526 if cond=e1522 then=e1525 else=_ type=Unit
+expr e1527 name(condition) type=Boolean ref=s244
+expr e1528 unary(not) operand=e1527 type=Boolean
+expr e1530 call callee=e1529 args=[] type=Class#39 call=s42
+expr e1531 throw value=e1530 type=Nothing
+expr e1532 if cond=e1528 then=e1531 else=_ type=Unit
+expr e1533 bool(true) type=Boolean
+expr e1534 return value=e1533 type=Nothing
+expr e1535 string(hello) type=String
+expr e1536 localDecl x mutable=0 type=t395 init=e1535 type=Unit ref=s369
+expr e1538 name(x) type=String? ref=s369
+expr e1539 call callee=e1537 args=[_:e1538] type=Any call=s234
+expr e1541 name(x) type=String? ref=s369
+expr e1542 memberCall recv=e1541 callee=length args=[] type=<error>
+expr e1543 call callee=e1540 args=[_:e1542] type=Unit call=s53
+expr e1545 int(42) type=Int
+expr e1546 call callee=e1544 args=[_:e1545] type=Unit call=s236
+expr e1548 bool(true) type=Boolean
+expr e1549 call callee=e1547 args=[_:e1548] type=Boolean call=s238
+expr e1550 localDecl flag mutable=0 type=_ init=e1549 type=Unit ref=s370
+expr e1552 name(flag) type=Boolean ref=s370
+expr e1553 call callee=e1551 args=[_:e1552] type=Unit call=s53
+expr e1555 bool(false) type=Boolean
+expr e1556 call callee=e1554 args=[_:e1555] type=Boolean call=s240
+expr e1557 localDecl flag2 mutable=0 type=_ init=e1556 type=Unit ref=s371
+expr e1559 name(flag2) type=Boolean ref=s371
+expr e1560 call callee=e1558 args=[_:e1559] type=Unit call=s53
+expr e1561 string(world) type=String
+expr e1562 localDecl y mutable=0 type=t396 init=e1561 type=Unit ref=s372
+expr e1564 name(y) type=String? ref=s372
+expr e1565 bool(true) type=Boolean
+expr e1566 call callee=e1563 args=[_:e1564,_:e1565] type=Boolean call=s242
+expr e1567 localDecl result mutable=0 type=_ init=e1566 type=Unit ref=s373
+expr e1569 name(result) type=Boolean ref=s373
+expr e1570 call callee=e1568 args=[_:e1569] type=Unit call=s53

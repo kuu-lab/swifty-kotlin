@@ -367,18 +367,21 @@ symbol s365 kind=local fq=__local_105.i vis=private flags=mutable type=Int
 symbol s366 kind=local fq=__local_106.sb vis=private flags=_ type=Class#51
 symbol s367 kind=local fq=__local_107.i vis=private flags=mutable type=Int
 symbol s368 kind=local fq=__local_108.result vis=private flags=_ type=Class#13<T#231>
-symbol s369 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#233>
-symbol s370 kind=local fq=__local_110.result vis=private flags=_ type=Class#21<T#235>
-symbol s371 kind=local fq=__local_111.nested vis=private flags=_ type=Class#26<Class#26<String>>
-symbol s372 kind=local fq=__local_112.inner vis=private flags=_ type=Class#18<out String>
-symbol s373 kind=local fq=__local_113.set vis=private flags=_ type=Class#26<String>
-symbol s374 kind=local fq=__local_114.ms vis=private flags=_ type=Class#21<String>
-symbol s375 kind=local fq=__local_115.ordered vis=private flags=_ type=Class#26<Int>
-symbol s376 kind=local fq=__local_116.readOnly vis=private flags=_ type=Class#18<String>
-symbol s377 kind=local fq=__local_117.created vis=private flags=_ type=Class#26<Int>
-symbol s378 kind=local fq=__local_118.container vis=private flags=_ type=Class#239
-symbol s379 kind=local fq=__local_119.mySet vis=private flags=_ type=Class#243
-symbol s380 kind=local fq=__local_120.constrained vis=private flags=_ type=Class#26<String>
+symbol s369 kind=local fq=__for_1411.element vis=private flags=_
+symbol s370 kind=local fq=__local_109.result vis=private flags=_ type=Class#13<T#233>
+symbol s371 kind=local fq=__for_1422.element vis=private flags=_
+symbol s372 kind=local fq=__local_110.result vis=private flags=_ type=Class#21<T#235>
+symbol s373 kind=local fq=__for_1433.element vis=private flags=_
+symbol s374 kind=local fq=__local_111.nested vis=private flags=_ type=Class#26<Class#26<String>>
+symbol s375 kind=local fq=__local_112.inner vis=private flags=_ type=Class#18<out String>
+symbol s376 kind=local fq=__local_113.set vis=private flags=_ type=Class#26<String>
+symbol s377 kind=local fq=__local_114.ms vis=private flags=_ type=Class#21<String>
+symbol s378 kind=local fq=__local_115.ordered vis=private flags=_ type=Class#26<Int>
+symbol s379 kind=local fq=__local_116.readOnly vis=private flags=_ type=Class#18<String>
+symbol s380 kind=local fq=__local_117.created vis=private flags=_ type=Class#26<Int>
+symbol s381 kind=local fq=__local_118.container vis=private flags=_ type=Class#239
+symbol s382 kind=local fq=__local_119.mySet vis=private flags=_ type=Class#243
+symbol s383 kind=local fq=__local_120.constrained vis=private flags=_ type=Class#26<String>
 file f0 package=kotlin.collections
   decl d0 fun first sym=s56
   decl d1 fun first sym=s58
@@ -1749,132 +1752,135 @@ expr e1401 name(throwOnInvalidSequence) type=Boolean ref=s229
 expr e1402 memberCall recv=e1398 callee=__kk_decodeToString_range_throw args=[_:e1399,_:e1400,_:e1401] type=String call=s42
 expr e1404 call callee=e1403 args=[] type=Class#13<T#231>
 expr e1405 localDecl result mutable=0 type=_ init=e1404 type=Unit ref=s368
-expr e1410 name(result) type=Class#13<T#231> ref=s368
-expr e1411 name(element) type=T#182 ref=s-0
-expr e1412 memberCall recv=e1410 callee=add args=[_:e1411] type=Boolean call=s16
-expr e1413 lambda params=[element] body=e1412 label=forEach type=(T#182) -> Unit
-expr e1414 call callee=e1406 args=[_:e1413] type=<error>
-expr e1415 name(result) type=Class#13<T#231> ref=s368
-expr e1416 return value=e1415 type=Nothing
-expr e1418 call callee=e1417 args=[] type=Class#13<T#233>
-expr e1419 localDecl result mutable=0 type=_ init=e1418 type=Unit ref=s369
-expr e1424 name(result) type=Class#13<T#233> ref=s369
-expr e1425 name(element) type=T#182 ref=s-1
-expr e1426 memberCall recv=e1424 callee=add args=[_:e1425] type=Boolean call=s16
-expr e1427 lambda params=[element] body=e1426 label=forEach type=(T#182) -> Unit
-expr e1428 call callee=e1420 args=[_:e1427] type=<error>
-expr e1429 name(result) type=Class#13<T#233> ref=s369
-expr e1430 return value=e1429 type=Nothing
-expr e1432 call callee=e1431 args=[] type=Class#21<T#235>
-expr e1433 localDecl result mutable=0 type=_ init=e1432 type=Unit ref=s370
-expr e1438 name(result) type=Class#21<T#235> ref=s370
-expr e1439 name(element) type=T#182 ref=s-2
-expr e1440 memberCall recv=e1438 callee=add args=[_:e1439] type=Boolean call=s23
-expr e1441 lambda params=[element] body=e1440 label=forEach type=(T#182) -> Unit
-expr e1442 call callee=e1434 args=[_:e1441] type=<error>
-expr e1443 name(result) type=Class#21<T#235> ref=s370
-expr e1444 return value=e1443 type=Nothing
-expr e1446 name(set) type=Class#26<String> ref=s237
-expr e1447 memberCall recv=e1446 callee=size args=[] type=Int ref=s5
-expr e1448 call callee=e1445 args=[_:e1447] type=Unit call=s55
-expr e1450 call callee=e1449 args=[] type=Class#26<Int> call=s28 targs=[Int]
-expr e1451 return value=e1450 type=Nothing
-expr e1453 call callee=e1452 args=[] type=Class#26<String> call=s28 targs=[String]
-expr e1455 call callee=e1454 args=[] type=Class#26<Int> call=s28 targs=[Int]
-expr e1457 call callee=e1456 args=[] type=Class#26<Class#26<String>> call=s28 targs=[Class#26<String>]
-expr e1458 localDecl nested mutable=0 type=t397 init=e1457 type=Unit ref=s371
-expr e1460 call callee=e1459 args=[] type=Class#18<out String> call=s28 targs=[String]
-expr e1461 localDecl inner mutable=0 type=_ init=e1460 type=Unit ref=s372
-expr e1462 name(inner) type=Class#18<out String> ref=s372
-expr e1463 string(nested) type=String
-expr e1464 memberCall recv=e1462 callee=add args=[_:e1463] type=<error>
-expr e1465 name(nested) type=Class#26<Class#26<String>> ref=s371
-expr e1466 name(inner) type=Class#18<out String> ref=s372
-expr e1467 memberCall recv=e1465 callee=add args=[_:e1466] type=Boolean call=s23
-expr e1469 name(nested) type=Class#26<Class#26<String>> ref=s371
-expr e1470 memberCall recv=e1469 callee=size args=[] type=Int ref=s5
-expr e1471 call callee=e1468 args=[_:e1470] type=Unit call=s55
-expr e1472 string(custom) type=String
-expr e1473 name(set) type=T#247 ref=s248
-expr e1474 return value=e1473 type=Nothing
-expr e1475 this type=Class#26<String>
-expr e1476 memberCall recv=e1475 callee=size args=[] type=Int ref=s5
-expr e1477 stringTemplate[lit(linked: ),expr(e1476)] type=String
-expr e1478 return value=e1477 type=Nothing
-expr e1480 call callee=e1479 args=[] type=Class#26<String> call=s28 targs=[String]
-expr e1481 localDecl set mutable=0 type=t409 init=e1480 type=Unit ref=s373
-expr e1482 name(set) type=Class#26<String> ref=s373
-expr e1483 string(hello) type=String
-expr e1484 memberCall recv=e1482 callee=add args=[_:e1483] type=Boolean call=s23
-expr e1485 name(set) type=Class#26<String> ref=s373
-expr e1486 string(world) type=String
-expr e1487 memberCall recv=e1485 callee=add args=[_:e1486] type=Boolean call=s23
-expr e1489 name(set) type=Class#26<String> ref=s373
-expr e1490 memberCall recv=e1489 callee=size args=[] type=Int ref=s5
-expr e1491 call callee=e1488 args=[_:e1490] type=Unit call=s55
-expr e1493 name(set) type=Class#26<String> ref=s373
-expr e1494 string(hello) type=String
-expr e1495 memberCall recv=e1493 callee=contains args=[_:e1494] type=Boolean call=s20
-expr e1496 call callee=e1492 args=[_:e1495] type=Unit call=s55
-expr e1497 name(set) type=Class#26<String> ref=s373
-expr e1498 localDecl ms mutable=0 type=t411 init=e1497 type=Unit ref=s374
-expr e1499 name(ms) type=Class#21<String> ref=s374
-expr e1500 string(!) type=String
-expr e1501 memberCall recv=e1499 callee=add args=[_:e1500] type=Boolean call=s23
-expr e1503 name(ms) type=Class#21<String> ref=s374
-expr e1504 memberCall recv=e1503 callee=size args=[] type=Int ref=s5
-expr e1505 call callee=e1502 args=[_:e1504] type=Unit call=s55
-expr e1507 int(1) type=Int
-expr e1508 int(2) type=Int
-expr e1509 int(3) type=Int
-expr e1510 call callee=e1506 args=[_:e1507,_:e1508,_:e1509] type=Class#26<Int>
-expr e1511 localDecl ordered mutable=0 type=_ init=e1510 type=Unit ref=s375
-expr e1512 name(ordered) type=Class#26<Int> ref=s375
-expr e1513 int(2) type=Int
-expr e1514 memberCall recv=e1512 callee=remove args=[_:e1513] type=Boolean call=s24
-expr e1516 name(ordered) type=Class#26<Int> ref=s375
-expr e1517 memberCall recv=e1516 callee=size args=[] type=Int ref=s5
-expr e1518 call callee=e1515 args=[_:e1517] type=Unit call=s55
-expr e1519 name(set) type=Class#26<String> ref=s373
-expr e1520 localDecl readOnly mutable=0 type=t413 init=e1519 type=Unit ref=s376
-expr e1522 name(readOnly) type=Class#18<String> ref=s376
-expr e1523 memberCall recv=e1522 callee=size args=[] type=Int ref=s5
-expr e1524 call callee=e1521 args=[_:e1523] type=Unit call=s55
-expr e1526 name(set) type=Class#26<String> ref=s373
-expr e1527 call callee=e1525 args=[_:e1526] type=Unit call=s236
-expr e1529 call callee=e1528 args=[] type=Class#26<Int> call=s238
-expr e1530 localDecl created mutable=0 type=_ init=e1529 type=Unit ref=s377
-expr e1531 name(created) type=Class#26<Int> ref=s377
-expr e1532 int(42) type=Int
-expr e1533 memberCall recv=e1531 callee=add args=[_:e1532] type=Boolean call=s23
-expr e1535 name(created) type=Class#26<Int> ref=s377
-expr e1536 memberCall recv=e1535 callee=size args=[] type=Int ref=s5
-expr e1537 call callee=e1534 args=[_:e1536] type=Unit call=s55
-expr e1539 call callee=e1538 args=[] type=Class#239 call=s240
-expr e1540 localDecl container mutable=0 type=_ init=e1539 type=Unit ref=s378
-expr e1541 name(container) type=Class#239 ref=s378
-expr e1542 memberCall recv=e1541 callee=tags args=[] type=Class#26<String> ref=s241
-expr e1543 string(property) type=String
-expr e1544 memberCall recv=e1542 callee=add args=[_:e1543] type=Boolean call=s23
-expr e1546 name(container) type=Class#239 ref=s378
-expr e1547 memberCall recv=e1546 callee=tags args=[] type=Class#26<String> ref=s241
-expr e1548 memberCall recv=e1547 callee=size args=[] type=Int ref=s5
-expr e1549 call callee=e1545 args=[_:e1548] type=Unit call=s55
-expr e1551 call callee=e1550 args=[] type=Unit call=s242
-expr e1553 call callee=e1552 args=[] type=Class#243 call=s244
-expr e1554 localDecl mySet mutable=0 type=_ init=e1553 type=Unit ref=s379
-expr e1555 name(mySet) type=Class#243 ref=s379
-expr e1556 string(inherited) type=String
-expr e1557 memberCall recv=e1555 callee=add args=[_:e1556] type=<error>
-expr e1559 name(mySet) type=Class#243 ref=s379
-expr e1560 memberCall recv=e1559 callee=customOp args=[] type=String call=s245
-expr e1561 call callee=e1558 args=[_:e1560] type=Unit call=s55
-expr e1563 name(set) type=Class#26<String> ref=s373
-expr e1564 call callee=e1562 args=[_:e1563] type=Class#26<String> call=s246 targs=[Class#26<String>]
-expr e1565 localDecl constrained mutable=0 type=_ init=e1564 type=Unit ref=s380
-expr e1567 name(constrained) type=Class#26<String> ref=s380
-expr e1568 memberCall recv=e1567 callee=size args=[] type=Int ref=s5
-expr e1569 call callee=e1566 args=[_:e1568] type=Unit call=s55
-expr e1571 name(set) type=Class#26<String> ref=s373
-expr e1572 memberCall recv=e1571 callee=linkedExtension args=[] type=String call=s249
-expr e1573 call callee=e1570 args=[_:e1572] type=Unit call=s55
+expr e1406 this type=Class#4<T#231>
+expr e1407 name(result) type=Class#13<T#231> ref=s368
+expr e1408 name(element) type=T#231 ref=s369
+expr e1409 memberCall recv=e1407 callee=add args=[_:e1408] type=Boolean call=s16
+expr e1410 blockExpr stmts=[] trailing=e1409 type=Boolean
+expr e1411 for var=element iterable=e1406 body=e1410 type=Unit ref=s369
+expr e1412 name(result) type=Class#13<T#231> ref=s368
+expr e1413 return value=e1412 type=Nothing
+expr e1415 call callee=e1414 args=[] type=Class#13<T#233>
+expr e1416 localDecl result mutable=0 type=_ init=e1415 type=Unit ref=s370
+expr e1417 this type=Class#4<T#233>
+expr e1418 name(result) type=Class#13<T#233> ref=s370
+expr e1419 name(element) type=T#233 ref=s371
+expr e1420 memberCall recv=e1418 callee=add args=[_:e1419] type=Boolean call=s16
+expr e1421 blockExpr stmts=[] trailing=e1420 type=Boolean
+expr e1422 for var=element iterable=e1417 body=e1421 type=Unit ref=s371
+expr e1423 name(result) type=Class#13<T#233> ref=s370
+expr e1424 return value=e1423 type=Nothing
+expr e1426 call callee=e1425 args=[] type=Class#21<T#235>
+expr e1427 localDecl result mutable=0 type=_ init=e1426 type=Unit ref=s372
+expr e1428 this type=Class#4<T#235>
+expr e1429 name(result) type=Class#21<T#235> ref=s372
+expr e1430 name(element) type=T#235 ref=s373
+expr e1431 memberCall recv=e1429 callee=add args=[_:e1430] type=Boolean call=s23
+expr e1432 blockExpr stmts=[] trailing=e1431 type=Boolean
+expr e1433 for var=element iterable=e1428 body=e1432 type=Unit ref=s373
+expr e1434 name(result) type=Class#21<T#235> ref=s372
+expr e1435 return value=e1434 type=Nothing
+expr e1437 name(set) type=Class#26<String> ref=s237
+expr e1438 memberCall recv=e1437 callee=size args=[] type=Int ref=s5
+expr e1439 call callee=e1436 args=[_:e1438] type=Unit call=s55
+expr e1441 call callee=e1440 args=[] type=Class#26<Int> call=s28 targs=[Int]
+expr e1442 return value=e1441 type=Nothing
+expr e1444 call callee=e1443 args=[] type=Class#26<String> call=s28 targs=[String]
+expr e1446 call callee=e1445 args=[] type=Class#26<Int> call=s28 targs=[Int]
+expr e1448 call callee=e1447 args=[] type=Class#26<Class#26<String>> call=s28 targs=[Class#26<String>]
+expr e1449 localDecl nested mutable=0 type=t397 init=e1448 type=Unit ref=s374
+expr e1451 call callee=e1450 args=[] type=Class#18<out String> call=s28 targs=[String]
+expr e1452 localDecl inner mutable=0 type=_ init=e1451 type=Unit ref=s375
+expr e1453 name(inner) type=Class#18<out String> ref=s375
+expr e1454 string(nested) type=String
+expr e1455 memberCall recv=e1453 callee=add args=[_:e1454] type=<error>
+expr e1456 name(nested) type=Class#26<Class#26<String>> ref=s374
+expr e1457 name(inner) type=Class#18<out String> ref=s375
+expr e1458 memberCall recv=e1456 callee=add args=[_:e1457] type=Boolean call=s23
+expr e1460 name(nested) type=Class#26<Class#26<String>> ref=s374
+expr e1461 memberCall recv=e1460 callee=size args=[] type=Int ref=s5
+expr e1462 call callee=e1459 args=[_:e1461] type=Unit call=s55
+expr e1463 string(custom) type=String
+expr e1464 name(set) type=T#247 ref=s248
+expr e1465 return value=e1464 type=Nothing
+expr e1466 this type=Class#26<String>
+expr e1467 memberCall recv=e1466 callee=size args=[] type=Int ref=s5
+expr e1468 stringTemplate[lit(linked: ),expr(e1467)] type=String
+expr e1469 return value=e1468 type=Nothing
+expr e1471 call callee=e1470 args=[] type=Class#26<String> call=s28 targs=[String]
+expr e1472 localDecl set mutable=0 type=t409 init=e1471 type=Unit ref=s376
+expr e1473 name(set) type=Class#26<String> ref=s376
+expr e1474 string(hello) type=String
+expr e1475 memberCall recv=e1473 callee=add args=[_:e1474] type=Boolean call=s23
+expr e1476 name(set) type=Class#26<String> ref=s376
+expr e1477 string(world) type=String
+expr e1478 memberCall recv=e1476 callee=add args=[_:e1477] type=Boolean call=s23
+expr e1480 name(set) type=Class#26<String> ref=s376
+expr e1481 memberCall recv=e1480 callee=size args=[] type=Int ref=s5
+expr e1482 call callee=e1479 args=[_:e1481] type=Unit call=s55
+expr e1484 name(set) type=Class#26<String> ref=s376
+expr e1485 string(hello) type=String
+expr e1486 memberCall recv=e1484 callee=contains args=[_:e1485] type=Boolean call=s20
+expr e1487 call callee=e1483 args=[_:e1486] type=Unit call=s55
+expr e1488 name(set) type=Class#26<String> ref=s376
+expr e1489 localDecl ms mutable=0 type=t411 init=e1488 type=Unit ref=s377
+expr e1490 name(ms) type=Class#21<String> ref=s377
+expr e1491 string(!) type=String
+expr e1492 memberCall recv=e1490 callee=add args=[_:e1491] type=Boolean call=s23
+expr e1494 name(ms) type=Class#21<String> ref=s377
+expr e1495 memberCall recv=e1494 callee=size args=[] type=Int ref=s5
+expr e1496 call callee=e1493 args=[_:e1495] type=Unit call=s55
+expr e1498 int(1) type=Int
+expr e1499 int(2) type=Int
+expr e1500 int(3) type=Int
+expr e1501 call callee=e1497 args=[_:e1498,_:e1499,_:e1500] type=Class#26<Int>
+expr e1502 localDecl ordered mutable=0 type=_ init=e1501 type=Unit ref=s378
+expr e1503 name(ordered) type=Class#26<Int> ref=s378
+expr e1504 int(2) type=Int
+expr e1505 memberCall recv=e1503 callee=remove args=[_:e1504] type=Boolean call=s24
+expr e1507 name(ordered) type=Class#26<Int> ref=s378
+expr e1508 memberCall recv=e1507 callee=size args=[] type=Int ref=s5
+expr e1509 call callee=e1506 args=[_:e1508] type=Unit call=s55
+expr e1510 name(set) type=Class#26<String> ref=s376
+expr e1511 localDecl readOnly mutable=0 type=t413 init=e1510 type=Unit ref=s379
+expr e1513 name(readOnly) type=Class#18<String> ref=s379
+expr e1514 memberCall recv=e1513 callee=size args=[] type=Int ref=s5
+expr e1515 call callee=e1512 args=[_:e1514] type=Unit call=s55
+expr e1517 name(set) type=Class#26<String> ref=s376
+expr e1518 call callee=e1516 args=[_:e1517] type=Unit call=s236
+expr e1520 call callee=e1519 args=[] type=Class#26<Int> call=s238
+expr e1521 localDecl created mutable=0 type=_ init=e1520 type=Unit ref=s380
+expr e1522 name(created) type=Class#26<Int> ref=s380
+expr e1523 int(42) type=Int
+expr e1524 memberCall recv=e1522 callee=add args=[_:e1523] type=Boolean call=s23
+expr e1526 name(created) type=Class#26<Int> ref=s380
+expr e1527 memberCall recv=e1526 callee=size args=[] type=Int ref=s5
+expr e1528 call callee=e1525 args=[_:e1527] type=Unit call=s55
+expr e1530 call callee=e1529 args=[] type=Class#239 call=s240
+expr e1531 localDecl container mutable=0 type=_ init=e1530 type=Unit ref=s381
+expr e1532 name(container) type=Class#239 ref=s381
+expr e1533 memberCall recv=e1532 callee=tags args=[] type=Class#26<String> ref=s241
+expr e1534 string(property) type=String
+expr e1535 memberCall recv=e1533 callee=add args=[_:e1534] type=Boolean call=s23
+expr e1537 name(container) type=Class#239 ref=s381
+expr e1538 memberCall recv=e1537 callee=tags args=[] type=Class#26<String> ref=s241
+expr e1539 memberCall recv=e1538 callee=size args=[] type=Int ref=s5
+expr e1540 call callee=e1536 args=[_:e1539] type=Unit call=s55
+expr e1542 call callee=e1541 args=[] type=Unit call=s242
+expr e1544 call callee=e1543 args=[] type=Class#243 call=s244
+expr e1545 localDecl mySet mutable=0 type=_ init=e1544 type=Unit ref=s382
+expr e1546 name(mySet) type=Class#243 ref=s382
+expr e1547 string(inherited) type=String
+expr e1548 memberCall recv=e1546 callee=add args=[_:e1547] type=<error>
+expr e1550 name(mySet) type=Class#243 ref=s382
+expr e1551 memberCall recv=e1550 callee=customOp args=[] type=String call=s245
+expr e1552 call callee=e1549 args=[_:e1551] type=Unit call=s55
+expr e1554 name(set) type=Class#26<String> ref=s376
+expr e1555 call callee=e1553 args=[_:e1554] type=Class#26<String> call=s246 targs=[Class#26<String>]
+expr e1556 localDecl constrained mutable=0 type=_ init=e1555 type=Unit ref=s383
+expr e1558 name(constrained) type=Class#26<String> ref=s383
+expr e1559 memberCall recv=e1558 callee=size args=[] type=Int ref=s5
+expr e1560 call callee=e1557 args=[_:e1559] type=Unit call=s55
+expr e1562 name(set) type=Class#26<String> ref=s376
+expr e1563 memberCall recv=e1562 callee=linkedExtension args=[] type=String call=s249
+expr e1564 call callee=e1561 args=[_:e1563] type=Unit call=s55
