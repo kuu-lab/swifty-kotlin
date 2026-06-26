@@ -230,8 +230,8 @@ extension LexerParserEdgeCaseTests {
             }
             #expect(allFunNames.contains("alpha"))
             #expect(allFunNames.contains("beta"))
-            // 2 user functions + 54 bundled stdlib functions
-            #expect(allFunNames.count == 56)
+            // 2 user functions + 62 bundled stdlib functions
+            #expect(allFunNames.count == 64)
 
             #expect(ctx.syntaxTrees.count == 4)
             for (_, cst, root) in ctx.syntaxTrees {
