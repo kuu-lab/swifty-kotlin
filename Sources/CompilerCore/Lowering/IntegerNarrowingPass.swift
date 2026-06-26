@@ -22,7 +22,7 @@
 ///
 /// `Long` results keep the 64-bit builtins untouched, and unsigned / floating
 /// builtins are never matched, so their behavior is unchanged.
-final class IntegerNarrowingPass: LoweringPass {
+final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
     static let name = "IntegerNarrowing"
 
     /// Binary / unary integer builtins whose `Int` result must wrap to 32 bits.
@@ -53,18 +53,14 @@ final class IntegerNarrowingPass: LoweringPass {
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         guard ctx.sema != nil else { return false }
+        module.ensureFeaturesScanned()
+        if !module.features.isDisjoint(with: [.hasBinaryOp, .hasUnaryOp]) {
+            return true
+        }
         let narrowingIDs = Set(Self.narrowingCalleeNames.map { ctx.interner.intern($0) })
         let shiftIDs = Set(Self.intShiftRenameNames.keys.map { ctx.interner.intern($0) })
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-            for instruction in function.body {
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
-                if narrowingIDs.contains(callee) || shiftIDs.contains(callee) {
-                    return true
-                }
-            }
-        }
-        return false
+        return !narrowingIDs.isDisjoint(with: module.usedCallees)
+            || !shiftIDs.isDisjoint(with: module.usedCallees)
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {

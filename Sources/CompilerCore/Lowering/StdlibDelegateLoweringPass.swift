@@ -15,7 +15,7 @@ enum StdlibDelegateKind: Equatable {
 ///
 /// Must run **after** `PropertyLoweringPass` so that delegate accessor
 /// calls have already been rewritten to direct getter/setter dispatches.
-final class StdlibDelegateLoweringPass: LoweringPass {
+final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "StdlibDelegateLowering"
 
     func run(module: KIRModule, ctx: KIRContext) throws {
