@@ -22,6 +22,10 @@ enum BundledKotlinStdlib {
     // dispatch wiring happen in the follow-up RF-LOWER tasks.
     // maxWith / minWith are omitted here because they call Comparator.compare, which is not
     // yet lowerable to a linkable symbol when bundled functions are codegen'd unconditionally.
+    //
+    // MIGRATION-COL-013: Set HOF implementations in Kotlin source.
+    // sorted/first/last are already routed to kk_set_* by CallLowerer+UnresolvedMemberCalls
+    // for Set receivers, so they are excluded here to avoid duplicate resolution.
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
@@ -411,6 +415,69 @@ public fun <T> List<T>.shuffled(random: Random): List<T> {
     }
     return result
 }
+
+// MIGRATION-COL-013
+
+internal fun <T> Set<T>.filter(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (predicate(element)) result.add(element)
+    }
+    return result
+}
+
+internal fun <T, R> Set<T>.map(transform: (T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        result.add(transform(element))
+    }
+    return result
+}
+
+internal fun <T, R> Set<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        for (subElement in transform(element)) {
+            result.add(subElement)
+        }
+    }
+    return result
+}
+
+internal fun <T> Set<T>.forEach(action: (T) -> Unit) {
+    for (element in this) {
+        action(element)
+    }
+}
+
+internal fun <T> Set<T>.count(predicate: (T) -> Boolean): Int {
+    var count = 0
+    for (element in this) {
+        if (predicate(element)) count++
+    }
+    return count
+}
+
+internal fun <T> Set<T>.any(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (predicate(element)) return true
+    }
+    return false
+}
+
+internal fun <T> Set<T>.all(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (!predicate(element)) return false
+    }
+    return true
+}
+
+internal fun <T> Set<T>.none(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (predicate(element)) return false
+    }
+    return true
+}
 """
 
     static let kotlinTextSource = """
@@ -529,5 +596,39 @@ fun ByteArray.decodeToString(startIndex: Int, endIndex: Int): String =
 
 fun ByteArray.decodeToString(startIndex: Int, endIndex: Int, throwOnInvalidSequence: Boolean): String =
     this.__kk_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
+"""
+
+    // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
+    // toList / toSet / toMutableList use forEach as the iteration primitive
+    // (intercepted by CollectionLiteralLoweringPass to kk_sequence_forEach).
+    //
+    // Terminal HOFs (first, last, single, count, any, all, none, …) are resolved
+    // via synthetic stubs (HeaderHelpers+SyntheticSequenceTerminalStubs.swift) to
+    // the C-level kk_sequence_* entry points in RuntimeSequence.swift.  They are
+    // NOT included here to avoid scope pollution that would break Sema resolution
+    // for List / Collection / Set receivers with the same member names.
+    static let kotlinSequencesSource = """
+package kotlin.sequences
+
+// MIGRATION-SEQ-003
+
+public fun <T> Sequence<T>.toList(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) { result.add(element) }
+    return result
+}
+
+public fun <T> Sequence<T>.toMutableList(): MutableList<T> {
+    val result = mutableListOf<T>()
+    for (element in this) { result.add(element) }
+    return result
+}
+
+public fun <T> Sequence<T>.toSet(): Set<T> {
+    val result = mutableSetOf<T>()
+    for (element in this) { result.add(element) }
+    return result
+}
+
 """
 }
