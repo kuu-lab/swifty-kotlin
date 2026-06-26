@@ -1477,6 +1477,33 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-020: maxOf(Long, Long) — 2-arg Long overload
+    func testCodegenCompilesMaxOfLongTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            println(maxOf(3L, 7L))
+            val a = 100L
+            val b = 400L
+            println(maxOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfLongTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "7\n400\n")
+        }
+    }
+
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long)
     func testCodegenCompilesMaxOfLongVarargTopLevelCall() throws {
         let source = """
@@ -1665,6 +1692,32 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "1.5\n")
+        }
+    }
+
+    // STDLIB-COMP-FN-029: minOf(T, T) where T : Comparable<T>
+    func testCodegenCompilesMinOfComparableTwoArgCall() throws {
+        let source = """
+        fun main() {
+            val a = "banana"
+            val b = "apple"
+            println(minOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfComparableTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "apple\n")
         }
     }
 

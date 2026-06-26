@@ -310,6 +310,134 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
+    // MARK: - MIGRATION-SEQ-003: Sequence terminal HOFs
+
+    func testCompile_sequence_toList() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(1, 2, 3)
+            val list: List<Int> = seq.toList()
+        }
+        """)
+    }
+
+    func testCompile_sequence_toMutableList() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf("a", "b", "c")
+            val list: MutableList<String> = seq.toMutableList()
+        }
+        """)
+    }
+
+    func testCompile_sequence_toSet() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(1, 2, 2, 3)
+            val set: Set<Int> = seq.toSet()
+        }
+        """)
+    }
+
+    func testCompile_sequence_first() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(10, 20, 30)
+            val f: Int = seq.first()
+        }
+        """)
+    }
+
+    func testCompile_sequence_firstOrNull() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(10, 20, 30)
+            val f: Int? = seq.firstOrNull()
+        }
+        """)
+    }
+
+    func testCompile_sequence_last() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(10, 20, 30)
+            val l: Int = seq.last()
+        }
+        """)
+    }
+
+    func testCompile_sequence_lastOrNull() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(10, 20, 30)
+            val l: Int? = seq.lastOrNull()
+        }
+        """)
+    }
+
+    func testCompile_sequence_single() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(42)
+            val s: Int = seq.single()
+        }
+        """)
+    }
+
+    func testCompile_sequence_count() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(1, 2, 3)
+            val n: Int = seq.count()
+        }
+        """)
+    }
+
+    func testCompile_sequence_any_noArg() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(1, 2, 3)
+            val hasElements: Boolean = seq.any()
+        }
+        """)
+    }
+
+    func testCompile_sequence_any_predicate() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(1, 2, 3)
+            val hasEven: Boolean = seq.any { it % 2 == 0 }
+        }
+        """)
+    }
+
+    func testCompile_sequence_all_predicate() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(2, 4, 6)
+            val allEven: Boolean = seq.all { it % 2 == 0 }
+        }
+        """)
+    }
+
+    func testCompile_sequence_none_noArg() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = emptySequence<Int>()
+            val isEmpty: Boolean = seq.none()
+        }
+        """)
+    }
+
+    func testCompile_sequence_none_predicate() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val seq = sequenceOf(1, 3, 5)
+            val noEven: Boolean = seq.none { it % 2 == 0 }
+        }
+        """)
+    }
+
     // MARK: - Chained string operations
 
     func testCompile_string_chainedOperations() throws {
