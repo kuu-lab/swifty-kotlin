@@ -17,7 +17,7 @@ struct UnboxingCalleeNames {
     let char: InternedString
 }
 
-final class ABILoweringPass: LoweringPass {
+final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
 
     func run(module: KIRModule, ctx: KIRContext) throws {
