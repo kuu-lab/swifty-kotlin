@@ -133,6 +133,11 @@ public func kk_atomic_int_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
 }
 
+@_cdecl("kk_java_atomic_int_asKotlinAtomic")
+public func kk_java_atomic_int_asKotlinAtomic(_ receiver: Int) -> Int {
+    receiver
+}
+
 @_cdecl("kk_atomic_int_fetchAndAdd")
 public func kk_atomic_int_fetchAndAdd(_ receiver: Int, _ delta: Int) -> Int {
     guard let box = atomicIntBox(from: receiver) else { return 0 }

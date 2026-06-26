@@ -69,7 +69,7 @@
 - [x] STDLIB-TEXT-FN-065: `setRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-067: `singleOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-068: `slice` 関数の実装
-- [ ] STDLIB-TEXT-FN-070: `splitToSequence` 関数の実装
+- [x] STDLIB-TEXT-FN-070: `splitToSequence` 関数の実装
 - [x] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
 - [x] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [x] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
@@ -98,9 +98,9 @@
 #### kotlin.comparisons 関数の実装
 - [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
-- [ ] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
+- [x] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
 - [x] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
-- [ ] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
+- [x] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
 - [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
