@@ -1,31 +1,9 @@
 
-final class NormalizeBlocksPass: LoweringPass {
+final class NormalizeBlocksPass: LoweringPass, ParallelLoweringPass {
     static let name = "NormalizeBlocks"
 
     func shouldRun(module: KIRModule, ctx _: KIRContext) -> Bool {
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-            for instruction in function.body {
-                switch instruction {
-                case .beginBlock, .endBlock:
-                    return true
-                default:
-                    break
-                }
-            }
-            // Also run if any function body doesn't end with a return
-            if let last = function.body.last {
-                switch last {
-                case .returnUnit, .returnValue:
-                    break
-                default:
-                    return true
-                }
-            } else {
-                return true
-            }
-        }
-        return false
+        !module.features.isDisjoint(with: [.hasBeginEndBlock, .hasNonTerminatedFunction])
     }
 
     func run(module: KIRModule, ctx _: KIRContext) throws {

@@ -1,28 +1,16 @@
 
 /// Rewrites (valueOf result).name to $enumOrdinalToName(ordinal). Runs after
 /// DataEnumSealedSynthesisPass which creates the $enumOrdinalToName helper.
-final class EnumNameAccessLoweringPass: LoweringPass {
+final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumNameAccessLowering"
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         let nameCallee = ctx.interner.intern("name")
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-            for instruction in function.body {
-                switch instruction {
-                case let .call(_, callee, args, _, _, _, _, _):
-                    if callee == nameCallee, args.count == 1 { return true }
-                    if callee == printlnCallee || callee == kkPrintlnAnyCallee, args.count == 1 { return true }
-                case let .virtualCall(_, callee, _, args, _, _, _, _):
-                    if callee == nameCallee, args.isEmpty { return true }
-                default:
-                    break
-                }
-            }
-        }
-        return false
+        return module.usedCallees.contains(nameCallee)
+            || module.usedCallees.contains(printlnCallee)
+            || module.usedCallees.contains(kkPrintlnAnyCallee)
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {

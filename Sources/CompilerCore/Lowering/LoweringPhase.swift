@@ -11,6 +11,12 @@ extension LoweringPass {
     }
 }
 
+/// Marker protocol for lowering passes whose `transformFunctions` closure
+/// is safe for concurrent per-function execution.  The closure must not
+/// mutate cross-function state — only `arena.appendExpr` (which is locked
+/// when parallel mode is active) and per-function-local variables.
+protocol ParallelLoweringPass: LoweringPass {}
+
 final class LoweringPhase: CompilerPhase {
     static let name = "Lowerings"
 
@@ -52,9 +58,13 @@ final class LoweringPhase: CompilerPhase {
             interner: ctx.interner,
             sema: ctx.sema
         )
+        module.scanFeatures()
         for pass in passes {
             if pass.shouldRun(module: module, ctx: kirCtx) {
+                let useParallel = pass is any ParallelLoweringPass
+                module.arena.isParallelTransformActive = useParallel
                 try pass.run(module: module, ctx: kirCtx)
+                module.arena.isParallelTransformActive = false
             } else {
                 module.recordLowering(type(of: pass).name)
             }

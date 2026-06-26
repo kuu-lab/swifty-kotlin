@@ -1,5 +1,5 @@
 
-final class OperatorLoweringPass: LoweringPass {
+final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "OperatorLowering"
 
     private struct PrintlnConversionCallees {
@@ -11,24 +11,13 @@ final class OperatorLoweringPass: LoweringPass {
     }
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
+        if !module.features.isDisjoint(with: [.hasBinaryOp, .hasUnaryOp, .hasNullAssert]) {
+            return true
+        }
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-            for instruction in function.body {
-                switch instruction {
-                case .binary, .unary, .nullAssert:
-                    return true
-                case let .call(_, callee, _, _, _, _, _, _):
-                    if callee == printlnCallee || callee == kkPrintlnAnyCallee {
-                        return true
-                    }
-                default:
-                    break
-                }
-            }
-        }
-        return false
+        return module.usedCallees.contains(printlnCallee)
+            || module.usedCallees.contains(kkPrintlnAnyCallee)
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {

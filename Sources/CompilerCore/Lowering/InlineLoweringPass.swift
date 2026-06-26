@@ -18,11 +18,7 @@ final class InlineLoweringPass: LoweringPass {
     private var inlineLabelCounter: Int32 = 9000
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        for decl in module.arena.declarations {
-            if case let .function(function) = decl, function.isInline {
-                return true
-            }
-        }
+        if module.features.contains(.hasInlineFunction) { return true }
         if let imported = ctx.sema?.importedInlineFunctions, !imported.isEmpty {
             return true
         }
