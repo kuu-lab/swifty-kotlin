@@ -4,12 +4,37 @@
 /// As functions are migrated to `.kt` files (auto-discovered by
 /// `LoadSourcesPhase.injectBundledStdlib`), remove them from here.
 enum BundledKotlinStdlib {
-    // sumOf / maxByOrNull / minByOrNull are not yet in standalone .kt files.
-    // The remaining collection HOFs (search, aggregate, sorting, set) have been
-    // migrated to ListSearchHOF.kt, ListAggregateHOF.kt, ListSortingHOF.kt,
-    // and SetHOF.kt respectively.
+    // count / any / all / none / sumOf / maxByOrNull / minByOrNull are not yet
+    // in standalone .kt files. The remaining collection HOFs (search, aggregate,
+    // sorting, set) have been migrated to ListSearchHOF.kt, ListAggregateHOF.kt,
+    // ListSortingHOF.kt, and SetHOF.kt respectively.
     static let kotlinCollectionsSource = """
 package kotlin.collections
+
+public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
+    var count = 0
+    var i = 0
+    while (i < size) { if (predicate(this[i])) count += 1; i += 1 }
+    return count
+}
+
+public fun <T> List<T>.any(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    while (i < size) { if (predicate(this[i])) return true; i += 1 }
+    return false
+}
+
+public fun <T> List<T>.all(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    while (i < size) { if (!predicate(this[i])) return false; i += 1 }
+    return true
+}
+
+public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
+    var i = 0
+    while (i < size) { if (predicate(this[i])) return false; i += 1 }
+    return true
+}
 
 public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     var sum = 0
