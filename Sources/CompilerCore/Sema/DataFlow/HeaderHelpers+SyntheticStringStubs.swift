@@ -2041,6 +2041,22 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase) — 3-arg overload
+        registerSyntheticStringExtensionFunction(
+            named: "replaceFirst",
+            externalLinkName: "kk_string_replaceFirst_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("oldValue", stringType, false, false),
+                ("newValue", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "replaceRange",
             externalLinkName: "kk_string_replaceRange",
