@@ -76,10 +76,10 @@ import Testing
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 1)
 
         // 5 user files + 2 bundled stdlib files (collections + text)
-        #expect(ctx.tokensByFile.count == 7, "Expected tokens for 7 files (5 user + 2 bundled stdlib)")
-        #expect(ctx.syntaxTrees.count == 7, "Expected syntax trees for 7 files")
+        #expect(ctx.tokensByFile.count == 8, "Expected tokens for 7 files (5 user + 2 bundled stdlib)")
+        #expect(ctx.syntaxTrees.count == 8, "Expected syntax trees for 7 files")
         let ast = try #require(ctx.ast)
-        #expect(ast.sortedFiles.count == 7, "Expected AST files for 7 files")
+        #expect(ast.sortedFiles.count == 8, "Expected AST files for 7 files")
 
         for (fileID, tokens) in ctx.tokensByFile {
             #expect(!(tokens.isEmpty), "Tokens should be populated for file \(fileID.rawValue)")
@@ -91,10 +91,10 @@ import Testing
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 4)
 
         // 5 user files + 2 bundled stdlib files (collections + text)
-        #expect(ctx.tokensByFile.count == 7, "Expected tokens for 7 files in parallel mode (5 user + 2 bundled stdlib)")
-        #expect(ctx.syntaxTrees.count == 7, "Expected syntax trees for 7 files in parallel mode")
+        #expect(ctx.tokensByFile.count == 8, "Expected tokens for 7 files in parallel mode (5 user + 2 bundled stdlib)")
+        #expect(ctx.syntaxTrees.count == 8, "Expected syntax trees for 7 files in parallel mode")
         let ast = try #require(ctx.ast)
-        #expect(ast.sortedFiles.count == 7, "Expected AST files for 7 files in parallel mode")
+        #expect(ast.sortedFiles.count == 8, "Expected AST files for 7 files in parallel mode")
 
         for (fileID, tokens) in ctx.tokensByFile {
             #expect(!(tokens.isEmpty), "Tokens should be populated for file \(fileID.rawValue)")

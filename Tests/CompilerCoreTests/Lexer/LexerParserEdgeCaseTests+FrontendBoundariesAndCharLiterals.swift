@@ -29,8 +29,8 @@ extension LexerParserEdgeCaseTests {
             #expect(!(ctx.tokens.isEmpty))
 
             let ast = try #require(ctx.ast)
-            // 1 user file + 2 bundled stdlib files (collections + text)
-            #expect(ast.files.count == 3)
+            // 1 user file + 3 bundled stdlib files (collections, text + sequences)
+            #expect(ast.files.count == 4)
             #expect(ast.declarationCount >= 6)
             #expect(!(ctx.diagnostics.hasError))
         }
@@ -166,18 +166,18 @@ extension LexerParserEdgeCaseTests {
 
             let ast = try #require(ctx.ast)
             // 2 user files + 2 bundled stdlib files (collections + text)
-            #expect(ast.files.count == 4)
+            #expect(ast.files.count == 5)
 
-            #expect(ctx.tokensByFile.count == 4)
-            #expect(ctx.syntaxTrees.count == 4)
+            #expect(ctx.tokensByFile.count == 5)
+            #expect(ctx.syntaxTrees.count == 5)
 
             for (_, fileTokens) in ctx.tokensByFile {
                 #expect(fileTokens.last.map { $0.kind == .eof } ?? false)
             }
 
             // Skip bundled stdlib files (indices 0 and 1), user files at indices 2 and 3
-            let file0 = ast.files[2]
-            let file1 = ast.files[3]
+            let file0 = ast.files[3]
+            let file1 = ast.files[4]
             #expect(file0.fileID != file1.fileID)
 
             let file0DeclNames = file0.topLevelDecls.compactMap { declID -> String? in
@@ -222,7 +222,7 @@ extension LexerParserEdgeCaseTests {
 
             let ast = try #require(ctx.ast)
             // 2 user files + 2 bundled stdlib files (collections + text)
-            #expect(ast.files.count == 4)
+            #expect(ast.files.count == 5)
 
             let allFunNames = ast.arena.declarations().compactMap { decl -> String? in
                 guard case let .funDecl(f) = decl else { return nil }
@@ -231,9 +231,9 @@ extension LexerParserEdgeCaseTests {
             #expect(allFunNames.contains("alpha"))
             #expect(allFunNames.contains("beta"))
             // 2 user functions + 62 bundled stdlib functions
-            #expect(allFunNames.count == 64)
+            #expect(allFunNames.count == 67)
 
-            #expect(ctx.syntaxTrees.count == 4)
+            #expect(ctx.syntaxTrees.count == 5)
             for (_, cst, root) in ctx.syntaxTrees {
                 #expect(cst.node(root).kind == .kotlinFile)
             }
@@ -258,8 +258,8 @@ extension LexerParserEdgeCaseTests {
 
             let ast = try #require(ctx.ast)
             // 2 user files + 2 bundled stdlib files (collections + text)
-            #expect(ast.files.count == 4)
-            #expect(ctx.syntaxTrees.count == 4)
+            #expect(ast.files.count == 5)
+            #expect(ctx.syntaxTrees.count == 5)
 
             let rootKinds = ctx.syntaxTrees.map { $0.1.node($0.2).kind }
             #expect(rootKinds.contains(.kotlinFile))
@@ -269,7 +269,7 @@ extension LexerParserEdgeCaseTests {
             #expect(scriptFile != nil)
 
             // Find user's .kt file (not bundled stdlib)
-            let kotlinFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 2 })
+            let kotlinFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 3 })
             #expect(kotlinFile != nil)
             let kotlinDeclNames = (kotlinFile?.topLevelDecls ?? []).compactMap { declID -> String? in
                 guard let decl = ast.arena.decl(declID) else { return nil }

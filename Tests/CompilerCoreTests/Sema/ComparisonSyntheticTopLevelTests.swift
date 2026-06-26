@@ -942,6 +942,45 @@ struct ComparisonSyntheticTopLevelTests {
         }
     }
 
+    // STDLIB-COMP-FN-020: maxOf(Long, Long) — 2-arg Long overload
+    @Test
+    func testTwoArgMaxOfLongResolvesToLong2Overload() throws {
+        let source = """
+        fun sample(a: Long, b: Long): Long = maxOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 2
+                },
+                "Expected 2-arg maxOf call with Long arguments"
+            )
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.longType)
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .maxOfLong)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
+            ])
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.longType, sema.types.longType])
+        }
+    }
+
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long) — 4+ args resolve to the vararg overload
     @Test
     func testVarargMaxOfLongResolvesToVarargOverload() throws {
