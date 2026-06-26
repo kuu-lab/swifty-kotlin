@@ -333,14 +333,6 @@ extension CollectionLiteralLoweringPass {
             }
         }
 
-        // --- STDLIB-TEXT-FN-033: Track kk_string_iterator results as string iterator IDs ---
-        // When iterator() is called explicitly on a String (resolved directly to kk_string_iterator
-        // by the KIR call lowerer), mark the result so subsequent kk_range_hasNext/next calls
-        // emitted by ControlFlowLowerer get rewritten to the specialised string variants.
-        if callee == lookup.kkStringIteratorName, arguments.count == 1, let result {
-            state.stringIteratorExprIDs.insert(result.rawValue)
-        }
-
         // --- STDLIB-538: Rewrite hasPrevious()/previous() on list iterator ---
         let isListIteratorReceiverCall = arguments.count == 1
             && state.listIteratorExprIDs.contains(arguments[0].rawValue)
