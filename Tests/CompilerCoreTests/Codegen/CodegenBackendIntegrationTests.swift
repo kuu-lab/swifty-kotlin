@@ -948,7 +948,6 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         try assertKotlinOutput(source, moduleName: "MinOfIntVararg", expected: "1\n-9\n")
     }
 
-    // STDLIB-COMP-FN-020: maxOf(Long, Long) — 2-arg Long overload
     func testCodegenCompilesMaxOfLongTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -959,47 +958,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfLongTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7\n400\n")
-        }
-    }
-
-    // STDLIB-COMP-FN-020: maxOf(Long, Long) — 2-arg Long overload
-    func testCodegenCompilesMaxOfLongTwoArgTopLevelCall() throws {
-        let source = """
-        fun main() {
-            println(maxOf(3L, 7L))
-            val a = 100L
-            val b = 400L
-            println(maxOf(a, b))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfLongTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7\n400\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfLongTwoArg", expected: "7\n400\n")
     }
 
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long)
