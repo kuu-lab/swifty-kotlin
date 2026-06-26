@@ -996,6 +996,7 @@ public func kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
 
+
 @inline(__always)
 private func runtimeInvokeCompareValuesSelector(
     fnPtr: Int,

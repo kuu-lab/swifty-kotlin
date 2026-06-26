@@ -1,5 +1,5 @@
 
-final class CollectionLiteralLoweringPass: LoweringPass {
+final class CollectionLiteralLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "CollectionLiteralLowering"
 
     func run(module: KIRModule, ctx: KIRContext) throws {

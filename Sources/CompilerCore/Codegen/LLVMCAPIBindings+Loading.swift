@@ -164,6 +164,8 @@ extension LLVMCAPIBindings {
             let buildCall2 = loadSymbol(handle: handle, name: "LLVMBuildCall2", as: LLVMBuildCall2Fn.self)
             let buildCall = loadSymbol(handle: handle, name: "LLVMBuildCall", as: LLVMBuildCallFn.self)
 
+            let linkModules2 = loadSymbol(handle: handle, name: "LLVMLinkModules2", as: LLVMLinkModules2Fn.self)
+
             return LLVMCAPIBindings(
                 handle: handle,
                 contextCreateFn: contextCreate,
@@ -260,7 +262,8 @@ extension LLVMCAPIBindings {
                 diBuilderCreateParameterVariableFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateParameterVariable", as: LLVMDIBuilderCreateParameterVariableFn.self),
                 diBuilderCreateAutoVariableFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateAutoVariable", as: LLVMDIBuilderCreateAutoVariableFn.self),
                 diBuilderInsertDeclareAtEndFn: loadSymbol(handle: handle, name: "LLVMDIBuilderInsertDeclareAtEnd", as: LLVMDIBuilderInsertDeclareAtEndFn.self),
-                diBuilderCreateExpressionFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateExpression", as: LLVMDIBuilderCreateExpressionFn.self)
+                diBuilderCreateExpressionFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateExpression", as: LLVMDIBuilderCreateExpressionFn.self),
+                linkModules2Fn: linkModules2
             )
         }
         return nil
