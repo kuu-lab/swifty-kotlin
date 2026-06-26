@@ -1,37 +1,37 @@
-keyword(val) f8:0..3
-identifier(simple) f8:4..10
-symbol(=) f8:11..12
-multiDollarStringQuote(2) f8:13..16
-stringSegment(hello $world) f8:16..28
-multiDollarStringQuote(2) f8:28..29
-keyword(val) f8:30..33
-identifier(interp) f8:34..40
-symbol(=) f8:41..42
-multiDollarStringQuote(2) f8:43..46
-stringSegment(value = ) f8:46..54
-templateExprStart f8:54..57
-intLiteral(1) f8:57..58
-symbol(+) f8:59..60
-intLiteral(2) f8:61..62
-templateExprEnd f8:62..63
-multiDollarStringQuote(2) f8:63..64
-keyword(val) f8:65..68
-identifier(triple) f8:69..75
-symbol(=) f8:76..77
-multiDollarStringQuote(3) f8:78..82
-stringSegment(price $$100 name=) f8:82..99
-templateExprStart f8:99..103
-stringQuote f8:104..105
-stringSegment(Bob) f8:105..108
-stringQuote f8:108..109
-templateExprEnd f8:110..111
-multiDollarStringQuote(3) f8:111..112
-keyword(val) f8:113..116
-identifier(raw) f8:117..120
-symbol(=) f8:121..122
-multiDollarRawStringQuote(2) f8:123..128
-stringSegment(raw $literal ) f8:128..141
-templateExprStart f8:141..144
-intLiteral(42) f8:144..146
-templateExprEnd f8:146..147
-multiDollarRawStringQuote(2) f8:147..150
+keyword(val) f10:0..3
+identifier(simple) f10:4..10
+symbol(=) f10:11..12
+multiDollarStringQuote(2) f10:13..16
+stringSegment(hello $world) f10:16..28
+multiDollarStringQuote(2) f10:28..29
+keyword(val) f10:30..33
+identifier(interp) f10:34..40
+symbol(=) f10:41..42
+multiDollarStringQuote(2) f10:43..46
+stringSegment(value = ) f10:46..54
+templateExprStart f10:54..57
+intLiteral(1) f10:57..58
+symbol(+) f10:59..60
+intLiteral(2) f10:61..62
+templateExprEnd f10:62..63
+multiDollarStringQuote(2) f10:63..64
+keyword(val) f10:65..68
+identifier(triple) f10:69..75
+symbol(=) f10:76..77
+multiDollarStringQuote(3) f10:78..82
+stringSegment(price $$100 name=) f10:82..99
+templateExprStart f10:99..103
+stringQuote f10:104..105
+stringSegment(Bob) f10:105..108
+stringQuote f10:108..109
+templateExprEnd f10:110..111
+multiDollarStringQuote(3) f10:111..112
+keyword(val) f10:113..116
+identifier(raw) f10:117..120
+symbol(=) f10:121..122
+multiDollarRawStringQuote(2) f10:123..128
+stringSegment(raw $literal ) f10:128..141
+templateExprStart f10:141..144
+intLiteral(42) f10:144..146
+templateExprEnd f10:146..147
+multiDollarRawStringQuote(2) f10:147..150

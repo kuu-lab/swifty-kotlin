@@ -2,6 +2,149 @@
   "version": 1,
   "diagnostics": [
     {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 2, "character": 0 },
+        "end": { "line": 8, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 10, "character": 0 },
+        "end": { "line": 16, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 18, "character": 0 },
+        "end": { "line": 26, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 28, "character": 0 },
+        "end": { "line": 36, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 40, "character": 0 },
+        "end": { "line": 40, "character": 73 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 42, "character": 0 },
+        "end": { "line": 43, "character": 59 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 45, "character": 0 },
+        "end": { "line": 46, "character": 48 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 50, "character": 0 },
+        "end": { "line": 50, "character": 67 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 52, "character": 0 },
+        "end": { "line": 53, "character": 45 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 55, "character": 0 },
+        "end": { "line": 56, "character": 56 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 58, "character": 0 },
+        "end": { "line": 59, "character": 86 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
       "file": "opt_in_companion_member.kt",
       "range": {
         "start": { "line": 15, "character": 32 },

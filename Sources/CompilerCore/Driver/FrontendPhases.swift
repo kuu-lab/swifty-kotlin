@@ -110,6 +110,15 @@ final class LoadSourcesPhase: CompilerPhase {
             guard let data = fm.contents(atPath: fullPath) else { continue }
             _ = sourceManager.addFile(path: bundledPath, contents: data)
         }
+
+        let residualSources: [(path: String, source: String)] = [
+            ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
+            ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
+        ]
+        for (path, source) in residualSources {
+            guard !sourceManager.containsFile(path: path) else { continue }
+            _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
+        }
     }
 
 }
