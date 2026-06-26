@@ -3,7 +3,8 @@ final class NormalizeBlocksPass: LoweringPass, ParallelLoweringPass {
     static let name = "NormalizeBlocks"
 
     func shouldRun(module: KIRModule, ctx _: KIRContext) -> Bool {
-        !module.features.isDisjoint(with: [.hasBeginEndBlock, .hasNonTerminatedFunction])
+        module.ensureFeaturesScanned()
+        return !module.features.isDisjoint(with: [.hasBeginEndBlock, .hasNonTerminatedFunction])
     }
 
     func run(module: KIRModule, ctx _: KIRContext) throws {

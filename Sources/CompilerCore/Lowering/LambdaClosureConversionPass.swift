@@ -95,6 +95,7 @@ final class LambdaClosureConversionPass: LoweringPass {
     // MARK: - shouldRun
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
+        module.ensureFeaturesScanned()
         let markerCallee = ctx.interner.intern("<lambda>")
         if module.usedCallees.contains(markerCallee) { return true }
         let lambdaPrefix = "kk_lambda_"

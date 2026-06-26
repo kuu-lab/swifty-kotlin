@@ -5,6 +5,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumNameAccessLowering"
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
+        module.ensureFeaturesScanned()
         let nameCallee = ctx.interner.intern("name")
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")

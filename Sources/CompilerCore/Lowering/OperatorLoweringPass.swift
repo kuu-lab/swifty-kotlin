@@ -11,6 +11,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     }
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
+        module.ensureFeaturesScanned()
         if !module.features.isDisjoint(with: [.hasBinaryOp, .hasUnaryOp, .hasNullAssert]) {
             return true
         }

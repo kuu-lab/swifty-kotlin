@@ -3,7 +3,8 @@ final class ForLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ForLowering"
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        module.usedCallees.contains(ctx.interner.intern("kk_for_lowered"))
+        module.ensureFeaturesScanned()
+        return module.usedCallees.contains(ctx.interner.intern("kk_for_lowered"))
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {

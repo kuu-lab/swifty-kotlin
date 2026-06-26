@@ -53,8 +53,7 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         guard ctx.sema != nil else { return false }
-        // Binary/unary ops are expanded to kk_op_* calls by OperatorLoweringPass.
-        // If the original KIR had those instructions, narrowing may be needed.
+        module.ensureFeaturesScanned()
         if !module.features.isDisjoint(with: [.hasBinaryOp, .hasUnaryOp]) {
             return true
         }

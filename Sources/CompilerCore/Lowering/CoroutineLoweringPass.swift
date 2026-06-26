@@ -11,6 +11,7 @@ final class CoroutineLoweringPass: LoweringPass {
     }
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
+        module.ensureFeaturesScanned()
         if module.features.contains(.hasSuspendFunction) { return true }
         let coroutineCallees: Set<InternedString> = [
             ctx.interner.intern("runBlocking"),

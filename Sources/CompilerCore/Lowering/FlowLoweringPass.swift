@@ -40,6 +40,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("toList"),
             ctx.interner.intern("first"),
         ]
+        module.ensureFeaturesScanned()
         return !calleeNames.isDisjoint(with: module.usedCallees)
     }
 

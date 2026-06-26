@@ -59,12 +59,14 @@ final class LoweringPhase: CompilerPhase {
             sema: ctx.sema
         )
         module.scanFeatures()
+        // Parallel lowering is disabled: appendExpr assigns IDs under lock
+        // in non-deterministic order, breaking KIR determinism tests.
+        // ParallelLoweringPass conformance and KIRArena infrastructure are
+        // kept for future enablement once per-function expression arenas
+        // provide deterministic ID assignment.
         for pass in passes {
             if pass.shouldRun(module: module, ctx: kirCtx) {
-                let useParallel = pass is any ParallelLoweringPass
-                module.arena.isParallelTransformActive = useParallel
                 try pass.run(module: module, ctx: kirCtx)
-                module.arena.isParallelTransformActive = false
             } else {
                 module.recordLowering(type(of: pass).name)
             }

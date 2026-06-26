@@ -363,6 +363,11 @@ public final class KIRModule {
 
     public private(set) var features: KIRModuleFeatures = []
     public private(set) var usedCallees: Set<InternedString> = []
+    private var featuresScanned = false
+
+    public func ensureFeaturesScanned() {
+        if !featuresScanned { scanFeatures() }
+    }
 
     public init(files: [KIRFile], arena: KIRArena, executedLowerings: [String] = []) {
         self.files = files
@@ -407,6 +412,7 @@ public final class KIRModule {
         }
         features = feats
         usedCallees = callees
+        featuresScanned = true
     }
 
     public func registerNonThrowingClosureCallee(_ name: InternedString) {
