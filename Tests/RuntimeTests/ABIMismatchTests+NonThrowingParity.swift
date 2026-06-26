@@ -1049,6 +1049,7 @@ extension ABIMismatchTests {
         "kk_string_toUIntOrNull",
         "kk_string_toULongOrNull",
         "kk_string_toUShortOrNull",
+        "kk_string_intern",
         "kk_string_trim",
         "kk_string_trimEnd",
         "kk_string_trimMargin_default",

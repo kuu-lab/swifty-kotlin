@@ -47,6 +47,16 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
+        // STDLIB-TEXT-FN-091: String.toByteOrNull()
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toByteOrNull",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
         // SPEC-NUM-0007: no-arg unsigned parsers
         RuntimeABIFunctionSpec(
             name: "kk_string_toUByteOrNull",
