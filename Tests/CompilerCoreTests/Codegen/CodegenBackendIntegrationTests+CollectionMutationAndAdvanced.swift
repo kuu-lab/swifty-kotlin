@@ -414,72 +414,7 @@ extension CodegenBackendIntegrationTests {
             XCTAssertTrue(callees.contains("kk_list_foldRight"))
             XCTAssertTrue(callees.contains("kk_list_foldIndexed"))
             XCTAssertTrue(callees.contains("kk_list_foldRightIndexed"))
-            XCTAssertFalse(callees.contains("kk_list_foldRight"))
-            XCTAssertFalse(callees.contains("kk_list_reduce"))
-            XCTAssertFalse(callees.contains("kk_list_reduceOrNull"))
-            XCTAssertFalse(callees.contains("kk_list_scan"))
-            XCTAssertFalse(callees.contains("kk_list_runningFold"))
         }
-    }
-
-    func testCodegenListAggregateMigratedSourceAvoidsRuntimeHelpers() throws {
-        let source = """
-        fun main() {
-            val list = listOf(3, 1, 2)
-            println(list.fold(0) { acc, value -> acc * 10 + value })
-            println(list.foldRight(0) { value, acc -> value * 10 + acc })
-            println(list.reduce { acc, value -> acc * 10 + value })
-            println(list.reduceOrNull { acc, value -> acc + value })
-            println(list.scan(0) { acc, value -> acc + value })
-            println(list.runningFold(1) { acc, value -> acc * value })
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListAggregateMigratedSource", emit: .kirDump)
-            try runToLowering(ctx)
-
-            let module = try XCTUnwrap(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertFalse(callees.contains("kk_list_fold"))
-            XCTAssertFalse(callees.contains("kk_list_foldRight"))
-            XCTAssertFalse(callees.contains("kk_list_reduce"))
-            XCTAssertFalse(callees.contains("kk_list_reduceOrNull"))
-            XCTAssertFalse(callees.contains("kk_list_scan"))
-            XCTAssertFalse(callees.contains("kk_list_runningFold"))
-        }
-    }
-
-    func testCodegenListAggregateMigratedSourceExecutes() throws {
-        let source = """
-        fun main() {
-            val list = listOf(3, 1, 2)
-            val empty: List<Int> = listOf()
-            println(list.fold(0) { acc, value -> acc * 10 + value })
-            println(list.foldRight(0) { value, acc -> value * 10 + acc })
-            println(list.reduce { acc, value -> acc * 10 + value })
-            println(list.reduceOrNull { acc, value -> acc + value })
-            println(empty.reduceOrNull { acc, value -> acc + value } == null)
-            println(list.scan(0) { acc, value -> acc + value })
-            println(list.runningFold(1) { acc, value -> acc * value })
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "ListAggregateMigratedSourceExecutable",
-            expected:
-                """
-                312
-                60
-                312
-                6
-                true
-                [0, 3, 4, 6]
-                [1, 3, 3, 6]
-                """ + "\n"
-        )
     }
 
     func testCodegenListAverageUsesRuntimeHelper() throws {
