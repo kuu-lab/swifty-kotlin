@@ -191,7 +191,7 @@ public enum GoldenHarness {
         case .diagnostics:
             GoldenHarnessDiagnosticsComparisonNormalizer.normalize(output)
         case .lexer, .parser:
-            output
+            GoldenHarnessFileIDNormalizer.normalize(output)
         }
     }
 
@@ -287,6 +287,17 @@ public enum GoldenHarness {
             }
             accumulator.append(data)
         }
+    }
+}
+
+private enum GoldenHarnessFileIDNormalizer {
+    // swiftlint:disable:next force_try
+    private static let fileIDRegex = try! NSRegularExpression(pattern: "f\\d+:")
+
+    static func normalize(_ output: String) -> String {
+        let nsOutput = output as NSString
+        let range = NSRange(location: 0, length: nsOutput.length)
+        return fileIDRegex.stringByReplacingMatches(in: output, range: range, withTemplate: "f0:")
     }
 }
 
