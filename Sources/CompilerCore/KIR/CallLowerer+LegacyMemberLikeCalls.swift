@@ -75,23 +75,8 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
-        let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
-        let shouldAdaptCollectionHOFArguments: Bool = {
-            guard isCollectionHOFCallee(calleeName, interner: interner) else {
-                return false
-            }
-            guard let chosenCallee = chosenCalleeForArgumentAdaptation, chosenCallee != .invalid else {
-                return true
-            }
-            if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-               !externalLinkName.isEmpty
-            {
-                return true
-            }
-            return sema.symbols.symbol(chosenCallee)?.declSite == nil
-        }()
         let normalizedArgIDs: [KIRExprID] = {
-            guard shouldAdaptCollectionHOFArguments else {
+            guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return loweredArgIDs
             }
             let closureAdapted = addCollectionHOFClosureArguments(

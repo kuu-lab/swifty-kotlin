@@ -1200,6 +1200,18 @@ extension ListSyntheticMemberLinkTests {
                 ]))
                 #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
+
+            let addAllLookup = sema.symbols.lookup(fqName: [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("MutableSet"),
+                ctx.interner.intern("addAll"),
+            ])
+            let addAllSymbol = try #require(addAllLookup)
+            #expect(
+                sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_set_addAll",
+                "Expected addAll to resolve to kk_mutable_set_addAll"
+            )
         }
     }
 

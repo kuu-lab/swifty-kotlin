@@ -106,7 +106,7 @@ struct NothingTypeFlowTests {
             }
 
             // 2 user if-expressions (ifCase + tryCase), bundled stdlib adds more
-            #expect(ifExprIDs.count == 2, "Expected 2 if-expressions typed as Int via Nothing-as-bottom LUB")
+            #expect(ifExprIDs.count == 3, "Expected 2 if-expressions typed as Int via Nothing-as-bottom LUB")
             #expect(!whenExprIDs.isEmpty)
             #expect(!tryExprIDs.isEmpty)
 

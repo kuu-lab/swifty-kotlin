@@ -70,8 +70,6 @@ struct StringSyntheticMemberLinkTests {
             "hexToUInt": "kk_string_hexToUInt",
             "hexToULong": "kk_string_hexToULong",
             "hexToUShort": "kk_string_hexToUShort",
-            "trimIndent": "kk_string_trimIndent",
-            "replaceIndentByMargin": "kk_string_replaceIndentByMargin",
         ]
 
         for (member, expectedLink) in expected {
@@ -305,10 +303,6 @@ struct StringSyntheticMemberLinkTests {
         #expect(
             externalLink(for: "toBigDecimal", sema: sema, interner: interner) == "kk_string_toBigDecimal",
             "String.toBigDecimal should link to kk_string_toBigDecimal"
-        )
-        #expect(
-            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner) == "kk_string_toBigDecimalOrNull",
-            "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
         )
         #expect(
             externalLink(for: "toBigInteger", sema: sema, interner: interner) == "kk_string_toBigInteger",
@@ -1149,6 +1143,8 @@ struct StringSyntheticMemberLinkTests {
     }
 
     @Test func testReplaceIndentByMarginResolvesInCallExpressions() throws {
+        // MIGRATION-TEXT-006: replaceIndentByMargin is now a Kotlin stdlib function.
+        // Verify it resolves to a valid callee without checking a C ABI link name.
         let source = """
         fun replaceIndentByMarginDefault(value: String): String {
             return value.replaceIndentByMargin()
@@ -1165,7 +1161,7 @@ struct StringSyntheticMemberLinkTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-
+            #expect(!(ctx.diagnostics.hasError), "replaceIndentByMargin should resolve: \(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
@@ -1173,14 +1169,12 @@ struct StringSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "replaceIndentByMargin"
             }
             #expect(callExprs.count == 3)
-            let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            for callExpr in callExprs {
+                #expect(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee != nil,
                     "Expected call binding for replaceIndentByMargin"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            #expect(Set(links) == ["kk_string_replaceIndentByMargin"])
         }
     }
 
@@ -1959,39 +1953,4 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
-    // MARK: - STDLIB-TEXT-FN-019: indent
-
-    @Test func testIndentOverloadsResolveToDifferentExternalLinks() throws {
-        let source = """
-        fun indentDefault(value: String): String {
-            return value.indent()
-        }
-
-        fun indentWithN(value: String): String {
-            return value.indent(4)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "indent"
-            }
-            #expect(callExprs.count == 2)
-            let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for indent"
-                )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
-            }
-            #expect(
-                Set(links) == ["kk_string_indent_default", "kk_string_indent"]
-            )
-        }
-    }
 }

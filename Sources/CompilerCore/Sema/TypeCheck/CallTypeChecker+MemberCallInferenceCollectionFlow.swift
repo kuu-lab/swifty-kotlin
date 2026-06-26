@@ -631,40 +631,6 @@ extension CallTypeChecker {
                 return (keyType, valueType)
             }()
 
-            func bindBundledListAggregateSource(typeArguments: [TypeID]) {
-                guard (!isSequenceReceiver || isListFactoryReceiver),
-                      isConcreteListLikeType(receiverType, sema: sema, interner: interner) || isListFactoryReceiver
-                else {
-                    return
-                }
-                let sourceFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    calleeName,
-                ]
-                guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate),
-                          symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
-                          let signature = sema.symbols.functionSignature(for: candidate),
-                          signature.parameterTypes.count == args.count,
-                          let signatureReceiver = signature.receiverType
-                    else {
-                        return false
-                    }
-                    return isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner)
-                }) else {
-                    return
-                }
-                sema.bindings.bindCall(id, binding: CallBinding(
-                    chosenCallee: chosenCallee,
-                    substitutedTypeArguments: typeArguments,
-                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-                ))
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-            }
-
             let resultType: TypeID
             let destinationCollectionHOFs: Set = [
                 "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
@@ -2680,13 +2646,6 @@ extension CallTypeChecker {
                     ))
                     sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
                 }
-            }
-
-            if ["fold", "foldRight", "scan", "runningFold"].contains(calleeStr), args.count == 2 {
-                let initialType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-                bindBundledListAggregateSource(typeArguments: [collectionElementType, initialType])
-            } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull"), args.count == 1 {
-                bindBundledListAggregateSource(typeArguments: [collectionElementType])
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
