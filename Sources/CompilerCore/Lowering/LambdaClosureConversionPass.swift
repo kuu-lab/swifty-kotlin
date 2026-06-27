@@ -95,21 +95,13 @@ final class LambdaClosureConversionPass: LoweringPass {
     // MARK: - shouldRun
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
+        module.ensureFeaturesScanned()
         let markerCallee = ctx.interner.intern("<lambda>")
+        if module.usedCallees.contains(markerCallee) { return true }
         let lambdaPrefix = "kk_lambda_"
-
-        // Build call-site index once for shouldRun checks.
         let callSiteIndex = CallSiteIndex.build(from: module)
-
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else { continue }
-            for instruction in function.body {
-                if case let .call(_, callee, _, _, _, _, _, _) = instruction,
-                   callee == markerCallee
-                {
-                    return true
-                }
-            }
             let name = ctx.interner.resolve(function.name)
             if name.hasPrefix(lambdaPrefix),
                detectCaptureParamCount(

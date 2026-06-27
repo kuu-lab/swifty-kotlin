@@ -1,7 +1,7 @@
 
 /// Rewrites `Color.entries` property accesses to `entries$get()` getter calls.
 /// Runs after DataEnumSealedSynthesisPass which creates the `entries$get` helper.
-final class EnumEntriesLoweringPass: LoweringPass {
+final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumEntriesLowering"
 
     func run(module: KIRModule, ctx: KIRContext) throws {

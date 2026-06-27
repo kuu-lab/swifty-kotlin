@@ -740,6 +740,14 @@ public func kk_comparator_nulls_last(_ cFn: Int, _ cClosure: Int) -> Int {
     return raw
 }
 
+@_cdecl("kk_comparator_nulls_last_of")
+public func kk_comparator_nulls_last_of(_ cFn: Int, _ cClosure: Int) -> Int {
+    let pair = RuntimePairBox(first: cFn, second: cClosure)
+    let raw = registerRuntimeObject(pair)
+    runtimeRegisterComparatorCompareMethod(raw, kk_comparator_nulls_last_trampoline)
+    return raw
+}
+
 @inline(__always)
 private func runtimeCompareNullableOrder(
     a: Int,
@@ -995,6 +1003,7 @@ public func kk_compareValues(_ a: Int, _ b: Int, _ outThrown: UnsafeMutablePoint
 public func kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
+
 
 @inline(__always)
 private func runtimeInvokeCompareValuesSelector(

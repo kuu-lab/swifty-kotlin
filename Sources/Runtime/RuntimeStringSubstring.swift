@@ -444,6 +444,21 @@ public func kk_string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) 
     return runtimeMakeStringRaw(result)
 }
 
+// STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase)
+@_cdecl("kk_string_replaceFirst_ignoreCase")
+public func kk_string_replaceFirst_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
+    let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
+    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
+    guard let range = source.range(of: oldValue, options: options) else {
+        return runtimeMakeStringRaw(source)
+    }
+    var result = source
+    result.replaceSubrange(range, with: newValue)
+    return runtimeMakeStringRaw(result)
+}
+
 @_cdecl("kk_string_replaceRange")
 public func kk_string_replaceRange(
     _ strRaw: Int,

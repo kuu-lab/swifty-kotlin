@@ -377,28 +377,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toBigDecimal" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimal"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toBigDecimalOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimalOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -587,6 +565,17 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_string_withIndex"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "intern" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_intern"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1333,6 +1322,28 @@ extension CallLowerer {
                     symbol: nil,
                     callee: interner.intern("kk_string_replaceFirst"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
+        // STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase) — 3-arg overload
+        if args.count == 3, interner.resolve(calleeName) == "replaceFirst" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let thirdArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[2].expr] ?? sema.types.anyType
+            )
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               sema.types.isSubtype(thirdArgType, sema.types.booleanType)
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_replaceFirst_ignoreCase"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
