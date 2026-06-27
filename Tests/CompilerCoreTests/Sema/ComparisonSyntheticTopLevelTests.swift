@@ -37,17 +37,14 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(
-                    firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, _, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
                             return false
                         }
                         return interner.resolve(calleeName) == name
-                    },
-                    "Expected call to \(name)"
-                )
+                    })
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
                 let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
                 #expect(kind == (name == "maxOf" ? .maxOfInt : .minOfInt))
@@ -85,28 +82,19 @@ struct ComparisonSyntheticTopLevelTests {
                 ("compareBy", "compareByPrimitive", "kk_comparator_from_selector_primitive"),
                 ("compareByDescending", "compareByDescendingPrimitive", "kk_comparator_from_selector_primitive_descending"),
             ] {
-                let callExpr = try #require(
-                    firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, _, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
                             return false
                         }
                         return interner.resolve(calleeName) == name
-                    },
-                    "Expected call to \(name)"
-                )
+                    })
 
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 let symbol = try #require(sema.symbols.symbol(chosenCallee))
-                #expect(
-                    symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", expectedResolvedName],
-                    "Expected \(name) to resolve to kotlin.comparisons.\(expectedResolvedName)"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == expectedLink,
-                    "Expected \(name) to link to \(expectedLink)"
-                )
+                #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", expectedResolvedName], "Expected \(name) to resolve to kotlin.comparisons.\(expectedResolvedName)")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedLink, "Expected \(name) to link to \(expectedLink)")
             }
         }
     }
@@ -128,8 +116,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, args, _, _) = expr,
                           args.count == 2,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -137,14 +124,10 @@ struct ComparisonSyntheticTopLevelTests {
                         return false
                     }
                     return interner.resolve(calleeName) == "compareByDescending"
-                },
-                "Expected compareByDescending(comparator, selector) call"
-            )
+                })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_comparator_selector_descending"
-            )
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_comparator_selector_descending")
         }
     }
 
@@ -165,8 +148,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, args, _, _) = expr,
                           args.count == 2,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -174,14 +156,10 @@ struct ComparisonSyntheticTopLevelTests {
                         return false
                     }
                     return interner.resolve(calleeName) == "compareBy"
-                },
-                "Expected compareBy(comparator, selector) call"
-            )
+                })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_comparator_selector"
-            )
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_comparator_selector")
         }
     }
 
@@ -205,17 +183,14 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(
-                    firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
                             return false
                         }
                         return interner.resolve(calleeName) == name && args.count == 3
-                    },
-                    "Expected 3-arg call to \(name)"
-                )
+                    })
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
                 let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
                 #expect(kind == (name == "maxOf" ? .maxOfInt3 : .minOfInt3))
@@ -252,17 +227,14 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(
-                    firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
                             return false
                         }
                         return interner.resolve(calleeName) == name && args.count == 3
-                    },
-                    "Expected 3-arg call to \(name)"
-                )
+                    })
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.longType)
                 let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
                 #expect(kind == (name == "maxOf" ? .maxOfLong3 : .minOfLong3))
@@ -289,17 +261,14 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(
-                    firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
                             return false
                         }
                         return interner.resolve(calleeName) == name && args.count == 3
-                    },
-                    "Expected 3-arg call to \(name)"
-                )
+                    })
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.doubleType)
                 let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
                 #expect(kind == (name == "maxOf" ? .maxOfDouble3 : .minOfDouble3))
@@ -343,8 +312,7 @@ struct ComparisonSyntheticTopLevelTests {
             ]
 
             for expected in expectedCases {
-                let callExpr = try #require(
-                    firstExprID(in: ast) { exprID, expr in
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -353,9 +321,7 @@ struct ComparisonSyntheticTopLevelTests {
                         return interner.resolve(calleeName) == "maxOf"
                             && args.count == expected.argCount
                             && sema.bindings.exprTypes[exprID] == expected.returnType
-                    },
-                    "Expected maxOf(\(expected.argCount) args) to resolve"
-                )
+                    })
                 #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
                 let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 let symbol = try #require(sema.symbols.symbol(chosen))
@@ -384,15 +350,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 3
-                },
-                "Expected 3-arg maxOf call with Byte arguments"
-            )
+                })
 
             // Byte maps to Int internally, so the result type is Int
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
@@ -425,15 +388,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 3
-                },
-                "Expected 3-arg maxOf call with Short arguments"
-            )
+                })
 
             // Short maps to Int internally, so the result type is Int
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
@@ -466,15 +426,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 2
-                },
-                "Expected 2-arg minOf call with Int arguments"
-            )
+                })
 
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
             // Resolves via the Int 2-arg special-call path
@@ -506,15 +463,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 4
-                },
-                "Expected 4-arg minOf call"
-            )
+                })
 
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
             // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
@@ -549,15 +503,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 2
-                },
-                "Expected 2-arg minOf call with Byte arguments"
-            )
+                })
 
             // Byte maps to Int internally, so the result type is Int
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
@@ -590,15 +541,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 4
-                },
-                "Expected 4-arg minOf call with Byte arguments"
-            )
+                })
 
             // Byte maps to Int internally, so the result type is Int
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
@@ -633,15 +581,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 4
-                },
-                "Expected 4-arg maxOf call with Byte arguments"
-            )
+                })
 
             // Byte maps to Int internally, so the result type is Int
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.intType)
@@ -676,15 +621,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 2
-                },
-                "Expected 2-arg maxOf call with Float arguments"
-            )
+                })
 
             // Float is preserved end-to-end (no widening to Double)
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.floatType)
@@ -699,6 +641,44 @@ struct ComparisonSyntheticTopLevelTests {
             ])
             let sig = try #require(sema.symbols.functionSignature(for: chosen))
             #expect(sig.parameterTypes == [sema.types.floatType, sema.types.floatType])
+        }
+    }
+
+    // STDLIB-COMP-FN-015: maxOf(Float, Float, Float) — Float is preserved (no widening to Double)
+    @Test
+    func testThreeArgMaxOfFloatResolvesToFloat3Overload() throws {
+        let source = """
+        fun sample(a: Float, b: Float, c: Float): Float = maxOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 3
+                })
+
+            // Float is preserved end-to-end (no widening to Double)
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.floatType)
+            // Resolves via the Float3 special-call path
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .maxOfFloat3)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
+            ])
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.floatType, sema.types.floatType, sema.types.floatType])
         }
     }
 
@@ -717,15 +697,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 2
-                },
-                "Expected 2-arg minOf call with Float arguments"
-            )
+                })
 
             // Float is preserved end-to-end (no widening to Double)
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.floatType)
@@ -758,15 +735,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 2
-                },
-                "Expected 2-arg maxOf call with Double arguments"
-            )
+                })
 
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.doubleType)
             #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .maxOfDouble)
@@ -797,15 +771,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 2
-                },
-                "Expected 2-arg minOf call with Double arguments"
-            )
+                })
 
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.doubleType)
             #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .minOfDouble)
@@ -836,15 +807,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 3
-                },
-                "Expected 3-arg maxOf call with Double arguments"
-            )
+                })
 
             // Double is preserved end-to-end (unlike Byte, which widens to Int)
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.doubleType)
@@ -877,15 +845,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 3
-                },
-                "Expected 3-arg minOf call with Double arguments"
-            )
+                })
 
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.doubleType)
             #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .minOfDouble3)
@@ -916,15 +881,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "minOf" && args.count == 3
-                },
-                "Expected 3-arg minOf call with Float arguments"
-            )
+                })
 
             // Float is preserved end-to-end (no widening to Double)
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.floatType)
@@ -939,6 +901,66 @@ struct ComparisonSyntheticTopLevelTests {
             ])
             let sig = try #require(sema.symbols.functionSignature(for: chosen))
             #expect(sig.parameterTypes == [sema.types.floatType, sema.types.floatType, sema.types.floatType])
+        }
+    }
+
+    // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte and related unsigned overloads
+    @Test
+    func testRemainingMinOfOverloadsResolveToSyntheticComparisonFunctions() throws {
+        let source = """
+        fun sample() {
+            val generic2 = minOf("b", "a")
+            val genericVararg = minOf("d", "b", "a", "c")
+            val comparator3 = minOf(1, 2, reverseOrder<Int>())
+            val comparatorVararg = minOf(1, 4, 2, 3, reverseOrder<Int>())
+            val unsigned2 = minOf(1u, 4000000000u)
+            val unsigned3 = minOf(1u, 3u, 4000000000u)
+            println(generic2)
+            println(genericVararg)
+            println(comparator3)
+            println(comparatorVararg)
+            println(unsigned2)
+            println(unsigned3)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let expectedCases: [(argCount: Int, returnType: TypeID)] = [
+                (2, sema.types.stringType),
+                (4, sema.types.stringType),
+                (3, sema.types.intType),
+                (5, sema.types.intType),
+                (2, sema.types.uintType),
+                (3, sema.types.uintType),
+            ]
+
+            for expected in expectedCases {
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                        guard case let .call(calleeExpr, _, args, _) = expr,
+                              case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                        else {
+                            return false
+                        }
+                        return interner.resolve(calleeName) == "minOf"
+                            && args.count == expected.argCount
+                            && sema.bindings.exprTypes[exprID] == expected.returnType
+                    })
+                #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+                let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                let symbol = try #require(sema.symbols.symbol(chosen))
+                #expect(symbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("comparisons"),
+                    interner.intern("minOf"),
+                ])
+                #expect(sema.bindings.exprTypes[callExpr] == expected.returnType)
+            }
         }
     }
 
@@ -957,15 +979,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 2
-                },
-                "Expected 2-arg maxOf call with Long arguments"
-            )
+                })
 
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.longType)
             #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == .maxOfLong)
@@ -996,15 +1015,12 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
                     return interner.resolve(calleeName) == "maxOf" && args.count == 4
-                },
-                "Expected 4-arg maxOf call"
-            )
+                })
 
             #expect(sema.bindings.exprTypes[callExpr] == sema.types.longType)
             // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
@@ -1015,6 +1031,46 @@ struct ComparisonSyntheticTopLevelTests {
                 interner.intern("kotlin"),
                 interner.intern("comparisons"),
                 interner.intern("maxOf"),
+            ])
+
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.longType, sema.types.longType])
+            #expect(sig.returnType == sema.types.longType)
+            #expect(sig.valueParameterIsVararg == [false, true])
+        }
+    }
+
+    // STDLIB-COMP-FN-046: minOf(a: Long, vararg other: Long) — 4+ args resolve to the vararg overload
+    @Test
+    func testVarargMinOfLongResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(): Long = minOf(5L, 2L, 8L, 1L)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.longType)
+            // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
             ])
 
             let sig = try #require(sema.symbols.functionSignature(for: chosen))
