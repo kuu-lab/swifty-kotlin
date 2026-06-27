@@ -2645,6 +2645,17 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // STDLIB-TEXT-FN-067: singleOrNull(predicate) overload
+        registerSyntheticStringExtensionFunction(
+            named: "singleOrNull",
+            externalLinkName: "kk_string_singleOrNull_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticStringExtensionFunction(
             named: "splitToSequence",
             externalLinkName: "kk_string_splitToSequence",
