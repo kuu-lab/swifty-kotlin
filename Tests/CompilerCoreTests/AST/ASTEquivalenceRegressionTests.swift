@@ -5,7 +5,7 @@ import XCTest
 final class ASTEquivalenceRegressionTests: XCTestCase {
     // MARK: - Helpers
 
-    private let bundledStdlibDeclarationCount = 83
+    private let bundledStdlibDeclarationCount = 104
 
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
         let ctx: CompilationContext = makeContextFromSource(source)

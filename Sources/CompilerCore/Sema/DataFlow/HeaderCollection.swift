@@ -168,6 +168,12 @@ extension DataFlowSemaPhase {
             }
             return symbol
         }
+        let newIsExtensionProperty: Bool
+        if case let .propertyDecl(pd) = decl {
+            newIsExtensionProperty = pd.receiverType != nil
+        } else {
+            newIsExtensionProperty = false
+        }
         checkAndReportDuplicateDeclaration(
             newKind: declaration.kind,
             fqName: fqName,
@@ -175,7 +181,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             diagnostics: diagnostics,
             newFlags: declaration.flags,
-            additionalExisting: scopeExisting
+            additionalExisting: scopeExisting,
+            newIsExtensionProperty: newIsExtensionProperty
         )
         let symbol = symbols.define(
             kind: declaration.kind,
