@@ -347,17 +347,25 @@ final class KIRDelegateAccessorTests: XCTestCase {
             XCTAssertFalse(getterFunctions.isEmpty, "Expected synthesized getter")
 
             // Delegate lowering may rewrite the direct getValue call in later phases, but
-            // the synthesized getter should still carry observable call structure.
-            // The delegate getter calls getValue(thisRef, property) — at least 2 args.
-            // Other "get" accessors from bundled stdlib extension properties may also exist
-            // in the KIR module but have fewer args, so search across all getters.
-            let hasGetterWithReceiverAndProperty = getterFunctions.contains { fn in
+            // the synthesized delegate getter should carry a call with ≥2 args (receiver + property context).
+            // Filter to the delegate getter specifically (not bundled property getters with 1 arg).
+            let delegateGetter = getterFunctions.first { fn in
                 fn.body.contains { instruction in
                     guard case let .call(_, _, args, _, _, _, _, _) = instruction else { return false }
                     return args.count >= 2
                 }
             }
-            XCTAssertTrue(hasGetterWithReceiverAndProperty, "Synthesized getter should pass receiver/property context")
+            XCTAssertNotNil(delegateGetter, "Expected synthesized delegate getter with getValue call")
+            if let getter = delegateGetter {
+                let multiArgCalls = getter.body.compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(_, _, args, _, _, _, _, _) = instruction else { return nil }
+                    return args.count >= 2 ? args : nil
+                }
+                XCTAssertFalse(multiArgCalls.isEmpty, "Delegate getter must have a call with receiver/property args")
+                if let args = multiArgCalls.first {
+                    XCTAssertGreaterThanOrEqual(args.count, 2, "Synthesized getter should pass receiver/property context")
+                }
+            }
         }
     }
 

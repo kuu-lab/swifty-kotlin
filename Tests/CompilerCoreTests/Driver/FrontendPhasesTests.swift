@@ -35,7 +35,7 @@ final class FrontendPhasesTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path, path])
             XCTAssertNoThrow(try LoadSourcesPhase().run(ctx))
             // File should be loaded only once
-            // 1 user file (deduped) + 4 bundled stdlib files (collections + text + time + sequences)
+            // 1 user file (deduped) + 4 bundled stdlib files (collections, text, sequences + time)
             XCTAssertEqual(ctx.sourceManager.fileIDs().count, 5, "Duplicate paths should be loaded only once (+ bundled stdlib)")
         }
     }
@@ -86,7 +86,7 @@ final class FrontendPhasesTests: XCTestCase {
             incrementalCtx.installIncrementalFrontendState(cachedState)
 
             try LexPhase().run(incrementalCtx)
-            // FileID 0 = bundled collections, FileID 1 = bundled text, FileID 2 = bundled time, FileID 3 = bundled sequences, FileID 4 = kept, FileID 5 = changed
+            // FileID 0 = bundled collections, FileID 1 = bundled text, FileID 2 = bundled sequences, FileID 3 = bundled time, FileID 4 = kept, FileID 5 = changed
             XCTAssertEqual(incrementalCtx.tokensByFile.map(\.0), [FileID(rawValue: 5)])
 
             try ParsePhase().run(incrementalCtx)

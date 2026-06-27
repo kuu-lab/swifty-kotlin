@@ -161,6 +161,10 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-582/583/584: Duration.inWhole* properties ---
+        // MIGRATION-TIME-002: inWholeMilliseconds/Microseconds/Seconds/Minutes/Hours/Days
+        // migrated to Kotlin source in BundledKotlinStdlib.kotlinTimeSource.
+        // inWholeNanoseconds stays native (base primitive).
+        /*
         registerDurationMemberProperty(
             named: "inWholeMilliseconds",
             externalLinkName: "kk_duration_inWholeMilliseconds",
@@ -196,6 +200,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        */
 
         registerDurationMemberProperty(
             named: "inWholeNanoseconds",
@@ -206,6 +211,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        /*
         registerDurationMemberProperty(
             named: "inWholeHours",
             externalLinkName: "kk_duration_inWholeHours",
@@ -223,6 +229,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        */
 
         // --- STDLIB-TIME-082: Duration predicate / absoluteValue ---
         // absoluteValue, isNegative, isPositive, isInfinite are implemented in Kotlin source
@@ -336,6 +343,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // MIGRATION-TIME-002: toIsoString and toComponents migrated to Kotlin source.
+        /*
         registerDurationMemberMethod(
             named: "toIsoString",
             externalLinkName: "kk_duration_toIsoString",
@@ -356,6 +365,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        */
 
         // --- STDLIB-TIME-082: Duration operator bridges (MIGRATION-TIME-001) ---
         // plus, minus, times, div, unaryMinus are implemented in Kotlin source
