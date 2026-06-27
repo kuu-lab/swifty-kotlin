@@ -1533,6 +1533,35 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-046: minOf(a: Long, vararg other: Long)
+    func testCodegenCompilesMinOfLongVarargTopLevelCall() throws {
+        let source = """
+        fun main() {
+            println(minOf(5L, 2L, 8L, 1L))
+            val a = 100L
+            val b = 400L
+            val c = 200L
+            val d = 300L
+            println(minOf(a, b, c, d, 50L))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfLongVararg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "1\n50\n")
+        }
+    }
+
     // STDLIB-COMP-FN-032: minOf(Byte, Byte)
     func testCodegenCompilesMinOfByteTwoArgTopLevelCall() throws {
         let source = """

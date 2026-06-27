@@ -137,6 +137,215 @@ fun ByteArray.decodeToString(startIndex: Int, endIndex: Int): String =
 
 fun ByteArray.decodeToString(startIndex: Int, endIndex: Int, throwOnInvalidSequence: Boolean): String =
     this.__kk_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
+
+// MIGRATION-TEXT-006: indent & margin helpers
+
+private fun String.kk_drop(n: Int): String {
+    val sb = StringBuilder()
+    var i = n
+    while (i < length) { sb.append(this[i]); i++ }
+    return sb.toString()
+}
+
+private fun String.hasPrefix(prefix: String): Boolean {
+    if (prefix.length > length) return false
+    var i = 0
+    while (i < prefix.length) {
+        if (this[i] != prefix[i]) return false
+        i++
+    }
+    return true
+}
+
+private fun String.splitIntoLines(): List<String> {
+    val result = mutableListOf<String>()
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (c == '\\n') {
+            result.add(sb.toString())
+            sb.clear()
+        } else if (c == '\\r') {
+            result.add(sb.toString())
+            sb.clear()
+            if (i + 1 < length && this[i + 1] == '\\n') i++
+        } else {
+            sb.append(c)
+        }
+        i++
+    }
+    result.add(sb.toString())
+    return result
+}
+
+private fun String.leadingWhitespaceCount(): Int {
+    var count = 0
+    while (count < length) {
+        val c = this[count]
+        if (c != ' ' && c != '\\t') break
+        count++
+    }
+    return count
+}
+
+private fun String.isBlankLine(): Boolean {
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (c != ' ' && c != '\\t') return false
+        i++
+    }
+    return true
+}
+
+private fun trimBlankEdges(lines: List<String>): List<String> {
+    val n = lines.size
+    var start = 0
+    var end = n
+    while (start < end && lines[start].isBlankLine()) start++
+    while (end > start && lines[end - 1].isBlankLine()) end--
+    val result = mutableListOf<String>()
+    var i = start
+    while (i < end) {
+        result.add(lines[i])
+        i++
+    }
+    return result
+}
+
+public fun String.trimIndent(): String {
+    val lines = trimBlankEdges(splitIntoLines())
+    if (lines.isEmpty()) return ""
+    var minIndent = -1
+    for (line in lines) {
+        if (!line.isBlankLine()) {
+            val cnt = line.leadingWhitespaceCount()
+            if (minIndent == -1 || cnt < minIndent) minIndent = cnt
+        }
+    }
+    if (minIndent < 0) minIndent = 0
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\\n')
+        if (line.isBlankLine()) {
+            sb.append("")
+        } else {
+            sb.append(line.kk_drop(minIndent))
+        }
+        first = false
+    }
+    return sb.toString()
+}
+
+public fun String.trimMargin(marginPrefix: String = "|"): String {
+    val lines = trimBlankEdges(splitIntoLines())
+    if (lines.isEmpty()) return ""
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\\n')
+        var i = 0
+        while (i < line.length && (line[i] == ' ' || line[i] == '\\t')) i++
+        val trimmedLeading = line.kk_drop(i)
+        if (trimmedLeading.hasPrefix(marginPrefix)) {
+            sb.append(trimmedLeading.kk_drop(marginPrefix.length))
+        } else {
+            sb.append(line)
+        }
+        first = false
+    }
+    return sb.toString()
+}
+
+public fun String.indent(): String = indent(4)
+
+public fun String.indent(n: Int): String {
+    if (n == 0) return this
+    val lines = splitIntoLines()
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\n')
+        if (n > 0) {
+            var j = 0
+            while (j < n) { sb.append(' '); j++ }
+            sb.append(line)
+        } else {
+            val remove = -n
+            val leading = line.leadingWhitespaceCount()
+            val drop = if (remove < leading) remove else leading
+            sb.append(line.kk_drop(drop))
+        }
+        first = false
+    }
+    return sb.toString()
+}
+
+public fun String.prependIndent(indent: String = "    "): String {
+    val lines = splitIntoLines()
+    if (lines.isEmpty()) return this
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\\n')
+        sb.append(indent)
+        sb.append(line)
+        first = false
+    }
+    return sb.toString()
+}
+
+public fun String.replaceIndent(newIndent: String = ""): String {
+    val lines = trimBlankEdges(splitIntoLines())
+    if (lines.isEmpty()) return ""
+    var minIndent = -1
+    for (line in lines) {
+        if (!line.isBlankLine()) {
+            val cnt = line.leadingWhitespaceCount()
+            if (minIndent == -1 || cnt < minIndent) minIndent = cnt
+        }
+    }
+    if (minIndent < 0) minIndent = 0
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\\n')
+        if (line.isBlankLine()) {
+            sb.append("")
+        } else {
+            sb.append(newIndent)
+            sb.append(line.kk_drop(minIndent))
+        }
+        first = false
+    }
+    return sb.toString()
+}
+
+public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: String = "|"): String {
+    if (marginPrefix.isBlankLine()) {
+        throw IllegalArgumentException("marginPrefix must be non-blank string.")
+    }
+    val lines = trimBlankEdges(splitIntoLines())
+    if (lines.isEmpty()) return ""
+    val sb = StringBuilder()
+    var first = true
+    for (line in lines) {
+        if (!first) sb.append('\\n')
+        var i = 0
+        while (i < line.length && (line[i] == ' ' || line[i] == '\\t')) i++
+        val trimmedLeading = line.kk_drop(i)
+        if (trimmedLeading.hasPrefix(marginPrefix)) {
+            sb.append(newIndent)
+            sb.append(trimmedLeading.kk_drop(marginPrefix.length))
+        } else {
+            sb.append(line)
+        }
+        first = false
+    }
+    return sb.toString()
+}
 """
 
     // MIGRATION-SEQ-003: Sequence collection-conversion HOFs

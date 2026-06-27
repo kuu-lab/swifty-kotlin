@@ -60,11 +60,11 @@
 - [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-049: `reduceOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-051: `removeRange` 関数の実装
+- [x] STDLIB-TEXT-FN-051: `removeRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-053: `removeSurrounding` 関数の実装
 - [ ] STDLIB-TEXT-FN-056: `replaceAfter` 関数の実装
 - [ ] STDLIB-TEXT-FN-058: `replaceBefore` 関数の実装
-- [ ] STDLIB-TEXT-FN-060: `replaceFirst` 関数の実装
+- [x] STDLIB-TEXT-FN-060: `replaceFirst` 関数の実装
 - [ ] STDLIB-TEXT-FN-062: `replaceRange` 関数の実装
 - [x] STDLIB-TEXT-FN-065: `setRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-067: `singleOrNull` 関数の実装
@@ -104,7 +104,6 @@
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
 - [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
-- [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
 - [x] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）

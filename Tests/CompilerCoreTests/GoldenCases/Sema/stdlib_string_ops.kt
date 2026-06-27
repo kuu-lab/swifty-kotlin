@@ -72,4 +72,6 @@ fun useEqualsIgnoreCase(): Boolean = "abc".equals("ABC", ignoreCase = true)
 
 fun useReplaceFirst(): String = "abcabc".replaceFirst("abc", "X")
 
+fun useReplaceFirstIgnoreCase(): String = "abcABC".replaceFirst("abc", "X", ignoreCase = true)
+
 fun useReplaceRange(): String = "hello".replaceRange(0..2, "HE")
