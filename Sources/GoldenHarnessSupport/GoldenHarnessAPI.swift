@@ -330,149 +330,21 @@ private enum GoldenHarnessDiagnosticsComparisonNormalizer {
 
 private enum GoldenHarnessSemaComparisonNormalizer {
     // swiftlint:disable:next force_try
-    private static let positiveSymbolReferenceRegex = try! NSRegularExpression(pattern: "(Class#|T#|s)(\\d+)")
-    // swiftlint:disable:next force_try
     private static let negativeSymbolReferenceRegex = try! NSRegularExpression(pattern: "(s-)(\\d+)")
     // swiftlint:disable:next force_try
     private static let syntheticScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$)(\\d+)(?=\\.)")
     // swiftlint:disable:next force_try
     private static let localNameOrdinalRegex = try! NSRegularExpression(pattern: "(__local_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let forVarOrdinalRegex = try! NSRegularExpression(pattern: "(__for_)(\\d+)")
 
     static func normalize(_ output: String) -> String {
-        let hasTrailingNewline = output.hasSuffix("\n")
-        var lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        if hasTrailingNewline, lines.last == "" {
-            lines.removeLast()
-        }
-
-        var symbolLinesByID: [Int: String] = [:]
-        var symbolOrder: [Int] = []
-        var bodyLines: [String] = []
-        bodyLines.reserveCapacity(lines.count)
-
-        for line in lines {
-            if let symbolID = symbolID(from: line) {
-                symbolLinesByID[symbolID] = line
-                symbolOrder.append(symbolID)
-            } else {
-                bodyLines.append(line)
-            }
-        }
-
-        var requiredSymbols = Set<Int>()
-        var queue: [Int] = []
-
-        for line in bodyLines {
-            enqueueReferences(in: line, requiredSymbols: &requiredSymbols, queue: &queue)
-        }
-
-        var nextIndex = 0
-        while nextIndex < queue.count {
-            let symbolID = queue[nextIndex]
-            nextIndex += 1
-            guard let symbolLine = symbolLinesByID[symbolID] else {
-                continue
-            }
-            enqueueReferences(in: symbolLine, requiredSymbols: &requiredSymbols, queue: &queue)
-        }
-
-        guard !requiredSymbols.isEmpty else {
-            return output
-        }
-
-        let keptSymbolIDs = symbolOrder.filter { requiredSymbols.contains($0) }
-        let remappedIDs = Dictionary(uniqueKeysWithValues: keptSymbolIDs.enumerated().map { rawID, symbolID in
-            (symbolID, rawID)
-        })
-
-        var normalizedLines: [String] = []
-        normalizedLines.reserveCapacity(keptSymbolIDs.count + bodyLines.count)
-
-        for symbolID in keptSymbolIDs {
-            guard let symbolLine = symbolLinesByID[symbolID] else {
-                continue
-            }
-            normalizedLines.append(rewrite(symbolLine, remappedIDs: remappedIDs))
-        }
-
-        for line in bodyLines {
-            normalizedLines.append(rewrite(line, remappedIDs: remappedIDs))
-        }
-
-        var normalized = normalizedLines.joined(separator: "\n")
-        normalized = rewriteOrdinalMatches(
-            in: normalized,
-            regex: syntheticScopeOrdinalRegex
-        )
-        normalized = rewriteOrdinalMatches(
-            in: normalized,
-            regex: localNameOrdinalRegex
-        )
-        normalized = rewriteOrdinalMatches(
-            in: normalized,
-            regex: negativeSymbolReferenceRegex
-        )
-        return hasTrailingNewline ? normalized + "\n" : normalized
-    }
-
-    private static func symbolID(from line: String) -> Int? {
-        guard line.hasPrefix("symbol s") else {
-            return nil
-        }
-
-        let start = line.index(line.startIndex, offsetBy: "symbol s".count)
-        var end = start
-        while end < line.endIndex, line[end].isNumber {
-            end = line.index(after: end)
-        }
-        guard end > start else {
-            return nil
-        }
-        return Int(line[start ..< end])
-    }
-
-    private static func enqueueReferences(
-        in line: String,
-        requiredSymbols: inout Set<Int>,
-        queue: inout [Int]
-    ) {
-        let nsLine = line as NSString
-        let range = NSRange(location: 0, length: nsLine.length)
-        for match in positiveSymbolReferenceRegex.matches(in: line, range: range) {
-            let idRange = match.range(at: 2)
-            guard idRange.location != NSNotFound,
-                  let symbolID = Int(nsLine.substring(with: idRange)),
-                  requiredSymbols.insert(symbolID).inserted
-            else {
-                continue
-            }
-            queue.append(symbolID)
-        }
-    }
-
-    private static func rewrite(_ line: String, remappedIDs: [Int: Int]) -> String {
-        let nsLine = line as NSString
-        let range = NSRange(location: 0, length: nsLine.length)
-        let matches = positiveSymbolReferenceRegex.matches(in: line, range: range)
-        guard !matches.isEmpty else {
-            return line
-        }
-
-        let mutable = NSMutableString(string: line)
-        for match in matches.reversed() {
-            let prefixRange = match.range(at: 1)
-            let idRange = match.range(at: 2)
-            guard prefixRange.location != NSNotFound,
-                  idRange.location != NSNotFound,
-                  let oldID = Int(nsLine.substring(with: idRange)),
-                  let newID = remappedIDs[oldID]
-            else {
-                continue
-            }
-            let prefix = nsLine.substring(with: prefixRange)
-            mutable.replaceCharacters(in: match.range, with: "\(prefix)\(newID)")
-        }
-        return mutable as String
+        var normalized = output
+        normalized = rewriteOrdinalMatches(in: normalized, regex: syntheticScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: localNameOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: forVarOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: negativeSymbolReferenceRegex)
+        return normalized
     }
 
     private static func rewriteOrdinalMatches(
