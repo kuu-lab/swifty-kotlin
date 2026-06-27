@@ -1405,6 +1405,23 @@ extension CallLowerer {
             }
         }
 
+        // String stdlib: replaceRange(startIndex, endIndex, replacement) (STDLIB-TEXT-FN-062)
+        if args.count == 3, interner.resolve(calleeName) == "replaceRange" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_replaceRange_indices"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         // String stdlib: replace(old, new) (STDLIB-006) / replace(Char, Char) (STDLIB-TEXT-FN-055)
         if args.count == 2, interner.resolve(calleeName) == "replace" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
