@@ -407,16 +407,6 @@ extension CallLowerer {
                 )
             case "sortedArrayWith":
                 return interner.intern("kk_array_sortedArrayWith")
-            case "fold":
-                return interner.intern("kk_array_fold")
-            case "foldIndexed":
-                return interner.intern("kk_array_foldIndexed")
-            case "reduce":
-                return interner.intern("kk_array_reduce")
-            case "reduceIndexed":
-                return interner.intern("kk_array_reduceIndexed")
-            case "reduceOrNull":
-                return interner.intern("kk_array_reduceOrNull")
             case "find":
                 return interner.intern("kk_array_find")
             case "findLast":
