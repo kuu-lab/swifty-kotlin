@@ -337,22 +337,6 @@ extension CallTypeChecker {
             }
         }
 
-        if let durationComponentsType = tryDurationToComponentsMemberCall(
-            id,
-            calleeName: calleeName,
-            receiverType: receiverType,
-            args: args,
-            explicitTypeArgs: explicitTypeArgs,
-            expectedType: expectedType,
-            safeCall: safeCall,
-            ast: ast,
-            sema: sema,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return durationComponentsType
-        }
-
         // Comparator member HOFs (STDLIB-176): thenBy/thenByDescending/thenDescending/thenComparator.
         // These need the Comparator<T> receiver type so the lambda gets the correct
         // contextual function signature before the general resolution path runs.

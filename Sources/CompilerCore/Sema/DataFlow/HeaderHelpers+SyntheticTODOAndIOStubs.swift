@@ -786,6 +786,7 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
+        // Register synthetic Duration class (STDLIB-585)
         let durationName = interner.intern("Duration")
         let durationFQName = kotlinTimePkg + [durationName]
         let durationSymbol: SymbolID = if let existing = symbols.lookup(fqName: durationFQName) {
@@ -811,6 +812,9 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(durationClassType, for: durationSymbol)
 
+        // MIGRATION-TIME-002: inWholeMilliseconds/Seconds/Microseconds migrated to Kotlin source.
+        /*
+        // Register Duration.inWholeMilliseconds property (returns Long)
         registerSyntheticDurationMember(
             named: "inWholeMilliseconds",
             externalLinkName: "kk_duration_inWholeMilliseconds",
@@ -823,6 +827,7 @@ extension DataFlowSemaPhase {
             isProperty: true
         )
 
+        // Register Duration.inWholeSeconds property (returns Long)
         registerSyntheticDurationMember(
             named: "inWholeSeconds",
             externalLinkName: "kk_duration_inWholeSeconds",
@@ -835,6 +840,7 @@ extension DataFlowSemaPhase {
             isProperty: true
         )
 
+        // Register Duration.inWholeMicroseconds property (returns Long)
         registerSyntheticDurationMember(
             named: "inWholeMicroseconds",
             externalLinkName: "kk_duration_inWholeMicroseconds",
@@ -846,7 +852,9 @@ extension DataFlowSemaPhase {
             interner: interner,
             isProperty: true
         )
+        */
 
+        // Register Duration.inWholeNanoseconds property (returns Long)
         registerSyntheticDurationMember(
             named: "inWholeNanoseconds",
             externalLinkName: "kk_duration_inWholeNanoseconds",
@@ -859,6 +867,7 @@ extension DataFlowSemaPhase {
             isProperty: true
         )
 
+        // Register Duration.toString() (returns String)
         registerSyntheticDurationMember(
             named: "toString",
             externalLinkName: "kk_duration_toString",
@@ -910,6 +919,7 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-410: emptyList/emptySet/emptyMap ---
+        // Kotlin source exists at Stdlib/kotlin/collections/CollectionFactories.kt (MIGRATION-COL-001)
         // but is not yet wired into the compiler pipeline. Keep these stubs until RF-STDLIB-004+
         // wires the Kotlin source and removes this block.
         let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]

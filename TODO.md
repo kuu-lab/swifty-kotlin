@@ -232,7 +232,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/time/Duration.kt`
 
 - [ ] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
-- [ ] MIGRATION-TIME-002: `Duration` コンポーネント・文字列変換を Kotlin source に移行する（`toComponents`, `toString`, `toIsoString`, `inWholeMilliseconds`, `inWholeMicroseconds` 等）
+- [x] MIGRATION-TIME-002: `Duration` コンポーネント・文字列変換を Kotlin source に移行する（`toComponents`, `toString`, `toIsoString`, `inWholeMilliseconds`, `inWholeMicroseconds` 等）
 - [ ] MIGRATION-TIME-003: `Duration` ファクトリ拡張を Kotlin source に移行する（`Int.seconds`, `Long.milliseconds`, `Double.minutes` 等の拡張プロパティ）
 
 ### Phase M9: kotlin.io File I/O
