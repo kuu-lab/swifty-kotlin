@@ -914,6 +914,26 @@ public func kk_comparator_reversed_trampoline(
     return result == 0 ? 0 : -result
 }
 
+// MARK: - nullsFirst Comparable (STDLIB-COMP-FN-059)
+
+@_cdecl("kk_comparator_nulls_first_comparable_trampoline")
+public func kk_comparator_nulls_first_comparable_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    _ = closureRaw
+    _ = outThrown
+    if let r = runtimeCompareNullableOrder(a: a, b: b, nullsFirst: true) { return r }
+    return runtimeCompareValues(a, b)
+}
+
+@_cdecl("kk_comparator_nulls_first_comparable")
+public func kk_comparator_nulls_first_comparable() -> Int {
+    0
+}
+
 // MARK: - naturalOrder / reverseOrder (STDLIB-177)
 
 @_cdecl("kk_comparator_natural_order_trampoline")

@@ -65,9 +65,9 @@
 - [ ] STDLIB-TEXT-FN-056: `replaceAfter` 関数の実装
 - [ ] STDLIB-TEXT-FN-058: `replaceBefore` 関数の実装
 - [x] STDLIB-TEXT-FN-060: `replaceFirst` 関数の実装
-- [ ] STDLIB-TEXT-FN-062: `replaceRange` 関数の実装
+- [x] STDLIB-TEXT-FN-062: `replaceRange` 関数の実装
 - [x] STDLIB-TEXT-FN-065: `setRange` 関数の実装
-- [ ] STDLIB-TEXT-FN-067: `singleOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-067: `singleOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-068: `slice` 関数の実装
 - [x] STDLIB-TEXT-FN-070: `splitToSequence` 関数の実装
 - [x] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
@@ -103,7 +103,7 @@
 - [x] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
 - [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
-- [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
+- [x] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
 - [x] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [x] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
 - [x] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
@@ -111,11 +111,11 @@
 - [ ] STDLIB-COMP-FN-040: `minOf` 関数の実装（Float版、vararg）
 - [ ] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-046: `minOf` 関数の実装（Long版、vararg）
-- [ ] STDLIB-COMP-FN-050: `minOf` 関数の実装（UByte版）
-- [ ] STDLIB-COMP-FN-051: `minOf` 関数の実装（UInt版）
-- [ ] STDLIB-COMP-FN-052: `minOf` 関数の実装（ULong版）
-- [ ] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
-- [ ] STDLIB-COMP-FN-059: `nullsFirst` 関数の実装（Comparable版）
+- [x] STDLIB-COMP-FN-050: `minOf` 関数の実装（UByte版）
+- [x] STDLIB-COMP-FN-051: `minOf` 関数の実装（UInt版）
+- [x] STDLIB-COMP-FN-052: `minOf` 関数の実装（ULong版）
+- [x] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
+- [x] STDLIB-COMP-FN-059: `nullsFirst` 関数の実装（Comparable版）
 - [ ] STDLIB-COMP-FN-061: `nullsLast` 関数の実装（Comparable版）
 - [x] STDLIB-COMP-FN-062: `nullsLast` 関数の実装（Comparator版）
 
@@ -231,8 +231,8 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/time/Duration.kt`
 
 - [ ] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
-- [ ] MIGRATION-TIME-002: `Duration` コンポーネント・文字列変換を Kotlin source に移行する（`toComponents`, `toString`, `toIsoString`, `inWholeMilliseconds`, `inWholeMicroseconds` 等）
-- [ ] MIGRATION-TIME-003: `Duration` ファクトリ拡張を Kotlin source に移行する（`Int.seconds`, `Long.milliseconds`, `Double.minutes` 等の拡張プロパティ）
+- [x] MIGRATION-TIME-002: `Duration` コンポーネント・文字列変換を Kotlin source に移行する（`toComponents`, `toString`, `toIsoString`, `inWholeMilliseconds`, `inWholeMicroseconds` 等）
+- [x] MIGRATION-TIME-003: `Duration` ファクトリ拡張を Kotlin source に移行する（`Int.seconds`, `Long.milliseconds`, `Double.minutes` 等の拡張プロパティ）
 
 ### Phase M9: kotlin.io File I/O
 > 移行元: `Sources/Runtime/RuntimeFileIO.swift` (144 @_cdecl)

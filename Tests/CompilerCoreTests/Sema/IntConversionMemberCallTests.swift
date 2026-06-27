@@ -59,13 +59,15 @@ final class IntConversionMemberCallTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
+            // Collect the last 2 toInt() calls in the arena (user-file calls come after bundled stdlib).
             var toIntCallExprIDs: [ExprID] = []
-            for index in ast.arena.exprs.indices {
+            for index in ast.arena.exprs.indices.reversed() {
                 let exprID = ExprID(rawValue: Int32(index))
                 guard let expr = ast.arena.expr(exprID) else { continue }
                 guard case let .memberCall(_, callee, _, _, _) = expr else { continue }
                 if ctx.interner.resolve(callee) == "toInt" {
-                    toIntCallExprIDs.append(exprID)
+                    toIntCallExprIDs.insert(exprID, at: 0)
+                    if toIntCallExprIDs.count == 2 { break }
                 }
             }
             XCTAssertEqual(toIntCallExprIDs.count, 2, "Expected two toInt() calls")

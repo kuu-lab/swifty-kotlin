@@ -363,7 +363,12 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.lateinit) { value.insert(.lateinitProperty) }
     }
 
-    func hasDeclarationConflict(newKind: SymbolKind, existing: [SemanticSymbol]) -> Bool {
+    func hasDeclarationConflict(
+        newKind: SymbolKind,
+        existing: [SemanticSymbol],
+        symbols: SymbolTable? = nil,
+        newIsExtensionProperty: Bool = false
+    ) -> Bool {
         guard !existing.isEmpty else {
             return false
         }
@@ -376,6 +381,15 @@ extension DataFlowSemaPhase {
             }
         }
         if newKind == .property {
+            if newIsExtensionProperty, let symbols {
+                return existing.contains { sym in
+                    if isCallableLike(sym.kind) { return false }
+                    if sym.kind == .property {
+                        return symbols.extensionPropertyReceiverType(for: sym.id) == nil
+                    }
+                    return true
+                }
+            }
             return existing.contains { !isCallableLike($0.kind) }
         }
         if isCallableLike(newKind) {
@@ -403,7 +417,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         newFlags: SymbolFlags = [],
-        additionalExisting: [SemanticSymbol] = []
+        additionalExisting: [SemanticSymbol] = [],
+        newIsExtensionProperty: Bool = false
     ) {
         var existingByID: [SymbolID: SemanticSymbol] = [:]
         for symbol in symbols.lookupAll(fqName: fqName).compactMap({ symbols.symbol($0) }) {
@@ -427,7 +442,12 @@ extension DataFlowSemaPhase {
                 return
             }
         }
-        if hasDeclarationConflict(newKind: newKind, existing: existing) {
+        if hasDeclarationConflict(
+            newKind: newKind,
+            existing: existing,
+            symbols: symbols,
+            newIsExtensionProperty: newIsExtensionProperty
+        ) {
             diagnostics.error(
                 "KSWIFTK-SEMA-0001",
                 "Duplicate declaration in the same package scope.",

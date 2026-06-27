@@ -2071,6 +2071,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticStringExtensionFunction(
+            named: "replaceRange",
+            externalLinkName: "kk_string_replaceRange_indices",
+            receiverType: stringType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+                ("replacement", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-EDGE-008: removeRange ---
 
         registerSyntheticStringExtensionFunction(
@@ -2623,6 +2638,17 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "findLast",
             externalLinkName: "kk_string_findLast",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // STDLIB-TEXT-FN-067: singleOrNull(predicate) overload
+        registerSyntheticStringExtensionFunction(
+            named: "singleOrNull",
+            externalLinkName: "kk_string_singleOrNull_predicate",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
