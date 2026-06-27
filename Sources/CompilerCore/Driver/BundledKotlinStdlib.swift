@@ -868,6 +868,31 @@ fun <T> Duration.toComponents(action: (Long, Int, Int, Int, Int) -> T): T {
     val n = (rem % 1_000_000_000L).toInt()
     return action(d, h, m, s, n)
 }
+
+// MIGRATION-TIME-003: Duration factory extension properties
+public val Int.nanoseconds: Duration get() = this.toDuration(DurationUnit.NANOSECONDS)
+public val Int.microseconds: Duration get() = this.toDuration(DurationUnit.MICROSECONDS)
+public val Int.milliseconds: Duration get() = this.toDuration(DurationUnit.MILLISECONDS)
+public val Int.seconds: Duration get() = this.toDuration(DurationUnit.SECONDS)
+public val Int.minutes: Duration get() = this.toDuration(DurationUnit.MINUTES)
+public val Int.hours: Duration get() = this.toDuration(DurationUnit.HOURS)
+public val Int.days: Duration get() = this.toDuration(DurationUnit.DAYS)
+
+public val Long.nanoseconds: Duration get() = this.toDuration(DurationUnit.NANOSECONDS)
+public val Long.microseconds: Duration get() = this.toDuration(DurationUnit.MICROSECONDS)
+public val Long.milliseconds: Duration get() = this.toDuration(DurationUnit.MILLISECONDS)
+public val Long.seconds: Duration get() = this.toDuration(DurationUnit.SECONDS)
+public val Long.minutes: Duration get() = this.toDuration(DurationUnit.MINUTES)
+public val Long.hours: Duration get() = this.toDuration(DurationUnit.HOURS)
+public val Long.days: Duration get() = this.toDuration(DurationUnit.DAYS)
+
+public val Double.nanoseconds: Duration get() = this.toDuration(DurationUnit.NANOSECONDS)
+public val Double.microseconds: Duration get() = this.toDuration(DurationUnit.MICROSECONDS)
+public val Double.milliseconds: Duration get() = this.toDuration(DurationUnit.MILLISECONDS)
+public val Double.seconds: Duration get() = this.toDuration(DurationUnit.SECONDS)
+public val Double.minutes: Duration get() = this.toDuration(DurationUnit.MINUTES)
+public val Double.hours: Duration get() = this.toDuration(DurationUnit.HOURS)
+public val Double.days: Duration get() = this.toDuration(DurationUnit.DAYS)
 """
 
     // MIGRATION-SEQ-003: Sequence collection-conversion HOFs
