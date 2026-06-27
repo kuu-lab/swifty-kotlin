@@ -25,7 +25,7 @@ enum GoldenHarnessDump {
         try LexPhase().run(ctx)
 
         guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
-            return ""
+            throw GoldenHarnessDumpError.missingSyntaxTree
         }
 
         var lines: [String] = []
