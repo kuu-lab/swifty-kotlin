@@ -347,17 +347,25 @@ final class KIRDelegateAccessorTests: XCTestCase {
             XCTAssertFalse(getterFunctions.isEmpty, "Expected synthesized getter")
 
             // Delegate lowering may rewrite the direct getValue call in later phases, but
-            // the synthesized getter should still carry observable call structure.
-            // Multiple "get" functions may exist (e.g. bundled stdlib extensions), so find
-            // the one whose first call passes 2+ arguments (receiver + property context).
-            let hasDelegateGetterCall = getterFunctions.contains { fn in
-                let callArgs = fn.body.compactMap { instruction -> [KIRExprID]? in
-                    guard case let .call(_, _, args, _, _, _, _, _) = instruction else { return nil }
-                    return args
+            // the synthesized delegate getter should carry a call with ≥2 args (receiver + property context).
+            // Filter to the delegate getter specifically (not bundled property getters with 1 arg).
+            let delegateGetter = getterFunctions.first { fn in
+                fn.body.contains { instruction in
+                    guard case let .call(_, _, args, _, _, _, _, _) = instruction else { return false }
+                    return args.count >= 2
                 }
-                return callArgs.first.map { $0.count >= 2 } ?? false
             }
-            XCTAssertTrue(hasDelegateGetterCall, "Synthesized getter should pass receiver/property context")
+            XCTAssertNotNil(delegateGetter, "Expected synthesized delegate getter with getValue call")
+            if let getter = delegateGetter {
+                let multiArgCalls = getter.body.compactMap { instruction -> [KIRExprID]? in
+                    guard case let .call(_, _, args, _, _, _, _, _) = instruction else { return nil }
+                    return args.count >= 2 ? args : nil
+                }
+                XCTAssertFalse(multiArgCalls.isEmpty, "Delegate getter must have a call with receiver/property args")
+                if let args = multiArgCalls.first {
+                    XCTAssertGreaterThanOrEqual(args.count, 2, "Synthesized getter should pass receiver/property context")
+                }
+            }
         }
     }
 

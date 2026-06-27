@@ -35,8 +35,8 @@ final class FrontendPhasesTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path, path])
             XCTAssertNoThrow(try LoadSourcesPhase().run(ctx))
             // File should be loaded only once
-            // 1 user file (deduped) + 4 bundled stdlib files (collections + text + atomic + sequences)
-            XCTAssertEqual(ctx.sourceManager.fileIDs().count, 5, "Duplicate paths should be loaded only once (+ bundled stdlib)")
+            // 1 user file (deduped) + 5 bundled stdlib files (collections + text + atomic + sequences + time)
+            XCTAssertEqual(ctx.sourceManager.fileIDs().count, 6, "Duplicate paths should be loaded only once (+ bundled stdlib)")
         }
     }
 
@@ -86,16 +86,16 @@ final class FrontendPhasesTests: XCTestCase {
             incrementalCtx.installIncrementalFrontendState(cachedState)
 
             try LexPhase().run(incrementalCtx)
-            // FileID 0 = bundled collections, FileID 1 = bundled text, FileID 2 = bundled atomic, FileID 3 = bundled sequences, FileID 4 = kept, FileID 5 = changed
-            XCTAssertEqual(incrementalCtx.tokensByFile.map(\.0), [FileID(rawValue: 5)])
+            // FileID 0 = bundled collections, FileID 1 = bundled text, FileID 2 = bundled atomic, FileID 3 = bundled sequences, FileID 4 = bundled time, FileID 5 = kept, FileID 6 = changed
+            XCTAssertEqual(incrementalCtx.tokensByFile.map(\.0), [FileID(rawValue: 6)])
 
             try ParsePhase().run(incrementalCtx)
-            XCTAssertEqual(incrementalCtx.syntaxTrees.map(\.0), [FileID(rawValue: 5)])
+            XCTAssertEqual(incrementalCtx.syntaxTrees.map(\.0), [FileID(rawValue: 6)])
 
             try BuildASTPhase().run(incrementalCtx)
             let ast = try XCTUnwrap(incrementalCtx.ast)
-            XCTAssertEqual(ast.files.map(\.fileID), [FileID(rawValue: 0), FileID(rawValue: 1), FileID(rawValue: 2), FileID(rawValue: 3), FileID(rawValue: 4), FileID(rawValue: 5)])
-            XCTAssertEqual(Set(ast.activeDeclsByFileRawID.keys), Set([0, 1, 2, 3, 4, 5]))
+            XCTAssertEqual(ast.files.map(\.fileID), [FileID(rawValue: 0), FileID(rawValue: 1), FileID(rawValue: 2), FileID(rawValue: 3), FileID(rawValue: 4), FileID(rawValue: 5), FileID(rawValue: 6)])
+            XCTAssertEqual(Set(ast.activeDeclsByFileRawID.keys), Set([0, 1, 2, 3, 4, 5, 6]))
 
             let topLevelNames = ast.files.flatMap(\.topLevelDecls).compactMap { declID -> String? in
                 guard let decl = ast.arena.decl(declID), case let .funDecl(funDecl) = decl else {
