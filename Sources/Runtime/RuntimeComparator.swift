@@ -748,6 +748,28 @@ public func kk_comparator_nulls_last_of(_ cFn: Int, _ cClosure: Int) -> Int {
     return raw
 }
 
+// MARK: - nullsLast (Comparable版 -- STDLIB-COMP-FN-061)
+
+@_cdecl("kk_comparator_nulls_last_natural_trampoline")
+public func kk_comparator_nulls_last_natural_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    _ = closureRaw
+    _ = outThrown
+    if let nullableResult = runtimeCompareNullableOrder(a: a, b: b, nullsFirst: false) {
+        return nullableResult
+    }
+    return runtimeCompareValues(a, b)
+}
+
+@_cdecl("kk_comparator_nulls_last_natural")
+public func kk_comparator_nulls_last_natural() -> Int {
+    0
+}
+
 @inline(__always)
 private func runtimeCompareNullableOrder(
     a: Int,
