@@ -334,12 +334,18 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     // swiftlint:disable:next force_try
     private static let syntheticScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$)(\\d+)(?=\\.)")
     // swiftlint:disable:next force_try
+    private static let classScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$class)(\\d+)(?=\\.)")
+    // swiftlint:disable:next force_try
+    private static let tpScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$tp)(\\d+)(?=\\.)")
+    // swiftlint:disable:next force_try
     private static let localNameOrdinalRegex = try! NSRegularExpression(pattern: "(__local_)(\\d+)")
     // swiftlint:disable:next force_try
     private static let forVarOrdinalRegex = try! NSRegularExpression(pattern: "(__for_)(\\d+)")
 
     static func normalize(_ output: String) -> String {
         var normalized = output
+        normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: tpScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: syntheticScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: localNameOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: forVarOrdinalRegex)
