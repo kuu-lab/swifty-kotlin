@@ -3086,6 +3086,15 @@ final class CallTypeChecker {
                         interner: interner,
                         elementType: explicitTypeArg
                     )
+                } else if let explicitTypeArg = explicitTypeArgs.first,
+                          name == "listOf" || name == "listOfNotNull"
+                {
+                    collectionType = makeSyntheticListType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: explicitTypeArg
+                    )
                 } else if calleeName == knownNames.emptyListFn {
                     collectionType = makeSyntheticListType(
                         symbols: sema.symbols,
