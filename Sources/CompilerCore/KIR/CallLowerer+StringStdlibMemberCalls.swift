@@ -820,6 +820,8 @@ extension CallLowerer {
                     ("kk_string_findLast", [loweredReceiverID] + normalizedArgIDs)
                 case "reduce":
                     ("kk_string_reduce", [loweredReceiverID] + normalizedArgIDs)
+                case "singleOrNull":
+                    ("kk_string_singleOrNull_predicate", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
