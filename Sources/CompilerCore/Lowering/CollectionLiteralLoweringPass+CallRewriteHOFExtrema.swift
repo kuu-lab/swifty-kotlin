@@ -155,6 +155,7 @@ extension CollectionLiteralLoweringPass {
                     thenComparatorCallee: lookup.kkComparatorThenComparatorName,
                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                     nullsLastCallee: lookup.kkComparatorNullsLastName,
+                    nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                     multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
                     reversedCallee: lookup.kkComparatorReversedName
@@ -212,6 +213,11 @@ extension CollectionLiteralLoweringPass {
                 case .nullsLast:
                     trampolineName = lookup.kkComparatorNullsLastTrampolineName
                     closureExpr = comparatorExpr
+                case .nullsFirstComparable:
+                    trampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
+                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                    closureExpr = zero
                 case .naturalOrder:
                     trampolineName = lookup.kkComparatorNaturalOrderTrampolineName
                     let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -238,6 +244,7 @@ extension CollectionLiteralLoweringPass {
                         thenComparatorCallee: lookup.kkComparatorThenComparatorName,
                         nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                         nullsLastCallee: lookup.kkComparatorNullsLastName,
+                        nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
                         multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                         multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
                         reversedCallee: lookup.kkComparatorReversedName
@@ -272,6 +279,11 @@ extension CollectionLiteralLoweringPass {
                     case .nullsLast:
                         innerTrampolineName = lookup.kkComparatorNullsLastTrampolineName
                         innerClosureExpr = innerExpr
+                    case .nullsFirstComparable:
+                        innerTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
+                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                        innerClosureExpr = zero
                     case .naturalOrder:
                         innerTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
                         let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -393,6 +405,7 @@ extension CollectionLiteralLoweringPass {
                     thenComparatorCallee: lookup.kkComparatorThenComparatorName,
                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                     nullsLastCallee: lookup.kkComparatorNullsLastName,
+                    nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                     multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
                     reversedCallee: lookup.kkComparatorReversedName
@@ -424,6 +437,11 @@ extension CollectionLiteralLoweringPass {
                 case .nullsLast:
                     cmpTrampolineName = lookup.kkComparatorNullsLastTrampolineName
                     cmpClosureExpr = cmpExpr
+                case .nullsFirstComparable:
+                    cmpTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
+                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                    cmpClosureExpr = zero
                 case .naturalOrder:
                     cmpTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
                     let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -450,6 +468,7 @@ extension CollectionLiteralLoweringPass {
                         thenComparatorCallee: lookup.kkComparatorThenComparatorName,
                         nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                         nullsLastCallee: lookup.kkComparatorNullsLastName,
+                        nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
                         multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                     multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
                         reversedCallee: lookup.kkComparatorReversedName
@@ -484,6 +503,11 @@ extension CollectionLiteralLoweringPass {
                     case .nullsLast:
                         innerTrampolineName = lookup.kkComparatorNullsLastTrampolineName
                         innerClosureExpr = innerExpr
+                    case .nullsFirstComparable:
+                        innerTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
+                        let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                        loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                        innerClosureExpr = zero
                     case .naturalOrder:
                         innerTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
                         let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
