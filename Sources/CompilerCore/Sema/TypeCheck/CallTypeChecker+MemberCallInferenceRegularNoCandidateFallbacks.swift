@@ -552,6 +552,8 @@ extension CallTypeChecker {
                     sema.types.make(.primitive(.int, .nonNull))
                 case "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast":
                     sema.types.stringType
+                case "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast":
+                    sema.types.stringType
                 case "prependIndent", "replaceIndent", "replaceIndentByMargin":
                     sema.types.stringType
                 case "commonPrefixWith", "commonSuffixWith":
