@@ -28,7 +28,7 @@ symbol fq=kotlin.math.atan2.y kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.hypot#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Double,Double] ret=Double
 symbol fq=kotlin.math.hypot.x kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.hypot.y kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun testAtan2 sym=golden.sema.testAtan2
   decl d1 fun testHypot sym=golden.sema.testHypot
   decl d2 fun testCoerceIn sym=golden.sema.testCoerceIn

@@ -13,7 +13,7 @@ symbol fq=kotlin.text.split#3 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.text.split.delimiters kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.split.ignoreCase kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.split.limit kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun useSplitLimitOnly sym=golden.sema.useSplitLimitOnly
   decl d1 fun useSplitLimitOnlyThree sym=golden.sema.useSplitLimitOnlyThree
   decl d2 fun useSplitDefaultSplit sym=golden.sema.useSplitDefaultSplit

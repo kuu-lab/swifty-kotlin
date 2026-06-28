@@ -6,7 +6,7 @@ symbol fq=multiGuard.$0.b kind=valueParameter vis=private flags=_
 symbol fq=multiGuard.$0.c kind=valueParameter vis=private flags=_
 symbol fq=noElseGuard kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
 symbol fq=noElseGuard.$1.x kind=valueParameter vis=private flags=_
-file f4 package=_
+file f5 package=_
   decl d0 fun multiGuard sym=multiGuard
   decl d1 fun noElseGuard sym=noElseGuard
   decl d2 fun boolExhaustive sym=boolExhaustive

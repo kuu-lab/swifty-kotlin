@@ -7,7 +7,7 @@ symbol fq=kotlinx.coroutines.launch#1 kind=function vis=public flags=synthetic s
 symbol fq=kotlinx.coroutines.launch.block kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlinx.coroutines.runBlocking kind=function vis=public flags=synthetic sig=recv=_ params=[suspend () -> Any] ret=Any
 symbol fq=kotlinx.coroutines.runBlocking.block kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun main sym=golden.sema.main
 expr e0 int(10) type=Long
 expr e1 call callee=e2 args=[_:e0] type=Unit

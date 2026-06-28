@@ -1,7 +1,7 @@
 symbol fq=aggregate kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<Int>] ret=Unit
 symbol fq=aggregate.$0.values kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-file f4 package=_
+file f5 package=_
   decl d0 fun aggregate sym=aggregate
 expr e0 name(values) type=kotlin.collections.List<Int> ref=aggregate.$0.values
 expr e1 name(it) type=Int ref=s-0
