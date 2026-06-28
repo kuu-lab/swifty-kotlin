@@ -1,7 +1,7 @@
 symbol fq=golden.sema.Validated kind=class vis=public flags=_
 symbol fq=golden.sema.Validated.$backing_value kind=backingField vis=private flags=mutable type=Int
 symbol fq=golden.sema.Validated.value kind=property vis=public flags=mutable type=Int
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 class Validated sym=golden.sema.Validated
 expr e0 name(v) type=Int ref=s-0
 expr e1 int(0) type=Int

@@ -58,7 +58,7 @@ symbol fq=kotlin.longArrayOf kind=function vis=public flags=synthetic sig=recv=_
 symbol fq=kotlin.shortArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ShortArray vararg=[1]
 symbol fq=longArrayOfLiteral kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=shortArrayOfLiteral kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f5 package=_
+file f12 package=_
   decl d0 fun arrayOfInts sym=arrayOfInts
   decl d1 fun arrayOfStrings sym=arrayOfStrings
   decl d2 fun intArrayOfLiteral sym=intArrayOfLiteral

@@ -2,16 +2,14 @@ symbol fq=__local_0.a kind=local vis=private flags=_ type=String
 symbol fq=__local_1.b kind=local vis=private flags=_ type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.commonPrefixWith#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=String
-symbol fq=kotlin.text.commonPrefixWith#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,Boolean] ret=String
-symbol fq=kotlin.text.commonPrefixWith.ignoreCase kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.commonPrefixWith.other kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.commonSuffixWith#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=String
-symbol fq=kotlin.text.commonSuffixWith#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,Boolean] ret=String
-symbol fq=kotlin.text.commonSuffixWith.ignoreCase kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.commonSuffixWith.other kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.text.commonPrefixWith kind=function vis=public flags=_ sig=recv=String params=[String,Boolean] ret=String defaults=[0,1]
+symbol fq=kotlin.text.commonPrefixWith.$0.ignoreCase kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.commonPrefixWith.$0.other kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.commonSuffixWith kind=function vis=public flags=_ sig=recv=String params=[String,Boolean] ret=String defaults=[0,1]
+symbol fq=kotlin.text.commonSuffixWith.$1.ignoreCase kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.commonSuffixWith.$1.other kind=valueParameter vis=private flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f5 package=_
+file f12 package=_
   decl d0 fun main sym=main
 expr e0 string(HelloWorld) type=String
 expr e1 localDecl a mutable=0 type=_ init=e0 type=Unit ref=__local_0.a
@@ -19,52 +17,52 @@ expr e2 string(HelloKotlin) type=String
 expr e3 localDecl b mutable=0 type=_ init=e2 type=Unit ref=__local_1.b
 expr e4 name(a) type=String ref=__local_0.a
 expr e5 name(b) type=String ref=__local_1.b
-expr e6 memberCall recv=e4 callee=commonPrefixWith args=[_:e5] type=String call=kotlin.text.commonPrefixWith#0
+expr e6 memberCall recv=e4 callee=commonPrefixWith args=[_:e5] type=String call=kotlin.text.commonPrefixWith
 expr e7 call callee=e8 args=[_:e6] type=Unit call=kotlin.io.println#1
 expr e9 string(abc) type=String
 expr e10 string(xyz) type=String
-expr e11 memberCall recv=e9 callee=commonPrefixWith args=[_:e10] type=String call=kotlin.text.commonPrefixWith#0
+expr e11 memberCall recv=e9 callee=commonPrefixWith args=[_:e10] type=String call=kotlin.text.commonPrefixWith
 expr e12 call callee=e13 args=[_:e11] type=Unit call=kotlin.io.println#1
 expr e14 string() type=String
 expr e15 string(abc) type=String
-expr e16 memberCall recv=e14 callee=commonPrefixWith args=[_:e15] type=String call=kotlin.text.commonPrefixWith#0
+expr e16 memberCall recv=e14 callee=commonPrefixWith args=[_:e15] type=String call=kotlin.text.commonPrefixWith
 expr e17 call callee=e18 args=[_:e16] type=Unit call=kotlin.io.println#1
 expr e19 string(HelloWorld) type=String
 expr e20 string(HelloKotlin) type=String
 expr e21 bool(false) type=Boolean
-expr e22 memberCall recv=e19 callee=commonPrefixWith args=[_:e20,_:e21] type=String call=kotlin.text.commonPrefixWith#1
+expr e22 memberCall recv=e19 callee=commonPrefixWith args=[_:e20,_:e21] type=String call=kotlin.text.commonPrefixWith
 expr e23 call callee=e24 args=[_:e22] type=Unit call=kotlin.io.println#1
 expr e25 string(HelloWorld) type=String
 expr e26 string(helloKotlin) type=String
 expr e27 bool(true) type=Boolean
-expr e28 memberCall recv=e25 callee=commonPrefixWith args=[_:e26,_:e27] type=String call=kotlin.text.commonPrefixWith#1
+expr e28 memberCall recv=e25 callee=commonPrefixWith args=[_:e26,_:e27] type=String call=kotlin.text.commonPrefixWith
 expr e29 call callee=e30 args=[_:e28] type=Unit call=kotlin.io.println#1
 expr e31 string(ABCdef) type=String
 expr e32 string(abcXYZ) type=String
 expr e33 bool(true) type=Boolean
-expr e34 memberCall recv=e31 callee=commonPrefixWith args=[_:e32,_:e33] type=String call=kotlin.text.commonPrefixWith#1
+expr e34 memberCall recv=e31 callee=commonPrefixWith args=[_:e32,_:e33] type=String call=kotlin.text.commonPrefixWith
 expr e35 call callee=e36 args=[_:e34] type=Unit call=kotlin.io.println#1
 expr e37 string(XYZ) type=String
 expr e38 string(abc) type=String
 expr e39 bool(true) type=Boolean
-expr e40 memberCall recv=e37 callee=commonPrefixWith args=[_:e38,_:e39] type=String call=kotlin.text.commonPrefixWith#1
+expr e40 memberCall recv=e37 callee=commonPrefixWith args=[_:e38,_:e39] type=String call=kotlin.text.commonPrefixWith
 expr e41 call callee=e42 args=[_:e40] type=Unit call=kotlin.io.println#1
 expr e43 string(Hello) type=String
 expr e44 string(hello) type=String
 expr e45 bool(false) type=Boolean
-expr e46 memberCall recv=e43 callee=commonPrefixWith args=[_:e44,_:e45] type=String call=kotlin.text.commonPrefixWith#1
+expr e46 memberCall recv=e43 callee=commonPrefixWith args=[_:e44,_:e45] type=String call=kotlin.text.commonPrefixWith
 expr e47 call callee=e48 args=[_:e46] type=Unit call=kotlin.io.println#1
 expr e49 string(HelloWorld) type=String
 expr e50 string(MyWorld) type=String
-expr e51 memberCall recv=e49 callee=commonSuffixWith args=[_:e50] type=String call=kotlin.text.commonSuffixWith#0
+expr e51 memberCall recv=e49 callee=commonSuffixWith args=[_:e50] type=String call=kotlin.text.commonSuffixWith
 expr e52 call callee=e53 args=[_:e51] type=Unit call=kotlin.io.println#1
 expr e54 string(HelloWORLD) type=String
 expr e55 string(MyWorld) type=String
 expr e56 bool(true) type=Boolean
-expr e57 memberCall recv=e54 callee=commonSuffixWith args=[_:e55,_:e56] type=String call=kotlin.text.commonSuffixWith#1
+expr e57 memberCall recv=e54 callee=commonSuffixWith args=[_:e55,_:e56] type=String call=kotlin.text.commonSuffixWith
 expr e58 call callee=e59 args=[_:e57] type=Unit call=kotlin.io.println#1
 expr e60 string(HelloWORLD) type=String
 expr e61 string(MyWorld) type=String
 expr e62 bool(false) type=Boolean
-expr e63 memberCall recv=e60 callee=commonSuffixWith args=[_:e61,_:e62] type=String call=kotlin.text.commonSuffixWith#1
+expr e63 memberCall recv=e60 callee=commonSuffixWith args=[_:e61,_:e62] type=String call=kotlin.text.commonSuffixWith
 expr e64 call callee=e65 args=[_:e63] type=Unit call=kotlin.io.println#1

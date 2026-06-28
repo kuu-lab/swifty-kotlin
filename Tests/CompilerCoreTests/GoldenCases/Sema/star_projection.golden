@@ -10,7 +10,7 @@ symbol fq=golden.sema.readContainer kind=function vis=public flags=_ sig=recv=_ 
 symbol fq=golden.sema.readContainer.$2.c kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 class Container sym=golden.sema.Container
   decl d1 fun readContainer sym=golden.sema.readContainer
   decl d2 fun eraseType sym=golden.sema.eraseType

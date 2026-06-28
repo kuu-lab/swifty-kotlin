@@ -3,7 +3,7 @@ symbol fq=golden.sema.useDestructuring kind=function vis=public flags=_ sig=recv
 symbol fq=golden.sema.useIt kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
 symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 fun useIt sym=golden.sema.useIt
   decl d1 fun useDestructuring sym=golden.sema.useDestructuring
 expr e0 int(1) type=Int
