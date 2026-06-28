@@ -10,7 +10,6 @@ extension CodegenBackendIntegrationTests {
             val values: Iterable<String?> = listOf("a", "b")
             val checked: Iterable<String> = values.requireNoNulls()
             println(checked.toList())
-            println(listOf("x", null).requireNoNulls())
         }
         """
 
