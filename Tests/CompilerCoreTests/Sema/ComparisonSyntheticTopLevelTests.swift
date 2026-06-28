@@ -363,6 +363,56 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-051: minOf unsigned overloads (UByte, UShort, UInt, ULong) resolve to synthetic comparison functions
+    func testRemainingMinOfUnsignedOverloadsResolveToSyntheticComparisonFunctions() throws {
+        let source = """
+        fun sample() {
+            val unsignedMin2 = minOf(1u, 4000000000u)
+            val unsignedMin3 = minOf(1u, 3u, 4000000000u)
+            println(unsignedMin2)
+            println(unsignedMin3)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+            let expectedCases: [(argCount: Int, returnType: TypeID)] = [
+                (2, sema.types.uintType),
+                (3, sema.types.uintType),
+            ]
+
+            for expected in expectedCases {
+                let callExpr = try XCTUnwrap(
+                    firstExprID(in: ast) { exprID, expr in
+                        guard case let .call(calleeExpr, _, args, _) = expr,
+                              case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                        else {
+                            return false
+                        }
+                        return interner.resolve(calleeName) == "minOf"
+                            && args.count == expected.argCount
+                            && sema.bindings.exprTypes[exprID] == expected.returnType
+                    },
+                    "Expected minOf(\(expected.argCount) args) to resolve"
+                )
+                XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+                let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+                XCTAssertEqual(symbol.fqName, [
+                    interner.intern("kotlin"),
+                    interner.intern("comparisons"),
+                    interner.intern("minOf"),
+                ])
+                XCTAssertEqual(sema.bindings.exprTypes[callExpr], expected.returnType)
+            }
+        }
+    }
+
     // STDLIB-COMP-FN-009: maxOf(Byte, Byte, Byte) — Byte resolves to Int internally
     func testThreeArgMaxOfByteResolvesToInt3Overload() throws {
         let source = """
@@ -1056,6 +1106,44 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
                 interner.intern("kotlin"),
                 interner.intern("comparisons"),
                 interner.intern("maxOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.longType, sema.types.longType])
+        }
+    }
+
+    // STDLIB-COMP-FN-044: minOf(Long, Long) — 2-arg Long overload
+    func testTwoArgMinOfLongResolvesToLong2Overload() throws {
+        let source = """
+        fun sample(a: Long, b: Long): Long = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with Long arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.longType)
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfLong)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
             ])
             let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
             XCTAssertEqual(sig.parameterTypes, [sema.types.longType, sema.types.longType])

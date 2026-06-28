@@ -196,9 +196,11 @@ symbol fq=__local_174.sb kind=local vis=private flags=_ type=kotlin.text.StringB
 symbol fq=__local_175.i kind=local vis=private flags=mutable type=Int
 symbol fq=__local_176.len kind=local vis=private flags=_ type=Int
 symbol fq=__local_177.sb kind=local vis=private flags=_ type=kotlin.text.StringBuilder
-symbol fq=golden.sema.twoArgMinULong kind=function vis=public flags=_ sig=recv=_ params=[ULong,ULong] ret=ULong
-symbol fq=golden.sema.twoArgMinULong.$20.a kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.twoArgMinULong.$20.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.varargMinUByte kind=function vis=public flags=_ sig=recv=_ params=[UByte,UByte,UByte,UByte] ret=UByte
+symbol fq=golden.sema.varargMinUByte.$20.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.varargMinUByte.$20.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.varargMinUByte.$20.c kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.varargMinUByte.$20.d kind=valueParameter vis=private flags=_
 symbol fq=java.util.Locale kind=class vis=public flags=synthetic type=java.util.Locale
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
@@ -339,9 +341,9 @@ symbol fq=kotlin.collections.sortedWith.$14.comparator kind=valueParameter vis=p
 symbol fq=kotlin.collections.sumOf kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sumOf.$42.T> params=[(kotlin.collections.sumOf.$42.T) -> Int] ret=Int
 symbol fq=kotlin.collections.sumOf.$42.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.sumOf.$42.selector kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#16 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong
+symbol fq=kotlin.comparisons.minOf#11 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[UByte,UByte] ret=UByte vararg=[0,1]
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.comparisons.minOf.other kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
 symbol fq=kotlin.random.Random.Default kind=property vis=public flags=synthetic type=kotlin.random.Random
 symbol fq=kotlin.random.Random.nextInt#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int] ret=Int
@@ -589,7 +591,7 @@ file f3 package=kotlin.time
   decl d102 property hours var=0 sym=kotlin.time.hours
   decl d103 property days var=0 sym=kotlin.time.days
 file f4 package=golden.sema
-  decl d104 fun twoArgMinULong sym=golden.sema.twoArgMinULong
+  decl d104 fun varargMinUByte sym=golden.sema.varargMinUByte
 expr e1 call callee=e0 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.first.$27.T]
 expr e3 string(Collection is empty.) type=String
 expr e4 call callee=e2 args=[_:e3] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
@@ -2836,6 +2838,8 @@ expr e2469 this type=Double
 expr e2470 name(DurationUnit) type=Any ref=kotlin.time.DurationUnit
 expr e2471 memberCall recv=e2470 callee=DAYS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.DAYS
 expr e2472 memberCall recv=e2469 callee=toDuration args=[_:e2471] type=kotlin.time.Duration call=kotlin.time.toDuration#0
-expr e2474 name(a) type=ULong ref=golden.sema.twoArgMinULong.$20.a
-expr e2475 name(b) type=ULong ref=golden.sema.twoArgMinULong.$20.b
-expr e2476 call callee=e2473 args=[_:e2474,_:e2475] type=ULong call=kotlin.comparisons.minOf#16
+expr e2474 name(a) type=UByte ref=golden.sema.varargMinUByte.$20.a
+expr e2475 name(b) type=UByte ref=golden.sema.varargMinUByte.$20.b
+expr e2476 name(c) type=UByte ref=golden.sema.varargMinUByte.$20.c
+expr e2477 name(d) type=UByte ref=golden.sema.varargMinUByte.$20.d
+expr e2478 call callee=e2473 args=[_:e2474,_:e2475,_:e2476,_:e2477] type=UByte call=kotlin.comparisons.minOf#11
