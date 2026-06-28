@@ -2071,6 +2071,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticStringExtensionFunction(
+            named: "replaceRange",
+            externalLinkName: "kk_string_replaceRange_indices",
+            receiverType: stringType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+                ("replacement", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-EDGE-008: removeRange ---
 
         registerSyntheticStringExtensionFunction(
@@ -2093,6 +2108,40 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("range", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>) ---
+        // IntRange is represented as intType at the ABI level; Iterable<Int> uses List<out Int>.
+        // KIR lowering distinguishes the two via isRangeExpr on the argument.
+        let listOfIntTypeForSlice = makeListType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: intType
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "slice",
+            externalLinkName: "kk_string_slice_range",
+            receiverType: stringType,
+            parameters: [
+                ("indices", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "slice",
+            externalLinkName: "kk_string_slice_iterable",
+            receiverType: stringType,
+            parameters: [
+                ("indices", listOfIntTypeForSlice, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,

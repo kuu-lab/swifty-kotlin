@@ -748,6 +748,28 @@ public func kk_comparator_nulls_last_of(_ cFn: Int, _ cClosure: Int) -> Int {
     return raw
 }
 
+// MARK: - nullsLast (Comparable版 -- STDLIB-COMP-FN-061)
+
+@_cdecl("kk_comparator_nulls_last_natural_trampoline")
+public func kk_comparator_nulls_last_natural_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    _ = closureRaw
+    _ = outThrown
+    if let nullableResult = runtimeCompareNullableOrder(a: a, b: b, nullsFirst: false) {
+        return nullableResult
+    }
+    return runtimeCompareValues(a, b)
+}
+
+@_cdecl("kk_comparator_nulls_last_natural")
+public func kk_comparator_nulls_last_natural() -> Int {
+    0
+}
+
 @inline(__always)
 private func runtimeCompareNullableOrder(
     a: Int,
@@ -912,6 +934,26 @@ public func kk_comparator_reversed_trampoline(
     let result = runtimeInvokeCollectionLambda2(fnPtr: pairBox.first, closureRaw: pairBox.second, lhs: a, rhs: b, outThrown: &thrown)
     if thrown != 0 { outThrown?.pointee = thrown; return 0 }
     return result == 0 ? 0 : -result
+}
+
+// MARK: - nullsFirst Comparable (STDLIB-COMP-FN-059)
+
+@_cdecl("kk_comparator_nulls_first_comparable_trampoline")
+public func kk_comparator_nulls_first_comparable_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    _ = closureRaw
+    _ = outThrown
+    if let r = runtimeCompareNullableOrder(a: a, b: b, nullsFirst: true) { return r }
+    return runtimeCompareValues(a, b)
+}
+
+@_cdecl("kk_comparator_nulls_first_comparable")
+public func kk_comparator_nulls_first_comparable() -> Int {
+    0
 }
 
 // MARK: - naturalOrder / reverseOrder (STDLIB-177)
