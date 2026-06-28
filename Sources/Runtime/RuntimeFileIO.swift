@@ -1031,7 +1031,7 @@ private func fileTreeWalkCollect(
     results: inout [Int]
 ) {
     var isDir: ObjCBool = false
-    FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+    _ = FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
     let fileHandle = registerRuntimeObject(RuntimeFileBox(path))
 
     if walk.topDown {
@@ -1395,7 +1395,7 @@ public func kk_file_copyRecursively(
 
     func copyItem(srcPath: String, dstPath: String) -> Bool {
         var srcIsDir: ObjCBool = false
-        fm.fileExists(atPath: srcPath, isDirectory: &srcIsDir)
+        _ = fm.fileExists(atPath: srcPath, isDirectory: &srcIsDir)
 
         if srcIsDir.boolValue {
             // Create target directory if needed.

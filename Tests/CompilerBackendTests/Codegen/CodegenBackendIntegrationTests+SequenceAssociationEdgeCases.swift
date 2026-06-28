@@ -3,8 +3,6 @@
 import Foundation
 import XCTest
 
-// MARK: - STDLIB-SEQ-FN-005: Sequence.associate { T -> Pair<K, V> }
-
 extension CodegenBackendIntegrationTests {
     func testSequenceAssociateBuildsMapWithUniqueKeys() throws {
         let source = """
@@ -14,20 +12,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceAssociateUniqueKeys",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{1=10, 2=20, 3=30}\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceAssociateUniqueKeys", expected: "{1=10, 2=20, 3=30}\n")
     }
 
     func testSequenceAssociateEmptySequenceReturnsEmptyMap() throws {
@@ -39,20 +24,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceAssociateEmptySeq",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{}\n0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceAssociateEmptySeq", expected: "{}\n0\n")
     }
 
     func testSequenceAssociateWithStringElementsProducesStringIntMap() throws {
@@ -65,20 +37,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceAssociateStringKeys",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n2\n3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SequenceAssociateStringKeys", expected: "1\n2\n3\n")
     }
 
     func testSequenceAssociateAllowsKeyLookupInResult() throws {
@@ -91,27 +50,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceAssociateKeyLookup",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceAssociateKeyLookup",
+            expected:
                 """
                 1
                 4
                 9
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testSequenceAssociateWithMapsElementsToTransformedValues() throws {
@@ -126,26 +74,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceAssociateWithRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceAssociateWithRuntime",
+            expected:
                 """
                 1
                 4
                 9
                 """ + "\n"
-            )
-        }
+        )
     }
 }
+

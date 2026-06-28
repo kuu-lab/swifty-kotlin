@@ -16,20 +16,10 @@ extension CodegenBackendIntegrationTests {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceSorted",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceSorted",
+            expected:
                 """
                 [1, 2, 3]
                 [a, cc, bbb]
@@ -37,7 +27,7 @@ extension CodegenBackendIntegrationTests {
                 [3, 2, 1]
                 """
                     + "\n"
-            )
-        }
+        )
     }
 }
+

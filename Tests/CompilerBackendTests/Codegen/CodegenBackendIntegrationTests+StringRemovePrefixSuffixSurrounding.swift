@@ -29,22 +29,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringRemovePrefixSuffixSurrounding",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                "World\nHelloWorld\n\nHello\nHelloWorld\n\nstar\n[bracketed]\nab\ncontent\nitem\nno-match\n"
-            )
-        }
+        try assertKotlinOutput(source, moduleName: "StringRemovePrefixSuffixSurrounding", expected: "World\nHelloWorld\n\nHello\nHelloWorld\n\nstar\n[bracketed]\nab\ncontent\nitem\nno-match\n")
     }
 }
+
