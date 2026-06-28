@@ -2863,13 +2863,13 @@ expr e2310 call callee=e2311 args=[] type=kotlin.sequences.Sequence<out kotlin.c
 expr e2312 memberCall recv=e2310 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
 expr e2313 memberCall recv=e2312 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
 expr e2314 call callee=e2315 args=[_:e2313] type=Unit call=kotlin.io.println#1
-expr e2316 call callee=e2317 args=[] type=Any
+expr e2316 call callee=e2317 args=[] type=kotlin.collections.List<out Int>
 expr e2318 int(1) type=Int
 expr e2319 call callee=e2320 args=[_:e2318] type=kotlin.collections.List<out Int>
-expr e2321 call callee=e2322 args=[] type=Any
-expr e2323 call callee=e2324 args=[_:e2316,_:e2319,_:e2321] type=kotlin.sequences.Sequence<out Any> call=kotlin.sequences.sequenceOf targs=[Any]
-expr e2325 memberCall recv=e2323 callee=flatten args=[] type=kotlin.sequences.Sequence<out Any>
-expr e2326 memberCall recv=e2325 callee=toList args=[] type=kotlin.collections.List<Any> call=kotlin.sequences.Sequence.toList
+expr e2321 call callee=e2322 args=[] type=kotlin.collections.List<out Int>
+expr e2323 call callee=e2324 args=[_:e2316,_:e2319,_:e2321] type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>> call=kotlin.sequences.sequenceOf targs=[kotlin.collections.List<out Int>]
+expr e2325 memberCall recv=e2323 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
+expr e2326 memberCall recv=e2325 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
 expr e2327 call callee=e2328 args=[_:e2326] type=Unit call=kotlin.io.println#1
 expr e2329 int(1) type=Int
 expr e2330 int(10) type=Int
