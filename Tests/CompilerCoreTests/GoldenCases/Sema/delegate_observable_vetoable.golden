@@ -3,6 +3,12 @@ symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[]
 symbol fq=golden.sema.name kind=property vis=public flags=mutable type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.io.readBytes#0 kind=function vis=public flags=_ sig=recv=java.io.File params=[] ret=kotlin.collections.List<out Int>
+symbol fq=kotlin.io.readText#0 kind=function vis=public flags=_ sig=recv=java.io.File params=[] ret=String
+symbol fq=kotlin.io.writeBytes kind=function vis=public flags=_ sig=recv=java.io.File params=[kotlin.ByteArray] ret=Unit
+symbol fq=kotlin.io.writeBytes.$44.array kind=valueParameter vis=private flags=_
+symbol fq=kotlin.io.writeText kind=function vis=public flags=_ sig=recv=java.io.File params=[String] ret=Unit
+symbol fq=kotlin.io.writeText.$45.text kind=valueParameter vis=private flags=_
 symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic type=kotlin.properties.Delegates
 symbol fq=kotlin.properties.Delegates.observable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
 symbol fq=kotlin.properties.Delegates.vetoable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
