@@ -15,7 +15,8 @@ bash Scripts/swift_test.sh                               # 全テスト（並列
 bash Scripts/swift_test.sh --filter SmokeTests           # スモークテスト
 bash Scripts/swift_test.sh --filter Golden               # ゴールデン全部（Swift Testing: Lexer / Parser / Sema / Diagnostics）。`Golden` はシンボル名の部分一致
 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden  # Sema ゴールデンのみ（`Golden.Sema` は @Suite 表示名のため --filter に効かない）
-bash Scripts/swift_test.sh --filter CompilerCoreTests.LoweringPassRegressionTests  # 単一 XCTest クラス
+bash Scripts/swift_test.sh --filter CompilerCoreTests.LoweringPassRegressionTests  # 単一 XCTest クラス（フロントエンド）
+bash Scripts/swift_test.sh --filter CompilerBackendTests                         # バックエンドテスト（LLVM 必要）
 .build/debug/kswiftc path/to/file.kt -o out  # コンパイラを直接実行
 ```
 
@@ -59,7 +60,7 @@ CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifac
 LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lowering → Codegen → Link
 ```
 
-モジュール構成: `CompilerCore`（コンパイラ本体）/ `KSwiftKCLI`（CLIエントリ）/ `Runtime`（GC・coroutine）/ `CLLVM`（LLVM C API ブリッジ）
+モジュール構成: `CompilerCore`（フロントエンド、LLVM非依存）/ `CompilerBackend`（Codegen+Link、LLVM依存）/ `KSwiftKCLI`（CLIエントリ）/ `Runtime`（GC・coroutine）/ `CLLVM`（LLVM C API ブリッジ）
 
 詳細なディレクトリマップ・フェーズ仕様・タスク別ナビゲーションは → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
