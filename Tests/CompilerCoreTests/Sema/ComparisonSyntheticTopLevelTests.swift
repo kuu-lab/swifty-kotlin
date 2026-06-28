@@ -1077,7 +1077,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1116,7 +1116,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1155,7 +1155,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
