@@ -302,6 +302,39 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // TEST-TEXT-046: CharSequence.reduce
+    func testCodegenStringReduce() throws {
+        let source = """
+        fun main() {
+            println("abc".reduce { acc, c -> if (acc == 'b') acc else c })
+            println("x".reduce { acc, c -> acc })
+            println("abc".reduce { acc, c -> acc })
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringHOFReduce",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                b
+                x
+                a
+                """
+                + "\n"
+            )
+        }
+    }
+
     // TEST-TEXT-018: takeWhile / dropWhile
     func testCodegenStringTakeWhileDropWhile() throws {
         let source = """
