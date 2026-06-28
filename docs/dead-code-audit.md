@@ -2,7 +2,7 @@
 
 > **ステータス**: Section A（完全到達不能 102 個）と Section C（参照ゼロ Swift 関数 6 個）は **削除済み**。
 > 参照元ファイル（`RuntimeLogging.swift`, `RuntimeFlowErrorHandling.swift` 等）も既に存在しない。
-> Section B（テストのみ参照 127 個）はトリアージ途中。
+> Section B（テストのみ参照 127 個）はトリアージ完了（2026-06-23 実施）。RF-DEAD-002 結果参照。
 > 本ドキュメントは監査の履歴記録として保持する。
 
 TODO.md の Phase RF9（RF-DEAD-001〜004）の根拠インベントリ。検出手法と全リストを記録する。
