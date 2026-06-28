@@ -15,7 +15,7 @@ symbol fq=tripleFirst kind=function vis=public flags=_ sig=recv=_ params=[] ret=
 symbol fq=tripleSecond kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=tripleThird kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol fq=tripleToString kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-file f12 package=_
+file f11 package=_
   decl d0 fun tripleCreate sym=tripleCreate
   decl d1 fun tripleFirst sym=tripleFirst
   decl d2 fun tripleSecond sym=tripleSecond

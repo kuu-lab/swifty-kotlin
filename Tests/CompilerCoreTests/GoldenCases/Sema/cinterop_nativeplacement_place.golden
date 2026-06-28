@@ -11,7 +11,7 @@ symbol fq=kotlinx.cinterop.NativePlacement kind=interface vis=public flags=synth
 symbol fq=kotlinx.cinterop.place kind=function vis=public flags=inlineFunction|synthetic sig=recv=kotlinx.cinterop.NativePlacement params=[kotlinx.cinterop.CValues<kotlinx.cinterop.place.T>] ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.place.T> bounds=[kotlinx.cinterop.CVariable]
 symbol fq=kotlinx.cinterop.place.$tp0.value kind=valueParameter vis=private flags=synthetic type=kotlinx.cinterop.CValues<kotlinx.cinterop.place.T>
 symbol fq=kotlinx.cinterop.place.T kind=typeParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 fun copyValue sym=golden.sema.copyValue
 expr e0 name(placement) type=kotlinx.cinterop.NativePlacement ref=golden.sema.copyValue.$0.placement
 expr e1 name(value) type=kotlinx.cinterop.CValues<golden.sema.copyValue.$0.T> ref=golden.sema.copyValue.$0.value

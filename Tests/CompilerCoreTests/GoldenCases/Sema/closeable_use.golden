@@ -10,7 +10,7 @@ symbol fq=kotlin.Any kind=class vis=public flags=synthetic
 symbol fq=kotlin.Any.toString kind=function vis=public flags=synthetic|openType sig=recv=kotlin.Any params=[] ret=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 class MyResource sym=golden.sema.MyResource
   decl d1 fun useBasic sym=golden.sema.useBasic
   decl d2 fun useReturnValue sym=golden.sema.useReturnValue

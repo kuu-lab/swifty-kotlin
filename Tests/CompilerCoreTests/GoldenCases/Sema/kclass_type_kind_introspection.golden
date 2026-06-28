@@ -17,7 +17,7 @@ symbol fq=golden.sema.checkTypeKinds kind=function vis=public flags=_ sig=recv=_
 symbol fq=golden.sema.checkViaVariable kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KClass<*>] ret=String
 symbol fq=golden.sema.checkViaVariable.$0.klass kind=valueParameter vis=private flags=_
 symbol fq=kotlin.reflect.KClass kind=interface vis=public flags=synthetic
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 class Point sym=golden.sema.Point
   decl d1 class Shape sym=golden.sema.Shape
   decl d2 class Color sym=golden.sema.Color

@@ -11,7 +11,7 @@ symbol fq=golden.sema.Right kind=interface vis=public flags=_
 symbol fq=golden.sema.Right.method kind=function vis=public flags=overrideMember sig=recv=golden.sema.Right params=[] ret=String
 symbol fq=golden.sema.WithOverride kind=class vis=public flags=_
 symbol fq=golden.sema.WithSuperCall kind=class vis=public flags=_
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 interface Base sym=golden.sema.Base
   decl d1 interface Left sym=golden.sema.Left
   decl d2 interface Right sym=golden.sema.Right

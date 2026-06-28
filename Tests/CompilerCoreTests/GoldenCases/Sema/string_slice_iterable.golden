@@ -6,7 +6,7 @@ symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List.slice#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List<out kotlin.collections.List.E>
 symbol fq=kotlin.collections.List.slice#1 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[kotlin.collections.List<out Int>] ret=kotlin.collections.List<out kotlin.collections.List.E>
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 fun useListSliceEmptyExplicitType sym=golden.sema.useListSliceEmptyExplicitType
   decl d1 fun useListSliceListOf sym=golden.sema.useListSliceListOf
   decl d2 fun useListSliceRange sym=golden.sema.useListSliceRange

@@ -2,7 +2,7 @@ symbol fq=kotlin.io.readln kind=function vis=public flags=synthetic sig=recv=_ p
 symbol fq=kotlin.io.readlnOrNull kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=String?
 symbol fq=useReadln kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=useReadlnOrNull kind=function vis=public flags=_ sig=recv=_ params=[] ret=String?
-file f12 package=_
+file f11 package=_
   decl d0 fun useReadln sym=useReadln
   decl d1 fun useReadlnOrNull sym=useReadlnOrNull
 expr e0 call callee=e1 args=[] type=String call=kotlin.io.readln

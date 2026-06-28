@@ -12,7 +12,7 @@ symbol fq=golden.sema.NumberContainer kind=class vis=public flags=openType
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 class NumberContainer sym=golden.sema.NumberContainer
   decl d1 class IntContainer sym=golden.sema.IntContainer
   decl d2 class Animal sym=golden.sema.Animal

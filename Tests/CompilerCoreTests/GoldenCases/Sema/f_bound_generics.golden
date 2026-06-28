@@ -8,7 +8,7 @@ symbol fq=golden.sema.useMax kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.Comparable.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.Comparable.compareTo kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.Comparable.T params=[kotlin.Comparable.T] ret=Int
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 fun max sym=golden.sema.max
   decl d1 fun useMax sym=golden.sema.useMax
 expr e0 name(a) type=golden.sema.max.$0.T ref=golden.sema.max.$0.a

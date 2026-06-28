@@ -21,7 +21,7 @@ symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=S
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=myRequire kind=function vis=public flags=_ sig=recv=_ params=[Boolean] ret=Unit
 symbol fq=myRequire.$0.value kind=valueParameter vis=private flags=_
-file f12 package=_
+file f11 package=_
   decl d0 fun myRequire sym=myRequire
   decl d1 fun main sym=main
 expr e0 call callee=e1 args=[] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#0

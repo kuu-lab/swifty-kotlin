@@ -138,7 +138,7 @@ symbol fq=kotlin.text.toInt#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.text.toIntOrNull#1 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int?
 symbol fq=kotlin.text.trim#0 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=String
 symbol fq=kotlin.text.uppercase#2 kind=function vis=public flags=_ sig=recv=String params=[] ret=String
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 fun useTrim sym=golden.sema.useTrim
   decl d1 fun useSplit sym=golden.sema.useSplit
   decl d2 fun useReplace sym=golden.sema.useReplace

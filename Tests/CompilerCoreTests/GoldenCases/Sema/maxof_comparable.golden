@@ -14,7 +14,7 @@ symbol fq=kotlin.comparisons.maxOf.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 fun maxOf2ArgString sym=golden.sema.maxOf2ArgString
   decl d1 fun maxOf3ArgString sym=golden.sema.maxOf3ArgString
   decl d2 fun maxOfVarargString sym=golden.sema.maxOfVarargString

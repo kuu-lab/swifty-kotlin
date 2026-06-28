@@ -4,7 +4,7 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.trimIndent kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
+file f11 package=_
   decl d0 fun main sym=main
 expr e0 string(hello world) type=String
 expr e1 localDecl s mutable=0 type=_ init=e0 type=Unit ref=__local_0.s

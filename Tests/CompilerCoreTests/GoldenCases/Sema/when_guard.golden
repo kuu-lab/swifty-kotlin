@@ -1,7 +1,7 @@
 symbol fq=classify kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=classify.$0.x kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
-file f12 package=_
+file f11 package=_
   decl d0 fun classify sym=classify
 expr e0 name(x) type=Any ref=classify.$0.x
 expr e1 isCheck expr=e0 type=t0 type=Boolean

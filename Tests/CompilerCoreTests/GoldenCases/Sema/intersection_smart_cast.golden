@@ -11,7 +11,7 @@ symbol fq=golden.sema.intersect.$1.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.safeValue kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.safeValue.$2.T & Any] ret=Int? bounds=[Any?]
 symbol fq=golden.sema.safeValue.$2.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.safeValue.$2.x kind=valueParameter vis=private flags=_
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 interface A sym=golden.sema.A
   decl d1 interface B sym=golden.sema.B
   decl d2 fun intersect sym=golden.sema.intersect

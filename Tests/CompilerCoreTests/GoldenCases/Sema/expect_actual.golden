@@ -1,7 +1,7 @@
 symbol fq=golden.sema.platform#0 kind=function vis=public flags=expectDeclaration sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.platform#1 kind=function vis=public flags=actualDeclaration sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.unresolved kind=function vis=public flags=expectDeclaration sig=recv=_ params=[] ret=Int
-file f12 package=golden.sema
+file f11 package=golden.sema
   decl d0 fun platform sym=golden.sema.platform#0
   decl d1 fun platform sym=golden.sema.platform#1
   decl d2 fun unresolved sym=golden.sema.unresolved
