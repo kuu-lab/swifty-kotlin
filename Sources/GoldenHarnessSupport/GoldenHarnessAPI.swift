@@ -68,8 +68,6 @@ public enum GoldenHarness {
         let stdout = Pipe(), stderr = Pipe()
         let stdoutAccumulator = DataAccumulator()
         let stderrAccumulator = DataAccumulator()
-        let stdoutHandle = stdout.fileHandleForReading
-        let stderrHandle = stderr.fileHandleForReading
 
         process.executableURL = try workerExecutableURL()
         process.arguments = [suiteName, sourcePath]
@@ -77,13 +75,20 @@ public enum GoldenHarness {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        // Drain pipes and signal when EOF is reached. On Linux the termination handler
-        // can fire before all readabilityHandler callbacks have delivered buffered data,
-        // so we use explicit EOF semaphores rather than stopping at process exit.
+        // Read stdout and stderr on background threads using blocking readDataToEndOfFile().
+        // This avoids the GCD readabilityHandler race conditions seen on Linux, where the
+        // termination handler fires before all pending dispatch callbacks have delivered
+        // buffered pipe data to the accumulator.
         let stdoutDone = DispatchSemaphore(value: 0)
         let stderrDone = DispatchSemaphore(value: 0)
-        drain(pipe: stdout, into: stdoutAccumulator, completion: stdoutDone)
-        drain(pipe: stderr, into: stderrAccumulator, completion: stderrDone)
+        DispatchQueue.global().async {
+            stdoutAccumulator.append(stdout.fileHandleForReading.readDataToEndOfFile())
+            stdoutDone.signal()
+        }
+        DispatchQueue.global().async {
+            stderrAccumulator.append(stderr.fileHandleForReading.readDataToEndOfFile())
+            stderrDone.signal()
+        }
 
         let terminatedSemaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in terminatedSemaphore.signal() }
@@ -115,8 +120,9 @@ public enum GoldenHarness {
                     // Include this information in the error message
                 }
             }
-            stdoutHandle.readabilityHandler = nil
-            stderrHandle.readabilityHandler = nil
+            // Let background readers drain after process termination (pipe write-end closes)
+            _ = stdoutDone.wait(timeout: .now() + 5)
+            _ = stderrDone.wait(timeout: .now() + 5)
             let stderrText = String(data: stderrAccumulator.snapshot(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let errorMessage = process.isRunning
                 ? "Worker timed out and survived SIGKILL. \(stderrText)"
@@ -124,9 +130,7 @@ public enum GoldenHarness {
             throw GoldenHarnessAPIError.workerTimedOut(errorMessage)
         }
 
-        // Process has terminated. Wait for readabilityHandler callbacks to finish delivering
-        // any data that was buffered in the pipe but not yet dispatched. This prevents the
-        // ~8 KB data loss seen on Linux when the termination handler fires ahead of GCD.
+        // Process has terminated; background readers will complete as the pipe write-end closes.
         _ = stdoutDone.wait(timeout: .now() + 5)
         _ = stderrDone.wait(timeout: .now() + 5)
 
@@ -271,22 +275,6 @@ public enum GoldenHarness {
         throw GoldenHarnessAPIError.workerExecutableNotFound("\(workerName) (searched: \(searchedPaths))")
     }
 
-    private static func drain(
-        pipe: Pipe,
-        into accumulator: DataAccumulator,
-        completion: DispatchSemaphore
-    ) {
-        let handle = pipe.fileHandleForReading
-        handle.readabilityHandler = { readableHandle in
-            let data = readableHandle.availableData
-            if data.isEmpty {
-                readableHandle.readabilityHandler = nil
-                completion.signal()
-                return
-            }
-            accumulator.append(data)
-        }
-    }
 }
 
 private enum GoldenHarnessFileIDNormalizer {
