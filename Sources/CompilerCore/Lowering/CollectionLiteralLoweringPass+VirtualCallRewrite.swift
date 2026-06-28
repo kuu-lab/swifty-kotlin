@@ -640,6 +640,7 @@ extension CollectionLiteralLoweringPass {
         case nullsLast(inner: KIRExprID)
         /// The comparator was produced by the zero-arg `nullsFirst()` (Comparable version).
         case nullsFirstComparable
+        case nullsLastNatural
         /// The comparator was produced by `Comparator.reversed()`.
         /// The associated KIRExprID is the inner comparator expression.
         case reversed(inner: KIRExprID)
@@ -661,6 +662,7 @@ extension CollectionLiteralLoweringPass {
         nullsFirstCallee: InternedString? = nil,
         nullsLastCallee: InternedString? = nil,
         nullsFirstComparableCallee: InternedString? = nil,
+        nullsLastNaturalCallee: InternedString? = nil,
         multiSelector3Callee: InternedString? = nil,
         multiSelectorVarargCallee: InternedString? = nil,
         reversedCallee: InternedString? = nil
@@ -697,6 +699,9 @@ extension CollectionLiteralLoweringPass {
                     if let nfc = nullsFirstComparableCallee, callee == nfc {
                         return .nullsFirstComparable
                     }
+                    if let nullsLastNatural = nullsLastNaturalCallee, callee == nullsLastNatural {
+                        return .nullsLastNatural
+                    }
                     if let rc = reversedCallee, callee == rc, let innerExpr = arguments.first {
                         return .reversed(inner: innerExpr)
                     }
@@ -719,6 +724,7 @@ extension CollectionLiteralLoweringPass {
                         nullsFirstCallee: nullsFirstCallee,
                         nullsLastCallee: nullsLastCallee,
                         nullsFirstComparableCallee: nullsFirstComparableCallee,
+                        nullsLastNaturalCallee: nullsLastNaturalCallee,
                         multiSelector3Callee: multiSelector3Callee,
                         multiSelectorVarargCallee: multiSelectorVarargCallee,
                         reversedCallee: reversedCallee
@@ -814,6 +820,7 @@ extension CollectionLiteralLoweringPass {
                 nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                 nullsLastCallee: lookup.kkComparatorNullsLastName,
                 nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
+                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
                 multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                 multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
                 reversedCallee: lookup.kkComparatorReversedName
@@ -850,6 +857,11 @@ extension CollectionLiteralLoweringPass {
                 let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
                 closureExpr = zero
+            case .nullsLastNatural:
+                trampolineName = lookup.kkComparatorNullsLastNaturalTrampolineName
+                let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                closureExpr = zero
             case .naturalOrder:
                 trampolineName = lookup.kkComparatorNaturalOrderTrampolineName
                 let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -880,6 +892,7 @@ extension CollectionLiteralLoweringPass {
                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                     nullsLastCallee: lookup.kkComparatorNullsLastName,
                     nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
+                    nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                     multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
                     reversedCallee: lookup.kkComparatorReversedName
@@ -908,6 +921,11 @@ extension CollectionLiteralLoweringPass {
                     innerClosureExpr = zero
                 case .nullsFirstComparable:
                     innerTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
+                    let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                    loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                    innerClosureExpr = zero
+                case .nullsLastNatural:
+                    innerTrampolineName = lookup.kkComparatorNullsLastNaturalTrampolineName
                     let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
                     loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
                     innerClosureExpr = zero
@@ -982,6 +1000,7 @@ extension CollectionLiteralLoweringPass {
                 nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                 nullsLastCallee: lookup.kkComparatorNullsLastName,
                 nullsFirstComparableCallee: lookup.kkComparatorNullsFirstComparableName,
+                nullsLastNaturalCallee: lookup.kkComparatorNullsLastNaturalName,
                 multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                 multiSelectorVarargCallee: lookup.kkComparatorFromMultiSelectorsVarargName,
                 reversedCallee: lookup.kkComparatorReversedName
@@ -1012,6 +1031,11 @@ extension CollectionLiteralLoweringPass {
                 cmpClosureExpr = comparatorExpr
             case .nullsFirstComparable:
                 cmpTrampolineName = lookup.kkComparatorNullsFirstComparableTrampolineName
+                let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
+                loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
+                cmpClosureExpr = zero
+            case .nullsLastNatural:
+                cmpTrampolineName = lookup.kkComparatorNullsLastNaturalTrampolineName
                 let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zero, value: .intLiteral(0)))
                 cmpClosureExpr = zero

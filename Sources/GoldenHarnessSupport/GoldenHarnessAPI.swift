@@ -84,12 +84,10 @@ public enum GoldenHarness {
             stderrHandle.readabilityHandler = nil
         }
 
+        let terminatedSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in terminatedSemaphore.signal() }
         try process.run()
-        let deadline = Date().addingTimeInterval(subprocessTimeout)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: processPollIntervalSeconds)
-        }
-        if process.isRunning {
+        if terminatedSemaphore.wait(timeout: .now() + subprocessTimeout) == .timedOut {
             process.terminate()
             // Wait for process to exit after terminate to avoid zombie processes
             let terminateDeadline = Date().addingTimeInterval(terminationGracePeriodSeconds)
@@ -411,12 +409,10 @@ private final class DataAccumulator: @unchecked Sendable {
     private var buffer = Data()
 
     func append(_ data: Data) {
-        guard !data.isEmpty else {
-            return
-        }
+        guard !data.isEmpty else { return }
         lock.lock()
+        defer { lock.unlock() }
         buffer.append(data)
-        lock.unlock()
     }
 
     func snapshot() -> Data {

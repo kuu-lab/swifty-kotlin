@@ -237,6 +237,8 @@ struct CollectionLiteralLookupTables {
     let kkComparatorNullsLastTrampolineName: InternedString
     let kkComparatorNullsFirstComparableName: InternedString
     let kkComparatorNullsFirstComparableTrampolineName: InternedString
+    let kkComparatorNullsLastNaturalName: InternedString
+    let kkComparatorNullsLastNaturalTrampolineName: InternedString
     let kkComparatorReversedName: InternedString
     let kkComparatorReversedTrampolineName: InternedString
 
@@ -1060,6 +1062,8 @@ struct CollectionLiteralLookupTables {
         kkComparatorNullsLastTrampolineName = interner.intern("kk_comparator_nulls_last_trampoline")
         kkComparatorNullsFirstComparableName = interner.intern("kk_comparator_nulls_first_comparable")
         kkComparatorNullsFirstComparableTrampolineName = interner.intern("kk_comparator_nulls_first_comparable_trampoline")
+        kkComparatorNullsLastNaturalName = interner.intern("kk_comparator_nulls_last_natural")
+        kkComparatorNullsLastNaturalTrampolineName = interner.intern("kk_comparator_nulls_last_natural_trampoline")
         kkComparatorReversedName = interner.intern("kk_comparator_reversed")
         kkComparatorReversedTrampolineName = interner.intern("kk_comparator_reversed_trampoline")
 
@@ -1667,6 +1671,8 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_replaceBeforeLast"),
             interner.intern("kk_string_replaceBeforeLast_char"),
             interner.intern("kk_string_substring"),
+            interner.intern("kk_string_slice_range"),
+            interner.intern("kk_string_slice_iterable"),
             interner.intern("kk_string_take"),
             interner.intern("kk_string_drop"),
             interner.intern("kk_string_takeLast"),

@@ -9,16 +9,15 @@ symbol fq=__for_7.line kind=local vis=private flags=_ type=String
 symbol fq=__for_8.element kind=local vis=private flags=_
 symbol fq=__for_9.element kind=local vis=private flags=_
 symbol fq=__for_10.element kind=local vis=private flags=_
-symbol fq=__for_11.i kind=local vis=private flags=_ type=Int
+symbol fq=__for_11.element kind=local vis=private flags=_
 symbol fq=__for_12.element kind=local vis=private flags=_
-symbol fq=__for_13.element kind=local vis=private flags=_
-symbol fq=__for_14.subElement kind=local vis=private flags=_
+symbol fq=__for_13.subElement kind=local vis=private flags=_
+symbol fq=__for_14.element kind=local vis=private flags=_
 symbol fq=__for_15.element kind=local vis=private flags=_
 symbol fq=__for_16.element kind=local vis=private flags=_
 symbol fq=__for_17.element kind=local vis=private flags=_
 symbol fq=__for_18.element kind=local vis=private flags=_
 symbol fq=__for_19.element kind=local vis=private flags=_
-symbol fq=__for_20.element kind=local vis=private flags=_
 symbol fq=__local_0.i kind=local vis=private flags=mutable type=Int
 symbol fq=__local_1.padding kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.sb kind=local vis=private flags=_ type=kotlin.text.StringBuilder
@@ -131,77 +130,77 @@ symbol fq=__local_108.h kind=local vis=private flags=_ type=Int
 symbol fq=__local_109.m kind=local vis=private flags=_ type=Int
 symbol fq=__local_110.s kind=local vis=private flags=_ type=Int
 symbol fq=__local_111.n kind=local vis=private flags=_ type=Int
-symbol fq=__local_112.largeSeq kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>>
-symbol fq=__local_113.flattenedSeq kind=local vis=private flags=_ type=kotlin.collections.List<Int>
-symbol fq=__local_114.nestedSeq kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out kotlin.sequences.Sequence<out Int>>
-symbol fq=__local_115.mixedSeq kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out Any>
-symbol fq=__local_116.singleSeq kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>>
-symbol fq=__local_117.matchIndex kind=local vis=private flags=mutable type=Int
-symbol fq=__local_118.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_119.sz kind=local vis=private flags=_ type=Int
-symbol fq=__local_120.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_121.sz kind=local vis=private flags=_ type=Int
+symbol fq=__local_112.matchIndex kind=local vis=private flags=mutable type=Int
+symbol fq=__local_113.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_114.sz kind=local vis=private flags=_ type=Int
+symbol fq=__local_115.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_116.sz kind=local vis=private flags=_ type=Int
+symbol fq=__local_117.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_118.sz kind=local vis=private flags=_ type=Int
+symbol fq=__local_119.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_120.count kind=local vis=private flags=mutable type=Int
+symbol fq=__local_121.i kind=local vis=private flags=mutable type=Int
 symbol fq=__local_122.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_123.sz kind=local vis=private flags=_ type=Int
+symbol fq=__local_123.i kind=local vis=private flags=mutable type=Int
 symbol fq=__local_124.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_125.count kind=local vis=private flags=mutable type=Int
-symbol fq=__local_126.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_125.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_126.sum kind=local vis=private flags=mutable type=Int
 symbol fq=__local_127.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_128.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_129.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_130.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_131.sum kind=local vis=private flags=mutable type=Int
-symbol fq=__local_132.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_133.sz kind=local vis=private flags=_ type=Int
-symbol fq=__local_134.bestElem kind=local vis=private flags=mutable type=kotlin.collections.maxByOrNull.$7.T
-symbol fq=__local_135.bestKey kind=local vis=private flags=mutable type=kotlin.collections.maxByOrNull.$7.R
+symbol fq=__local_128.sz kind=local vis=private flags=_ type=Int
+symbol fq=__local_129.bestElem kind=local vis=private flags=mutable type=kotlin.collections.maxByOrNull.$7.T
+symbol fq=__local_130.bestKey kind=local vis=private flags=mutable type=kotlin.collections.maxByOrNull.$7.R
+symbol fq=__local_131.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_132.elem kind=local vis=private flags=_ type=kotlin.collections.maxByOrNull.$7.T
+symbol fq=__local_133.key kind=local vis=private flags=_ type=kotlin.collections.maxByOrNull.$7.R
+symbol fq=__local_134.bestElem kind=local vis=private flags=mutable type=kotlin.collections.minByOrNull.$8.T
+symbol fq=__local_135.bestKey kind=local vis=private flags=mutable type=kotlin.collections.minByOrNull.$8.R
 symbol fq=__local_136.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_137.elem kind=local vis=private flags=_ type=kotlin.collections.maxByOrNull.$7.T
-symbol fq=__local_138.key kind=local vis=private flags=_ type=kotlin.collections.maxByOrNull.$7.R
-symbol fq=__local_139.bestElem kind=local vis=private flags=mutable type=kotlin.collections.minByOrNull.$8.T
-symbol fq=__local_140.bestKey kind=local vis=private flags=mutable type=kotlin.collections.minByOrNull.$8.R
+symbol fq=__local_137.elem kind=local vis=private flags=_ type=kotlin.collections.minByOrNull.$8.T
+symbol fq=__local_138.element kind=local vis=private flags=_ type=kotlin.collections.firstOrNull.$9.T
+symbol fq=__local_139.key kind=local vis=private flags=_ type=kotlin.collections.minByOrNull.$8.R
+symbol fq=__local_140.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.reversed.$10.T>
 symbol fq=__local_141.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_142.elem kind=local vis=private flags=_ type=kotlin.collections.minByOrNull.$8.T
-symbol fq=__local_143.element kind=local vis=private flags=_ type=kotlin.collections.firstOrNull.$9.T
-symbol fq=__local_144.key kind=local vis=private flags=_ type=kotlin.collections.minByOrNull.$8.R
-symbol fq=__local_145.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.reversed.$10.T>
-symbol fq=__local_146.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_147.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T>
+symbol fq=__local_142.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T>
+symbol fq=__local_143.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_144.element kind=local vis=private flags=_ type=kotlin.collections.sorted.$11.T
+symbol fq=__local_145.insertAt kind=local vis=private flags=mutable type=Int
+symbol fq=__local_146.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.T>
+symbol fq=__local_147.keys kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R>
 symbol fq=__local_148.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_149.element kind=local vis=private flags=_ type=kotlin.collections.sorted.$11.T
-symbol fq=__local_150.insertAt kind=local vis=private flags=mutable type=Int
-symbol fq=__local_151.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.T>
-symbol fq=__local_152.keys kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R>
-symbol fq=__local_153.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_154.element kind=local vis=private flags=_ type=kotlin.collections.sortedBy.$12.T
-symbol fq=__local_155.key kind=local vis=private flags=_ type=kotlin.collections.sortedBy.$12.R
-symbol fq=__local_156.insertAt kind=local vis=private flags=mutable type=Int
-symbol fq=__local_157.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.T>
-symbol fq=__local_158.keys kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R>
-symbol fq=__local_159.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_160.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_161.element kind=local vis=private flags=_ type=kotlin.collections.sortedByDescending.$13.T
-symbol fq=__local_162.key kind=local vis=private flags=_ type=kotlin.collections.sortedByDescending.$13.R
+symbol fq=__local_149.element kind=local vis=private flags=_ type=kotlin.collections.sortedBy.$12.T
+symbol fq=__local_150.key kind=local vis=private flags=_ type=kotlin.collections.sortedBy.$12.R
+symbol fq=__local_151.insertAt kind=local vis=private flags=mutable type=Int
+symbol fq=__local_152.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.T>
+symbol fq=__local_153.keys kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R>
+symbol fq=__local_154.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_155.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_156.element kind=local vis=private flags=_ type=kotlin.collections.sortedByDescending.$13.T
+symbol fq=__local_157.key kind=local vis=private flags=_ type=kotlin.collections.sortedByDescending.$13.R
+symbol fq=__local_158.insertAt kind=local vis=private flags=mutable type=Int
+symbol fq=__local_159.sz kind=local vis=private flags=_ type=Int
+symbol fq=__local_160.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T>
+symbol fq=__local_161.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_162.element kind=local vis=private flags=_ type=kotlin.collections.sortedWith.$14.T
 symbol fq=__local_163.insertAt kind=local vis=private flags=mutable type=Int
-symbol fq=__local_164.sz kind=local vis=private flags=_ type=Int
-symbol fq=__local_165.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T>
-symbol fq=__local_166.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_167.element kind=local vis=private flags=_ type=kotlin.collections.sortedWith.$14.T
-symbol fq=__local_168.insertAt kind=local vis=private flags=mutable type=Int
-symbol fq=__local_169.element kind=local vis=private flags=_ type=kotlin.collections.find.$15.T
-symbol fq=__local_170.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T>
-symbol fq=__local_171.copyIndex kind=local vis=private flags=mutable type=Int
-symbol fq=__local_172.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_173.j kind=local vis=private flags=_ type=Int
-symbol fq=__local_174.tmp kind=local vis=private flags=_ type=kotlin.collections.shuffled.$16.T
-symbol fq=__local_175.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.filter.$17.T>
-symbol fq=__local_176.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.map.$18.R>
-symbol fq=__local_177.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.flatMap.$19.R>
-symbol fq=__local_178.count kind=local vis=private flags=mutable type=Int
-symbol fq=__local_179.sb kind=local vis=private flags=_ type=kotlin.text.StringBuilder
-symbol fq=__local_180.i kind=local vis=private flags=mutable type=Int
-symbol fq=__local_181.len kind=local vis=private flags=_ type=Int
-symbol fq=__local_182.sb kind=local vis=private flags=_ type=kotlin.text.StringBuilder
+symbol fq=__local_164.element kind=local vis=private flags=_ type=kotlin.collections.find.$15.T
+symbol fq=__local_165.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T>
+symbol fq=__local_166.copyIndex kind=local vis=private flags=mutable type=Int
+symbol fq=__local_167.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_168.j kind=local vis=private flags=_ type=Int
+symbol fq=__local_169.tmp kind=local vis=private flags=_ type=kotlin.collections.shuffled.$16.T
+symbol fq=__local_170.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.filter.$17.T>
+symbol fq=__local_171.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.map.$18.R>
+symbol fq=__local_172.result kind=local vis=private flags=_ type=kotlin.collections.MutableList<kotlin.collections.flatMap.$19.R>
+symbol fq=__local_173.count kind=local vis=private flags=mutable type=Int
+symbol fq=__local_174.sb kind=local vis=private flags=_ type=kotlin.text.StringBuilder
+symbol fq=__local_175.i kind=local vis=private flags=mutable type=Int
+symbol fq=__local_176.len kind=local vis=private flags=_ type=Int
+symbol fq=__local_177.sb kind=local vis=private flags=_ type=kotlin.text.StringBuilder
+symbol fq=golden.sema.useSliceIterable kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=golden.sema.useSliceRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=golden.sema.useSliceUntil kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+symbol fq=golden.sema.useSliceVar kind=function vis=public flags=_ sig=recv=_ params=[String] ret=String
+symbol fq=golden.sema.useSliceVar.$20.s kind=valueParameter vis=private flags=_
 symbol fq=java.util.Locale kind=class vis=public flags=synthetic type=java.util.Locale
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
@@ -217,10 +216,8 @@ symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synt
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.List.drop kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List<out kotlin.collections.List.E>
 symbol fq=kotlin.collections.List.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List.E
 symbol fq=kotlin.collections.List.isEmpty kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[] ret=Boolean
-symbol fq=kotlin.collections.List.take kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List<out kotlin.collections.List.E>
 symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int,kotlin.collections.MutableList.E] ret=Unit
@@ -230,24 +227,24 @@ symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=syntheti
 symbol fq=kotlin.collections.MutableSet.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableSet.add kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.MutableSet.E] ret=Boolean
 symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.all#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.all.$20.T> params=[(kotlin.collections.all.$20.T) -> Boolean] ret=Boolean
-symbol fq=kotlin.collections.all#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.all.$21.T> params=[(kotlin.collections.all.$21.T) -> Boolean] ret=Boolean
-symbol fq=kotlin.collections.all.$20.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.all.$20.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.all#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.all.$21.T> params=[(kotlin.collections.all.$21.T) -> Boolean] ret=Boolean
+symbol fq=kotlin.collections.all#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.all.$22.T> params=[(kotlin.collections.all.$22.T) -> Boolean] ret=Boolean
 symbol fq=kotlin.collections.all.$21.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.all.$21.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.any#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.any.$22.T> params=[(kotlin.collections.any.$22.T) -> Boolean] ret=Boolean
-symbol fq=kotlin.collections.any#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.any.$23.T> params=[(kotlin.collections.any.$23.T) -> Boolean] ret=Boolean
-symbol fq=kotlin.collections.any.$22.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.any.$22.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.all.$22.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.all.$22.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.any#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.any.$23.T> params=[(kotlin.collections.any.$23.T) -> Boolean] ret=Boolean
+symbol fq=kotlin.collections.any#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.any.$24.T> params=[(kotlin.collections.any.$24.T) -> Boolean] ret=Boolean
 symbol fq=kotlin.collections.any.$23.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.any.$23.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.count#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.count.$24.T> params=[(kotlin.collections.count.$24.T) -> Boolean] ret=Int
-symbol fq=kotlin.collections.count#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.count.$25.T> params=[(kotlin.collections.count.$25.T) -> Boolean] ret=Int
-symbol fq=kotlin.collections.count.$24.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.count.$24.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.any.$24.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.any.$24.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.count#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.count.$25.T> params=[(kotlin.collections.count.$25.T) -> Boolean] ret=Int
+symbol fq=kotlin.collections.count#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.count.$26.T> params=[(kotlin.collections.count.$26.T) -> Boolean] ret=Int
 symbol fq=kotlin.collections.count.$25.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.count.$25.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.count.$26.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.count.$26.predicate kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.filter kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.filter.$17.T> params=[(kotlin.collections.filter.$17.T) -> Boolean] ret=kotlin.collections.List<kotlin.collections.filter.$17.T>
 symbol fq=kotlin.collections.filter.$17.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.filter.$17.predicate kind=valueParameter vis=private flags=_
@@ -257,40 +254,40 @@ symbol fq=kotlin.collections.find.$15.predicate kind=valueParameter vis=private 
 symbol fq=kotlin.collections.findLast kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.findLast.$2.T> params=[(kotlin.collections.findLast.$2.T) -> Boolean] ret=kotlin.collections.findLast.$2.T?
 symbol fq=kotlin.collections.findLast.$2.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.findLast.$2.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.first#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.first.$26.T> params=[] ret=kotlin.collections.first.$26.T
+symbol fq=kotlin.collections.first#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.first.$27.T> params=[] ret=kotlin.collections.first.$27.T
 symbol fq=kotlin.collections.first#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.first.$6.T> params=[(kotlin.collections.first.$6.T) -> Boolean] ret=kotlin.collections.first.$6.T
-symbol fq=kotlin.collections.first.$26.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.first.$27.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.first.$6.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.first.$6.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.firstOrNull#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.firstOrNull.$27.T> params=[] ret=kotlin.collections.firstOrNull.$27.T?
+symbol fq=kotlin.collections.firstOrNull#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.firstOrNull.$28.T> params=[] ret=kotlin.collections.firstOrNull.$28.T?
 symbol fq=kotlin.collections.firstOrNull#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.firstOrNull.$9.T> params=[(kotlin.collections.firstOrNull.$9.T) -> Boolean] ret=kotlin.collections.firstOrNull.$9.T?
-symbol fq=kotlin.collections.firstOrNull.$27.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.firstOrNull.$28.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.firstOrNull.$9.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.firstOrNull.$9.predicate kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.flatMap kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.flatMap.$19.T> params=[(kotlin.collections.flatMap.$19.T) -> kotlin.collections.Iterable<kotlin.collections.flatMap.$19.R>] ret=kotlin.collections.List<kotlin.collections.flatMap.$19.R>
 symbol fq=kotlin.collections.flatMap.$19.R kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.flatMap.$19.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.flatMap.$19.transform kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.forEach kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.forEach.$28.T> params=[(kotlin.collections.forEach.$28.T) -> Unit] ret=Unit
-symbol fq=kotlin.collections.forEach.$28.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.forEach.$28.action kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.indexOf kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.indexOf.$29.T> params=[kotlin.collections.indexOf.$29.T] ret=Int
-symbol fq=kotlin.collections.indexOf.$29.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.indexOf.$29.element kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.indexOfFirst kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.indexOfFirst.$30.T> params=[(kotlin.collections.indexOfFirst.$30.T) -> Boolean] ret=Int
-symbol fq=kotlin.collections.indexOfFirst.$30.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.indexOfFirst.$30.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.indexOfLast kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.indexOfLast.$31.T> params=[(kotlin.collections.indexOfLast.$31.T) -> Boolean] ret=Int
-symbol fq=kotlin.collections.indexOfLast.$31.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.indexOfLast.$31.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.last#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.last.$32.T> params=[] ret=kotlin.collections.last.$32.T
+symbol fq=kotlin.collections.forEach kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.forEach.$29.T> params=[(kotlin.collections.forEach.$29.T) -> Unit] ret=Unit
+symbol fq=kotlin.collections.forEach.$29.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.forEach.$29.action kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.indexOf kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.indexOf.$30.T> params=[kotlin.collections.indexOf.$30.T] ret=Int
+symbol fq=kotlin.collections.indexOf.$30.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.indexOf.$30.element kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.indexOfFirst kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.indexOfFirst.$31.T> params=[(kotlin.collections.indexOfFirst.$31.T) -> Boolean] ret=Int
+symbol fq=kotlin.collections.indexOfFirst.$31.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.indexOfFirst.$31.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.indexOfLast kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.indexOfLast.$32.T> params=[(kotlin.collections.indexOfLast.$32.T) -> Boolean] ret=Int
+symbol fq=kotlin.collections.indexOfLast.$32.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.indexOfLast.$32.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.last#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.last.$33.T> params=[] ret=kotlin.collections.last.$33.T
 symbol fq=kotlin.collections.last#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.last.$0.T> params=[(kotlin.collections.last.$0.T) -> Boolean] ret=kotlin.collections.last.$0.T
-symbol fq=kotlin.collections.last.$32.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.last.$33.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.last.$0.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.last.$0.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.lastOrNull#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.lastOrNull.$33.T> params=[] ret=kotlin.collections.lastOrNull.$33.T?
+symbol fq=kotlin.collections.lastOrNull#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.lastOrNull.$34.T> params=[] ret=kotlin.collections.lastOrNull.$34.T?
 symbol fq=kotlin.collections.lastOrNull#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.lastOrNull.$1.T> params=[(kotlin.collections.lastOrNull.$1.T) -> Boolean] ret=kotlin.collections.lastOrNull.$1.T?
-symbol fq=kotlin.collections.lastOrNull.$33.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.lastOrNull.$34.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.lastOrNull.$1.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.lastOrNull.$1.predicate kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.map kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.map.$18.T> params=[(kotlin.collections.map.$18.T) -> kotlin.collections.map.$18.R] ret=kotlin.collections.List<kotlin.collections.map.$18.R>
@@ -305,29 +302,29 @@ symbol fq=kotlin.collections.minByOrNull kind=function vis=public flags=_ sig=re
 symbol fq=kotlin.collections.minByOrNull.$8.R kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.minByOrNull.$8.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.minByOrNull.$8.selector kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.none#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.none.$34.T> params=[(kotlin.collections.none.$34.T) -> Boolean] ret=Boolean
-symbol fq=kotlin.collections.none#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.none.$35.T> params=[(kotlin.collections.none.$35.T) -> Boolean] ret=Boolean
-symbol fq=kotlin.collections.none.$34.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.none.$34.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.none#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.none.$35.T> params=[(kotlin.collections.none.$35.T) -> Boolean] ret=Boolean
+symbol fq=kotlin.collections.none#1 kind=function vis=internal flags=_ sig=recv=kotlin.collections.Set<kotlin.collections.none.$36.T> params=[(kotlin.collections.none.$36.T) -> Boolean] ret=Boolean
 symbol fq=kotlin.collections.none.$35.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.none.$35.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.none.$36.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.none.$36.predicate kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.reversed kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.reversed.$10.T> params=[] ret=kotlin.collections.List<kotlin.collections.reversed.$10.T>
 symbol fq=kotlin.collections.reversed.$10.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.shuffled#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.shuffled.$36.T> params=[] ret=kotlin.collections.List<kotlin.collections.shuffled.$36.T>
+symbol fq=kotlin.collections.shuffled#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.shuffled.$37.T> params=[] ret=kotlin.collections.List<kotlin.collections.shuffled.$37.T>
 symbol fq=kotlin.collections.shuffled#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.shuffled.$16.T> params=[kotlin.random.Random] ret=kotlin.collections.List<kotlin.collections.shuffled.$16.T>
-symbol fq=kotlin.collections.shuffled.$36.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.shuffled.$37.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.shuffled.$16.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.shuffled.$16.random kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.single#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.single.$37.T> params=[] ret=kotlin.collections.single.$37.T
-symbol fq=kotlin.collections.single#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.single.$38.T> params=[(kotlin.collections.single.$38.T) -> Boolean] ret=kotlin.collections.single.$38.T
-symbol fq=kotlin.collections.single.$37.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.single#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.single.$38.T> params=[] ret=kotlin.collections.single.$38.T
+symbol fq=kotlin.collections.single#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.single.$39.T> params=[(kotlin.collections.single.$39.T) -> Boolean] ret=kotlin.collections.single.$39.T
 symbol fq=kotlin.collections.single.$38.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.single.$38.predicate kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.singleOrNull#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.singleOrNull.$39.T> params=[] ret=kotlin.collections.singleOrNull.$39.T?
-symbol fq=kotlin.collections.singleOrNull#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.singleOrNull.$40.T> params=[(kotlin.collections.singleOrNull.$40.T) -> Boolean] ret=kotlin.collections.singleOrNull.$40.T?
-symbol fq=kotlin.collections.singleOrNull.$39.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.single.$39.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.single.$39.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.singleOrNull#0 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.singleOrNull.$40.T> params=[] ret=kotlin.collections.singleOrNull.$40.T?
+symbol fq=kotlin.collections.singleOrNull#1 kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.singleOrNull.$41.T> params=[(kotlin.collections.singleOrNull.$41.T) -> Boolean] ret=kotlin.collections.singleOrNull.$41.T?
 symbol fq=kotlin.collections.singleOrNull.$40.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.singleOrNull.$40.predicate kind=valueParameter vis=private flags=_
+symbol fq=kotlin.collections.singleOrNull.$41.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.singleOrNull.$41.predicate kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.sorted kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sorted.$11.T> params=[] ret=kotlin.collections.List<kotlin.collections.sorted.$11.T> bounds=[kotlin.Comparable<kotlin.collections.sorted.$11.T>]
 symbol fq=kotlin.collections.sorted.$11.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.sortedBy kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sortedBy.$12.T> params=[(kotlin.collections.sortedBy.$12.T) -> kotlin.collections.sortedBy.$12.R] ret=kotlin.collections.List<kotlin.collections.sortedBy.$12.T> bounds=[_,kotlin.Comparable<kotlin.collections.sortedBy.$12.R>]
@@ -341,30 +338,16 @@ symbol fq=kotlin.collections.sortedByDescending.$13.selector kind=valueParameter
 symbol fq=kotlin.collections.sortedWith kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sortedWith.$14.T> params=[(kotlin.collections.sortedWith.$14.T, kotlin.collections.sortedWith.$14.T) -> Int] ret=kotlin.collections.List<kotlin.collections.sortedWith.$14.T>
 symbol fq=kotlin.collections.sortedWith.$14.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.sortedWith.$14.comparator kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.sumOf kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sumOf.$41.T> params=[(kotlin.collections.sumOf.$41.T) -> Int] ret=Int
-symbol fq=kotlin.collections.sumOf.$41.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.sumOf.$41.selector kind=valueParameter vis=private flags=_
-symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
-symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.collections.sumOf kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sumOf.$42.T> params=[(kotlin.collections.sumOf.$42.T) -> Int] ret=Int
+symbol fq=kotlin.collections.sumOf.$42.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.collections.sumOf.$42.selector kind=valueParameter vis=private flags=_
 symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
 symbol fq=kotlin.random.Random.Default kind=property vis=public flags=synthetic type=kotlin.random.Random
 symbol fq=kotlin.random.Random.nextInt#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int] ret=Int
 symbol fq=kotlin.random.Random.nextInt.until kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.ranges.until#0 kind=function vis=public flags=synthetic sig=recv=Int params=[Int] ret=Int
+symbol fq=kotlin.ranges.until.to kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
-symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
-symbol fq=kotlin.sequences.SequenceScope kind=class vis=public flags=synthetic
-symbol fq=kotlin.sequences.SequenceScope.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.SequenceScope.yield kind=function vis=public flags=synthetic sig=recv=kotlin.sequences.SequenceScope<kotlin.sequences.SequenceScope.T> params=[kotlin.sequences.SequenceScope.T] ret=Unit
-symbol fq=kotlin.sequences.SequenceScope.yield.value kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.emptySequence kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.sequences.Sequence<out kotlin.sequences.emptySequence.T>
-symbol fq=kotlin.sequences.emptySequence.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.sequence kind=function vis=public flags=synthetic sig=recv=_ params=[suspend kotlin.sequences.SequenceScope<kotlin.sequences.sequence.T>.() -> Unit] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequence.T>
-symbol fq=kotlin.sequences.sequence.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.sequence.block kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
-symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.toList kind=function vis=public flags=_ sig=recv=kotlin.sequences.Sequence<kotlin.sequences.toList.$3.T> params=[] ret=kotlin.collections.List<kotlin.sequences.toList.$3.T>
 symbol fq=kotlin.sequences.toList.$3.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.toMutableList kind=function vis=public flags=_ sig=recv=kotlin.sequences.Sequence<kotlin.sequences.toMutableList.$4.T> params=[] ret=kotlin.collections.MutableList<kotlin.sequences.toMutableList.$4.T>
@@ -403,63 +386,66 @@ symbol fq=kotlin.text.decodeToString#0 kind=function vis=public flags=_ sig=recv
 symbol fq=kotlin.text.decodeToString#1 kind=function vis=public flags=_ sig=recv=kotlin.ByteArray params=[Int,Int] ret=String
 symbol fq=kotlin.text.decodeToString#2 kind=function vis=public flags=_ sig=recv=kotlin.ByteArray params=[Int,Int,Boolean] ret=String
 symbol fq=kotlin.text.decodeToString#3 kind=function vis=public flags=_ sig=recv=kotlin.ByteArray params=[kotlin.text.Charset] ret=String
-symbol fq=kotlin.text.decodeToString.$42.charset kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.decodeToString.$43.endIndex kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.decodeToString.$43.startIndex kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.decodeToString.$43.charset kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.decodeToString.$44.endIndex kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.decodeToString.$44.startIndex kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.decodeToString.$44.throwOnInvalidSequence kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.decodeToString.$45.endIndex kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.decodeToString.$45.startIndex kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.decodeToString.$45.throwOnInvalidSequence kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.encodeToByteArray#0 kind=function vis=public flags=_ sig=recv=String params=[] ret=kotlin.ByteArray
 symbol fq=kotlin.text.encodeToByteArray#1 kind=function vis=public flags=_ sig=recv=String params=[Int,Int] ret=kotlin.ByteArray
 symbol fq=kotlin.text.encodeToByteArray#2 kind=function vis=public flags=_ sig=recv=String params=[kotlin.text.Charset] ret=kotlin.ByteArray
-symbol fq=kotlin.text.encodeToByteArray.$45.endIndex kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.encodeToByteArray.$45.startIndex kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.encodeToByteArray.$46.charset kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.encodeToByteArray.$46.endIndex kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.encodeToByteArray.$46.startIndex kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.encodeToByteArray.$47.charset kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char
 symbol fq=kotlin.text.get.index kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.hasPrefix kind=function vis=private flags=_ sig=recv=String params=[String] ret=Boolean
-symbol fq=kotlin.text.hasPrefix.$47.prefix kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.hasPrefix.$48.prefix kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.indent#0 kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 symbol fq=kotlin.text.indent#1 kind=function vis=public flags=_ sig=recv=String params=[Int] ret=String
-symbol fq=kotlin.text.indent.$48.n kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.indent.$49.n kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.isBlankLine kind=function vis=private flags=_ sig=recv=String params=[] ret=Boolean
 symbol fq=kotlin.text.isEmpty kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Boolean
 symbol fq=kotlin.text.kk_drop kind=function vis=private flags=_ sig=recv=String params=[Int] ret=String
-symbol fq=kotlin.text.kk_drop.$49.n kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.kk_drop.$50.n kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.leadingWhitespaceCount kind=function vis=private flags=_ sig=recv=String params=[] ret=Int
 symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=kotlin.text.lowercase#0 kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
 symbol fq=kotlin.text.lowercase#2 kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 symbol fq=kotlin.text.lowercase#3 kind=function vis=public flags=_ sig=recv=String params=[java.util.Locale] ret=String
-symbol fq=kotlin.text.lowercase.$50.locale kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.lowercase.$51.locale kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.padEnd kind=function vis=public flags=_ sig=recv=String params=[Int,Char] ret=String defaults=[0,1]
-symbol fq=kotlin.text.padEnd.$51.length kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.padEnd.$51.padChar kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.padEnd.$52.length kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.padEnd.$52.padChar kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.padStart kind=function vis=public flags=_ sig=recv=String params=[Int,Char] ret=String defaults=[0,1]
-symbol fq=kotlin.text.padStart.$52.length kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.padStart.$52.padChar kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.padStart.$53.length kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.padStart.$53.padChar kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.prependIndent kind=function vis=public flags=_ sig=recv=String params=[String] ret=String defaults=[1]
-symbol fq=kotlin.text.prependIndent.$53.indent kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.prependIndent.$54.indent kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.repeat kind=function vis=public flags=_ sig=recv=String params=[Int] ret=String
-symbol fq=kotlin.text.repeat.$54.count kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.repeat.$55.count kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.replaceFirstChar kind=function vis=public flags=_ sig=recv=String params=[(Char) -> Char] ret=String
-symbol fq=kotlin.text.replaceFirstChar.$55.transform kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.replaceFirstChar.$56.transform kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.replaceIndent kind=function vis=public flags=_ sig=recv=String params=[String] ret=String defaults=[1]
-symbol fq=kotlin.text.replaceIndent.$56.newIndent kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.replaceIndent.$57.newIndent kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.replaceIndentByMargin kind=function vis=public flags=_ sig=recv=String params=[String,String] ret=String defaults=[1,1]
-symbol fq=kotlin.text.replaceIndentByMargin.$57.marginPrefix kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.replaceIndentByMargin.$57.newIndent kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.replaceIndentByMargin.$58.marginPrefix kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.replaceIndentByMargin.$58.newIndent kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.reversed kind=function vis=public flags=_ sig=recv=String params=[] ret=String
+symbol fq=kotlin.text.slice#0 kind=function vis=public flags=synthetic sig=recv=String params=[Int] ret=String
+symbol fq=kotlin.text.slice#1 kind=function vis=public flags=synthetic sig=recv=String params=[kotlin.collections.List<out Int>] ret=String
+symbol fq=kotlin.text.slice.indices kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.splitIntoLines kind=function vis=private flags=_ sig=recv=String params=[] ret=kotlin.collections.List<String>
 symbol fq=kotlin.text.trimBlankEdges kind=function vis=private flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=kotlin.collections.List<String>
-symbol fq=kotlin.text.trimBlankEdges.$58.lines kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.trimBlankEdges.$59.lines kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.trimIndent kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 symbol fq=kotlin.text.trimMargin kind=function vis=public flags=_ sig=recv=String params=[String] ret=String defaults=[1]
-symbol fq=kotlin.text.trimMargin.$59.marginPrefix kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.trimMargin.$60.marginPrefix kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.uppercase#0 kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
 symbol fq=kotlin.text.uppercase#2 kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 symbol fq=kotlin.text.uppercase#3 kind=function vis=public flags=_ sig=recv=String params=[java.util.Locale] ret=String
-symbol fq=kotlin.text.uppercase.$60.locale kind=valueParameter vis=private flags=_
+symbol fq=kotlin.text.uppercase.$61.locale kind=valueParameter vis=private flags=_
 symbol fq=kotlin.time.Duration kind=class vis=public flags=synthetic type=kotlin.time.Duration
 symbol fq=kotlin.time.Duration.inWholeNanoseconds kind=property vis=public flags=synthetic type=Long
 symbol fq=kotlin.time.DurationUnit kind=enumClass vis=public flags=synthetic
@@ -483,22 +469,21 @@ symbol fq=kotlin.time.milliseconds kind=property vis=public flags=_ type=kotlin.
 symbol fq=kotlin.time.minutes kind=property vis=public flags=_ type=kotlin.time.Duration
 symbol fq=kotlin.time.nanoseconds kind=property vis=public flags=_ type=kotlin.time.Duration
 symbol fq=kotlin.time.seconds kind=property vis=public flags=_ type=kotlin.time.Duration
-symbol fq=kotlin.time.toComponents#0 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int) -> kotlin.time.toComponents.$61.T] ret=kotlin.time.toComponents.$61.T
-symbol fq=kotlin.time.toComponents#1 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int, Int) -> kotlin.time.toComponents.$62.T] ret=kotlin.time.toComponents.$62.T
-symbol fq=kotlin.time.toComponents#2 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int, Int, Int) -> kotlin.time.toComponents.$63.T] ret=kotlin.time.toComponents.$63.T
-symbol fq=kotlin.time.toComponents#3 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int, Int, Int, Int) -> kotlin.time.toComponents.$64.T] ret=kotlin.time.toComponents.$64.T
-symbol fq=kotlin.time.toComponents.$61.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.time.toComponents.$61.action kind=valueParameter vis=private flags=_
+symbol fq=kotlin.time.toComponents#0 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int) -> kotlin.time.toComponents.$62.T] ret=kotlin.time.toComponents.$62.T
+symbol fq=kotlin.time.toComponents#1 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int, Int) -> kotlin.time.toComponents.$63.T] ret=kotlin.time.toComponents.$63.T
+symbol fq=kotlin.time.toComponents#2 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int, Int, Int) -> kotlin.time.toComponents.$64.T] ret=kotlin.time.toComponents.$64.T
+symbol fq=kotlin.time.toComponents#3 kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[(Long, Int, Int, Int, Int) -> kotlin.time.toComponents.$65.T] ret=kotlin.time.toComponents.$65.T
 symbol fq=kotlin.time.toComponents.$62.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.time.toComponents.$62.action kind=valueParameter vis=private flags=_
 symbol fq=kotlin.time.toComponents.$63.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.time.toComponents.$63.action kind=valueParameter vis=private flags=_
 symbol fq=kotlin.time.toComponents.$64.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.time.toComponents.$64.action kind=valueParameter vis=private flags=_
+symbol fq=kotlin.time.toComponents.$65.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.time.toComponents.$65.action kind=valueParameter vis=private flags=_
 symbol fq=kotlin.time.toDuration#0 kind=function vis=public flags=synthetic sig=recv=Double params=[kotlin.time.DurationUnit] ret=kotlin.time.Duration
 symbol fq=kotlin.time.toDuration.unit kind=valueParameter vis=private flags=synthetic type=kotlin.time.DurationUnit
 symbol fq=kotlin.time.toIsoString kind=function vis=public flags=_ sig=recv=kotlin.time.Duration params=[] ret=String
-symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f0 package=kotlin.collections
   decl d0 fun first sym=kotlin.collections.first#0
   decl d1 fun first sym=kotlin.collections.first#1
@@ -607,16 +592,19 @@ file f3 package=kotlin.time
   decl d101 property minutes var=0 sym=kotlin.time.minutes
   decl d102 property hours var=0 sym=kotlin.time.hours
   decl d103 property days var=0 sym=kotlin.time.days
-file f4 package=_
-  decl d104 fun main sym=main
-expr e1 call callee=e0 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.first.$26.T]
+file f4 package=golden.sema
+  decl d104 fun useSliceRange sym=golden.sema.useSliceRange
+  decl d105 fun useSliceUntil sym=golden.sema.useSliceUntil
+  decl d106 fun useSliceIterable sym=golden.sema.useSliceIterable
+  decl d107 fun useSliceVar sym=golden.sema.useSliceVar
+expr e1 call callee=e0 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.first.$27.T]
 expr e3 string(Collection is empty.) type=String
 expr e4 call callee=e2 args=[_:e3] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
 expr e5 throw value=e4 type=Nothing
 expr e6 if cond=e1 then=e5 else=_ type=Unit
-expr e7 this type=kotlin.collections.List<kotlin.collections.first.$26.T>
+expr e7 this type=kotlin.collections.List<kotlin.collections.first.$27.T>
 expr e8 int(0) type=Int
-expr e9 indexedAccess receiver=e7 indices=[e8] type=kotlin.collections.first.$26.T call=kotlin.collections.List.get targs=[kotlin.collections.first.$26.T]
+expr e9 indexedAccess receiver=e7 indices=[e8] type=kotlin.collections.first.$27.T call=kotlin.collections.List.get targs=[kotlin.collections.first.$27.T]
 expr e10 return value=e9 type=Nothing
 expr e11 int(0) type=Int
 expr e12 localDecl i mutable=1 type=_ init=e11 type=Unit ref=__local_17.i
@@ -642,70 +630,70 @@ expr e32 while cond=e17 body=e31 type=Unit
 expr e34 string(Collection contains no element matching the predicate.) type=String
 expr e35 call callee=e33 args=[_:e34] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
 expr e36 throw value=e35 type=Nothing
-expr e38 call callee=e37 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.firstOrNull.$27.T]
+expr e38 call callee=e37 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.firstOrNull.$28.T]
 expr e39 name(null) type=Nothing?
 expr e40 return value=e39 type=Nothing
 expr e41 if cond=e38 then=e40 else=_ type=Unit
-expr e42 this type=kotlin.collections.List<kotlin.collections.firstOrNull.$27.T>
+expr e42 this type=kotlin.collections.List<kotlin.collections.firstOrNull.$28.T>
 expr e43 int(0) type=Int
-expr e44 indexedAccess receiver=e42 indices=[e43] type=kotlin.collections.firstOrNull.$27.T call=kotlin.collections.List.get targs=[kotlin.collections.firstOrNull.$27.T]
+expr e44 indexedAccess receiver=e42 indices=[e43] type=kotlin.collections.firstOrNull.$28.T call=kotlin.collections.List.get targs=[kotlin.collections.firstOrNull.$28.T]
 expr e45 return value=e44 type=Nothing
 expr e46 int(0) type=Int
-expr e47 localDecl i mutable=1 type=_ init=e46 type=Unit ref=__local_130.i
+expr e47 localDecl i mutable=1 type=_ init=e46 type=Unit ref=__local_125.i
 expr e48 name(size) type=Int
-expr e49 localDecl sz mutable=0 type=_ init=e48 type=Unit ref=__local_133.sz
-expr e50 name(i) type=Int ref=__local_130.i
-expr e51 name(sz) type=Int ref=__local_133.sz
+expr e49 localDecl sz mutable=0 type=_ init=e48 type=Unit ref=__local_128.sz
+expr e50 name(i) type=Int ref=__local_125.i
+expr e51 name(sz) type=Int ref=__local_128.sz
 expr e52 binary(lessThan) lhs=e50 rhs=e51 type=Boolean
 expr e53 this type=kotlin.collections.List<kotlin.collections.firstOrNull.$9.T>
-expr e54 name(i) type=Int ref=__local_130.i
+expr e54 name(i) type=Int ref=__local_125.i
 expr e55 indexedAccess receiver=e53 indices=[e54] type=kotlin.collections.firstOrNull.$9.T call=kotlin.collections.List.get targs=[kotlin.collections.firstOrNull.$9.T]
-expr e56 localDecl element mutable=0 type=_ init=e55 type=Unit ref=__local_143.element
+expr e56 localDecl element mutable=0 type=_ init=e55 type=Unit ref=__local_138.element
 expr e57 name(predicate) type=(kotlin.collections.firstOrNull.$9.T) -> Boolean ref=kotlin.collections.firstOrNull.$9.predicate
-expr e58 name(element) type=kotlin.collections.firstOrNull.$9.T ref=__local_143.element
+expr e58 name(element) type=kotlin.collections.firstOrNull.$9.T ref=__local_138.element
 expr e59 call callee=e57 args=[_:e58] type=Boolean
-expr e60 name(element) type=kotlin.collections.firstOrNull.$9.T ref=__local_143.element
+expr e60 name(element) type=kotlin.collections.firstOrNull.$9.T ref=__local_138.element
 expr e61 return value=e60 type=Nothing
 expr e62 if cond=e59 then=e61 else=_ type=Unit
 expr e64 int(1) type=Int
-expr e65 compoundAssign(plusAssign) name=i value=e64 type=Unit ref=__local_130.i
+expr e65 compoundAssign(plusAssign) name=i value=e64 type=Unit ref=__local_125.i
 expr e66 blockExpr stmts=[e56,e62,e65] trailing=_ type=Unit
 expr e67 while cond=e52 body=e66 type=Unit
 expr e68 name(null) type=Nothing?
 expr e69 return value=e68 type=Nothing
 expr e70 int(0) type=Int
-expr e71 localDecl i mutable=1 type=_ init=e70 type=Unit ref=__local_160.i
+expr e71 localDecl i mutable=1 type=_ init=e70 type=Unit ref=__local_155.i
 expr e72 name(size) type=Int
-expr e73 localDecl sz mutable=0 type=_ init=e72 type=Unit ref=__local_164.sz
-expr e74 name(i) type=Int ref=__local_160.i
-expr e75 name(sz) type=Int ref=__local_164.sz
+expr e73 localDecl sz mutable=0 type=_ init=e72 type=Unit ref=__local_159.sz
+expr e74 name(i) type=Int ref=__local_155.i
+expr e75 name(sz) type=Int ref=__local_159.sz
 expr e76 binary(lessThan) lhs=e74 rhs=e75 type=Boolean
 expr e77 this type=kotlin.collections.List<kotlin.collections.find.$15.T>
-expr e78 name(i) type=Int ref=__local_160.i
+expr e78 name(i) type=Int ref=__local_155.i
 expr e79 indexedAccess receiver=e77 indices=[e78] type=kotlin.collections.find.$15.T call=kotlin.collections.List.get targs=[kotlin.collections.find.$15.T]
-expr e80 localDecl element mutable=0 type=_ init=e79 type=Unit ref=__local_169.element
+expr e80 localDecl element mutable=0 type=_ init=e79 type=Unit ref=__local_164.element
 expr e81 name(predicate) type=(kotlin.collections.find.$15.T) -> Boolean ref=kotlin.collections.find.$15.predicate
-expr e82 name(element) type=kotlin.collections.find.$15.T ref=__local_169.element
+expr e82 name(element) type=kotlin.collections.find.$15.T ref=__local_164.element
 expr e83 call callee=e81 args=[_:e82] type=Boolean
-expr e84 name(element) type=kotlin.collections.find.$15.T ref=__local_169.element
+expr e84 name(element) type=kotlin.collections.find.$15.T ref=__local_164.element
 expr e85 return value=e84 type=Nothing
 expr e86 if cond=e83 then=e85 else=_ type=Unit
 expr e88 int(1) type=Int
-expr e89 compoundAssign(plusAssign) name=i value=e88 type=Unit ref=__local_160.i
+expr e89 compoundAssign(plusAssign) name=i value=e88 type=Unit ref=__local_155.i
 expr e90 blockExpr stmts=[e80,e86,e89] trailing=_ type=Unit
 expr e91 while cond=e76 body=e90 type=Unit
 expr e92 name(null) type=Nothing?
 expr e93 return value=e92 type=Nothing
-expr e95 call callee=e94 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.last.$32.T]
+expr e95 call callee=e94 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.last.$33.T]
 expr e97 string(Collection is empty.) type=String
 expr e98 call callee=e96 args=[_:e97] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
 expr e99 throw value=e98 type=Nothing
 expr e100 if cond=e95 then=e99 else=_ type=Unit
-expr e101 this type=kotlin.collections.List<kotlin.collections.last.$32.T>
+expr e101 this type=kotlin.collections.List<kotlin.collections.last.$33.T>
 expr e102 name(size) type=Int
 expr e103 int(1) type=Int
 expr e104 binary(subtract) lhs=e102 rhs=e103 type=Int
-expr e105 indexedAccess receiver=e101 indices=[e104] type=kotlin.collections.last.$32.T call=kotlin.collections.List.get targs=[kotlin.collections.last.$32.T]
+expr e105 indexedAccess receiver=e101 indices=[e104] type=kotlin.collections.last.$33.T call=kotlin.collections.List.get targs=[kotlin.collections.last.$33.T]
 expr e106 return value=e105 type=Nothing
 expr e107 name(size) type=Int
 expr e108 int(1) type=Int
@@ -731,15 +719,15 @@ expr e128 while cond=e113 body=e127 type=Unit
 expr e130 string(Collection contains no element matching the predicate.) type=String
 expr e131 call callee=e129 args=[_:e130] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
 expr e132 throw value=e131 type=Nothing
-expr e134 call callee=e133 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.lastOrNull.$33.T]
+expr e134 call callee=e133 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.lastOrNull.$34.T]
 expr e135 name(null) type=Nothing?
 expr e136 return value=e135 type=Nothing
 expr e137 if cond=e134 then=e136 else=_ type=Unit
-expr e138 this type=kotlin.collections.List<kotlin.collections.lastOrNull.$33.T>
+expr e138 this type=kotlin.collections.List<kotlin.collections.lastOrNull.$34.T>
 expr e139 name(size) type=Int
 expr e140 int(1) type=Int
 expr e141 binary(subtract) lhs=e139 rhs=e140 type=Int
-expr e142 indexedAccess receiver=e138 indices=[e141] type=kotlin.collections.lastOrNull.$33.T call=kotlin.collections.List.get targs=[kotlin.collections.lastOrNull.$33.T]
+expr e142 indexedAccess receiver=e138 indices=[e141] type=kotlin.collections.lastOrNull.$34.T call=kotlin.collections.List.get targs=[kotlin.collections.lastOrNull.$34.T]
 expr e143 return value=e142 type=Nothing
 expr e144 name(size) type=Int
 expr e145 int(1) type=Int
@@ -792,9 +780,9 @@ expr e193 localDecl sz mutable=0 type=_ init=e192 type=Unit ref=__local_69.sz
 expr e194 name(sz) type=Int ref=__local_69.sz
 expr e195 int(1) type=Int
 expr e196 binary(equal) lhs=e194 rhs=e195 type=Boolean
-expr e197 this type=kotlin.collections.List<kotlin.collections.single.$37.T>
+expr e197 this type=kotlin.collections.List<kotlin.collections.single.$38.T>
 expr e198 int(0) type=Int
-expr e199 indexedAccess receiver=e197 indices=[e198] type=kotlin.collections.single.$37.T call=kotlin.collections.List.get targs=[kotlin.collections.single.$37.T]
+expr e199 indexedAccess receiver=e197 indices=[e198] type=kotlin.collections.single.$38.T call=kotlin.collections.List.get targs=[kotlin.collections.single.$38.T]
 expr e200 return value=e199 type=Nothing
 expr e201 if cond=e196 then=e200 else=_ type=Unit
 expr e202 name(sz) type=Int ref=__local_69.sz
@@ -817,10 +805,10 @@ expr e220 localDecl sz mutable=0 type=_ init=e219 type=Unit ref=__local_91.sz
 expr e221 name(i) type=Int ref=__local_89.i
 expr e222 name(sz) type=Int ref=__local_91.sz
 expr e223 binary(lessThan) lhs=e221 rhs=e222 type=Boolean
-expr e224 name(predicate) type=(kotlin.collections.single.$38.T) -> Boolean ref=kotlin.collections.single.$38.predicate
-expr e225 this type=kotlin.collections.List<kotlin.collections.single.$38.T>
+expr e224 name(predicate) type=(kotlin.collections.single.$39.T) -> Boolean ref=kotlin.collections.single.$39.predicate
+expr e225 this type=kotlin.collections.List<kotlin.collections.single.$39.T>
 expr e226 name(i) type=Int ref=__local_89.i
-expr e227 indexedAccess receiver=e225 indices=[e226] type=kotlin.collections.single.$38.T call=kotlin.collections.List.get targs=[kotlin.collections.single.$38.T]
+expr e227 indexedAccess receiver=e225 indices=[e226] type=kotlin.collections.single.$39.T call=kotlin.collections.List.get targs=[kotlin.collections.single.$39.T]
 expr e228 call callee=e224 args=[_:e227] type=Boolean
 expr e229 name(matchIndex) type=Int ref=__local_87.matchIndex
 expr e230 int(0) type=Int
@@ -841,9 +829,9 @@ expr e247 while cond=e223 body=e246 type=Unit
 expr e248 name(matchIndex) type=Int ref=__local_87.matchIndex
 expr e249 int(0) type=Int
 expr e250 binary(greaterOrEqual) lhs=e248 rhs=e249 type=Boolean
-expr e251 this type=kotlin.collections.List<kotlin.collections.single.$38.T>
+expr e251 this type=kotlin.collections.List<kotlin.collections.single.$39.T>
 expr e252 name(matchIndex) type=Int ref=__local_87.matchIndex
-expr e253 indexedAccess receiver=e251 indices=[e252] type=kotlin.collections.single.$38.T call=kotlin.collections.List.get targs=[kotlin.collections.single.$38.T]
+expr e253 indexedAccess receiver=e251 indices=[e252] type=kotlin.collections.single.$39.T call=kotlin.collections.List.get targs=[kotlin.collections.single.$39.T]
 expr e254 return value=e253 type=Nothing
 expr e255 if cond=e250 then=e254 else=_ type=Unit
 expr e257 string(Collection contains no element matching the predicate.) type=String
@@ -852,91 +840,91 @@ expr e259 throw value=e258 type=Nothing
 expr e260 name(size) type=Int
 expr e261 int(1) type=Int
 expr e262 binary(equal) lhs=e260 rhs=e261 type=Boolean
-expr e263 this type=kotlin.collections.List<kotlin.collections.singleOrNull.$39.T>
+expr e263 this type=kotlin.collections.List<kotlin.collections.singleOrNull.$40.T>
 expr e264 int(0) type=Int
-expr e265 indexedAccess receiver=e263 indices=[e264] type=kotlin.collections.singleOrNull.$39.T call=kotlin.collections.List.get targs=[kotlin.collections.singleOrNull.$39.T]
+expr e265 indexedAccess receiver=e263 indices=[e264] type=kotlin.collections.singleOrNull.$40.T call=kotlin.collections.List.get targs=[kotlin.collections.singleOrNull.$40.T]
 expr e266 return value=e265 type=Nothing
 expr e267 if cond=e262 then=e266 else=_ type=Unit
 expr e268 name(null) type=Nothing?
 expr e269 return value=e268 type=Nothing
 expr e270 int(1) type=Int
 expr e271 unary(unaryMinus) operand=e270 type=Int
-expr e272 localDecl matchIndex mutable=1 type=_ init=e271 type=Unit ref=__local_117.matchIndex
+expr e272 localDecl matchIndex mutable=1 type=_ init=e271 type=Unit ref=__local_112.matchIndex
 expr e273 int(0) type=Int
-expr e274 localDecl i mutable=1 type=_ init=e273 type=Unit ref=__local_118.i
+expr e274 localDecl i mutable=1 type=_ init=e273 type=Unit ref=__local_113.i
 expr e275 name(size) type=Int
-expr e276 localDecl sz mutable=0 type=_ init=e275 type=Unit ref=__local_119.sz
-expr e277 name(i) type=Int ref=__local_118.i
-expr e278 name(sz) type=Int ref=__local_119.sz
+expr e276 localDecl sz mutable=0 type=_ init=e275 type=Unit ref=__local_114.sz
+expr e277 name(i) type=Int ref=__local_113.i
+expr e278 name(sz) type=Int ref=__local_114.sz
 expr e279 binary(lessThan) lhs=e277 rhs=e278 type=Boolean
-expr e280 name(predicate) type=(kotlin.collections.singleOrNull.$40.T) -> Boolean ref=kotlin.collections.singleOrNull.$40.predicate
-expr e281 this type=kotlin.collections.List<kotlin.collections.singleOrNull.$40.T>
-expr e282 name(i) type=Int ref=__local_118.i
-expr e283 indexedAccess receiver=e281 indices=[e282] type=kotlin.collections.singleOrNull.$40.T call=kotlin.collections.List.get targs=[kotlin.collections.singleOrNull.$40.T]
+expr e280 name(predicate) type=(kotlin.collections.singleOrNull.$41.T) -> Boolean ref=kotlin.collections.singleOrNull.$41.predicate
+expr e281 this type=kotlin.collections.List<kotlin.collections.singleOrNull.$41.T>
+expr e282 name(i) type=Int ref=__local_113.i
+expr e283 indexedAccess receiver=e281 indices=[e282] type=kotlin.collections.singleOrNull.$41.T call=kotlin.collections.List.get targs=[kotlin.collections.singleOrNull.$41.T]
 expr e284 call callee=e280 args=[_:e283] type=Boolean
-expr e285 name(matchIndex) type=Int ref=__local_117.matchIndex
+expr e285 name(matchIndex) type=Int ref=__local_112.matchIndex
 expr e286 int(0) type=Int
 expr e287 binary(greaterOrEqual) lhs=e285 rhs=e286 type=Boolean
 expr e288 name(null) type=Nothing?
 expr e289 return value=e288 type=Nothing
 expr e290 if cond=e287 then=e289 else=_ type=Unit
-expr e292 name(i) type=Int ref=__local_118.i
-expr e293 localAssign matchIndex value=e292 type=Unit ref=__local_117.matchIndex
+expr e292 name(i) type=Int ref=__local_113.i
+expr e293 localAssign matchIndex value=e292 type=Unit ref=__local_112.matchIndex
 expr e294 blockExpr stmts=[e290,e293] trailing=_ type=Unit
 expr e295 if cond=e284 then=e294 else=_ type=Unit
 expr e297 int(1) type=Int
-expr e298 compoundAssign(plusAssign) name=i value=e297 type=Unit ref=__local_118.i
+expr e298 compoundAssign(plusAssign) name=i value=e297 type=Unit ref=__local_113.i
 expr e299 blockExpr stmts=[e295,e298] trailing=_ type=Unit
 expr e300 while cond=e279 body=e299 type=Unit
-expr e301 name(matchIndex) type=Int ref=__local_117.matchIndex
+expr e301 name(matchIndex) type=Int ref=__local_112.matchIndex
 expr e302 int(0) type=Int
 expr e303 binary(greaterOrEqual) lhs=e301 rhs=e302 type=Boolean
-expr e304 this type=kotlin.collections.List<kotlin.collections.singleOrNull.$40.T>
-expr e305 name(matchIndex) type=Int ref=__local_117.matchIndex
-expr e306 indexedAccess receiver=e304 indices=[e305] type=kotlin.collections.singleOrNull.$40.T call=kotlin.collections.List.get targs=[kotlin.collections.singleOrNull.$40.T]
+expr e304 this type=kotlin.collections.List<kotlin.collections.singleOrNull.$41.T>
+expr e305 name(matchIndex) type=Int ref=__local_112.matchIndex
+expr e306 indexedAccess receiver=e304 indices=[e305] type=kotlin.collections.singleOrNull.$41.T call=kotlin.collections.List.get targs=[kotlin.collections.singleOrNull.$41.T]
 expr e307 return value=e306 type=Nothing
 expr e308 if cond=e303 then=e307 else=_ type=Unit
 expr e309 name(null) type=Nothing?
 expr e310 return value=e309 type=Nothing
 expr e311 int(0) type=Int
-expr e312 localDecl i mutable=1 type=_ init=e311 type=Unit ref=__local_120.i
+expr e312 localDecl i mutable=1 type=_ init=e311 type=Unit ref=__local_115.i
 expr e313 name(size) type=Int
-expr e314 localDecl sz mutable=0 type=_ init=e313 type=Unit ref=__local_121.sz
-expr e315 name(i) type=Int ref=__local_120.i
-expr e316 name(sz) type=Int ref=__local_121.sz
+expr e314 localDecl sz mutable=0 type=_ init=e313 type=Unit ref=__local_116.sz
+expr e315 name(i) type=Int ref=__local_115.i
+expr e316 name(sz) type=Int ref=__local_116.sz
 expr e317 binary(lessThan) lhs=e315 rhs=e316 type=Boolean
-expr e318 this type=kotlin.collections.List<kotlin.collections.indexOf.$29.T>
-expr e319 name(i) type=Int ref=__local_120.i
-expr e320 indexedAccess receiver=e318 indices=[e319] type=kotlin.collections.indexOf.$29.T call=kotlin.collections.List.get targs=[kotlin.collections.indexOf.$29.T]
-expr e321 name(element) type=kotlin.collections.indexOf.$29.T ref=kotlin.collections.indexOf.$29.element
+expr e318 this type=kotlin.collections.List<kotlin.collections.indexOf.$30.T>
+expr e319 name(i) type=Int ref=__local_115.i
+expr e320 indexedAccess receiver=e318 indices=[e319] type=kotlin.collections.indexOf.$30.T call=kotlin.collections.List.get targs=[kotlin.collections.indexOf.$30.T]
+expr e321 name(element) type=kotlin.collections.indexOf.$30.T ref=kotlin.collections.indexOf.$30.element
 expr e322 binary(equal) lhs=e320 rhs=e321 type=Boolean
-expr e323 name(i) type=Int ref=__local_120.i
+expr e323 name(i) type=Int ref=__local_115.i
 expr e324 return value=e323 type=Nothing
 expr e325 if cond=e322 then=e324 else=_ type=Unit
 expr e327 int(1) type=Int
-expr e328 compoundAssign(plusAssign) name=i value=e327 type=Unit ref=__local_120.i
+expr e328 compoundAssign(plusAssign) name=i value=e327 type=Unit ref=__local_115.i
 expr e329 blockExpr stmts=[e325,e328] trailing=_ type=Unit
 expr e330 while cond=e317 body=e329 type=Unit
 expr e331 int(1) type=Int
 expr e332 unary(unaryMinus) operand=e331 type=Int
 expr e333 return value=e332 type=Nothing
 expr e334 int(0) type=Int
-expr e335 localDecl i mutable=1 type=_ init=e334 type=Unit ref=__local_122.i
+expr e335 localDecl i mutable=1 type=_ init=e334 type=Unit ref=__local_117.i
 expr e336 name(size) type=Int
-expr e337 localDecl sz mutable=0 type=_ init=e336 type=Unit ref=__local_123.sz
-expr e338 name(i) type=Int ref=__local_122.i
-expr e339 name(sz) type=Int ref=__local_123.sz
+expr e337 localDecl sz mutable=0 type=_ init=e336 type=Unit ref=__local_118.sz
+expr e338 name(i) type=Int ref=__local_117.i
+expr e339 name(sz) type=Int ref=__local_118.sz
 expr e340 binary(lessThan) lhs=e338 rhs=e339 type=Boolean
-expr e341 name(predicate) type=(kotlin.collections.indexOfFirst.$30.T) -> Boolean ref=kotlin.collections.indexOfFirst.$30.predicate
-expr e342 this type=kotlin.collections.List<kotlin.collections.indexOfFirst.$30.T>
-expr e343 name(i) type=Int ref=__local_122.i
-expr e344 indexedAccess receiver=e342 indices=[e343] type=kotlin.collections.indexOfFirst.$30.T call=kotlin.collections.List.get targs=[kotlin.collections.indexOfFirst.$30.T]
+expr e341 name(predicate) type=(kotlin.collections.indexOfFirst.$31.T) -> Boolean ref=kotlin.collections.indexOfFirst.$31.predicate
+expr e342 this type=kotlin.collections.List<kotlin.collections.indexOfFirst.$31.T>
+expr e343 name(i) type=Int ref=__local_117.i
+expr e344 indexedAccess receiver=e342 indices=[e343] type=kotlin.collections.indexOfFirst.$31.T call=kotlin.collections.List.get targs=[kotlin.collections.indexOfFirst.$31.T]
 expr e345 call callee=e341 args=[_:e344] type=Boolean
-expr e346 name(i) type=Int ref=__local_122.i
+expr e346 name(i) type=Int ref=__local_117.i
 expr e347 return value=e346 type=Nothing
 expr e348 if cond=e345 then=e347 else=_ type=Unit
 expr e350 int(1) type=Int
-expr e351 compoundAssign(plusAssign) name=i value=e350 type=Unit ref=__local_122.i
+expr e351 compoundAssign(plusAssign) name=i value=e350 type=Unit ref=__local_117.i
 expr e352 blockExpr stmts=[e348,e351] trailing=_ type=Unit
 expr e353 while cond=e340 body=e352 type=Unit
 expr e354 int(1) type=Int
@@ -945,122 +933,122 @@ expr e356 return value=e355 type=Nothing
 expr e357 name(size) type=Int
 expr e358 int(1) type=Int
 expr e359 binary(subtract) lhs=e357 rhs=e358 type=Int
-expr e360 localDecl i mutable=1 type=_ init=e359 type=Unit ref=__local_124.i
-expr e361 name(i) type=Int ref=__local_124.i
+expr e360 localDecl i mutable=1 type=_ init=e359 type=Unit ref=__local_119.i
+expr e361 name(i) type=Int ref=__local_119.i
 expr e362 int(0) type=Int
 expr e363 binary(greaterOrEqual) lhs=e361 rhs=e362 type=Boolean
-expr e364 name(predicate) type=(kotlin.collections.indexOfLast.$31.T) -> Boolean ref=kotlin.collections.indexOfLast.$31.predicate
-expr e365 this type=kotlin.collections.List<kotlin.collections.indexOfLast.$31.T>
-expr e366 name(i) type=Int ref=__local_124.i
-expr e367 indexedAccess receiver=e365 indices=[e366] type=kotlin.collections.indexOfLast.$31.T call=kotlin.collections.List.get targs=[kotlin.collections.indexOfLast.$31.T]
+expr e364 name(predicate) type=(kotlin.collections.indexOfLast.$32.T) -> Boolean ref=kotlin.collections.indexOfLast.$32.predicate
+expr e365 this type=kotlin.collections.List<kotlin.collections.indexOfLast.$32.T>
+expr e366 name(i) type=Int ref=__local_119.i
+expr e367 indexedAccess receiver=e365 indices=[e366] type=kotlin.collections.indexOfLast.$32.T call=kotlin.collections.List.get targs=[kotlin.collections.indexOfLast.$32.T]
 expr e368 call callee=e364 args=[_:e367] type=Boolean
-expr e369 name(i) type=Int ref=__local_124.i
+expr e369 name(i) type=Int ref=__local_119.i
 expr e370 return value=e369 type=Nothing
 expr e371 if cond=e368 then=e370 else=_ type=Unit
 expr e373 int(1) type=Int
-expr e374 compoundAssign(minusAssign) name=i value=e373 type=Unit ref=__local_124.i
+expr e374 compoundAssign(minusAssign) name=i value=e373 type=Unit ref=__local_119.i
 expr e375 blockExpr stmts=[e371,e374] trailing=_ type=Unit
 expr e376 while cond=e363 body=e375 type=Unit
 expr e377 int(1) type=Int
 expr e378 unary(unaryMinus) operand=e377 type=Int
 expr e379 return value=e378 type=Nothing
 expr e380 int(0) type=Int
-expr e381 localDecl count mutable=1 type=_ init=e380 type=Unit ref=__local_125.count
+expr e381 localDecl count mutable=1 type=_ init=e380 type=Unit ref=__local_120.count
 expr e382 int(0) type=Int
-expr e383 localDecl i mutable=1 type=_ init=e382 type=Unit ref=__local_126.i
-expr e384 name(i) type=Int ref=__local_126.i
+expr e383 localDecl i mutable=1 type=_ init=e382 type=Unit ref=__local_121.i
+expr e384 name(i) type=Int ref=__local_121.i
 expr e385 name(size) type=Int
 expr e386 binary(lessThan) lhs=e384 rhs=e385 type=Boolean
-expr e395 name(predicate) type=(kotlin.collections.count.$24.T) -> Boolean ref=kotlin.collections.count.$24.predicate
-expr e396 this type=kotlin.collections.List<kotlin.collections.count.$24.T>
-expr e397 name(i) type=Int ref=__local_126.i
-expr e398 indexedAccess receiver=e396 indices=[e397] type=kotlin.collections.count.$24.T call=kotlin.collections.List.get targs=[kotlin.collections.count.$24.T]
+expr e395 name(predicate) type=(kotlin.collections.count.$25.T) -> Boolean ref=kotlin.collections.count.$25.predicate
+expr e396 this type=kotlin.collections.List<kotlin.collections.count.$25.T>
+expr e397 name(i) type=Int ref=__local_121.i
+expr e398 indexedAccess receiver=e396 indices=[e397] type=kotlin.collections.count.$25.T call=kotlin.collections.List.get targs=[kotlin.collections.count.$25.T]
 expr e399 call callee=e395 args=[_:e398] type=Boolean
 expr e401 int(1) type=Int
-expr e402 compoundAssign(plusAssign) name=count value=e401 type=Unit ref=__local_125.count
+expr e402 compoundAssign(plusAssign) name=count value=e401 type=Unit ref=__local_120.count
 expr e403 if cond=e399 then=e402 else=_ type=Unit
 expr e405 int(1) type=Int
-expr e406 compoundAssign(plusAssign) name=i value=e405 type=Unit ref=__local_126.i
+expr e406 compoundAssign(plusAssign) name=i value=e405 type=Unit ref=__local_121.i
 expr e407 blockExpr stmts=[e403,e406] trailing=_ type=Unit
 expr e408 while cond=e386 body=e407 type=Unit
-expr e409 name(count) type=Int ref=__local_125.count
+expr e409 name(count) type=Int ref=__local_120.count
 expr e410 return value=e409 type=Nothing
 expr e411 int(0) type=Int
-expr e412 localDecl i mutable=1 type=_ init=e411 type=Unit ref=__local_127.i
-expr e413 name(i) type=Int ref=__local_127.i
+expr e412 localDecl i mutable=1 type=_ init=e411 type=Unit ref=__local_122.i
+expr e413 name(i) type=Int ref=__local_122.i
 expr e414 name(size) type=Int
 expr e415 binary(lessThan) lhs=e413 rhs=e414 type=Boolean
-expr e416 name(predicate) type=(kotlin.collections.any.$22.T) -> Boolean ref=kotlin.collections.any.$22.predicate
-expr e417 this type=kotlin.collections.List<kotlin.collections.any.$22.T>
-expr e418 name(i) type=Int ref=__local_127.i
-expr e419 indexedAccess receiver=e417 indices=[e418] type=kotlin.collections.any.$22.T call=kotlin.collections.List.get targs=[kotlin.collections.any.$22.T]
+expr e416 name(predicate) type=(kotlin.collections.any.$23.T) -> Boolean ref=kotlin.collections.any.$23.predicate
+expr e417 this type=kotlin.collections.List<kotlin.collections.any.$23.T>
+expr e418 name(i) type=Int ref=__local_122.i
+expr e419 indexedAccess receiver=e417 indices=[e418] type=kotlin.collections.any.$23.T call=kotlin.collections.List.get targs=[kotlin.collections.any.$23.T]
 expr e420 call callee=e416 args=[_:e419] type=Boolean
 expr e421 bool(true) type=Boolean
 expr e422 return value=e421 type=Nothing
 expr e423 if cond=e420 then=e422 else=_ type=Unit
 expr e425 int(1) type=Int
-expr e426 compoundAssign(plusAssign) name=i value=e425 type=Unit ref=__local_127.i
+expr e426 compoundAssign(plusAssign) name=i value=e425 type=Unit ref=__local_122.i
 expr e427 blockExpr stmts=[e423,e426] trailing=_ type=Unit
 expr e428 while cond=e415 body=e427 type=Unit
 expr e429 bool(false) type=Boolean
 expr e430 return value=e429 type=Nothing
 expr e431 int(0) type=Int
-expr e432 localDecl i mutable=1 type=_ init=e431 type=Unit ref=__local_128.i
-expr e433 name(i) type=Int ref=__local_128.i
+expr e432 localDecl i mutable=1 type=_ init=e431 type=Unit ref=__local_123.i
+expr e433 name(i) type=Int ref=__local_123.i
 expr e434 name(size) type=Int
 expr e435 binary(lessThan) lhs=e433 rhs=e434 type=Boolean
-expr e436 name(predicate) type=(kotlin.collections.all.$20.T) -> Boolean ref=kotlin.collections.all.$20.predicate
-expr e437 this type=kotlin.collections.List<kotlin.collections.all.$20.T>
-expr e438 name(i) type=Int ref=__local_128.i
-expr e439 indexedAccess receiver=e437 indices=[e438] type=kotlin.collections.all.$20.T call=kotlin.collections.List.get targs=[kotlin.collections.all.$20.T]
+expr e436 name(predicate) type=(kotlin.collections.all.$21.T) -> Boolean ref=kotlin.collections.all.$21.predicate
+expr e437 this type=kotlin.collections.List<kotlin.collections.all.$21.T>
+expr e438 name(i) type=Int ref=__local_123.i
+expr e439 indexedAccess receiver=e437 indices=[e438] type=kotlin.collections.all.$21.T call=kotlin.collections.List.get targs=[kotlin.collections.all.$21.T]
 expr e440 call callee=e436 args=[_:e439] type=Boolean
 expr e441 unary(not) operand=e440 type=Boolean
 expr e442 bool(false) type=Boolean
 expr e443 return value=e442 type=Nothing
 expr e444 if cond=e441 then=e443 else=_ type=Unit
 expr e446 int(1) type=Int
-expr e447 compoundAssign(plusAssign) name=i value=e446 type=Unit ref=__local_128.i
+expr e447 compoundAssign(plusAssign) name=i value=e446 type=Unit ref=__local_123.i
 expr e448 blockExpr stmts=[e444,e447] trailing=_ type=Unit
 expr e449 while cond=e435 body=e448 type=Unit
 expr e450 bool(true) type=Boolean
 expr e451 return value=e450 type=Nothing
 expr e452 int(0) type=Int
-expr e453 localDecl i mutable=1 type=_ init=e452 type=Unit ref=__local_129.i
-expr e454 name(i) type=Int ref=__local_129.i
+expr e453 localDecl i mutable=1 type=_ init=e452 type=Unit ref=__local_124.i
+expr e454 name(i) type=Int ref=__local_124.i
 expr e455 name(size) type=Int
 expr e456 binary(lessThan) lhs=e454 rhs=e455 type=Boolean
-expr e457 name(predicate) type=(kotlin.collections.none.$34.T) -> Boolean ref=kotlin.collections.none.$34.predicate
-expr e458 this type=kotlin.collections.List<kotlin.collections.none.$34.T>
-expr e459 name(i) type=Int ref=__local_129.i
-expr e460 indexedAccess receiver=e458 indices=[e459] type=kotlin.collections.none.$34.T call=kotlin.collections.List.get targs=[kotlin.collections.none.$34.T]
+expr e457 name(predicate) type=(kotlin.collections.none.$35.T) -> Boolean ref=kotlin.collections.none.$35.predicate
+expr e458 this type=kotlin.collections.List<kotlin.collections.none.$35.T>
+expr e459 name(i) type=Int ref=__local_124.i
+expr e460 indexedAccess receiver=e458 indices=[e459] type=kotlin.collections.none.$35.T call=kotlin.collections.List.get targs=[kotlin.collections.none.$35.T]
 expr e461 call callee=e457 args=[_:e460] type=Boolean
 expr e462 bool(false) type=Boolean
 expr e463 return value=e462 type=Nothing
 expr e464 if cond=e461 then=e463 else=_ type=Unit
 expr e466 int(1) type=Int
-expr e467 compoundAssign(plusAssign) name=i value=e466 type=Unit ref=__local_129.i
+expr e467 compoundAssign(plusAssign) name=i value=e466 type=Unit ref=__local_124.i
 expr e468 blockExpr stmts=[e464,e467] trailing=_ type=Unit
 expr e469 while cond=e456 body=e468 type=Unit
 expr e470 bool(true) type=Boolean
 expr e471 return value=e470 type=Nothing
 expr e472 int(0) type=Int
-expr e473 localDecl sum mutable=1 type=_ init=e472 type=Unit ref=__local_131.sum
+expr e473 localDecl sum mutable=1 type=_ init=e472 type=Unit ref=__local_126.sum
 expr e474 int(0) type=Int
-expr e475 localDecl i mutable=1 type=_ init=e474 type=Unit ref=__local_132.i
-expr e476 name(i) type=Int ref=__local_132.i
+expr e475 localDecl i mutable=1 type=_ init=e474 type=Unit ref=__local_127.i
+expr e476 name(i) type=Int ref=__local_127.i
 expr e477 name(size) type=Int
 expr e478 binary(lessThan) lhs=e476 rhs=e477 type=Boolean
-expr e480 name(selector) type=(kotlin.collections.sumOf.$41.T) -> Int ref=kotlin.collections.sumOf.$41.selector
-expr e481 this type=kotlin.collections.List<kotlin.collections.sumOf.$41.T>
-expr e482 name(i) type=Int ref=__local_132.i
-expr e483 indexedAccess receiver=e481 indices=[e482] type=kotlin.collections.sumOf.$41.T call=kotlin.collections.List.get targs=[kotlin.collections.sumOf.$41.T]
+expr e480 name(selector) type=(kotlin.collections.sumOf.$42.T) -> Int ref=kotlin.collections.sumOf.$42.selector
+expr e481 this type=kotlin.collections.List<kotlin.collections.sumOf.$42.T>
+expr e482 name(i) type=Int ref=__local_127.i
+expr e483 indexedAccess receiver=e481 indices=[e482] type=kotlin.collections.sumOf.$42.T call=kotlin.collections.List.get targs=[kotlin.collections.sumOf.$42.T]
 expr e484 call callee=e480 args=[_:e483] type=Int
-expr e485 compoundAssign(plusAssign) name=sum value=e484 type=Unit ref=__local_131.sum
+expr e485 compoundAssign(plusAssign) name=sum value=e484 type=Unit ref=__local_126.sum
 expr e487 int(1) type=Int
-expr e488 compoundAssign(plusAssign) name=i value=e487 type=Unit ref=__local_132.i
+expr e488 compoundAssign(plusAssign) name=i value=e487 type=Unit ref=__local_127.i
 expr e489 blockExpr stmts=[e485,e488] trailing=_ type=Unit
 expr e490 while cond=e478 body=e489 type=Unit
-expr e491 name(sum) type=Int ref=__local_131.sum
+expr e491 name(sum) type=Int ref=__local_126.sum
 expr e492 return value=e491 type=Nothing
 expr e494 call callee=e493 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.maxByOrNull.$7.T]
 expr e495 name(null) type=Nothing?
@@ -1069,38 +1057,38 @@ expr e497 if cond=e494 then=e496 else=_ type=Unit
 expr e498 this type=kotlin.collections.List<kotlin.collections.maxByOrNull.$7.T>
 expr e499 int(0) type=Int
 expr e500 indexedAccess receiver=e498 indices=[e499] type=kotlin.collections.maxByOrNull.$7.T call=kotlin.collections.List.get targs=[kotlin.collections.maxByOrNull.$7.T]
-expr e501 localDecl bestElem mutable=1 type=_ init=e500 type=Unit ref=__local_134.bestElem
+expr e501 localDecl bestElem mutable=1 type=_ init=e500 type=Unit ref=__local_129.bestElem
 expr e502 name(selector) type=(kotlin.collections.maxByOrNull.$7.T) -> kotlin.collections.maxByOrNull.$7.R ref=kotlin.collections.maxByOrNull.$7.selector
-expr e503 name(bestElem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_134.bestElem
+expr e503 name(bestElem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_129.bestElem
 expr e504 call callee=e502 args=[_:e503] type=kotlin.collections.maxByOrNull.$7.R
-expr e505 localDecl bestKey mutable=1 type=_ init=e504 type=Unit ref=__local_135.bestKey
+expr e505 localDecl bestKey mutable=1 type=_ init=e504 type=Unit ref=__local_130.bestKey
 expr e506 int(1) type=Int
-expr e507 localDecl i mutable=1 type=_ init=e506 type=Unit ref=__local_136.i
-expr e508 name(i) type=Int ref=__local_136.i
+expr e507 localDecl i mutable=1 type=_ init=e506 type=Unit ref=__local_131.i
+expr e508 name(i) type=Int ref=__local_131.i
 expr e509 name(size) type=Int
 expr e510 binary(lessThan) lhs=e508 rhs=e509 type=Boolean
 expr e511 this type=kotlin.collections.List<kotlin.collections.maxByOrNull.$7.T>
-expr e512 name(i) type=Int ref=__local_136.i
+expr e512 name(i) type=Int ref=__local_131.i
 expr e513 indexedAccess receiver=e511 indices=[e512] type=kotlin.collections.maxByOrNull.$7.T call=kotlin.collections.List.get targs=[kotlin.collections.maxByOrNull.$7.T]
-expr e514 localDecl elem mutable=0 type=_ init=e513 type=Unit ref=__local_137.elem
+expr e514 localDecl elem mutable=0 type=_ init=e513 type=Unit ref=__local_132.elem
 expr e515 name(selector) type=(kotlin.collections.maxByOrNull.$7.T) -> kotlin.collections.maxByOrNull.$7.R ref=kotlin.collections.maxByOrNull.$7.selector
-expr e516 name(elem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_137.elem
+expr e516 name(elem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_132.elem
 expr e517 call callee=e515 args=[_:e516] type=kotlin.collections.maxByOrNull.$7.R
-expr e518 localDecl key mutable=0 type=_ init=e517 type=Unit ref=__local_138.key
-expr e519 name(key) type=kotlin.collections.maxByOrNull.$7.R ref=__local_138.key
-expr e520 name(bestKey) type=kotlin.collections.maxByOrNull.$7.R ref=__local_135.bestKey
+expr e518 localDecl key mutable=0 type=_ init=e517 type=Unit ref=__local_133.key
+expr e519 name(key) type=kotlin.collections.maxByOrNull.$7.R ref=__local_133.key
+expr e520 name(bestKey) type=kotlin.collections.maxByOrNull.$7.R ref=__local_130.bestKey
 expr e521 binary(greaterThan) lhs=e519 rhs=e520 type=Boolean call=kotlin.Comparable.compareTo targs=[kotlin.collections.maxByOrNull.$7.R]
-expr e523 name(elem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_137.elem
-expr e524 localAssign bestElem value=e523 type=Unit ref=__local_134.bestElem
-expr e526 name(key) type=kotlin.collections.maxByOrNull.$7.R ref=__local_138.key
-expr e527 localAssign bestKey value=e526 type=Unit ref=__local_135.bestKey
+expr e523 name(elem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_132.elem
+expr e524 localAssign bestElem value=e523 type=Unit ref=__local_129.bestElem
+expr e526 name(key) type=kotlin.collections.maxByOrNull.$7.R ref=__local_133.key
+expr e527 localAssign bestKey value=e526 type=Unit ref=__local_130.bestKey
 expr e528 blockExpr stmts=[e524,e527] trailing=_ type=Unit
 expr e529 if cond=e521 then=e528 else=_ type=Unit
 expr e531 int(1) type=Int
-expr e532 compoundAssign(plusAssign) name=i value=e531 type=Unit ref=__local_136.i
+expr e532 compoundAssign(plusAssign) name=i value=e531 type=Unit ref=__local_131.i
 expr e533 blockExpr stmts=[e514,e518,e529,e532] trailing=_ type=Unit
 expr e534 while cond=e510 body=e533 type=Unit
-expr e535 name(bestElem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_134.bestElem
+expr e535 name(bestElem) type=kotlin.collections.maxByOrNull.$7.T ref=__local_129.bestElem
 expr e536 return value=e535 type=Nothing
 expr e538 call callee=e537 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.minByOrNull.$8.T]
 expr e539 name(null) type=Nothing?
@@ -1109,431 +1097,431 @@ expr e541 if cond=e538 then=e540 else=_ type=Unit
 expr e542 this type=kotlin.collections.List<kotlin.collections.minByOrNull.$8.T>
 expr e543 int(0) type=Int
 expr e544 indexedAccess receiver=e542 indices=[e543] type=kotlin.collections.minByOrNull.$8.T call=kotlin.collections.List.get targs=[kotlin.collections.minByOrNull.$8.T]
-expr e545 localDecl bestElem mutable=1 type=_ init=e544 type=Unit ref=__local_139.bestElem
+expr e545 localDecl bestElem mutable=1 type=_ init=e544 type=Unit ref=__local_134.bestElem
 expr e546 name(selector) type=(kotlin.collections.minByOrNull.$8.T) -> kotlin.collections.minByOrNull.$8.R ref=kotlin.collections.minByOrNull.$8.selector
-expr e547 name(bestElem) type=kotlin.collections.minByOrNull.$8.T ref=__local_139.bestElem
+expr e547 name(bestElem) type=kotlin.collections.minByOrNull.$8.T ref=__local_134.bestElem
 expr e548 call callee=e546 args=[_:e547] type=kotlin.collections.minByOrNull.$8.R
-expr e549 localDecl bestKey mutable=1 type=_ init=e548 type=Unit ref=__local_140.bestKey
+expr e549 localDecl bestKey mutable=1 type=_ init=e548 type=Unit ref=__local_135.bestKey
 expr e550 int(1) type=Int
-expr e551 localDecl i mutable=1 type=_ init=e550 type=Unit ref=__local_141.i
-expr e552 name(i) type=Int ref=__local_141.i
+expr e551 localDecl i mutable=1 type=_ init=e550 type=Unit ref=__local_136.i
+expr e552 name(i) type=Int ref=__local_136.i
 expr e553 name(size) type=Int
 expr e554 binary(lessThan) lhs=e552 rhs=e553 type=Boolean
 expr e555 this type=kotlin.collections.List<kotlin.collections.minByOrNull.$8.T>
-expr e556 name(i) type=Int ref=__local_141.i
+expr e556 name(i) type=Int ref=__local_136.i
 expr e557 indexedAccess receiver=e555 indices=[e556] type=kotlin.collections.minByOrNull.$8.T call=kotlin.collections.List.get targs=[kotlin.collections.minByOrNull.$8.T]
-expr e558 localDecl elem mutable=0 type=_ init=e557 type=Unit ref=__local_142.elem
+expr e558 localDecl elem mutable=0 type=_ init=e557 type=Unit ref=__local_137.elem
 expr e559 name(selector) type=(kotlin.collections.minByOrNull.$8.T) -> kotlin.collections.minByOrNull.$8.R ref=kotlin.collections.minByOrNull.$8.selector
-expr e560 name(elem) type=kotlin.collections.minByOrNull.$8.T ref=__local_142.elem
+expr e560 name(elem) type=kotlin.collections.minByOrNull.$8.T ref=__local_137.elem
 expr e561 call callee=e559 args=[_:e560] type=kotlin.collections.minByOrNull.$8.R
-expr e562 localDecl key mutable=0 type=_ init=e561 type=Unit ref=__local_144.key
-expr e563 name(key) type=kotlin.collections.minByOrNull.$8.R ref=__local_144.key
-expr e564 name(bestKey) type=kotlin.collections.minByOrNull.$8.R ref=__local_140.bestKey
+expr e562 localDecl key mutable=0 type=_ init=e561 type=Unit ref=__local_139.key
+expr e563 name(key) type=kotlin.collections.minByOrNull.$8.R ref=__local_139.key
+expr e564 name(bestKey) type=kotlin.collections.minByOrNull.$8.R ref=__local_135.bestKey
 expr e565 binary(lessThan) lhs=e563 rhs=e564 type=Boolean call=kotlin.Comparable.compareTo targs=[kotlin.collections.minByOrNull.$8.R]
-expr e567 name(elem) type=kotlin.collections.minByOrNull.$8.T ref=__local_142.elem
-expr e568 localAssign bestElem value=e567 type=Unit ref=__local_139.bestElem
-expr e570 name(key) type=kotlin.collections.minByOrNull.$8.R ref=__local_144.key
-expr e571 localAssign bestKey value=e570 type=Unit ref=__local_140.bestKey
+expr e567 name(elem) type=kotlin.collections.minByOrNull.$8.T ref=__local_137.elem
+expr e568 localAssign bestElem value=e567 type=Unit ref=__local_134.bestElem
+expr e570 name(key) type=kotlin.collections.minByOrNull.$8.R ref=__local_139.key
+expr e571 localAssign bestKey value=e570 type=Unit ref=__local_135.bestKey
 expr e572 blockExpr stmts=[e568,e571] trailing=_ type=Unit
 expr e573 if cond=e565 then=e572 else=_ type=Unit
 expr e575 int(1) type=Int
-expr e576 compoundAssign(plusAssign) name=i value=e575 type=Unit ref=__local_141.i
+expr e576 compoundAssign(plusAssign) name=i value=e575 type=Unit ref=__local_136.i
 expr e577 blockExpr stmts=[e558,e562,e573,e576] trailing=_ type=Unit
 expr e578 while cond=e554 body=e577 type=Unit
-expr e579 name(bestElem) type=kotlin.collections.minByOrNull.$8.T ref=__local_139.bestElem
+expr e579 name(bestElem) type=kotlin.collections.minByOrNull.$8.T ref=__local_134.bestElem
 expr e580 return value=e579 type=Nothing
 expr e582 call callee=e581 args=[] type=kotlin.collections.MutableList<kotlin.collections.reversed.$10.T>
-expr e583 localDecl result mutable=0 type=_ init=e582 type=Unit ref=__local_145.result
+expr e583 localDecl result mutable=0 type=_ init=e582 type=Unit ref=__local_140.result
 expr e584 name(size) type=Int
 expr e585 int(1) type=Int
 expr e586 binary(subtract) lhs=e584 rhs=e585 type=Int
-expr e587 localDecl i mutable=1 type=_ init=e586 type=Unit ref=__local_146.i
-expr e588 name(i) type=Int ref=__local_146.i
+expr e587 localDecl i mutable=1 type=_ init=e586 type=Unit ref=__local_141.i
+expr e588 name(i) type=Int ref=__local_141.i
 expr e589 int(0) type=Int
 expr e590 binary(greaterOrEqual) lhs=e588 rhs=e589 type=Boolean
-expr e591 name(result) type=kotlin.collections.MutableList<kotlin.collections.reversed.$10.T> ref=__local_145.result
+expr e591 name(result) type=kotlin.collections.MutableList<kotlin.collections.reversed.$10.T> ref=__local_140.result
 expr e592 this type=kotlin.collections.List<kotlin.collections.reversed.$10.T>
-expr e593 name(i) type=Int ref=__local_146.i
+expr e593 name(i) type=Int ref=__local_141.i
 expr e594 indexedAccess receiver=e592 indices=[e593] type=kotlin.collections.reversed.$10.T call=kotlin.collections.List.get targs=[kotlin.collections.reversed.$10.T]
 expr e595 memberCall recv=e591 callee=add args=[_:e594] type=Boolean call=kotlin.collections.MutableList.add#1
 expr e597 int(1) type=Int
-expr e598 compoundAssign(minusAssign) name=i value=e597 type=Unit ref=__local_146.i
+expr e598 compoundAssign(minusAssign) name=i value=e597 type=Unit ref=__local_141.i
 expr e599 blockExpr stmts=[e595,e598] trailing=_ type=Unit
 expr e600 while cond=e590 body=e599 type=Unit
-expr e601 name(result) type=kotlin.collections.MutableList<kotlin.collections.reversed.$10.T> ref=__local_145.result
+expr e601 name(result) type=kotlin.collections.MutableList<kotlin.collections.reversed.$10.T> ref=__local_140.result
 expr e602 return value=e601 type=Nothing
 expr e604 call callee=e603 args=[] type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T>
-expr e605 localDecl result mutable=0 type=_ init=e604 type=Unit ref=__local_147.result
+expr e605 localDecl result mutable=0 type=_ init=e604 type=Unit ref=__local_142.result
 expr e606 int(0) type=Int
-expr e607 localDecl i mutable=1 type=_ init=e606 type=Unit ref=__local_148.i
-expr e608 name(i) type=Int ref=__local_148.i
+expr e607 localDecl i mutable=1 type=_ init=e606 type=Unit ref=__local_143.i
+expr e608 name(i) type=Int ref=__local_143.i
 expr e609 name(size) type=Int
 expr e610 binary(lessThan) lhs=e608 rhs=e609 type=Boolean
 expr e611 this type=kotlin.collections.List<kotlin.collections.sorted.$11.T>
-expr e612 name(i) type=Int ref=__local_148.i
+expr e612 name(i) type=Int ref=__local_143.i
 expr e613 indexedAccess receiver=e611 indices=[e612] type=kotlin.collections.sorted.$11.T call=kotlin.collections.List.get targs=[kotlin.collections.sorted.$11.T]
-expr e614 localDecl element mutable=0 type=_ init=e613 type=Unit ref=__local_149.element
-expr e615 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_147.result
+expr e614 localDecl element mutable=0 type=_ init=e613 type=Unit ref=__local_144.element
+expr e615 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_142.result
 expr e616 memberCall recv=e615 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e617 localDecl insertAt mutable=1 type=_ init=e616 type=Unit ref=__local_150.insertAt
-expr e618 name(insertAt) type=Int ref=__local_150.insertAt
+expr e617 localDecl insertAt mutable=1 type=_ init=e616 type=Unit ref=__local_145.insertAt
+expr e618 name(insertAt) type=Int ref=__local_145.insertAt
 expr e619 int(0) type=Int
 expr e620 binary(greaterThan) lhs=e618 rhs=e619 type=Boolean
-expr e621 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_147.result
-expr e622 name(insertAt) type=Int ref=__local_150.insertAt
+expr e621 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_142.result
+expr e622 name(insertAt) type=Int ref=__local_145.insertAt
 expr e623 int(1) type=Int
 expr e624 binary(subtract) lhs=e622 rhs=e623 type=Int
 expr e625 indexedAccess receiver=e621 indices=[e624] type=kotlin.collections.sorted.$11.T call=kotlin.collections.List.get targs=[kotlin.collections.sorted.$11.T]
-expr e626 name(element) type=kotlin.collections.sorted.$11.T ref=__local_149.element
+expr e626 name(element) type=kotlin.collections.sorted.$11.T ref=__local_144.element
 expr e627 memberCall recv=e625 callee=compareTo args=[_:e626] type=Int call=kotlin.Comparable.compareTo targs=[kotlin.collections.sorted.$11.T]
 expr e628 int(0) type=Int
 expr e629 binary(greaterThan) lhs=e627 rhs=e628 type=Boolean
 expr e630 binary(logicalAnd) lhs=e620 rhs=e629 type=Boolean
 expr e632 int(1) type=Int
-expr e633 compoundAssign(minusAssign) name=insertAt value=e632 type=Unit ref=__local_150.insertAt
+expr e633 compoundAssign(minusAssign) name=insertAt value=e632 type=Unit ref=__local_145.insertAt
 expr e634 blockExpr stmts=[e633] trailing=_ type=Unit
 expr e635 while cond=e630 body=e634 type=Unit
-expr e636 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_147.result
-expr e637 name(insertAt) type=Int ref=__local_150.insertAt
-expr e638 name(element) type=kotlin.collections.sorted.$11.T ref=__local_149.element
+expr e636 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_142.result
+expr e637 name(insertAt) type=Int ref=__local_145.insertAt
+expr e638 name(element) type=kotlin.collections.sorted.$11.T ref=__local_144.element
 expr e639 memberCall recv=e636 callee=add args=[_:e637,_:e638] type=Unit call=kotlin.collections.MutableList.add#0 targs=[kotlin.collections.sorted.$11.T]
 expr e641 int(1) type=Int
-expr e642 compoundAssign(plusAssign) name=i value=e641 type=Unit ref=__local_148.i
+expr e642 compoundAssign(plusAssign) name=i value=e641 type=Unit ref=__local_143.i
 expr e643 blockExpr stmts=[e614,e617,e635,e639,e642] trailing=_ type=Unit
 expr e644 while cond=e610 body=e643 type=Unit
-expr e645 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_147.result
+expr e645 name(result) type=kotlin.collections.MutableList<kotlin.collections.sorted.$11.T> ref=__local_142.result
 expr e646 return value=e645 type=Nothing
 expr e648 call callee=e647 args=[] type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.T>
-expr e649 localDecl result mutable=0 type=_ init=e648 type=Unit ref=__local_151.result
+expr e649 localDecl result mutable=0 type=_ init=e648 type=Unit ref=__local_146.result
 expr e651 call callee=e650 args=[] type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R>
-expr e652 localDecl keys mutable=0 type=_ init=e651 type=Unit ref=__local_152.keys
+expr e652 localDecl keys mutable=0 type=_ init=e651 type=Unit ref=__local_147.keys
 expr e653 int(0) type=Int
-expr e654 localDecl i mutable=1 type=_ init=e653 type=Unit ref=__local_153.i
-expr e655 name(i) type=Int ref=__local_153.i
+expr e654 localDecl i mutable=1 type=_ init=e653 type=Unit ref=__local_148.i
+expr e655 name(i) type=Int ref=__local_148.i
 expr e656 name(size) type=Int
 expr e657 binary(lessThan) lhs=e655 rhs=e656 type=Boolean
 expr e658 this type=kotlin.collections.List<kotlin.collections.sortedBy.$12.T>
-expr e659 name(i) type=Int ref=__local_153.i
+expr e659 name(i) type=Int ref=__local_148.i
 expr e660 indexedAccess receiver=e658 indices=[e659] type=kotlin.collections.sortedBy.$12.T call=kotlin.collections.List.get targs=[kotlin.collections.sortedBy.$12.T]
-expr e661 localDecl element mutable=0 type=_ init=e660 type=Unit ref=__local_154.element
+expr e661 localDecl element mutable=0 type=_ init=e660 type=Unit ref=__local_149.element
 expr e662 name(selector) type=(kotlin.collections.sortedBy.$12.T) -> kotlin.collections.sortedBy.$12.R ref=kotlin.collections.sortedBy.$12.selector
-expr e663 name(element) type=kotlin.collections.sortedBy.$12.T ref=__local_154.element
+expr e663 name(element) type=kotlin.collections.sortedBy.$12.T ref=__local_149.element
 expr e664 call callee=e662 args=[_:e663] type=kotlin.collections.sortedBy.$12.R
-expr e665 localDecl key mutable=0 type=_ init=e664 type=Unit ref=__local_155.key
-expr e666 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R> ref=__local_152.keys
+expr e665 localDecl key mutable=0 type=_ init=e664 type=Unit ref=__local_150.key
+expr e666 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R> ref=__local_147.keys
 expr e667 memberCall recv=e666 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e668 localDecl insertAt mutable=1 type=_ init=e667 type=Unit ref=__local_156.insertAt
-expr e669 name(insertAt) type=Int ref=__local_156.insertAt
+expr e668 localDecl insertAt mutable=1 type=_ init=e667 type=Unit ref=__local_151.insertAt
+expr e669 name(insertAt) type=Int ref=__local_151.insertAt
 expr e670 int(0) type=Int
 expr e671 binary(greaterThan) lhs=e669 rhs=e670 type=Boolean
-expr e672 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R> ref=__local_152.keys
-expr e673 name(insertAt) type=Int ref=__local_156.insertAt
+expr e672 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R> ref=__local_147.keys
+expr e673 name(insertAt) type=Int ref=__local_151.insertAt
 expr e674 int(1) type=Int
 expr e675 binary(subtract) lhs=e673 rhs=e674 type=Int
 expr e676 indexedAccess receiver=e672 indices=[e675] type=kotlin.collections.sortedBy.$12.R call=kotlin.collections.List.get targs=[kotlin.collections.sortedBy.$12.R]
-expr e677 name(key) type=kotlin.collections.sortedBy.$12.R ref=__local_155.key
+expr e677 name(key) type=kotlin.collections.sortedBy.$12.R ref=__local_150.key
 expr e678 memberCall recv=e676 callee=compareTo args=[_:e677] type=Int call=kotlin.Comparable.compareTo targs=[kotlin.collections.sortedBy.$12.R]
 expr e679 int(0) type=Int
 expr e680 binary(greaterThan) lhs=e678 rhs=e679 type=Boolean
 expr e681 binary(logicalAnd) lhs=e671 rhs=e680 type=Boolean
 expr e683 int(1) type=Int
-expr e684 compoundAssign(minusAssign) name=insertAt value=e683 type=Unit ref=__local_156.insertAt
+expr e684 compoundAssign(minusAssign) name=insertAt value=e683 type=Unit ref=__local_151.insertAt
 expr e685 blockExpr stmts=[e684] trailing=_ type=Unit
 expr e686 while cond=e681 body=e685 type=Unit
-expr e687 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R> ref=__local_152.keys
-expr e688 name(insertAt) type=Int ref=__local_156.insertAt
-expr e689 name(key) type=kotlin.collections.sortedBy.$12.R ref=__local_155.key
+expr e687 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.R> ref=__local_147.keys
+expr e688 name(insertAt) type=Int ref=__local_151.insertAt
+expr e689 name(key) type=kotlin.collections.sortedBy.$12.R ref=__local_150.key
 expr e690 memberCall recv=e687 callee=add args=[_:e688,_:e689] type=Unit call=kotlin.collections.MutableList.add#0 targs=[kotlin.collections.sortedBy.$12.R]
-expr e691 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.T> ref=__local_151.result
-expr e692 name(insertAt) type=Int ref=__local_156.insertAt
-expr e693 name(element) type=kotlin.collections.sortedBy.$12.T ref=__local_154.element
+expr e691 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.T> ref=__local_146.result
+expr e692 name(insertAt) type=Int ref=__local_151.insertAt
+expr e693 name(element) type=kotlin.collections.sortedBy.$12.T ref=__local_149.element
 expr e694 memberCall recv=e691 callee=add args=[_:e692,_:e693] type=Unit call=kotlin.collections.MutableList.add#0 targs=[kotlin.collections.sortedBy.$12.T]
 expr e696 int(1) type=Int
-expr e697 compoundAssign(plusAssign) name=i value=e696 type=Unit ref=__local_153.i
+expr e697 compoundAssign(plusAssign) name=i value=e696 type=Unit ref=__local_148.i
 expr e698 blockExpr stmts=[e661,e665,e668,e686,e690,e694,e697] trailing=_ type=Unit
 expr e699 while cond=e657 body=e698 type=Unit
-expr e700 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.T> ref=__local_151.result
+expr e700 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedBy.$12.T> ref=__local_146.result
 expr e701 return value=e700 type=Nothing
 expr e703 call callee=e702 args=[] type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.T>
-expr e704 localDecl result mutable=0 type=_ init=e703 type=Unit ref=__local_157.result
+expr e704 localDecl result mutable=0 type=_ init=e703 type=Unit ref=__local_152.result
 expr e706 call callee=e705 args=[] type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R>
-expr e707 localDecl keys mutable=0 type=_ init=e706 type=Unit ref=__local_158.keys
+expr e707 localDecl keys mutable=0 type=_ init=e706 type=Unit ref=__local_153.keys
 expr e708 int(0) type=Int
-expr e709 localDecl i mutable=1 type=_ init=e708 type=Unit ref=__local_159.i
-expr e710 name(i) type=Int ref=__local_159.i
+expr e709 localDecl i mutable=1 type=_ init=e708 type=Unit ref=__local_154.i
+expr e710 name(i) type=Int ref=__local_154.i
 expr e711 name(size) type=Int
 expr e712 binary(lessThan) lhs=e710 rhs=e711 type=Boolean
 expr e713 this type=kotlin.collections.List<kotlin.collections.sortedByDescending.$13.T>
-expr e714 name(i) type=Int ref=__local_159.i
+expr e714 name(i) type=Int ref=__local_154.i
 expr e715 indexedAccess receiver=e713 indices=[e714] type=kotlin.collections.sortedByDescending.$13.T call=kotlin.collections.List.get targs=[kotlin.collections.sortedByDescending.$13.T]
-expr e716 localDecl element mutable=0 type=_ init=e715 type=Unit ref=__local_161.element
+expr e716 localDecl element mutable=0 type=_ init=e715 type=Unit ref=__local_156.element
 expr e717 name(selector) type=(kotlin.collections.sortedByDescending.$13.T) -> kotlin.collections.sortedByDescending.$13.R ref=kotlin.collections.sortedByDescending.$13.selector
-expr e718 name(element) type=kotlin.collections.sortedByDescending.$13.T ref=__local_161.element
+expr e718 name(element) type=kotlin.collections.sortedByDescending.$13.T ref=__local_156.element
 expr e719 call callee=e717 args=[_:e718] type=kotlin.collections.sortedByDescending.$13.R
-expr e720 localDecl key mutable=0 type=_ init=e719 type=Unit ref=__local_162.key
-expr e721 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R> ref=__local_158.keys
+expr e720 localDecl key mutable=0 type=_ init=e719 type=Unit ref=__local_157.key
+expr e721 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R> ref=__local_153.keys
 expr e722 memberCall recv=e721 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e723 localDecl insertAt mutable=1 type=_ init=e722 type=Unit ref=__local_163.insertAt
-expr e724 name(insertAt) type=Int ref=__local_163.insertAt
+expr e723 localDecl insertAt mutable=1 type=_ init=e722 type=Unit ref=__local_158.insertAt
+expr e724 name(insertAt) type=Int ref=__local_158.insertAt
 expr e725 int(0) type=Int
 expr e726 binary(greaterThan) lhs=e724 rhs=e725 type=Boolean
-expr e727 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R> ref=__local_158.keys
-expr e728 name(insertAt) type=Int ref=__local_163.insertAt
+expr e727 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R> ref=__local_153.keys
+expr e728 name(insertAt) type=Int ref=__local_158.insertAt
 expr e729 int(1) type=Int
 expr e730 binary(subtract) lhs=e728 rhs=e729 type=Int
 expr e731 indexedAccess receiver=e727 indices=[e730] type=kotlin.collections.sortedByDescending.$13.R call=kotlin.collections.List.get targs=[kotlin.collections.sortedByDescending.$13.R]
-expr e732 name(key) type=kotlin.collections.sortedByDescending.$13.R ref=__local_162.key
+expr e732 name(key) type=kotlin.collections.sortedByDescending.$13.R ref=__local_157.key
 expr e733 memberCall recv=e731 callee=compareTo args=[_:e732] type=Int call=kotlin.Comparable.compareTo targs=[kotlin.collections.sortedByDescending.$13.R]
 expr e734 int(0) type=Int
 expr e735 binary(lessThan) lhs=e733 rhs=e734 type=Boolean
 expr e736 binary(logicalAnd) lhs=e726 rhs=e735 type=Boolean
 expr e738 int(1) type=Int
-expr e739 compoundAssign(minusAssign) name=insertAt value=e738 type=Unit ref=__local_163.insertAt
+expr e739 compoundAssign(minusAssign) name=insertAt value=e738 type=Unit ref=__local_158.insertAt
 expr e740 blockExpr stmts=[e739] trailing=_ type=Unit
 expr e741 while cond=e736 body=e740 type=Unit
-expr e742 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R> ref=__local_158.keys
-expr e743 name(insertAt) type=Int ref=__local_163.insertAt
-expr e744 name(key) type=kotlin.collections.sortedByDescending.$13.R ref=__local_162.key
+expr e742 name(keys) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.R> ref=__local_153.keys
+expr e743 name(insertAt) type=Int ref=__local_158.insertAt
+expr e744 name(key) type=kotlin.collections.sortedByDescending.$13.R ref=__local_157.key
 expr e745 memberCall recv=e742 callee=add args=[_:e743,_:e744] type=Unit call=kotlin.collections.MutableList.add#0 targs=[kotlin.collections.sortedByDescending.$13.R]
-expr e746 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.T> ref=__local_157.result
-expr e747 name(insertAt) type=Int ref=__local_163.insertAt
-expr e748 name(element) type=kotlin.collections.sortedByDescending.$13.T ref=__local_161.element
+expr e746 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.T> ref=__local_152.result
+expr e747 name(insertAt) type=Int ref=__local_158.insertAt
+expr e748 name(element) type=kotlin.collections.sortedByDescending.$13.T ref=__local_156.element
 expr e749 memberCall recv=e746 callee=add args=[_:e747,_:e748] type=Unit call=kotlin.collections.MutableList.add#0 targs=[kotlin.collections.sortedByDescending.$13.T]
 expr e751 int(1) type=Int
-expr e752 compoundAssign(plusAssign) name=i value=e751 type=Unit ref=__local_159.i
+expr e752 compoundAssign(plusAssign) name=i value=e751 type=Unit ref=__local_154.i
 expr e753 blockExpr stmts=[e716,e720,e723,e741,e745,e749,e752] trailing=_ type=Unit
 expr e754 while cond=e712 body=e753 type=Unit
-expr e755 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.T> ref=__local_157.result
+expr e755 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedByDescending.$13.T> ref=__local_152.result
 expr e756 return value=e755 type=Nothing
 expr e758 call callee=e757 args=[] type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T>
-expr e759 localDecl result mutable=0 type=_ init=e758 type=Unit ref=__local_165.result
+expr e759 localDecl result mutable=0 type=_ init=e758 type=Unit ref=__local_160.result
 expr e760 int(0) type=Int
-expr e761 localDecl i mutable=1 type=_ init=e760 type=Unit ref=__local_166.i
-expr e762 name(i) type=Int ref=__local_166.i
+expr e761 localDecl i mutable=1 type=_ init=e760 type=Unit ref=__local_161.i
+expr e762 name(i) type=Int ref=__local_161.i
 expr e763 name(size) type=Int
 expr e764 binary(lessThan) lhs=e762 rhs=e763 type=Boolean
 expr e765 this type=kotlin.collections.List<kotlin.collections.sortedWith.$14.T>
-expr e766 name(i) type=Int ref=__local_166.i
+expr e766 name(i) type=Int ref=__local_161.i
 expr e767 indexedAccess receiver=e765 indices=[e766] type=kotlin.collections.sortedWith.$14.T call=kotlin.collections.List.get targs=[kotlin.collections.sortedWith.$14.T]
-expr e768 localDecl element mutable=0 type=_ init=e767 type=Unit ref=__local_167.element
-expr e769 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_165.result
+expr e768 localDecl element mutable=0 type=_ init=e767 type=Unit ref=__local_162.element
+expr e769 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_160.result
 expr e770 memberCall recv=e769 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e771 localDecl insertAt mutable=1 type=_ init=e770 type=Unit ref=__local_168.insertAt
-expr e772 name(insertAt) type=Int ref=__local_168.insertAt
+expr e771 localDecl insertAt mutable=1 type=_ init=e770 type=Unit ref=__local_163.insertAt
+expr e772 name(insertAt) type=Int ref=__local_163.insertAt
 expr e773 int(0) type=Int
 expr e774 binary(greaterThan) lhs=e772 rhs=e773 type=Boolean
 expr e775 name(comparator) type=(kotlin.collections.sortedWith.$14.T, kotlin.collections.sortedWith.$14.T) -> Int ref=kotlin.collections.sortedWith.$14.comparator
-expr e776 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_165.result
-expr e777 name(insertAt) type=Int ref=__local_168.insertAt
+expr e776 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_160.result
+expr e777 name(insertAt) type=Int ref=__local_163.insertAt
 expr e778 int(1) type=Int
 expr e779 binary(subtract) lhs=e777 rhs=e778 type=Int
 expr e780 indexedAccess receiver=e776 indices=[e779] type=kotlin.collections.sortedWith.$14.T call=kotlin.collections.List.get targs=[kotlin.collections.sortedWith.$14.T]
-expr e781 name(element) type=kotlin.collections.sortedWith.$14.T ref=__local_167.element
+expr e781 name(element) type=kotlin.collections.sortedWith.$14.T ref=__local_162.element
 expr e782 call callee=e775 args=[_:e780,_:e781] type=Int
 expr e783 int(0) type=Int
 expr e784 binary(greaterThan) lhs=e782 rhs=e783 type=Boolean
 expr e785 binary(logicalAnd) lhs=e774 rhs=e784 type=Boolean
 expr e787 int(1) type=Int
-expr e788 compoundAssign(minusAssign) name=insertAt value=e787 type=Unit ref=__local_168.insertAt
+expr e788 compoundAssign(minusAssign) name=insertAt value=e787 type=Unit ref=__local_163.insertAt
 expr e789 blockExpr stmts=[e788] trailing=_ type=Unit
 expr e790 while cond=e785 body=e789 type=Unit
-expr e791 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_165.result
-expr e792 name(insertAt) type=Int ref=__local_168.insertAt
-expr e793 name(element) type=kotlin.collections.sortedWith.$14.T ref=__local_167.element
+expr e791 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_160.result
+expr e792 name(insertAt) type=Int ref=__local_163.insertAt
+expr e793 name(element) type=kotlin.collections.sortedWith.$14.T ref=__local_162.element
 expr e794 memberCall recv=e791 callee=add args=[_:e792,_:e793] type=Unit call=kotlin.collections.MutableList.add#0 targs=[kotlin.collections.sortedWith.$14.T]
 expr e796 int(1) type=Int
-expr e797 compoundAssign(plusAssign) name=i value=e796 type=Unit ref=__local_166.i
+expr e797 compoundAssign(plusAssign) name=i value=e796 type=Unit ref=__local_161.i
 expr e798 blockExpr stmts=[e768,e771,e790,e794,e797] trailing=_ type=Unit
 expr e799 while cond=e764 body=e798 type=Unit
-expr e800 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_165.result
+expr e800 name(result) type=kotlin.collections.MutableList<kotlin.collections.sortedWith.$14.T> ref=__local_160.result
 expr e801 return value=e800 type=Nothing
 expr e803 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e804 memberCall recv=e803 callee=Default args=[] type=kotlin.random.Random ref=kotlin.random.Random.Default
-expr e805 call callee=e802 args=[_:e804] type=kotlin.collections.List<kotlin.collections.shuffled.$36.T> call=kotlin.collections.shuffled#1 targs=[kotlin.collections.shuffled.$36.T]
+expr e805 call callee=e802 args=[_:e804] type=kotlin.collections.List<kotlin.collections.shuffled.$37.T> call=kotlin.collections.shuffled#1 targs=[kotlin.collections.shuffled.$37.T]
 expr e807 call callee=e806 args=[] type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T>
-expr e808 localDecl result mutable=0 type=_ init=e807 type=Unit ref=__local_170.result
+expr e808 localDecl result mutable=0 type=_ init=e807 type=Unit ref=__local_165.result
 expr e809 int(0) type=Int
-expr e810 localDecl copyIndex mutable=1 type=_ init=e809 type=Unit ref=__local_171.copyIndex
-expr e811 name(copyIndex) type=Int ref=__local_171.copyIndex
+expr e810 localDecl copyIndex mutable=1 type=_ init=e809 type=Unit ref=__local_166.copyIndex
+expr e811 name(copyIndex) type=Int ref=__local_166.copyIndex
 expr e812 name(size) type=Int
 expr e813 binary(lessThan) lhs=e811 rhs=e812 type=Boolean
-expr e814 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_170.result
+expr e814 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_165.result
 expr e815 this type=kotlin.collections.List<kotlin.collections.shuffled.$16.T>
-expr e816 name(copyIndex) type=Int ref=__local_171.copyIndex
+expr e816 name(copyIndex) type=Int ref=__local_166.copyIndex
 expr e817 indexedAccess receiver=e815 indices=[e816] type=kotlin.collections.shuffled.$16.T call=kotlin.collections.List.get targs=[kotlin.collections.shuffled.$16.T]
 expr e818 memberCall recv=e814 callee=add args=[_:e817] type=Boolean call=kotlin.collections.MutableList.add#1
 expr e820 int(1) type=Int
-expr e821 compoundAssign(plusAssign) name=copyIndex value=e820 type=Unit ref=__local_171.copyIndex
+expr e821 compoundAssign(plusAssign) name=copyIndex value=e820 type=Unit ref=__local_166.copyIndex
 expr e822 blockExpr stmts=[e818,e821] trailing=_ type=Unit
 expr e823 while cond=e813 body=e822 type=Unit
-expr e824 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_170.result
+expr e824 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_165.result
 expr e825 memberCall recv=e824 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e826 int(1) type=Int
 expr e827 binary(subtract) lhs=e825 rhs=e826 type=Int
-expr e828 localDecl i mutable=1 type=_ init=e827 type=Unit ref=__local_172.i
-expr e829 name(i) type=Int ref=__local_172.i
+expr e828 localDecl i mutable=1 type=_ init=e827 type=Unit ref=__local_167.i
+expr e829 name(i) type=Int ref=__local_167.i
 expr e830 int(0) type=Int
 expr e831 binary(greaterThan) lhs=e829 rhs=e830 type=Boolean
 expr e832 name(random) type=kotlin.random.Random ref=kotlin.collections.shuffled.$16.random
-expr e833 name(i) type=Int ref=__local_172.i
+expr e833 name(i) type=Int ref=__local_167.i
 expr e834 int(1) type=Int
 expr e835 binary(add) lhs=e833 rhs=e834 type=Int
 expr e836 memberCall recv=e832 callee=nextInt args=[_:e835] type=Int call=kotlin.random.Random.nextInt#1
-expr e837 localDecl j mutable=0 type=_ init=e836 type=Unit ref=__local_173.j
-expr e838 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_170.result
-expr e839 name(i) type=Int ref=__local_172.i
+expr e837 localDecl j mutable=0 type=_ init=e836 type=Unit ref=__local_168.j
+expr e838 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_165.result
+expr e839 name(i) type=Int ref=__local_167.i
 expr e840 indexedAccess receiver=e838 indices=[e839] type=kotlin.collections.shuffled.$16.T call=kotlin.collections.List.get targs=[kotlin.collections.shuffled.$16.T]
-expr e841 localDecl tmp mutable=0 type=_ init=e840 type=Unit ref=__local_174.tmp
-expr e842 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_170.result
-expr e843 name(i) type=Int ref=__local_172.i
-expr e845 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_170.result
-expr e846 name(j) type=Int ref=__local_173.j
+expr e841 localDecl tmp mutable=0 type=_ init=e840 type=Unit ref=__local_169.tmp
+expr e842 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_165.result
+expr e843 name(i) type=Int ref=__local_167.i
+expr e845 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_165.result
+expr e846 name(j) type=Int ref=__local_168.j
 expr e847 indexedAccess receiver=e845 indices=[e846] type=kotlin.collections.shuffled.$16.T call=kotlin.collections.List.get targs=[kotlin.collections.shuffled.$16.T]
 expr e848 indexedAssign receiver=e842 indices=[e843] value=e847 type=Unit call=kotlin.collections.MutableList.set targs=[kotlin.collections.shuffled.$16.T]
-expr e849 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_170.result
-expr e850 name(j) type=Int ref=__local_173.j
-expr e852 name(tmp) type=kotlin.collections.shuffled.$16.T ref=__local_174.tmp
+expr e849 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_165.result
+expr e850 name(j) type=Int ref=__local_168.j
+expr e852 name(tmp) type=kotlin.collections.shuffled.$16.T ref=__local_169.tmp
 expr e853 indexedAssign receiver=e849 indices=[e850] value=e852 type=Unit call=kotlin.collections.MutableList.set targs=[kotlin.collections.shuffled.$16.T]
 expr e855 int(1) type=Int
-expr e856 compoundAssign(minusAssign) name=i value=e855 type=Unit ref=__local_172.i
+expr e856 compoundAssign(minusAssign) name=i value=e855 type=Unit ref=__local_167.i
 expr e857 blockExpr stmts=[e837,e841,e848,e853,e856] trailing=_ type=Unit
 expr e858 while cond=e831 body=e857 type=Unit
-expr e859 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_170.result
+expr e859 name(result) type=kotlin.collections.MutableList<kotlin.collections.shuffled.$16.T> ref=__local_165.result
 expr e860 return value=e859 type=Nothing
 expr e862 call callee=e861 args=[] type=kotlin.collections.MutableList<kotlin.collections.filter.$17.T>
-expr e863 localDecl result mutable=0 type=_ init=e862 type=Unit ref=__local_175.result
+expr e863 localDecl result mutable=0 type=_ init=e862 type=Unit ref=__local_170.result
 expr e864 this type=kotlin.collections.Set<kotlin.collections.filter.$17.T>
 expr e865 name(predicate) type=(kotlin.collections.filter.$17.T) -> Boolean ref=kotlin.collections.filter.$17.predicate
-expr e866 name(element) type=kotlin.collections.filter.$17.T ref=__for_12.element
+expr e866 name(element) type=kotlin.collections.filter.$17.T ref=__for_11.element
 expr e867 call callee=e865 args=[_:e866] type=Boolean
-expr e868 name(result) type=kotlin.collections.MutableList<kotlin.collections.filter.$17.T> ref=__local_175.result
-expr e869 name(element) type=kotlin.collections.filter.$17.T ref=__for_12.element
+expr e868 name(result) type=kotlin.collections.MutableList<kotlin.collections.filter.$17.T> ref=__local_170.result
+expr e869 name(element) type=kotlin.collections.filter.$17.T ref=__for_11.element
 expr e870 memberCall recv=e868 callee=add args=[_:e869] type=Boolean call=kotlin.collections.MutableList.add#1
 expr e871 if cond=e867 then=e870 else=_ type=Unit
 expr e872 blockExpr stmts=[] trailing=e871 type=Unit
-expr e873 for var=element iterable=e864 body=e872 type=Unit ref=__for_12.element
-expr e874 name(result) type=kotlin.collections.MutableList<kotlin.collections.filter.$17.T> ref=__local_175.result
+expr e873 for var=element iterable=e864 body=e872 type=Unit ref=__for_11.element
+expr e874 name(result) type=kotlin.collections.MutableList<kotlin.collections.filter.$17.T> ref=__local_170.result
 expr e875 return value=e874 type=Nothing
 expr e877 call callee=e876 args=[] type=kotlin.collections.MutableList<kotlin.collections.map.$18.R>
-expr e878 localDecl result mutable=0 type=_ init=e877 type=Unit ref=__local_176.result
+expr e878 localDecl result mutable=0 type=_ init=e877 type=Unit ref=__local_171.result
 expr e879 this type=kotlin.collections.Set<kotlin.collections.map.$18.T>
-expr e880 name(result) type=kotlin.collections.MutableList<kotlin.collections.map.$18.R> ref=__local_176.result
+expr e880 name(result) type=kotlin.collections.MutableList<kotlin.collections.map.$18.R> ref=__local_171.result
 expr e881 name(transform) type=(kotlin.collections.map.$18.T) -> kotlin.collections.map.$18.R ref=kotlin.collections.map.$18.transform
-expr e882 name(element) type=kotlin.collections.map.$18.T ref=__for_13.element
+expr e882 name(element) type=kotlin.collections.map.$18.T ref=__for_12.element
 expr e883 call callee=e881 args=[_:e882] type=kotlin.collections.map.$18.R
 expr e884 memberCall recv=e880 callee=add args=[_:e883] type=Boolean call=kotlin.collections.MutableList.add#1
 expr e885 blockExpr stmts=[] trailing=e884 type=Boolean
-expr e886 for var=element iterable=e879 body=e885 type=Unit ref=__for_13.element
-expr e887 name(result) type=kotlin.collections.MutableList<kotlin.collections.map.$18.R> ref=__local_176.result
+expr e886 for var=element iterable=e879 body=e885 type=Unit ref=__for_12.element
+expr e887 name(result) type=kotlin.collections.MutableList<kotlin.collections.map.$18.R> ref=__local_171.result
 expr e888 return value=e887 type=Nothing
 expr e890 call callee=e889 args=[] type=kotlin.collections.MutableList<kotlin.collections.flatMap.$19.R>
-expr e891 localDecl result mutable=0 type=_ init=e890 type=Unit ref=__local_177.result
+expr e891 localDecl result mutable=0 type=_ init=e890 type=Unit ref=__local_172.result
 expr e892 this type=kotlin.collections.Set<kotlin.collections.flatMap.$19.T>
 expr e893 name(transform) type=(kotlin.collections.flatMap.$19.T) -> kotlin.collections.Iterable<kotlin.collections.flatMap.$19.R> ref=kotlin.collections.flatMap.$19.transform
-expr e894 name(element) type=kotlin.collections.flatMap.$19.T ref=__for_15.element
+expr e894 name(element) type=kotlin.collections.flatMap.$19.T ref=__for_14.element
 expr e895 call callee=e893 args=[_:e894] type=kotlin.collections.Iterable<kotlin.collections.flatMap.$19.R>
-expr e896 name(result) type=kotlin.collections.MutableList<kotlin.collections.flatMap.$19.R> ref=__local_177.result
-expr e897 name(subElement) type=kotlin.collections.flatMap.$19.R ref=__for_14.subElement
+expr e896 name(result) type=kotlin.collections.MutableList<kotlin.collections.flatMap.$19.R> ref=__local_172.result
+expr e897 name(subElement) type=kotlin.collections.flatMap.$19.R ref=__for_13.subElement
 expr e898 memberCall recv=e896 callee=add args=[_:e897] type=Boolean call=kotlin.collections.MutableList.add#1
 expr e899 blockExpr stmts=[] trailing=e898 type=Boolean
-expr e900 for var=subElement iterable=e895 body=e899 type=Unit ref=__for_14.subElement
+expr e900 for var=subElement iterable=e895 body=e899 type=Unit ref=__for_13.subElement
 expr e901 blockExpr stmts=[] trailing=e900 type=Unit
-expr e902 for var=element iterable=e892 body=e901 type=Unit ref=__for_15.element
-expr e903 name(result) type=kotlin.collections.MutableList<kotlin.collections.flatMap.$19.R> ref=__local_177.result
+expr e902 for var=element iterable=e892 body=e901 type=Unit ref=__for_14.element
+expr e903 name(result) type=kotlin.collections.MutableList<kotlin.collections.flatMap.$19.R> ref=__local_172.result
 expr e904 return value=e903 type=Nothing
-expr e905 this type=kotlin.collections.Set<kotlin.collections.forEach.$28.T>
-expr e906 name(action) type=(kotlin.collections.forEach.$28.T) -> Unit ref=kotlin.collections.forEach.$28.action
-expr e907 name(element) type=kotlin.collections.forEach.$28.T ref=__for_16.element
+expr e905 this type=kotlin.collections.Set<kotlin.collections.forEach.$29.T>
+expr e906 name(action) type=(kotlin.collections.forEach.$29.T) -> Unit ref=kotlin.collections.forEach.$29.action
+expr e907 name(element) type=kotlin.collections.forEach.$29.T ref=__for_15.element
 expr e908 call callee=e906 args=[_:e907] type=Unit
 expr e909 blockExpr stmts=[] trailing=e908 type=Unit
-expr e910 for var=element iterable=e905 body=e909 type=Unit ref=__for_16.element
+expr e910 for var=element iterable=e905 body=e909 type=Unit ref=__for_15.element
 expr e911 int(0) type=Int
-expr e912 localDecl count mutable=1 type=_ init=e911 type=Unit ref=__local_178.count
-expr e913 this type=kotlin.collections.Set<kotlin.collections.count.$25.T>
-expr e920 name(predicate) type=(kotlin.collections.count.$25.T) -> Boolean ref=kotlin.collections.count.$25.predicate
-expr e921 name(element) type=kotlin.collections.count.$25.T ref=__for_17.element
+expr e912 localDecl count mutable=1 type=_ init=e911 type=Unit ref=__local_173.count
+expr e913 this type=kotlin.collections.Set<kotlin.collections.count.$26.T>
+expr e920 name(predicate) type=(kotlin.collections.count.$26.T) -> Boolean ref=kotlin.collections.count.$26.predicate
+expr e921 name(element) type=kotlin.collections.count.$26.T ref=__for_16.element
 expr e922 call callee=e920 args=[_:e921] type=Boolean
 expr e924 int(1) type=Int
-expr e925 compoundAssign(plusAssign) name=count value=e924 type=Unit ref=__local_178.count
+expr e925 compoundAssign(plusAssign) name=count value=e924 type=Unit ref=__local_173.count
 expr e926 if cond=e922 then=e925 else=_ type=Unit
 expr e927 blockExpr stmts=[] trailing=e926 type=Unit
-expr e928 for var=element iterable=e913 body=e927 type=Unit ref=__for_17.element
-expr e929 name(count) type=Int ref=__local_178.count
+expr e928 for var=element iterable=e913 body=e927 type=Unit ref=__for_16.element
+expr e929 name(count) type=Int ref=__local_173.count
 expr e930 return value=e929 type=Nothing
-expr e931 this type=kotlin.collections.Set<kotlin.collections.any.$23.T>
-expr e932 name(predicate) type=(kotlin.collections.any.$23.T) -> Boolean ref=kotlin.collections.any.$23.predicate
-expr e933 name(element) type=kotlin.collections.any.$23.T ref=__for_18.element
+expr e931 this type=kotlin.collections.Set<kotlin.collections.any.$24.T>
+expr e932 name(predicate) type=(kotlin.collections.any.$24.T) -> Boolean ref=kotlin.collections.any.$24.predicate
+expr e933 name(element) type=kotlin.collections.any.$24.T ref=__for_17.element
 expr e934 call callee=e932 args=[_:e933] type=Boolean
 expr e935 bool(true) type=Boolean
 expr e936 return value=e935 type=Nothing
 expr e937 if cond=e934 then=e936 else=_ type=Unit
 expr e938 blockExpr stmts=[] trailing=e937 type=Unit
-expr e939 for var=element iterable=e931 body=e938 type=Unit ref=__for_18.element
+expr e939 for var=element iterable=e931 body=e938 type=Unit ref=__for_17.element
 expr e940 bool(false) type=Boolean
 expr e941 return value=e940 type=Nothing
-expr e942 this type=kotlin.collections.Set<kotlin.collections.all.$21.T>
-expr e943 name(predicate) type=(kotlin.collections.all.$21.T) -> Boolean ref=kotlin.collections.all.$21.predicate
-expr e944 name(element) type=kotlin.collections.all.$21.T ref=__for_19.element
+expr e942 this type=kotlin.collections.Set<kotlin.collections.all.$22.T>
+expr e943 name(predicate) type=(kotlin.collections.all.$22.T) -> Boolean ref=kotlin.collections.all.$22.predicate
+expr e944 name(element) type=kotlin.collections.all.$22.T ref=__for_18.element
 expr e945 call callee=e943 args=[_:e944] type=Boolean
 expr e946 unary(not) operand=e945 type=Boolean
 expr e947 bool(false) type=Boolean
 expr e948 return value=e947 type=Nothing
 expr e949 if cond=e946 then=e948 else=_ type=Unit
 expr e950 blockExpr stmts=[] trailing=e949 type=Unit
-expr e951 for var=element iterable=e942 body=e950 type=Unit ref=__for_19.element
+expr e951 for var=element iterable=e942 body=e950 type=Unit ref=__for_18.element
 expr e952 bool(true) type=Boolean
 expr e953 return value=e952 type=Nothing
-expr e954 this type=kotlin.collections.Set<kotlin.collections.none.$35.T>
-expr e955 name(predicate) type=(kotlin.collections.none.$35.T) -> Boolean ref=kotlin.collections.none.$35.predicate
-expr e956 name(element) type=kotlin.collections.none.$35.T ref=__for_20.element
+expr e954 this type=kotlin.collections.Set<kotlin.collections.none.$36.T>
+expr e955 name(predicate) type=(kotlin.collections.none.$36.T) -> Boolean ref=kotlin.collections.none.$36.predicate
+expr e956 name(element) type=kotlin.collections.none.$36.T ref=__for_19.element
 expr e957 call callee=e955 args=[_:e956] type=Boolean
 expr e958 bool(false) type=Boolean
 expr e959 return value=e958 type=Nothing
 expr e960 if cond=e957 then=e959 else=_ type=Unit
 expr e961 blockExpr stmts=[] trailing=e960 type=Unit
-expr e962 for var=element iterable=e954 body=e961 type=Unit ref=__for_20.element
+expr e962 for var=element iterable=e954 body=e961 type=Unit ref=__for_19.element
 expr e963 bool(true) type=Boolean
 expr e964 return value=e963 type=Nothing
-expr e965 name(count) type=Int ref=kotlin.text.repeat.$54.count
+expr e965 name(count) type=Int ref=kotlin.text.repeat.$55.count
 expr e966 int(0) type=Int
 expr e967 binary(lessThan) lhs=e965 rhs=e966 type=Boolean
-expr e969 name(count) type=Int ref=kotlin.text.repeat.$54.count
+expr e969 name(count) type=Int ref=kotlin.text.repeat.$55.count
 expr e970 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e969),lit(.)] type=String
 expr e971 call callee=e968 args=[_:e970] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>#1
 expr e972 throw value=e971 type=Nothing
 expr e973 if cond=e967 then=e972 else=_ type=Unit
 expr e974 name(StringBuilder) type=Any ref=kotlin.text.StringBuilder
 expr e975 call callee=e974 args=[] type=kotlin.text.StringBuilder
-expr e976 localDecl sb mutable=0 type=_ init=e975 type=Unit ref=__local_179.sb
+expr e976 localDecl sb mutable=0 type=_ init=e975 type=Unit ref=__local_174.sb
 expr e977 int(0) type=Int
-expr e978 localDecl i mutable=1 type=_ init=e977 type=Unit ref=__local_180.i
-expr e979 name(i) type=Int ref=__local_180.i
-expr e980 name(count) type=Int ref=kotlin.text.repeat.$54.count
+expr e978 localDecl i mutable=1 type=_ init=e977 type=Unit ref=__local_175.i
+expr e979 name(i) type=Int ref=__local_175.i
+expr e980 name(count) type=Int ref=kotlin.text.repeat.$55.count
 expr e981 binary(lessThan) lhs=e979 rhs=e980 type=Boolean
-expr e982 name(sb) type=kotlin.text.StringBuilder ref=__local_179.sb
+expr e982 name(sb) type=kotlin.text.StringBuilder ref=__local_174.sb
 expr e983 this type=String
 expr e984 memberCall recv=e982 callee=append args=[_:e983] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
 expr e986 int(1) type=Int
-expr e987 compoundAssign(plusAssign) name=i value=e986 type=Unit ref=__local_180.i
+expr e987 compoundAssign(plusAssign) name=i value=e986 type=Unit ref=__local_175.i
 expr e988 blockExpr stmts=[e984,e987] trailing=_ type=Unit
 expr e989 while cond=e981 body=e988 type=Unit
-expr e990 name(sb) type=kotlin.text.StringBuilder ref=__local_179.sb
+expr e990 name(sb) type=kotlin.text.StringBuilder ref=__local_174.sb
 expr e991 memberCall recv=e990 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e992 return value=e991 type=Nothing
 expr e993 this type=String
 expr e994 memberCall recv=e993 callee=length args=[] type=Int call=kotlin.text.length
-expr e995 localDecl len mutable=0 type=_ init=e994 type=Unit ref=__local_181.len
+expr e995 localDecl len mutable=0 type=_ init=e994 type=Unit ref=__local_176.len
 expr e996 name(StringBuilder) type=Any ref=kotlin.text.StringBuilder
 expr e997 call callee=e996 args=[] type=kotlin.text.StringBuilder
-expr e998 localDecl sb mutable=0 type=_ init=e997 type=Unit ref=__local_182.sb
-expr e999 name(len) type=Int ref=__local_181.len
+expr e998 localDecl sb mutable=0 type=_ init=e997 type=Unit ref=__local_177.sb
+expr e999 name(len) type=Int ref=__local_176.len
 expr e1000 int(1) type=Int
 expr e1001 binary(subtract) lhs=e999 rhs=e1000 type=Int
 expr e1002 localDecl i mutable=1 type=_ init=e1001 type=Unit ref=__local_0.i
 expr e1003 name(i) type=Int ref=__local_0.i
 expr e1004 int(0) type=Int
 expr e1005 binary(greaterOrEqual) lhs=e1003 rhs=e1004 type=Boolean
-expr e1006 name(sb) type=kotlin.text.StringBuilder ref=__local_182.sb
+expr e1006 name(sb) type=kotlin.text.StringBuilder ref=__local_177.sb
 expr e1007 this type=String
 expr e1008 name(i) type=Int ref=__local_0.i
 expr e1009 indexedAccess receiver=e1007 indices=[e1008] type=Char call=kotlin.text.get
@@ -1542,10 +1530,10 @@ expr e1012 int(1) type=Int
 expr e1013 compoundAssign(minusAssign) name=i value=e1012 type=Unit ref=__local_0.i
 expr e1014 blockExpr stmts=[e1010,e1013] trailing=_ type=Unit
 expr e1015 while cond=e1005 body=e1014 type=Unit
-expr e1016 name(sb) type=kotlin.text.StringBuilder ref=__local_182.sb
+expr e1016 name(sb) type=kotlin.text.StringBuilder ref=__local_177.sb
 expr e1017 memberCall recv=e1016 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e1018 return value=e1017 type=Nothing
-expr e1020 name(length) type=Int ref=kotlin.text.padStart.$52.length
+expr e1020 name(length) type=Int ref=kotlin.text.padStart.$53.length
 expr e1021 this type=String
 expr e1022 memberCall recv=e1021 callee=length args=[] type=Int call=kotlin.text.length
 expr e1023 binary(subtract) lhs=e1020 rhs=e1022 type=Int
@@ -1565,7 +1553,7 @@ expr e1036 name(i) type=Int ref=__local_3.i
 expr e1037 name(padding) type=Int ref=__local_1.padding
 expr e1038 binary(lessThan) lhs=e1036 rhs=e1037 type=Boolean
 expr e1039 name(sb) type=kotlin.text.StringBuilder ref=__local_2.sb
-expr e1040 name(padChar) type=Char ref=kotlin.text.padStart.$52.padChar
+expr e1040 name(padChar) type=Char ref=kotlin.text.padStart.$53.padChar
 expr e1041 memberCall recv=e1039 callee=append args=[_:e1040] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#2
 expr e1043 int(1) type=Int
 expr e1044 compoundAssign(plusAssign) name=i value=e1043 type=Unit ref=__local_3.i
@@ -1577,7 +1565,7 @@ expr e1049 memberCall recv=e1047 callee=append args=[_:e1048] type=kotlin.text.S
 expr e1050 name(sb) type=kotlin.text.StringBuilder ref=__local_2.sb
 expr e1051 memberCall recv=e1050 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e1052 return value=e1051 type=Nothing
-expr e1054 name(length) type=Int ref=kotlin.text.padEnd.$51.length
+expr e1054 name(length) type=Int ref=kotlin.text.padEnd.$52.length
 expr e1055 this type=String
 expr e1056 memberCall recv=e1055 callee=length args=[] type=Int call=kotlin.text.length
 expr e1057 binary(subtract) lhs=e1054 rhs=e1056 type=Int
@@ -1600,7 +1588,7 @@ expr e1073 name(i) type=Int ref=__local_6.i
 expr e1074 name(padding) type=Int ref=__local_4.padding
 expr e1075 binary(lessThan) lhs=e1073 rhs=e1074 type=Boolean
 expr e1076 name(sb) type=kotlin.text.StringBuilder ref=__local_5.sb
-expr e1077 name(padChar) type=Char ref=kotlin.text.padEnd.$51.padChar
+expr e1077 name(padChar) type=Char ref=kotlin.text.padEnd.$52.padChar
 expr e1078 memberCall recv=e1076 callee=append args=[_:e1077] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#2
 expr e1080 int(1) type=Int
 expr e1081 compoundAssign(plusAssign) name=i value=e1080 type=Unit ref=__local_6.i
@@ -1697,7 +1685,7 @@ expr e1178 name(StringBuilder) type=Any ref=kotlin.text.StringBuilder
 expr e1179 call callee=e1178 args=[] type=kotlin.text.StringBuilder
 expr e1180 localDecl sb mutable=0 type=_ init=e1179 type=Unit ref=__local_15.sb
 expr e1181 name(sb) type=kotlin.text.StringBuilder ref=__local_15.sb
-expr e1182 name(transform) type=(Char) -> Char ref=kotlin.text.replaceFirstChar.$55.transform
+expr e1182 name(transform) type=(Char) -> Char ref=kotlin.text.replaceFirstChar.$56.transform
 expr e1183 this type=String
 expr e1184 int(0) type=Int
 expr e1185 indexedAccess receiver=e1183 indices=[e1184] type=Char call=kotlin.text.get
@@ -1721,38 +1709,38 @@ expr e1203 name(sb) type=kotlin.text.StringBuilder ref=__local_15.sb
 expr e1204 memberCall recv=e1203 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e1205 return value=e1204 type=Nothing
 expr e1206 this type=String
-expr e1207 name(locale) type=java.util.Locale ref=kotlin.text.lowercase.$50.locale
+expr e1207 name(locale) type=java.util.Locale ref=kotlin.text.lowercase.$51.locale
 expr e1208 memberCall recv=e1206 callee=__kk_lowercase_locale args=[_:e1207] type=String call=kotlin.text.__kk_lowercase_locale
 expr e1209 this type=String
-expr e1210 name(locale) type=java.util.Locale ref=kotlin.text.uppercase.$60.locale
+expr e1210 name(locale) type=java.util.Locale ref=kotlin.text.uppercase.$61.locale
 expr e1211 memberCall recv=e1209 callee=__kk_uppercase_locale args=[_:e1210] type=String call=kotlin.text.__kk_uppercase_locale
 expr e1212 this type=String
 expr e1213 memberCall recv=e1212 callee=__kk_encodeToByteArray args=[] type=kotlin.ByteArray call=kotlin.text.__kk_encodeToByteArray
 expr e1214 this type=String
-expr e1215 name(startIndex) type=Int ref=kotlin.text.encodeToByteArray.$45.startIndex
-expr e1216 name(endIndex) type=Int ref=kotlin.text.encodeToByteArray.$45.endIndex
+expr e1215 name(startIndex) type=Int ref=kotlin.text.encodeToByteArray.$46.startIndex
+expr e1216 name(endIndex) type=Int ref=kotlin.text.encodeToByteArray.$46.endIndex
 expr e1217 memberCall recv=e1214 callee=__kk_encodeToByteArray_range args=[_:e1215,_:e1216] type=kotlin.ByteArray call=kotlin.text.__kk_encodeToByteArray_range
 expr e1218 this type=String
-expr e1219 name(charset) type=kotlin.text.Charset ref=kotlin.text.encodeToByteArray.$46.charset
+expr e1219 name(charset) type=kotlin.text.Charset ref=kotlin.text.encodeToByteArray.$47.charset
 expr e1220 memberCall recv=e1218 callee=__kk_encodeToByteArray_charset args=[_:e1219] type=kotlin.ByteArray call=kotlin.text.__kk_encodeToByteArray_charset
 expr e1221 this type=kotlin.ByteArray
 expr e1222 memberCall recv=e1221 callee=__kk_decodeToString args=[] type=String call=kotlin.text.__kk_decodeToString
 expr e1223 this type=kotlin.ByteArray
-expr e1224 name(charset) type=kotlin.text.Charset ref=kotlin.text.decodeToString.$42.charset
+expr e1224 name(charset) type=kotlin.text.Charset ref=kotlin.text.decodeToString.$43.charset
 expr e1225 memberCall recv=e1223 callee=__kk_decodeToString_charset args=[_:e1224] type=String call=kotlin.text.__kk_decodeToString_charset
 expr e1226 this type=kotlin.ByteArray
-expr e1227 name(startIndex) type=Int ref=kotlin.text.decodeToString.$43.startIndex
-expr e1228 name(endIndex) type=Int ref=kotlin.text.decodeToString.$43.endIndex
+expr e1227 name(startIndex) type=Int ref=kotlin.text.decodeToString.$44.startIndex
+expr e1228 name(endIndex) type=Int ref=kotlin.text.decodeToString.$44.endIndex
 expr e1229 memberCall recv=e1226 callee=__kk_decodeToString_range args=[_:e1227,_:e1228] type=String call=kotlin.text.__kk_decodeToString_range
 expr e1230 this type=kotlin.ByteArray
-expr e1231 name(startIndex) type=Int ref=kotlin.text.decodeToString.$44.startIndex
-expr e1232 name(endIndex) type=Int ref=kotlin.text.decodeToString.$44.endIndex
-expr e1233 name(throwOnInvalidSequence) type=Boolean ref=kotlin.text.decodeToString.$44.throwOnInvalidSequence
+expr e1231 name(startIndex) type=Int ref=kotlin.text.decodeToString.$45.startIndex
+expr e1232 name(endIndex) type=Int ref=kotlin.text.decodeToString.$45.endIndex
+expr e1233 name(throwOnInvalidSequence) type=Boolean ref=kotlin.text.decodeToString.$45.throwOnInvalidSequence
 expr e1234 memberCall recv=e1230 callee=__kk_decodeToString_range_throw args=[_:e1231,_:e1232,_:e1233] type=String call=kotlin.text.__kk_decodeToString_range_throw
 expr e1235 name(StringBuilder) type=Any ref=kotlin.text.StringBuilder
 expr e1236 call callee=e1235 args=[] type=kotlin.text.StringBuilder
 expr e1237 localDecl sb mutable=0 type=_ init=e1236 type=Unit ref=__local_18.sb
-expr e1238 name(n) type=Int ref=kotlin.text.kk_drop.$49.n
+expr e1238 name(n) type=Int ref=kotlin.text.kk_drop.$50.n
 expr e1239 localDecl i mutable=1 type=_ init=e1238 type=Unit ref=__local_19.i
 expr e1240 name(i) type=Int ref=__local_19.i
 expr e1241 name(length) type=Int
@@ -1769,7 +1757,7 @@ expr e1252 while cond=e1242 body=e1251 type=Unit
 expr e1253 name(sb) type=kotlin.text.StringBuilder ref=__local_18.sb
 expr e1254 memberCall recv=e1253 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e1255 return value=e1254 type=Nothing
-expr e1256 name(prefix) type=String ref=kotlin.text.hasPrefix.$47.prefix
+expr e1256 name(prefix) type=String ref=kotlin.text.hasPrefix.$48.prefix
 expr e1257 memberCall recv=e1256 callee=length args=[] type=Int call=kotlin.text.length
 expr e1258 name(length) type=Int
 expr e1259 binary(greaterThan) lhs=e1257 rhs=e1258 type=Boolean
@@ -1779,13 +1767,13 @@ expr e1262 if cond=e1259 then=e1261 else=_ type=Unit
 expr e1263 int(0) type=Int
 expr e1264 localDecl i mutable=1 type=_ init=e1263 type=Unit ref=__local_20.i
 expr e1265 name(i) type=Int ref=__local_20.i
-expr e1266 name(prefix) type=String ref=kotlin.text.hasPrefix.$47.prefix
+expr e1266 name(prefix) type=String ref=kotlin.text.hasPrefix.$48.prefix
 expr e1267 memberCall recv=e1266 callee=length args=[] type=Int call=kotlin.text.length
 expr e1268 binary(lessThan) lhs=e1265 rhs=e1267 type=Boolean
 expr e1269 this type=String
 expr e1270 name(i) type=Int ref=__local_20.i
 expr e1271 indexedAccess receiver=e1269 indices=[e1270] type=Char call=kotlin.text.get
-expr e1272 name(prefix) type=String ref=kotlin.text.hasPrefix.$47.prefix
+expr e1272 name(prefix) type=String ref=kotlin.text.hasPrefix.$48.prefix
 expr e1273 name(i) type=Int ref=__local_20.i
 expr e1274 indexedAccess receiver=e1272 indices=[e1273] type=Char call=kotlin.text.get
 expr e1275 binary(notEqual) lhs=e1271 rhs=e1274 type=Boolean
@@ -1916,7 +1904,7 @@ expr e1407 blockExpr stmts=[e1393,e1403,e1406] trailing=_ type=Unit
 expr e1408 while cond=e1389 body=e1407 type=Unit
 expr e1409 bool(true) type=Boolean
 expr e1410 return value=e1409 type=Nothing
-expr e1411 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$58.lines
+expr e1411 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$59.lines
 expr e1412 memberCall recv=e1411 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e1413 localDecl n mutable=0 type=_ init=e1412 type=Unit ref=__local_30.n
 expr e1414 int(0) type=Int
@@ -1926,7 +1914,7 @@ expr e1417 localDecl end mutable=1 type=_ init=e1416 type=Unit ref=__local_32.en
 expr e1429 name(start) type=Int ref=__local_31.start
 expr e1430 name(end) type=Int ref=__local_32.end
 expr e1431 binary(lessThan) lhs=e1429 rhs=e1430 type=Boolean
-expr e1432 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$58.lines
+expr e1432 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$59.lines
 expr e1433 name(start) type=Int ref=__local_31.start
 expr e1434 indexedAccess receiver=e1432 indices=[e1433] type=String call=kotlin.collections.List.get targs=[String]
 expr e1435 memberCall recv=e1434 callee=isBlankLine args=[] type=Boolean call=kotlin.text.isBlankLine
@@ -1937,7 +1925,7 @@ expr e1440 while cond=e1436 body=e1439 type=Unit
 expr e1454 name(end) type=Int ref=__local_32.end
 expr e1455 name(start) type=Int ref=__local_31.start
 expr e1456 binary(greaterThan) lhs=e1454 rhs=e1455 type=Boolean
-expr e1457 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$58.lines
+expr e1457 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$59.lines
 expr e1458 name(end) type=Int ref=__local_32.end
 expr e1459 int(1) type=Int
 expr e1460 binary(subtract) lhs=e1458 rhs=e1459 type=Int
@@ -1955,7 +1943,7 @@ expr e1473 name(i) type=Int ref=__local_35.i
 expr e1474 name(end) type=Int ref=__local_32.end
 expr e1475 binary(lessThan) lhs=e1473 rhs=e1474 type=Boolean
 expr e1476 name(result) type=kotlin.collections.MutableList<String> ref=__local_34.result
-expr e1477 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$58.lines
+expr e1477 name(lines) type=kotlin.collections.List<String> ref=kotlin.text.trimBlankEdges.$59.lines
 expr e1478 name(i) type=Int ref=__local_35.i
 expr e1479 indexedAccess receiver=e1477 indices=[e1478] type=String call=kotlin.collections.List.get targs=[String]
 expr e1480 memberCall recv=e1476 callee=add args=[_:e1479] type=Boolean call=kotlin.collections.MutableList.add#1
@@ -2082,11 +2070,11 @@ expr e1629 name(i) type=Int ref=__local_45.i
 expr e1630 memberCall recv=e1628 callee=kk_drop args=[_:e1629] type=String call=kotlin.text.kk_drop
 expr e1631 localDecl trimmedLeading mutable=0 type=_ init=e1630 type=Unit ref=__local_46.trimmedLeading
 expr e1632 name(trimmedLeading) type=String ref=__local_46.trimmedLeading
-expr e1633 name(marginPrefix) type=String ref=kotlin.text.trimMargin.$59.marginPrefix
+expr e1633 name(marginPrefix) type=String ref=kotlin.text.trimMargin.$60.marginPrefix
 expr e1634 memberCall recv=e1632 callee=hasPrefix args=[_:e1633] type=Boolean call=kotlin.text.hasPrefix
 expr e1635 name(sb) type=kotlin.text.StringBuilder ref=__local_43.sb
 expr e1636 name(trimmedLeading) type=String ref=__local_46.trimmedLeading
-expr e1637 name(marginPrefix) type=String ref=kotlin.text.trimMargin.$59.marginPrefix
+expr e1637 name(marginPrefix) type=String ref=kotlin.text.trimMargin.$60.marginPrefix
 expr e1638 memberCall recv=e1637 callee=length args=[] type=Int call=kotlin.text.length
 expr e1639 memberCall recv=e1636 callee=kk_drop args=[_:e1638] type=String call=kotlin.text.kk_drop
 expr e1640 memberCall recv=e1635 callee=append args=[_:e1639] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
@@ -2105,7 +2093,7 @@ expr e1653 memberCall recv=e1652 callee=toString args=[] type=String call=kotlin
 expr e1654 return value=e1653 type=Nothing
 expr e1656 int(4) type=Int
 expr e1657 call callee=e1655 args=[_:e1656] type=String call=kotlin.text.indent#1
-expr e1658 name(n) type=Int ref=kotlin.text.indent.$48.n
+expr e1658 name(n) type=Int ref=kotlin.text.indent.$49.n
 expr e1659 int(0) type=Int
 expr e1660 binary(equal) lhs=e1658 rhs=e1659 type=Boolean
 expr e1661 this type=String
@@ -2125,13 +2113,13 @@ expr e1675 name(sb) type=kotlin.text.StringBuilder ref=__local_48.sb
 expr e1676 char(10) type=Char
 expr e1677 memberCall recv=e1675 callee=append args=[_:e1676] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#2
 expr e1678 if cond=e1674 then=e1677 else=_ type=Unit
-expr e1679 name(n) type=Int ref=kotlin.text.indent.$48.n
+expr e1679 name(n) type=Int ref=kotlin.text.indent.$49.n
 expr e1680 int(0) type=Int
 expr e1681 binary(greaterThan) lhs=e1679 rhs=e1680 type=Boolean
 expr e1682 int(0) type=Int
 expr e1683 localDecl j mutable=1 type=_ init=e1682 type=Unit ref=__local_50.j
 expr e1684 name(j) type=Int ref=__local_50.j
-expr e1685 name(n) type=Int ref=kotlin.text.indent.$48.n
+expr e1685 name(n) type=Int ref=kotlin.text.indent.$49.n
 expr e1686 binary(lessThan) lhs=e1684 rhs=e1685 type=Boolean
 expr e1687 name(sb) type=kotlin.text.StringBuilder ref=__local_48.sb
 expr e1688 char(32) type=Char
@@ -2144,7 +2132,7 @@ expr e1695 name(sb) type=kotlin.text.StringBuilder ref=__local_48.sb
 expr e1696 name(line) type=String ref=__for_3.line
 expr e1697 memberCall recv=e1695 callee=append args=[_:e1696] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
 expr e1698 blockExpr stmts=[e1683,e1694] trailing=e1697 type=kotlin.text.StringBuilder
-expr e1699 name(n) type=Int ref=kotlin.text.indent.$48.n
+expr e1699 name(n) type=Int ref=kotlin.text.indent.$49.n
 expr e1700 unary(unaryMinus) operand=e1699 type=Int
 expr e1701 localDecl remove mutable=0 type=_ init=e1700 type=Unit ref=__local_51.remove
 expr e1702 name(line) type=String ref=__for_3.line
@@ -2191,7 +2179,7 @@ expr e1745 char(10) type=Char
 expr e1746 memberCall recv=e1744 callee=append args=[_:e1745] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#2
 expr e1747 if cond=e1743 then=e1746 else=_ type=Unit
 expr e1748 name(sb) type=kotlin.text.StringBuilder ref=__local_56.sb
-expr e1749 name(indent) type=String ref=kotlin.text.prependIndent.$53.indent
+expr e1749 name(indent) type=String ref=kotlin.text.prependIndent.$54.indent
 expr e1750 memberCall recv=e1748 callee=append args=[_:e1749] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
 expr e1751 name(sb) type=kotlin.text.StringBuilder ref=__local_56.sb
 expr e1752 name(line) type=String ref=__for_4.line
@@ -2261,7 +2249,7 @@ expr e1821 string() type=String
 expr e1822 memberCall recv=e1820 callee=append args=[_:e1821] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
 expr e1823 blockExpr stmts=[] trailing=e1822 type=kotlin.text.StringBuilder
 expr e1824 name(sb) type=kotlin.text.StringBuilder ref=__local_62.sb
-expr e1825 name(newIndent) type=String ref=kotlin.text.replaceIndent.$56.newIndent
+expr e1825 name(newIndent) type=String ref=kotlin.text.replaceIndent.$57.newIndent
 expr e1826 memberCall recv=e1824 callee=append args=[_:e1825] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
 expr e1827 name(sb) type=kotlin.text.StringBuilder ref=__local_62.sb
 expr e1828 name(line) type=String ref=__for_6.line
@@ -2277,7 +2265,7 @@ expr e1838 for var=line iterable=e1811 body=e1837 type=Unit ref=__for_6.line
 expr e1839 name(sb) type=kotlin.text.StringBuilder ref=__local_62.sb
 expr e1840 memberCall recv=e1839 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e1841 return value=e1840 type=Nothing
-expr e1844 name(marginPrefix) type=String ref=kotlin.text.replaceIndentByMargin.$57.marginPrefix
+expr e1844 name(marginPrefix) type=String ref=kotlin.text.replaceIndentByMargin.$58.marginPrefix
 expr e1845 memberCall recv=e1844 callee=isBlankLine args=[] type=Boolean call=kotlin.text.isBlankLine
 expr e1847 string(marginPrefix must be non-blank string.) type=String
 expr e1848 call callee=e1846 args=[_:e1847] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>#1
@@ -2330,14 +2318,14 @@ expr e1916 name(i) type=Int ref=__local_67.i
 expr e1917 memberCall recv=e1915 callee=kk_drop args=[_:e1916] type=String call=kotlin.text.kk_drop
 expr e1918 localDecl trimmedLeading mutable=0 type=_ init=e1917 type=Unit ref=__local_68.trimmedLeading
 expr e1919 name(trimmedLeading) type=String ref=__local_68.trimmedLeading
-expr e1920 name(marginPrefix) type=String ref=kotlin.text.replaceIndentByMargin.$57.marginPrefix
+expr e1920 name(marginPrefix) type=String ref=kotlin.text.replaceIndentByMargin.$58.marginPrefix
 expr e1921 memberCall recv=e1919 callee=hasPrefix args=[_:e1920] type=Boolean call=kotlin.text.hasPrefix
 expr e1922 name(sb) type=kotlin.text.StringBuilder ref=__local_65.sb
-expr e1923 name(newIndent) type=String ref=kotlin.text.replaceIndentByMargin.$57.newIndent
+expr e1923 name(newIndent) type=String ref=kotlin.text.replaceIndentByMargin.$58.newIndent
 expr e1924 memberCall recv=e1922 callee=append args=[_:e1923] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
 expr e1925 name(sb) type=kotlin.text.StringBuilder ref=__local_65.sb
 expr e1926 name(trimmedLeading) type=String ref=__local_68.trimmedLeading
-expr e1927 name(marginPrefix) type=String ref=kotlin.text.replaceIndentByMargin.$57.marginPrefix
+expr e1927 name(marginPrefix) type=String ref=kotlin.text.replaceIndentByMargin.$58.marginPrefix
 expr e1928 memberCall recv=e1927 callee=length args=[] type=Int call=kotlin.text.length
 expr e1929 memberCall recv=e1926 callee=kk_drop args=[_:e1928] type=String call=kotlin.text.kk_drop
 expr e1930 memberCall recv=e1925 callee=append args=[_:e1929] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
@@ -2600,10 +2588,10 @@ expr e2201 name(totalNs) type=Long ref=__local_90.totalNs
 expr e2203 memberCall recv=e2202 callee=MIN_VALUE args=[] type=Long
 expr e2204 binary(equal) lhs=e2201 rhs=e2203 type=Boolean
 expr e2205 binary(logicalOr) lhs=e2200 rhs=e2204 type=Boolean
-expr e2206 name(action) type=(Long, Int) -> kotlin.time.toComponents.$61.T ref=kotlin.time.toComponents.$61.action
+expr e2206 name(action) type=(Long, Int) -> kotlin.time.toComponents.$62.T ref=kotlin.time.toComponents.$62.action
 expr e2207 name(totalNs) type=Long ref=__local_90.totalNs
 expr e2208 int(0) type=Int
-expr e2209 call callee=e2206 args=[_:e2207,_:e2208] type=kotlin.time.toComponents.$61.T
+expr e2209 call callee=e2206 args=[_:e2207,_:e2208] type=kotlin.time.toComponents.$62.T
 expr e2210 return value=e2209 type=Nothing
 expr e2211 blockExpr stmts=[] trailing=e2210 type=Nothing
 expr e2212 if cond=e2205 then=e2211 else=_ type=Unit
@@ -2616,10 +2604,10 @@ expr e2218 long(1000000000) type=Long
 expr e2219 binary(modulo) lhs=e2217 rhs=e2218 type=Long
 expr e2220 memberCall recv=e2219 callee=toInt args=[] type=Int
 expr e2221 localDecl n mutable=0 type=_ init=e2220 type=Unit ref=__local_93.n
-expr e2222 name(action) type=(Long, Int) -> kotlin.time.toComponents.$61.T ref=kotlin.time.toComponents.$61.action
+expr e2222 name(action) type=(Long, Int) -> kotlin.time.toComponents.$62.T ref=kotlin.time.toComponents.$62.action
 expr e2223 name(s) type=Long ref=__local_92.s
 expr e2224 name(n) type=Int ref=__local_93.n
-expr e2225 call callee=e2222 args=[_:e2223,_:e2224] type=kotlin.time.toComponents.$61.T
+expr e2225 call callee=e2222 args=[_:e2223,_:e2224] type=kotlin.time.toComponents.$62.T
 expr e2226 return value=e2225 type=Nothing
 expr e2227 name(inWholeNanoseconds) type=Long ref=kotlin.time.Duration.inWholeNanoseconds
 expr e2228 localDecl totalNs mutable=0 type=_ init=e2227 type=Unit ref=__local_94.totalNs
@@ -2630,11 +2618,11 @@ expr e2233 name(totalNs) type=Long ref=__local_94.totalNs
 expr e2235 memberCall recv=e2234 callee=MIN_VALUE args=[] type=Long
 expr e2236 binary(equal) lhs=e2233 rhs=e2235 type=Boolean
 expr e2237 binary(logicalOr) lhs=e2232 rhs=e2236 type=Boolean
-expr e2238 name(action) type=(Long, Int, Int) -> kotlin.time.toComponents.$62.T ref=kotlin.time.toComponents.$62.action
+expr e2238 name(action) type=(Long, Int, Int) -> kotlin.time.toComponents.$63.T ref=kotlin.time.toComponents.$63.action
 expr e2239 name(totalNs) type=Long ref=__local_94.totalNs
 expr e2240 int(0) type=Int
 expr e2241 int(0) type=Int
-expr e2242 call callee=e2238 args=[_:e2239,_:e2240,_:e2241] type=kotlin.time.toComponents.$62.T
+expr e2242 call callee=e2238 args=[_:e2239,_:e2240,_:e2241] type=kotlin.time.toComponents.$63.T
 expr e2243 return value=e2242 type=Nothing
 expr e2244 blockExpr stmts=[] trailing=e2243 type=Nothing
 expr e2245 if cond=e2237 then=e2244 else=_ type=Unit
@@ -2656,11 +2644,11 @@ expr e2261 long(1000000000) type=Long
 expr e2262 binary(modulo) lhs=e2260 rhs=e2261 type=Long
 expr e2263 memberCall recv=e2262 callee=toInt args=[] type=Int
 expr e2264 localDecl n mutable=0 type=_ init=e2263 type=Unit ref=__local_98.n
-expr e2265 name(action) type=(Long, Int, Int) -> kotlin.time.toComponents.$62.T ref=kotlin.time.toComponents.$62.action
+expr e2265 name(action) type=(Long, Int, Int) -> kotlin.time.toComponents.$63.T ref=kotlin.time.toComponents.$63.action
 expr e2266 name(m) type=Long ref=__local_96.m
 expr e2267 name(s) type=Int ref=__local_97.s
 expr e2268 name(n) type=Int ref=__local_98.n
-expr e2269 call callee=e2265 args=[_:e2266,_:e2267,_:e2268] type=kotlin.time.toComponents.$62.T
+expr e2269 call callee=e2265 args=[_:e2266,_:e2267,_:e2268] type=kotlin.time.toComponents.$63.T
 expr e2270 return value=e2269 type=Nothing
 expr e2271 name(inWholeNanoseconds) type=Long ref=kotlin.time.Duration.inWholeNanoseconds
 expr e2272 localDecl totalNs mutable=0 type=_ init=e2271 type=Unit ref=__local_99.totalNs
@@ -2671,12 +2659,12 @@ expr e2277 name(totalNs) type=Long ref=__local_99.totalNs
 expr e2279 memberCall recv=e2278 callee=MIN_VALUE args=[] type=Long
 expr e2280 binary(equal) lhs=e2277 rhs=e2279 type=Boolean
 expr e2281 binary(logicalOr) lhs=e2276 rhs=e2280 type=Boolean
-expr e2282 name(action) type=(Long, Int, Int, Int) -> kotlin.time.toComponents.$63.T ref=kotlin.time.toComponents.$63.action
+expr e2282 name(action) type=(Long, Int, Int, Int) -> kotlin.time.toComponents.$64.T ref=kotlin.time.toComponents.$64.action
 expr e2283 name(totalNs) type=Long ref=__local_99.totalNs
 expr e2284 int(0) type=Int
 expr e2285 int(0) type=Int
 expr e2286 int(0) type=Int
-expr e2287 call callee=e2282 args=[_:e2283,_:e2284,_:e2285,_:e2286] type=kotlin.time.toComponents.$63.T
+expr e2287 call callee=e2282 args=[_:e2283,_:e2284,_:e2285,_:e2286] type=kotlin.time.toComponents.$64.T
 expr e2288 return value=e2287 type=Nothing
 expr e2289 blockExpr stmts=[] trailing=e2288 type=Nothing
 expr e2290 if cond=e2281 then=e2289 else=_ type=Unit
@@ -2705,12 +2693,12 @@ expr e2314 long(1000000000) type=Long
 expr e2315 binary(modulo) lhs=e2313 rhs=e2314 type=Long
 expr e2316 memberCall recv=e2315 callee=toInt args=[] type=Int
 expr e2317 localDecl n mutable=0 type=_ init=e2316 type=Unit ref=__local_104.n
-expr e2318 name(action) type=(Long, Int, Int, Int) -> kotlin.time.toComponents.$63.T ref=kotlin.time.toComponents.$63.action
+expr e2318 name(action) type=(Long, Int, Int, Int) -> kotlin.time.toComponents.$64.T ref=kotlin.time.toComponents.$64.action
 expr e2319 name(h) type=Long ref=__local_101.h
 expr e2320 name(m) type=Int ref=__local_102.m
 expr e2321 name(s) type=Int ref=__local_103.s
 expr e2322 name(n) type=Int ref=__local_104.n
-expr e2323 call callee=e2318 args=[_:e2319,_:e2320,_:e2321,_:e2322] type=kotlin.time.toComponents.$63.T
+expr e2323 call callee=e2318 args=[_:e2319,_:e2320,_:e2321,_:e2322] type=kotlin.time.toComponents.$64.T
 expr e2324 return value=e2323 type=Nothing
 expr e2325 name(inWholeNanoseconds) type=Long ref=kotlin.time.Duration.inWholeNanoseconds
 expr e2326 localDecl totalNs mutable=0 type=_ init=e2325 type=Unit ref=__local_105.totalNs
@@ -2721,13 +2709,13 @@ expr e2331 name(totalNs) type=Long ref=__local_105.totalNs
 expr e2333 memberCall recv=e2332 callee=MIN_VALUE args=[] type=Long
 expr e2334 binary(equal) lhs=e2331 rhs=e2333 type=Boolean
 expr e2335 binary(logicalOr) lhs=e2330 rhs=e2334 type=Boolean
-expr e2336 name(action) type=(Long, Int, Int, Int, Int) -> kotlin.time.toComponents.$64.T ref=kotlin.time.toComponents.$64.action
+expr e2336 name(action) type=(Long, Int, Int, Int, Int) -> kotlin.time.toComponents.$65.T ref=kotlin.time.toComponents.$65.action
 expr e2337 name(totalNs) type=Long ref=__local_105.totalNs
 expr e2338 int(0) type=Int
 expr e2339 int(0) type=Int
 expr e2340 int(0) type=Int
 expr e2341 int(0) type=Int
-expr e2342 call callee=e2336 args=[_:e2337,_:e2338,_:e2339,_:e2340,_:e2341] type=kotlin.time.toComponents.$64.T
+expr e2342 call callee=e2336 args=[_:e2337,_:e2338,_:e2339,_:e2340,_:e2341] type=kotlin.time.toComponents.$65.T
 expr e2343 return value=e2342 type=Nothing
 expr e2344 blockExpr stmts=[] trailing=e2343 type=Nothing
 expr e2345 if cond=e2335 then=e2344 else=_ type=Unit
@@ -2763,13 +2751,13 @@ expr e2377 long(1000000000) type=Long
 expr e2378 binary(modulo) lhs=e2376 rhs=e2377 type=Long
 expr e2379 memberCall recv=e2378 callee=toInt args=[] type=Int
 expr e2380 localDecl n mutable=0 type=_ init=e2379 type=Unit ref=__local_111.n
-expr e2381 name(action) type=(Long, Int, Int, Int, Int) -> kotlin.time.toComponents.$64.T ref=kotlin.time.toComponents.$64.action
+expr e2381 name(action) type=(Long, Int, Int, Int, Int) -> kotlin.time.toComponents.$65.T ref=kotlin.time.toComponents.$65.action
 expr e2382 name(d) type=Long ref=__local_107.d
 expr e2383 name(h) type=Int ref=__local_108.h
 expr e2384 name(m) type=Int ref=__local_109.m
 expr e2385 name(s) type=Int ref=__local_110.s
 expr e2386 name(n) type=Int ref=__local_111.n
-expr e2387 call callee=e2381 args=[_:e2382,_:e2383,_:e2384,_:e2385,_:e2386] type=kotlin.time.toComponents.$64.T
+expr e2387 call callee=e2381 args=[_:e2382,_:e2383,_:e2384,_:e2385,_:e2386] type=kotlin.time.toComponents.$65.T
 expr e2388 return value=e2387 type=Nothing
 expr e2389 this type=Double
 expr e2390 name(DurationUnit) type=Any ref=kotlin.time.DurationUnit
@@ -2855,80 +2843,24 @@ expr e2469 this type=Double
 expr e2470 name(DurationUnit) type=Any ref=kotlin.time.DurationUnit
 expr e2471 memberCall recv=e2470 callee=DAYS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.DAYS
 expr e2472 memberCall recv=e2469 callee=toDuration args=[_:e2471] type=kotlin.time.Duration call=kotlin.time.toDuration#0
-expr e2475 call callee=e2474 args=[] type=kotlin.sequences.Sequence<out kotlin.collections.List<Int>> call=kotlin.sequences.emptySequence targs=[kotlin.collections.List<Int>]
-expr e2476 memberCall recv=e2475 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
-expr e2477 memberCall recv=e2476 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
-expr e2478 call callee=e2473 args=[_:e2477] type=Unit call=kotlin.io.println#1
-expr e2481 call callee=e2480 args=[] type=kotlin.sequences.Sequence<out kotlin.collections.List<Int>> call=kotlin.sequences.sequenceOf targs=[kotlin.collections.List<Int>]
-expr e2482 memberCall recv=e2481 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
-expr e2483 memberCall recv=e2482 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
-expr e2484 call callee=e2479 args=[_:e2483] type=Unit call=kotlin.io.println#1
-expr e2488 call callee=e2487 args=[] type=kotlin.collections.List<out Int>
-expr e2490 int(1) type=Int
-expr e2491 call callee=e2489 args=[_:e2490] type=kotlin.collections.List<out Int>
-expr e2493 call callee=e2492 args=[] type=kotlin.collections.List<out Int>
-expr e2494 call callee=e2486 args=[_:e2488,_:e2491,_:e2493] type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>> call=kotlin.sequences.sequenceOf targs=[kotlin.collections.List<out Int>]
-expr e2495 memberCall recv=e2494 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
-expr e2496 memberCall recv=e2495 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
-expr e2497 call callee=e2485 args=[_:e2496] type=Unit call=kotlin.io.println#1
-expr e2509 int(1) type=Int
-expr e2510 int(10) type=Int
-expr e2511 binary(rangeTo) lhs=e2509 rhs=e2510 type=Int
-expr e2514 name(i) type=Int ref=__for_11.i
-expr e2515 call callee=e2513 args=[_:e2514] type=kotlin.collections.List<out Int>
-expr e2516 call callee=e2512 args=[_:e2515] type=Unit call=kotlin.sequences.SequenceScope.yield
-expr e2517 blockExpr stmts=[] trailing=e2516 type=Unit
-expr e2518 for var=i iterable=e2511 body=e2517 type=Unit ref=__for_11.i
-expr e2519 lambda params=[] body=e2518 label=sequence type=suspend kotlin.sequences.SequenceScope<kotlin.collections.List<out <error>>>.() -> Unit
-expr e2520 call callee=e2498 args=[_:e2519] type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>> call=kotlin.sequences.sequence
-expr e2521 localDecl largeSeq mutable=0 type=_ init=e2520 type=Unit ref=__local_112.largeSeq
-expr e2522 name(largeSeq) type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>> ref=__local_112.largeSeq
-expr e2523 memberCall recv=e2522 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
-expr e2524 memberCall recv=e2523 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
-expr e2525 localDecl flattenedSeq mutable=0 type=_ init=e2524 type=Unit ref=__local_113.flattenedSeq
-expr e2527 name(flattenedSeq) type=kotlin.collections.List<Int> ref=__local_113.flattenedSeq
-expr e2528 memberCall recv=e2527 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e2529 call callee=e2526 args=[_:e2528] type=Unit call=kotlin.io.println#1
-expr e2531 name(flattenedSeq) type=kotlin.collections.List<Int> ref=__local_113.flattenedSeq
-expr e2532 int(5) type=Int
-expr e2533 memberCall recv=e2531 callee=take args=[_:e2532] type=Any call=kotlin.collections.List.take
-expr e2534 call callee=e2530 args=[_:e2533] type=Unit call=kotlin.io.println#1
-expr e2536 name(flattenedSeq) type=kotlin.collections.List<Int> ref=__local_113.flattenedSeq
-expr e2537 name(flattenedSeq) type=kotlin.collections.List<Int> ref=__local_113.flattenedSeq
-expr e2538 memberCall recv=e2537 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e2539 int(5) type=Int
-expr e2540 binary(subtract) lhs=e2538 rhs=e2539 type=Int
-expr e2541 memberCall recv=e2536 callee=drop args=[_:e2540] type=Any call=kotlin.collections.List.drop
-expr e2542 call callee=e2535 args=[_:e2541] type=Unit call=kotlin.io.println#1
-expr e2545 int(1) type=Int
-expr e2546 int(2) type=Int
-expr e2547 call callee=e2544 args=[_:e2545,_:e2546] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
-expr e2549 int(3) type=Int
-expr e2550 int(4) type=Int
-expr e2551 call callee=e2548 args=[_:e2549,_:e2550] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
-expr e2552 call callee=e2543 args=[_:e2547,_:e2551] type=kotlin.sequences.Sequence<out kotlin.sequences.Sequence<out Int>> call=kotlin.sequences.sequenceOf targs=[kotlin.sequences.Sequence<out Int>]
-expr e2553 localDecl nestedSeq mutable=0 type=_ init=e2552 type=Unit ref=__local_114.nestedSeq
-expr e2555 name(nestedSeq) type=kotlin.sequences.Sequence<out kotlin.sequences.Sequence<out Int>> ref=__local_114.nestedSeq
-expr e2556 memberCall recv=e2555 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
-expr e2557 memberCall recv=e2556 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
-expr e2558 call callee=e2554 args=[_:e2557] type=Unit call=kotlin.io.println#1
-expr e2561 int(1) type=Int
-expr e2562 int(2) type=Int
-expr e2563 call callee=e2560 args=[_:e2561,_:e2562] type=kotlin.collections.List<out Int>
-expr e2565 int(3) type=Int
-expr e2566 int(4) type=Int
-expr e2567 call callee=e2564 args=[_:e2565,_:e2566] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
-expr e2568 call callee=e2559 args=[_:e2563,_:e2567] type=kotlin.sequences.Sequence<out Any> call=kotlin.sequences.sequenceOf targs=[Any]
-expr e2569 localDecl mixedSeq mutable=0 type=_ init=e2568 type=Unit ref=__local_115.mixedSeq
-expr e2571 name(mixedSeq) type=kotlin.sequences.Sequence<out Any> ref=__local_115.mixedSeq
-expr e2572 memberCall recv=e2571 callee=flatten args=[] type=kotlin.sequences.Sequence<out Any>
-expr e2573 memberCall recv=e2572 callee=toList args=[] type=kotlin.collections.List<Any> call=kotlin.sequences.Sequence.toList
-expr e2574 call callee=e2570 args=[_:e2573] type=Unit call=kotlin.io.println#1
-expr e2577 int(42) type=Int
-expr e2578 call callee=e2576 args=[_:e2577] type=kotlin.collections.List<out Int>
-expr e2579 call callee=e2575 args=[_:e2578] type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>> call=kotlin.sequences.sequenceOf targs=[kotlin.collections.List<out Int>]
-expr e2580 localDecl singleSeq mutable=0 type=_ init=e2579 type=Unit ref=__local_116.singleSeq
-expr e2582 name(singleSeq) type=kotlin.sequences.Sequence<out kotlin.collections.List<out Int>> ref=__local_116.singleSeq
-expr e2583 memberCall recv=e2582 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>
-expr e2584 memberCall recv=e2583 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
-expr e2585 call callee=e2581 args=[_:e2584] type=Unit call=kotlin.io.println#1
+expr e2473 string(hello) type=String
+expr e2474 int(1) type=Int
+expr e2475 int(3) type=Int
+expr e2476 binary(rangeTo) lhs=e2474 rhs=e2475 type=Int
+expr e2477 memberCall recv=e2473 callee=slice args=[_:e2476] type=String call=kotlin.text.slice#0
+expr e2478 string(hello) type=String
+expr e2479 int(0) type=Int
+expr e2480 int(3) type=Int
+expr e2481 memberCall recv=e2479 callee=until args=[_:e2480] type=Int call=kotlin.ranges.until#0
+expr e2482 memberCall recv=e2478 callee=slice args=[_:e2481] type=String call=kotlin.text.slice#0
+expr e2483 string(hello) type=String
+expr e2485 int(0) type=Int
+expr e2486 int(2) type=Int
+expr e2487 int(4) type=Int
+expr e2488 call callee=e2484 args=[_:e2485,_:e2486,_:e2487] type=kotlin.collections.List<out Int>
+expr e2489 memberCall recv=e2483 callee=slice args=[_:e2488] type=String call=kotlin.text.slice#1
+expr e2490 name(s) type=String ref=golden.sema.useSliceVar.$20.s
+expr e2491 int(1) type=Int
+expr e2492 int(3) type=Int
+expr e2493 binary(rangeTo) lhs=e2491 rhs=e2492 type=Int
+expr e2494 memberCall recv=e2490 callee=slice args=[_:e2493] type=String call=kotlin.text.slice#0

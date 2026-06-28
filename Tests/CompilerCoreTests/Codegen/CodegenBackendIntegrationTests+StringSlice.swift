@@ -3,12 +3,20 @@ import Foundation
 import XCTest
 
 extension CodegenBackendIntegrationTests {
-    func testCodegenCompilesMinOfFloatEdgeCases() throws {
+    func testCodegenStringSliceUsesRangeAndIterableRuntimeHelpers() throws {
         let source = """
         fun main() {
-            println(minOf(3.5f, 1.2f))
-            println(minOf(-0.5f, 0.5f))
-            println(minOf(2.0f, 2.0f))
+            val s = "hello world"
+            println(s.slice(0..4))
+            println(s.slice(6..10))
+            println(s.slice(0 until 5))
+            println(s.slice(listOf(0, 1, 4)))
+
+            val r = 0..4
+            println(s.slice(r))
+
+            println("abcde".slice(1..3))
+            println("abcde".slice(listOf(4, 2, 0)))
         }
         """
 
@@ -16,7 +24,7 @@ extension CodegenBackendIntegrationTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "MinOfFloatEdgeCases",
+                moduleName: "StringSlice",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -24,25 +32,15 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                """
-                1.2
-                -0.5
-                2.0
-
-                """
-            )
+            XCTAssertEqual(normalizedStdout, "hello\nworld\nhello\nheo\nhello\nbcd\neca\n")
         }
     }
 
-    // STDLIB-COMP-FN-039: minOf(Float, Float, Float) — 3引数版はインライン比較2段階で min を求める
-    func testCodegenCompilesMinOfFloat3Args() throws {
+    func testCodegenStringSliceEmptyRange() throws {
         let source = """
         fun main() {
-            println(minOf(3.5f, 1.2f, 2.8f))
-            println(minOf(-0.5f, 0.5f, -1.0f))
-            println(minOf(2.0f, 2.0f, 2.0f))
+            println("hello".slice(0 until 0))
+            println("hello".slice(2..1))
         }
         """
 
@@ -50,7 +48,7 @@ extension CodegenBackendIntegrationTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "MinOfFloat3Args",
+                moduleName: "StringSliceEmpty",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -58,15 +56,7 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                """
-                1.2
-                -1.0
-                2.0
-
-                """
-            )
+            XCTAssertEqual(normalizedStdout, "\n\n")
         }
     }
 }
