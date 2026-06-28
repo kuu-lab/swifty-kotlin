@@ -27,7 +27,7 @@ enum GoldenHarnessGoldenFileIO {
         guard updateMode else {
             return false
         }
-        try actual.write(to: caseFile.goldenURL, atomically: false, encoding: .utf8)
+        try actual.write(to: caseFile.goldenURL, atomically: true, encoding: .utf8)
         return true
     }
 
