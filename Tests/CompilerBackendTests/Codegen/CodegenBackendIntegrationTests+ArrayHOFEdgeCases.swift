@@ -19,20 +19,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayMapFilter",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayMapFilter",
+            expected:
                 """
                 2
                 4
@@ -44,8 +34,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenArrayForEach() throws {
@@ -59,20 +48,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayForEach",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayForEach",
+            expected:
                 """
                 10
                 20
@@ -80,8 +59,7 @@ extension CodegenBackendIntegrationTests {
                 done
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenArrayFoldAndReduce() throws {
@@ -100,28 +78,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayFoldReduce",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayFoldReduce",
+            expected:
                 """
                 15
                 120
                 abc
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenArrayFindAndFindLast() throws {
@@ -141,20 +108,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayFind",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayFind",
+            expected:
                 """
                 true
                 4
@@ -162,8 +119,7 @@ extension CodegenBackendIntegrationTests {
                 4
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenArrayAnyAllNoneCount() throws {
@@ -185,20 +141,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayAnyAllNone",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayAnyAllNone",
+            expected:
                 """
                 true
                 false
@@ -210,8 +156,7 @@ extension CodegenBackendIntegrationTests {
                 0
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenArrayCopyOfRangeBoundaryThrows() throws {
@@ -247,20 +192,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayCopyOfRangeBoundary",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayCopyOfRangeBoundary",
+            expected:
                 """
                 3
                 2
@@ -270,7 +205,7 @@ extension CodegenBackendIntegrationTests {
                 toIndex-out-of-bounds
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

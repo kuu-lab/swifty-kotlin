@@ -8,8 +8,6 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - String.toByteArray() no-arg
-
     func testCodegenStringToByteArrayNoArg() throws {
         let source = """
         fun main() {
@@ -20,24 +18,8 @@ extension CodegenBackendIntegrationTests {
             println(bytes[2])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToByteArrayNoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            // "abc" in UTF-8: a=97, b=98, c=99
-            XCTAssertEqual(out, "3\n97\n98\n99\n")
-        }
+        try assertKotlinOutput(source, moduleName: "StringToByteArrayNoArg", expected: "3\n97\n98\n99\n")
     }
-
-    // MARK: - String.toByteArray(charset) variants
 
     func testCodegenStringToByteArrayCharsets() throws {
         let source = """
@@ -60,19 +42,7 @@ extension CodegenBackendIntegrationTests {
             println(utf16le.size)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringToByteArrayCharsets",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "5\n5\n5\n4\n4\n")
-        }
+        try assertKotlinOutput(source, moduleName: "StringToByteArrayCharsets", expected: "5\n5\n5\n4\n4\n")
     }
 }
+

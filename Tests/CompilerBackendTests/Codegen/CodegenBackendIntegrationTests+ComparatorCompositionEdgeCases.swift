@@ -12,20 +12,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CompareByVarargSelectors",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[121, 132, 221, 231]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CompareByVarargSelectors", expected: "[121, 132, 221, 231]\n")
     }
 
     func testCodegenCompilesCompareValuesByVarargSelectors() throws {
@@ -35,20 +22,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CompareValuesByVarargSelectors",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CompareValuesByVarargSelectors", expected: "1\n")
     }
 
     func testCodegenCompilesComparatorThenByComparatorSelector() throws {
@@ -61,20 +35,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorThenByComparatorSelector",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[13, 23, 15]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ComparatorThenByComparatorSelector", expected: "[13, 23, 15]\n")
     }
 
     func testCodegenCompilesCompareValuesByComparatorSelector() throws {
@@ -85,20 +46,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CompareValuesByComparatorSelector",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "-1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CompareValuesByComparatorSelector", expected: "-1\n")
     }
 
     func testCodegenCompilesComparatorThenByDescendingComparatorSelector() throws {
@@ -111,20 +59,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorThenByDescendingComparatorSelector",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[23, 13, 15]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ComparatorThenByDescendingComparatorSelector", expected: "[23, 13, 15]\n")
     }
 
     func testCodegenCompilesCompareByDescendingComparatorSelector() throws {
@@ -135,20 +70,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CompareByDescendingComparatorSelector",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[apple, pear, fig]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CompareByDescendingComparatorSelector", expected: "[apple, pear, fig]\n")
     }
 
     func testCodegenCompilesCompareByComparatorSelector() throws {
@@ -159,20 +81,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CompareByComparatorSelector",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[fig, pear, apple]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CompareByComparatorSelector", expected: "[fig, pear, apple]\n")
     }
 
     // The 1-arg composition variants (thenByDescending { selector }, thenDescending { a, b -> },
@@ -200,20 +109,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorThenByDescendingSelector",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1:30, 1:20, 2:40, 2:10]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ComparatorThenByDescendingSelector", expected: "[1:30, 1:20, 2:40, 2:10]\n")
     }
 
     func testCodegenCompilesComparatorThenDescending() throws {
@@ -235,20 +131,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorThenDescending",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1:30, 1:20, 2:40, 2:10]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ComparatorThenDescending", expected: "[1:30, 1:20, 2:40, 2:10]\n")
     }
 
     func testCodegenCompilesComparatorThenComparator() throws {
@@ -270,20 +153,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorThenComparator",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1:20, 1:30, 2:10, 2:40]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ComparatorThenComparator", expected: "[1:20, 1:30, 2:10, 2:40]\n")
     }
 
     func testCodegenCompilesComparatorCompositionEdgeCases() throws {
@@ -309,27 +179,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorCompositionEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ComparatorCompositionEdgeCases",
+            expected:
                 """
                 [1:30, 1:20, 2:40, 2:10]
                 [2:10, 2:40, 1:20, 1:30]
                 [pear, fig, apple]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

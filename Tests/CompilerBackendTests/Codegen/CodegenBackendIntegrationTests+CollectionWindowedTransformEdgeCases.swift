@@ -14,28 +14,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionWindowedNonTransformOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionWindowedNonTransformOverloads",
+            expected:
                 """
                 [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
                 [[1, 2, 3], [3, 4, 5]]
                 [[1, 2, 3], [3, 4, 5], [5]]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionWindowedHandlesCollectionAndSetReceivers() throws {
@@ -50,28 +39,17 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionWindowedCollectionReceivers",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionWindowedCollectionReceivers",
+            expected:
                 """
                 [[1, 2], [2, 3], [3, 4]]
                 [[1, 2, 3], [3, 4]]
                 [[4, 5], [5, 6]]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCollectionWindowedTransformEdgeCases() throws {
@@ -83,26 +61,16 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionWindowedTransformEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "CollectionWindowedTransformEdgeCases",
+            expected:
                 """
                 [3, 3, 1]
                 [1-2-3, 3-4-5]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+
