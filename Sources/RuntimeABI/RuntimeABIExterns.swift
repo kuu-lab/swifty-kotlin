@@ -45,7 +45,7 @@ public enum RuntimeABIExterns {
     )
 
     /// Look up an extern declaration by symbol name.
-    public static func externDecl(named name: String) -> ExternDecl? {
+    static func externDecl(named name: String) -> ExternDecl? {
         externsByName[name]
     }
 }
