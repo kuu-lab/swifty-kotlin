@@ -20,7 +20,7 @@ symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.readText kind=function vis=public flags=synthetic sig=recv=java.io.Reader params=[] ret=String
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun readWithBufferedReader sym=golden.sema.readWithBufferedReader
   decl d1 fun readLinesWithBufferedReader sym=golden.sema.readLinesWithBufferedReader
   decl d2 fun readLineByLine sym=golden.sema.readLineByLine

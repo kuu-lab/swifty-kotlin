@@ -2,13 +2,13 @@ symbol fq=golden.sema.threeArgMinUShort kind=function vis=public flags=_ sig=rec
 symbol fq=golden.sema.threeArgMinUShort.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMinUShort.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMinUShort.$0.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#21 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[UShort,UShort,UShort] ret=UShort
+symbol fq=kotlin.comparisons.minOf#22 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[UShort,UShort,UShort] ret=UShort
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun threeArgMinUShort sym=golden.sema.threeArgMinUShort
 expr e0 name(a) type=UShort ref=golden.sema.threeArgMinUShort.$0.a
 expr e1 name(b) type=UShort ref=golden.sema.threeArgMinUShort.$0.b
 expr e2 name(c) type=UShort ref=golden.sema.threeArgMinUShort.$0.c
-expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=UShort call=kotlin.comparisons.minOf#21
+expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=UShort call=kotlin.comparisons.minOf#22

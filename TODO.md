@@ -285,7 +285,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeAtomic.swift` (97 @_cdecl)
 > 移行先: `Stdlib/kotlin/concurrent/atomics/`
 
-- [ ] MIGRATION-ATOMIC-001: `AtomicInt` / `AtomicLong` / `AtomicRef` の API を Kotlin source に移行する（`get`, `set`, `getAndSet`, `compareAndSet`, `incrementAndGet`, `decrementAndGet`, `addAndGet` — CAS 操作はブリッジに委譲）
+- [x] MIGRATION-ATOMIC-001: `AtomicInt` / `AtomicLong` / `AtomicRef` の API を Kotlin source に移行する（`get`, `set`, `getAndSet`, `compareAndSet`, `incrementAndGet`, `decrementAndGet`, `addAndGet` — CAS 操作はブリッジに委譲）
 
 ### Phase M17: kotlin.collections Set/Map 基本操作
 > 移行元: `Sources/Runtime/RuntimeSetAndMap.swift` (53 @_cdecl)

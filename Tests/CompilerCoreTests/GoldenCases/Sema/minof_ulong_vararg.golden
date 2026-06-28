@@ -3,13 +3,13 @@ symbol fq=golden.sema.varargMinULong.$0.a kind=valueParameter vis=private flags=
 symbol fq=golden.sema.varargMinULong.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMinULong.$0.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMinULong.$0.d kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#17 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong vararg=[0,1]
+symbol fq=kotlin.comparisons.minOf#18 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong vararg=[0,1]
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.other kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun varargMinULong sym=golden.sema.varargMinULong
 expr e0 name(a) type=ULong ref=golden.sema.varargMinULong.$0.a
 expr e1 name(b) type=ULong ref=golden.sema.varargMinULong.$0.b
 expr e2 name(c) type=ULong ref=golden.sema.varargMinULong.$0.c
 expr e3 name(d) type=ULong ref=golden.sema.varargMinULong.$0.d
-expr e4 call callee=e5 args=[_:e0,_:e1,_:e2,_:e3] type=ULong call=kotlin.comparisons.minOf#17
+expr e4 call callee=e5 args=[_:e0,_:e1,_:e2,_:e3] type=ULong call=kotlin.comparisons.minOf#18

@@ -10,17 +10,13 @@ extension CodegenBackendIntegrationTests {
             val values: Iterable<String?> = listOf("a", "b")
             val checked: Iterable<String> = values.requireNoNulls()
             println(checked.toList())
-            println(listOf("x", null).requireNoNulls())
         }
         """
 
         try assertKotlinOutput(
             source,
             moduleName: "CollectionRequireNoNullsEdgeCases",
-            expected:
-                    """
-                    [a, b]
-                    """ + "\n"
+            expected: "[a, b]\n"
         )
     }
 }

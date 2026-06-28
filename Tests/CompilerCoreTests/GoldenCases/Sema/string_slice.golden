@@ -9,7 +9,7 @@ symbol fq=kotlin.ranges.until.to kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.slice#0 kind=function vis=public flags=synthetic sig=recv=String params=[Int] ret=String
 symbol fq=kotlin.text.slice#1 kind=function vis=public flags=synthetic sig=recv=String params=[kotlin.collections.List<out Int>] ret=String
 symbol fq=kotlin.text.slice.indices kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun useSliceRange sym=golden.sema.useSliceRange
   decl d1 fun useSliceUntil sym=golden.sema.useSliceUntil
   decl d2 fun useSliceIterable sym=golden.sema.useSliceIterable

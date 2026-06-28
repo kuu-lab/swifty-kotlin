@@ -9,7 +9,7 @@ symbol fq=golden.sema.Shape kind=class vis=public flags=abstractType|openType
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.emptyList kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.collections.List<out Nothing>
 symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 class Shape sym=golden.sema.Shape
   decl d1 class Circle sym=golden.sema.Circle
   decl d2 class Animal sym=golden.sema.Animal

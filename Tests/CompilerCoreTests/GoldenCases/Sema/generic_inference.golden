@@ -5,7 +5,7 @@ symbol fq=golden.sema.id kind=function vis=public flags=_ sig=recv=_ params=[gol
 symbol fq=golden.sema.id.$0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.id.$0.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.useInference kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun id sym=golden.sema.id
   decl d1 fun useInference sym=golden.sema.useInference
 expr e0 name(x) type=golden.sema.id.$0.T ref=golden.sema.id.$0.x
