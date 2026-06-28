@@ -60,7 +60,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Show toolchain versions
         run: swift --version
       - name: Build compiler and tests
@@ -80,7 +81,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Show toolchain versions
         run: swift --version
       - name: Run smoke tests with strict concurrency warnings
@@ -159,7 +161,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Show toolchain versions
         run: swift --version
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
@@ -236,7 +239,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Verify prerequisites
         run: |
           java -version
