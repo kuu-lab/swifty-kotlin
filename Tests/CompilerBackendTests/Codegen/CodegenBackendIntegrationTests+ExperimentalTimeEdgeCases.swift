@@ -38,20 +38,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "TestTimeSourceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "TestTimeSourceEdgeCases",
+            expected:
                 """
                 5
                 10
@@ -61,8 +51,7 @@ extension CodegenBackendIntegrationTests {
                 500
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesExperimentalTimeEdgeCases() throws {
@@ -86,20 +75,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ExperimentalTimeEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ExperimentalTimeEdgeCases",
+            expected:
                 """
                 5
                 10
@@ -107,7 +86,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+

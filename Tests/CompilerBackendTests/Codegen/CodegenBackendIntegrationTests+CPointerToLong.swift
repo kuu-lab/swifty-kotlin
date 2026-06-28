@@ -3,15 +3,7 @@
 import Foundation
 import XCTest
 
-// STDLIB-CINTEROP-FN-038: CPointer<T>?.toLong() end-to-end codegen tests.
-//
-// CPointer<T>?.toLong() returns the raw pointer address as Long.
-// - null pointer  → 0L
-// - non-null pointer → non-zero address (non-deterministic, test with != 0L)
-
 extension CodegenBackendIntegrationTests {
-
-    // MARK: - Null pointer returns 0
 
     func testCPointerToLongNullReturnsZero() throws {
         let source = """
@@ -25,23 +17,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CPointerToLongNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CPointerToLongNull", expected: "0\n")
     }
-
-    // MARK: - Function wrapper compiles and links
 
     func testCPointerToLongFunctionWrapperCompilesAndLinks() throws {
         let source = """
@@ -56,23 +33,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CPointerToLongWrapper",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CPointerToLongWrapper", expected: "0\n")
     }
-
-    // MARK: - Return type is Long (64-bit)
 
     func testCPointerToLongReturnTypeIsLong() throws {
         let source = """
@@ -87,19 +49,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CPointerToLongReturnType",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CPointerToLongReturnType", expected: "true\n")
     }
 }
+

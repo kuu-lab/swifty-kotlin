@@ -30,20 +30,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringEdgeCases",
+            expected:
                 """
                 hello
                 hello
@@ -60,15 +50,9 @@ extension CodegenBackendIntegrationTests {
                 seq-head-tail:|alpha|
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
-    /// STDLIB-TEXT-FN-075: end-to-end runtime coverage for `String.substringAfterLast`.
-    /// Exercises both delimiter overloads (`kk_string_substringAfterLast` for `String`,
-    /// `kk_string_substringAfterLast_char` for `Char`), the default vs. explicit
-    /// `missingDelimiterValue` paths, a multi-scalar delimiter (`start = lastIndex +
-    /// delimiter.length`), and a Unicode receiver to confirm scalar-boundary slicing.
     func testCodegenCompilesSubstringAfterLastEdgeCases() throws {
         let source = """
         fun main() {
@@ -91,20 +75,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SubstringAfterLastEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SubstringAfterLastEdgeCases",
+            expected:
                 """
                 file.txt
                 c
@@ -118,16 +92,9 @@ extension CodegenBackendIntegrationTests {
                 世界
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
-    /// STDLIB-TEXT-FN-074: end-to-end runtime coverage for `String.substringAfter`.
-    /// Exercises both delimiter overloads (`kk_string_substringAfter` for `String`,
-    /// `kk_string_substringAfter_char` for `Char`), the default vs. explicit
-    /// `missingDelimiterValue` paths, a multi-scalar delimiter, and a Unicode receiver.
-    /// Unlike `substringAfterLast`, this keeps the segment after the *first* delimiter,
-    /// so multi-occurrence inputs slice at the leading match.
     func testCodegenCompilesSubstringAfterEdgeCases() throws {
         let source = """
         fun main() {
@@ -150,20 +117,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SubstringAfterEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SubstringAfterEdgeCases",
+            expected:
                 """
                 to/file.txt
                 b.c
@@ -177,8 +134,7 @@ extension CodegenBackendIntegrationTests {
                 世界
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesStringContentEqualsEdgeCases() throws {
@@ -203,20 +159,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringContentEqualsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringContentEqualsEdgeCases",
+            expected:
                 """
                 true
                 false
@@ -227,8 +173,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenNumberFormatExceptionIsCaught() throws {
@@ -264,20 +209,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "NumberFormatExceptionCatch",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "NumberFormatExceptionCatch",
+            expected:
                 """
                 caught-nfe
                 caught-nfe-long
@@ -285,7 +220,7 @@ extension CodegenBackendIntegrationTests {
                 caught-iae
                 """
                 + "\n"
-            )
-        }
+        )
     }
 }
+
