@@ -8,6 +8,12 @@ symbol fq=__try_0_catch_0.e kind=local vis=internal flags=_ type=kotlin.Exceptio
 symbol fq=kotlin.Exception kind=class vis=public flags=synthetic type=kotlin.Exception
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.io.readBytes#0 kind=function vis=public flags=_ sig=recv=java.io.File params=[] ret=kotlin.collections.List<out Int>
+symbol fq=kotlin.io.readText#0 kind=function vis=public flags=_ sig=recv=java.io.File params=[] ret=String
+symbol fq=kotlin.io.writeBytes kind=function vis=public flags=_ sig=recv=java.io.File params=[kotlin.ByteArray] ret=Unit
+symbol fq=kotlin.io.writeBytes.$44.array kind=valueParameter vis=private flags=_
+symbol fq=kotlin.io.writeText kind=function vis=public flags=_ sig=recv=java.io.File params=[String] ret=Unit
+symbol fq=kotlin.io.writeText.$45.text kind=valueParameter vis=private flags=_
 symbol fq=kotlin.isInitialized kind=property vis=public flags=synthetic type=Boolean
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f12 package=_
