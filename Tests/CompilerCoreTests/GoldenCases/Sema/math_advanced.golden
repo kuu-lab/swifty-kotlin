@@ -18,7 +18,7 @@ symbol fq=kotlin.comparisons.maxOf#6 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
+symbol fq=kotlin.comparisons.minOf#7 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
@@ -28,7 +28,7 @@ symbol fq=kotlin.math.atan2.y kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.hypot#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Double,Double] ret=Double
 symbol fq=kotlin.math.hypot.x kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.hypot.y kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun testAtan2 sym=golden.sema.testAtan2
   decl d1 fun testHypot sym=golden.sema.testHypot
   decl d2 fun testCoerceIn sym=golden.sema.testCoerceIn
@@ -59,4 +59,4 @@ expr e21 call callee=e22 args=[_:e18,_:e19,_:e20] type=Int call=kotlin.compariso
 expr e23 name(a) type=Int ref=golden.sema.testMinOf3.$4.a
 expr e24 name(b) type=Int ref=golden.sema.testMinOf3.$4.b
 expr e25 name(c) type=Int ref=golden.sema.testMinOf3.$4.c
-expr e26 call callee=e27 args=[_:e23,_:e24,_:e25] type=Int call=kotlin.comparisons.minOf#6
+expr e26 call callee=e27 args=[_:e23,_:e24,_:e25] type=Int call=kotlin.comparisons.minOf#7

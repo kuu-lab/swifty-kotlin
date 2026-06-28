@@ -11,7 +11,7 @@ symbol fq=kotlin.Comparator.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.comparisons.compareValues kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[kotlin.Comparator.T?,kotlin.Comparator.T?] ret=Int
 symbol fq=kotlin.comparisons.compareValues.a_compareValues kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.compareValues.b_compareValues kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun compareInts sym=golden.sema.compareInts
   decl d1 fun compareStrings sym=golden.sema.compareStrings
   decl d2 fun compareNullableInts sym=golden.sema.compareNullableInts

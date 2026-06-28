@@ -1,4 +1,4 @@
 symbol fq=golden.sema.unused kind=property vis=public flags=_ type=Int
-file f4 package=golden.sema annotations=[@file:Suppress("UNUSED"),@file:JvmName("CustomName")]
+file f5 package=golden.sema annotations=[@file:Suppress("UNUSED"),@file:JvmName("CustomName")]
   decl d0 property unused var=0 sym=golden.sema.unused
 expr e0 int(42) type=Int

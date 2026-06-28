@@ -736,6 +736,46 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
 
 """
 
+    // MIGRATION-ATOMIC-001: AtomicInt / AtomicLong / AtomicReference
+    // get/set/getAndSet delegate to load/store/exchange bridge members;
+    // incrementAndGet/decrementAndGet/addAndGet delegate to the
+    // incrementAndFetch/decrementAndFetch/addAndFetch bridge members
+    // (while(true) CAS loops are deferred until the type-checker handles
+    // Nothing-typed infinite loops in bundled source).
+    static let kotlinConcurrentAtomicSource = """
+package kotlin.concurrent
+
+public fun AtomicInt.get(): Int = load()
+
+public fun AtomicInt.set(value: Int): Unit = store(value)
+
+public fun AtomicInt.getAndSet(newValue: Int): Int = exchange(newValue)
+
+public fun AtomicInt.incrementAndGet(): Int = incrementAndFetch()
+
+public fun AtomicInt.decrementAndGet(): Int = decrementAndFetch()
+
+public fun AtomicInt.addAndGet(delta: Int): Int = addAndFetch(delta)
+
+public fun AtomicLong.get(): Long = load()
+
+public fun AtomicLong.set(value: Long): Unit = store(value)
+
+public fun AtomicLong.getAndSet(newValue: Long): Long = exchange(newValue)
+
+public fun AtomicLong.incrementAndGet(): Long = incrementAndFetch()
+
+public fun AtomicLong.decrementAndGet(): Long = decrementAndFetch()
+
+public fun AtomicLong.addAndGet(delta: Long): Long = addAndFetch(delta)
+
+public fun <T> AtomicReference<T>.get(): T = load()
+
+public fun <T> AtomicReference<T>.set(value: T): Unit = store(value)
+
+public fun <T> AtomicReference<T>.getAndSet(newValue: T): T = exchange(newValue)
+"""
+
     // MIGRATION-TIME-002: Duration component and string conversion functions.
     // Migrated from Sources/Runtime/RuntimeDuration.swift.
     // Native bridges that remain:
