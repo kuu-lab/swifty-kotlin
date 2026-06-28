@@ -1000,6 +1000,119 @@ struct ComparisonSyntheticTopLevelTests {
         }
     }
 
+    // STDLIB-COMP-FN-052: minOf(ULong, ULong) — 2-arg ULong resolves via remaining path (no special-call kind)
+    @Test
+    func testTwoArgMinOfULongResolvesToULongOverload() throws {
+        let source = """
+        fun sample(a: ULong, b: ULong): ULong = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.ulongType)
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.ulongType, sema.types.ulongType])
+            #expect(sig.returnType == sema.types.ulongType)
+        }
+    }
+
+    // STDLIB-COMP-FN-052: minOf(ULong, ULong, ULong) — 3-arg ULong resolves via remaining path
+    @Test
+    func testThreeArgMinOfULongResolvesToULongOverload() throws {
+        let source = """
+        fun sample(a: ULong, b: ULong, c: ULong): ULong = minOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 3
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.ulongType)
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.ulongType, sema.types.ulongType, sema.types.ulongType])
+            #expect(sig.returnType == sema.types.ulongType)
+        }
+    }
+
+    // STDLIB-COMP-FN-052: minOf(a: ULong, vararg other: ULong) — 4+ args resolve to vararg overload
+    @Test
+    func testVarargMinOfULongResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(): ULong = minOf(5uL, 2uL, 8uL, 1uL)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.ulongType)
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.ulongType, sema.types.ulongType])
+            #expect(sig.returnType == sema.types.ulongType)
+            #expect(sig.valueParameterIsVararg == [false, true])
+        }
+    }
+
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long) — 4+ args resolve to the vararg overload
     @Test
     func testVarargMaxOfLongResolvesToVarargOverload() throws {
@@ -1076,6 +1189,119 @@ struct ComparisonSyntheticTopLevelTests {
             let sig = try #require(sema.symbols.functionSignature(for: chosen))
             #expect(sig.parameterTypes == [sema.types.longType, sema.types.longType])
             #expect(sig.returnType == sema.types.longType)
+            #expect(sig.valueParameterIsVararg == [false, true])
+        }
+    }
+
+    // STDLIB-COMP-FN-053: minOf(UShort, UShort): UShort — 2-arg overload
+    @Test
+    func testTwoArgMinOfUShortResolvesToUShort2Overload() throws {
+        let source = """
+        fun sample(a: UShort, b: UShort): UShort = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.ushortType)
+            // Unsigned overloads are not mapped to a special-call kind; lowered via the primitive path.
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.ushortType, sema.types.ushortType])
+            #expect(sig.returnType == sema.types.ushortType)
+        }
+    }
+
+    // STDLIB-COMP-FN-053: minOf(UShort, UShort, UShort): UShort — 3-arg overload
+    @Test
+    func testThreeArgMinOfUShortResolvesToUShort3Overload() throws {
+        let source = """
+        fun sample(a: UShort, b: UShort, c: UShort): UShort = minOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 3
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.ushortType)
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.ushortType, sema.types.ushortType, sema.types.ushortType])
+            #expect(sig.returnType == sema.types.ushortType)
+        }
+    }
+
+    // STDLIB-COMP-FN-053: minOf(a: UShort, vararg other: UShort) — 4+ arg vararg overload
+    @Test
+    func testVarargMinOfUShortResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(a: UShort, b: UShort, c: UShort, d: UShort): UShort = minOf(a, b, c, d)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.ushortType)
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.ushortType, sema.types.ushortType])
+            #expect(sig.returnType == sema.types.ushortType)
             #expect(sig.valueParameterIsVararg == [false, true])
         }
     }

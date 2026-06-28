@@ -241,28 +241,6 @@ public extension RuntimeABISpec {
             p("tagged", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_callback_flow_await_close", parameters: [
-            p("channelRaw", .intptr),
-            p("closeHandlerFnPtr", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callback_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_channel_flow_try_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-        ]),
         abiParitySpec("kk_channel_is_closed_for_receive", parameters: [
             p("handle", .intptr),
         ]),
@@ -277,11 +255,6 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_channel_iterator_next", parameters: [
             p("iterHandle", .intptr),
-        ]),
-        abiParitySpec("kk_channel_send_suspending", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-            p("continuation", .intptr),
         ]),
         abiParitySpec("kk_char_digitToChar_radix", parameters: [
             p("digit", .intptr),
@@ -458,41 +431,11 @@ public extension RuntimeABISpec {
             p("fileTimeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_flow_catch", parameters: [
-            p("flowHandle", .intptr),
-            p("handlerFnPtr", .intptr),
-            p("arg2", .intptr),
-        ]),
         abiParitySpec("kk_flow_emit_with_timestamp", parameters: [
             p("flowHandle", .intptr),
             p("value", .intptr),
             p("tag", .intptr),
             p("timestamp", .uint64),
-        ]),
-        abiParitySpec("kk_flow_on_completion", parameters: [
-            p("flowHandle", .intptr),
-            p("handlerFnPtr", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_on_error_resume", parameters: [
-            p("flowHandle", .intptr),
-            p("fallbackFlowHandle", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_on_error_return", parameters: [
-            p("flowHandle", .intptr),
-            p("fallbackValue", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_retry", parameters: [
-            p("flowHandle", .intptr),
-            p("retries", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_retry_when", parameters: [
-            p("flowHandle", .intptr),
-            p("predicateFnPtr", .intptr),
-            p("arg2", .intptr),
         ]),
         abiParitySpec("kk_flow_share_in", parameters: [
             p("flowHandle", .intptr),

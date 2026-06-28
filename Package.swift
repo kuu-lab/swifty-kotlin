@@ -50,6 +50,7 @@ let package = Package(
                 "GoldenHarnessGoldenSuiteKind.swift",
                 "GoldenHarnessPaths.swift",
                 "GoldenHarnessSemaFormat.swift",
+                "GoldenHarnessStableRenderContext.swift",
                 "GoldenHarnessSyntaxFormat.swift",
             ]
         ),
