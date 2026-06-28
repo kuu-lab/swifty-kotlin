@@ -68,6 +68,8 @@ public enum GoldenHarness {
         let stdout = Pipe(), stderr = Pipe()
         let stdoutAccumulator = DataAccumulator()
         let stderrAccumulator = DataAccumulator()
+        let stdoutHandle = stdout.fileHandleForReading
+        let stderrHandle = stderr.fileHandleForReading
 
         process.executableURL = try workerExecutableURL()
         process.arguments = [suiteName, sourcePath]
@@ -75,19 +77,12 @@ public enum GoldenHarness {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        // Read stdout and stderr on background threads using blocking readDataToEndOfFile().
-        // This avoids the GCD readabilityHandler race conditions seen on Linux, where the
-        // termination handler fires before all pending dispatch callbacks have delivered
-        // buffered pipe data to the accumulator.
-        let stdoutDone = DispatchSemaphore(value: 0)
-        let stderrDone = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            stdoutAccumulator.append(stdout.fileHandleForReading.readDataToEndOfFile())
-            stdoutDone.signal()
-        }
-        DispatchQueue.global().async {
-            stderrAccumulator.append(stderr.fileHandleForReading.readDataToEndOfFile())
-            stderrDone.signal()
+        drain(pipe: stdout, into: stdoutAccumulator)
+        drain(pipe: stderr, into: stderrAccumulator)
+
+        defer {
+            stdoutHandle.readabilityHandler = nil
+            stderrHandle.readabilityHandler = nil
         }
 
         let terminatedSemaphore = DispatchSemaphore(value: 0)
@@ -114,15 +109,11 @@ public enum GoldenHarness {
                 while process.isRunning, Date() < sigkillDeadline {
                     Thread.sleep(forTimeInterval: processPollIntervalSeconds)
                 }
-                // Verify process exited after SIGKILL
-                if process.isRunning {
-                    // Process is still running despite SIGKILL - this is unusual but possible
-                    // Include this information in the error message
-                }
             }
-            // Let background readers drain after process termination (pipe write-end closes)
-            _ = stdoutDone.wait(timeout: .now() + 5)
-            _ = stderrDone.wait(timeout: .now() + 5)
+            stdoutHandle.readabilityHandler = nil
+            stderrHandle.readabilityHandler = nil
+            stdoutAccumulator.append(stdoutHandle.readDataToEndOfFile())
+            stderrAccumulator.append(stderrHandle.readDataToEndOfFile())
             let stderrText = String(data: stderrAccumulator.snapshot(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let errorMessage = process.isRunning
                 ? "Worker timed out and survived SIGKILL. \(stderrText)"
@@ -130,9 +121,17 @@ public enum GoldenHarness {
             throw GoldenHarnessAPIError.workerTimedOut(errorMessage)
         }
 
-        // Process has terminated; background readers will complete as the pipe write-end closes.
-        _ = stdoutDone.wait(timeout: .now() + 5)
-        _ = stderrDone.wait(timeout: .now() + 5)
+        // Process has terminated. Give GCD time to deliver any remaining readabilityHandler
+        // callbacks before we cancel the source. On Linux the terminationHandler can fire
+        // before the dispatch source has executed all buffered-data callbacks, so a brief
+        // pause lets those in-flight closures complete. After the sleep we nil the handler
+        // and drain any leftover bytes synchronously with readDataToEndOfFile().
+        Thread.sleep(forTimeInterval: 0.1)
+
+        stdoutHandle.readabilityHandler = nil
+        stderrHandle.readabilityHandler = nil
+        stdoutAccumulator.append(stdoutHandle.readDataToEndOfFile())
+        stderrAccumulator.append(stderrHandle.readDataToEndOfFile())
 
         let stdoutData = stdoutAccumulator.snapshot()
         let stderrData = stderrAccumulator.snapshot()
@@ -142,6 +141,14 @@ public enum GoldenHarness {
             throw GoldenHarnessAPIError.workerFailed(process.terminationStatus, stderrText)
         }
         return String(decoding: stdoutData, as: UTF8.self)
+    }
+
+    private static func drain(pipe: Pipe, into accumulator: DataAccumulator) {
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            accumulator.append(data)
+        }
     }
 
     @discardableResult

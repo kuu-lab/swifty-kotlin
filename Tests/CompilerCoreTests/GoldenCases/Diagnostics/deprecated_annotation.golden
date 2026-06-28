@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "deprecated_annotation.kt",
+      "range": {
+        "start": { "line": 11, "character": 20 },
+        "end": { "line": 11, "character": 30 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'golden.diagnostics.oldError' is deprecated. Use replacement Replace with: newError()",
+      "codeActions": [{ "title": "Replace with 'newError()'", "kind": "quickfix" }]
+    },
+    {
+      "file": "deprecated_annotation.kt",
+      "range": {
+        "start": { "line": 11, "character": 33 },
+        "end": { "line": 11, "character": 45 }
+      },
+      "severity": 2,
+      "severityLabel": "warning",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'golden.diagnostics.oldWarning' is deprecated. Use replacement Replace with: newWarning()",
+      "codeActions": [{ "title": "Replace with 'newWarning()'", "kind": "quickfix" }]
+    }
+  ]
+}
