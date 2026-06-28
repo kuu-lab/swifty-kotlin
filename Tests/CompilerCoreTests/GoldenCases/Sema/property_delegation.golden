@@ -4,7 +4,7 @@ symbol fq=golden.sema.Holder kind=class vis=public flags=_
 symbol fq=golden.sema.LazyHolder kind=class vis=public flags=_
 symbol fq=kotlin.lazy kind=function vis=public flags=synthetic sig=recv=_ params=[() -> Any] ret=kotlin.properties.Lazy
 symbol fq=kotlin.properties.Lazy kind=interface vis=public flags=synthetic
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 class LazyHolder sym=golden.sema.LazyHolder
   decl d1 class CustomDelegate sym=golden.sema.CustomDelegate
   decl d2 class Holder sym=golden.sema.Holder

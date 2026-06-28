@@ -1,12 +1,12 @@
-symbol fq=__ObjectLiteral_10_74_110 kind=class vis=private flags=synthetic
-symbol fq=__ObjectLiteral_10_74_110.value kind=property vis=public flags=synthetic type=Int
-symbol fq=__local_0.local kind=local vis=private flags=_ type=__ObjectLiteral_10_74_110
+symbol fq=__ObjectLiteral_5_74_110 kind=class vis=private flags=synthetic
+symbol fq=__ObjectLiteral_5_74_110.value kind=property vis=public flags=synthetic type=Int
+symbol fq=__local_0.local kind=local vis=private flags=_ type=__ObjectLiteral_5_74_110
 symbol fq=golden.sema.useAnonymousObjectLocal kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun useAnonymousObjectLocal sym=golden.sema.useAnonymousObjectLocal
 expr e0 int(7) type=Int
-expr e1 objectLiteral supers=[] type=__ObjectLiteral_10_74_110
+expr e1 objectLiteral supers=[] type=__ObjectLiteral_5_74_110
 expr e2 localDecl local mutable=0 type=_ init=e1 type=Unit ref=__local_0.local
-expr e3 name(local) type=__ObjectLiteral_10_74_110 ref=__local_0.local
-expr e4 memberCall recv=e3 callee=value args=[] type=Int ref=__ObjectLiteral_10_74_110.value
+expr e3 name(local) type=__ObjectLiteral_5_74_110 ref=__local_0.local
+expr e4 memberCall recv=e3 callee=value args=[] type=Int ref=__ObjectLiteral_5_74_110.value
 expr e5 return value=e4 type=Nothing

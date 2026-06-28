@@ -7,7 +7,7 @@ symbol fq=kotlin.text.digitToIntOrNull#1 kind=function vis=public flags=syntheti
 symbol fq=kotlin.text.digitToIntOrNull.radix kind=valueParameter vis=private flags=synthetic
 symbol fq=testDigitConversion kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Unit
 symbol fq=testDigitConversion.$0.c kind=valueParameter vis=private flags=_
-file f10 package=_
+file f5 package=_
   decl d0 fun testDigitConversion sym=testDigitConversion
 expr e0 name(c) type=Char ref=testDigitConversion.$0.c
 expr e1 memberCall recv=e0 callee=digitToInt args=[] type=Int call=kotlin.text.digitToInt#0

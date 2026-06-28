@@ -1,7 +1,7 @@
 symbol fq=__local_0.y kind=local vis=private flags=_ type=Int
 symbol fq=whileNullCheck kind=function vis=public flags=_ sig=recv=_ params=[Int?] ret=Int
 symbol fq=whileNullCheck.$0.x kind=valueParameter vis=private flags=_
-file f10 package=_
+file f5 package=_
   decl d0 fun whileNullCheck sym=whileNullCheck
 expr e0 int(0) type=Int
 expr e1 localDecl y mutable=0 type=t0 init=e0 type=Unit ref=__local_0.y

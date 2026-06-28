@@ -3,7 +3,7 @@ symbol fq=__local_1.b kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.c kind=local vis=private flags=_ type=Long
 symbol fq=__local_3.d kind=local vis=private flags=_ type=Double
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f10 package=_
+file f5 package=_
   decl d0 fun main sym=main
 expr e0 memberCall recv=e1 callee=MAX_VALUE args=[] type=Int
 expr e2 localDecl a mutable=0 type=_ init=e0 type=Unit ref=__local_0.a

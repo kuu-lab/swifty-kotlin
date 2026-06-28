@@ -1,5 +1,5 @@
 symbol fq=golden.sema.Color kind=enumClass vis=public flags=_
 symbol fq=golden.sema.Direction kind=enumClass vis=public flags=_
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 class Color sym=golden.sema.Color
   decl d1 class Direction sym=golden.sema.Direction

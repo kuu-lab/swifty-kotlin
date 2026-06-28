@@ -12,7 +12,7 @@ symbol fq=kotlin.sequences.Sequence.take kind=function vis=public flags=syntheti
 symbol fq=kotlin.sequences.Sequence.take.n kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f10 package=_
+file f5 package=_
   decl d0 fun main sym=main
 expr e0 int(1) type=Int
 expr e1 name(it) type=Int ref=s-0

@@ -1,19 +1,19 @@
-symbol fq=__ObjectLiteral_10_48_113 kind=class vis=private flags=synthetic
-symbol fq=__ObjectLiteral_10_48_113.x kind=property vis=public flags=synthetic type=Int
-symbol fq=__ObjectLiteral_10_48_113.y kind=property vis=public flags=synthetic type=String
-symbol fq=__local_0.obj kind=local vis=private flags=_ type=__ObjectLiteral_10_48_113
+symbol fq=__ObjectLiteral_5_48_113 kind=class vis=private flags=synthetic
+symbol fq=__ObjectLiteral_5_48_113.x kind=property vis=public flags=synthetic type=Int
+symbol fq=__ObjectLiteral_5_48_113.y kind=property vis=public flags=synthetic type=String
+symbol fq=__local_0.obj kind=local vis=private flags=_ type=__ObjectLiteral_5_48_113
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun main sym=golden.sema.main
 expr e0 int(42) type=Int
 expr e1 string(hello) type=String
-expr e2 objectLiteral supers=[] type=__ObjectLiteral_10_48_113
+expr e2 objectLiteral supers=[] type=__ObjectLiteral_5_48_113
 expr e3 localDecl obj mutable=0 type=_ init=e2 type=Unit ref=__local_0.obj
-expr e4 name(obj) type=__ObjectLiteral_10_48_113 ref=__local_0.obj
-expr e5 memberCall recv=e4 callee=x args=[] type=Int ref=__ObjectLiteral_10_48_113.x
+expr e4 name(obj) type=__ObjectLiteral_5_48_113 ref=__local_0.obj
+expr e5 memberCall recv=e4 callee=x args=[] type=Int ref=__ObjectLiteral_5_48_113.x
 expr e6 call callee=e7 args=[_:e5] type=Unit call=kotlin.io.println#1
-expr e8 name(obj) type=__ObjectLiteral_10_48_113 ref=__local_0.obj
-expr e9 memberCall recv=e8 callee=y args=[] type=String ref=__ObjectLiteral_10_48_113.y
+expr e8 name(obj) type=__ObjectLiteral_5_48_113 ref=__local_0.obj
+expr e9 memberCall recv=e8 callee=y args=[] type=String ref=__ObjectLiteral_5_48_113.y
 expr e10 call callee=e11 args=[_:e9] type=Unit call=kotlin.io.println#1

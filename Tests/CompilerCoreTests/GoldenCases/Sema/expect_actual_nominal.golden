@@ -2,7 +2,7 @@ symbol fq=golden.sema.Bar#0 kind=class vis=public flags=expectDeclaration
 symbol fq=golden.sema.Bar#1 kind=class vis=public flags=actualDeclaration
 symbol fq=golden.sema.Foo#0 kind=class vis=public flags=expectDeclaration
 symbol fq=golden.sema.Foo#1 kind=class vis=public flags=actualDeclaration
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 class Foo sym=golden.sema.Foo#0
   decl d1 class Foo sym=golden.sema.Foo#1
   decl d2 class Bar sym=golden.sema.Bar#0

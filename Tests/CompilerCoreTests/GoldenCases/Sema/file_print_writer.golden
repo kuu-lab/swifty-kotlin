@@ -13,7 +13,7 @@ symbol fq=java.io.PrintWriter.println#0 kind=function vis=public flags=synthetic
 symbol fq=java.io.PrintWriter.println#1 kind=function vis=public flags=synthetic sig=recv=java.io.PrintWriter params=[String] ret=Unit
 symbol fq=java.io.PrintWriter.println.text kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f10 package=_
+file f5 package=_
   decl d0 fun main sym=main
 expr e0 string(output.txt) type=String
 expr e1 call callee=e2 args=[_:e0] type=java.io.File call=java.io.File.<init>#0

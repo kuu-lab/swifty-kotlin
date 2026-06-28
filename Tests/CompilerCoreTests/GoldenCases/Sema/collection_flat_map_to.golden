@@ -10,7 +10,7 @@ symbol fq=testFlatMapIndexedTo kind=function vis=public flags=_ sig=recv=_ param
 symbol fq=testFlatMapIndexedTo.$0.values kind=valueParameter vis=private flags=_
 symbol fq=testFlatMapTo kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=testFlatMapTo.$1.values kind=valueParameter vis=private flags=_
-file f10 package=_
+file f5 package=_
   decl d0 fun testFlatMapTo sym=testFlatMapTo
   decl d1 fun testFlatMapIndexedTo sym=testFlatMapIndexedTo
 expr e0 call callee=e1 args=[] type=kotlin.collections.MutableList<String>

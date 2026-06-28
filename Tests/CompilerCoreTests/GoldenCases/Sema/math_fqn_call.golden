@@ -9,7 +9,7 @@ symbol fq=kotlin.math.abs#2 kind=function vis=public flags=synthetic sig=recv=_ 
 symbol fq=kotlin.math.abs.x kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.sqrt#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Double] ret=Double
 symbol fq=kotlin.math.sqrt.x kind=valueParameter vis=private flags=synthetic
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun testFQNAbsInt sym=golden.sema.testFQNAbsInt
   decl d1 fun testFQNAbsDouble sym=golden.sema.testFQNAbsDouble
   decl d2 fun testFQNSqrt sym=golden.sema.testFQNSqrt

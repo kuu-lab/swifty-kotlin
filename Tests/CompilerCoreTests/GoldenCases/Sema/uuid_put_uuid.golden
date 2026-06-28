@@ -8,7 +8,7 @@ symbol fq=kotlin.uuid.putUuid.at kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.uuid.putUuid.uuid kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.uuid.uuid kind=function vis=public flags=synthetic sig=recv=kotlin.ByteArray params=[Int] ret=kotlin.uuid.Uuid
 symbol fq=kotlin.uuid.uuid.at kind=valueParameter vis=private flags=synthetic
-file f10 package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
+file f5 package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
   decl d0 fun writeThenReadUuid sym=golden.sema.writeThenReadUuid
 expr e0 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
 expr e1 int(0) type=Int

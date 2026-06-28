@@ -1,6 +1,6 @@
 symbol fq=golden.sema.Base kind=class vis=public flags=openType
 symbol fq=golden.sema.Derived kind=class vis=public flags=_
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 class Base sym=golden.sema.Base
   decl d1 class Derived sym=golden.sema.Derived
 expr e0 int(1) type=Int

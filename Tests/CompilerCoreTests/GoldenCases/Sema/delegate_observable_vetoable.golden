@@ -7,7 +7,7 @@ symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic typ
 symbol fq=kotlin.properties.Delegates.observable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
 symbol fq=kotlin.properties.Delegates.vetoable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
 symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=synthetic
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 property name var=1 sym=golden.sema.name
   decl d1 property age var=1 sym=golden.sema.age
   decl d2 fun main sym=golden.sema.main

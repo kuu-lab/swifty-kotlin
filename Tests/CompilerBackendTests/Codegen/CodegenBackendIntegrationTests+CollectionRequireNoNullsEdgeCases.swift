@@ -16,10 +16,7 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(
             source,
             moduleName: "CollectionRequireNoNullsEdgeCases",
-            expected:
-                    """
-                    [a, b]
-                    """ + "\n"
+            expected: "[a, b]\n"
         )
     }
 }

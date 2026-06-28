@@ -21,7 +21,7 @@ symbol fq=golden.sema.Vec.unaryMinus kind=function vis=public flags=operatorFunc
 symbol fq=golden.sema.Vec.x kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.Vec.y kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.useOperators kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 class Vec sym=golden.sema.Vec
   decl d1 fun useOperators sym=golden.sema.useOperators
 expr e0 name(x0) type=<error>

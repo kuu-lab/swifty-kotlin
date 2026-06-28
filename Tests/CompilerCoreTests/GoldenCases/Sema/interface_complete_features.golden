@@ -7,7 +7,7 @@ symbol fq=golden.sema.RightSuper kind=interface vis=public flags=_
 symbol fq=golden.sema.RightSuper.greet kind=function vis=public flags=overrideMember sig=recv=golden.sema.RightSuper params=[] ret=String
 symbol fq=golden.sema.WithCompanion kind=interface vis=public flags=_
 symbol fq=golden.sema.WithSuperCall kind=class vis=public flags=_
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 interface InterfaceProperties sym=golden.sema.InterfaceProperties
   decl d1 interface InterfaceSuperCalls sym=golden.sema.InterfaceSuperCalls
   decl d2 interface LeftSuper sym=golden.sema.LeftSuper

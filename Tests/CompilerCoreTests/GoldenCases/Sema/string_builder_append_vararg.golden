@@ -10,7 +10,7 @@ symbol fq=kotlin.arrayOf kind=function vis=public flags=synthetic sig=recv=_ par
 symbol fq=kotlin.arrayOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.text.StringBuilder kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.StringBuilder.toString kind=function vis=public flags=synthetic sig=recv=kotlin.text.StringBuilder params=[] ret=String
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun useAppendVarargStrings sym=golden.sema.useAppendVarargStrings
   decl d1 fun useAppendVarargAny sym=golden.sema.useAppendVarargAny
   decl d2 fun useAppendVarargSpread sym=golden.sema.useAppendVarargSpread

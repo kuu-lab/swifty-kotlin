@@ -2,6 +2,6 @@ symbol fq=getStringType kind=function vis=public flags=_ sig=recv=_ params=[] re
 symbol fq=kotlin.reflect.KType kind=interface vis=public flags=synthetic
 symbol fq=kotlinx.cinterop.typeOf kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=kotlin.reflect.KType
 symbol fq=kotlinx.cinterop.typeOf.T kind=typeParameter vis=private flags=synthetic|reifiedTypeParameter
-file f10 package=_
+file f5 package=_
   decl d0 fun getStringType sym=getStringType
 expr e0 call callee=e1 args=[] type=kotlin.reflect.KType call=kotlinx.cinterop.typeOf targs=[String]

@@ -32,13 +32,13 @@ symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synth
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf#1 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Double,Double,Double] ret=Double
-symbol fq=kotlin.comparisons.minOf#4 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int
-symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=kotlin.comparisons.minOf#9 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Long,Long,Long] ret=Long
+symbol fq=kotlin.comparisons.minOf#10 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Long,Long,Long] ret=Long
+symbol fq=kotlin.comparisons.minOf#5 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int
+symbol fq=kotlin.comparisons.minOf#7 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f10 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun twoArgInt sym=golden.sema.twoArgInt
   decl d1 fun twoArgMinInt sym=golden.sema.twoArgMinInt
   decl d2 fun threeArgMaxInt sym=golden.sema.threeArgMaxInt
@@ -52,7 +52,7 @@ expr e1 int(7) type=Int
 expr e2 call callee=e3 args=[_:e0,_:e1] type=Int call=kotlin.comparisons.maxOf#4
 expr e4 int(3) type=Int
 expr e5 int(7) type=Int
-expr e6 call callee=e7 args=[_:e4,_:e5] type=Int call=kotlin.comparisons.minOf#4
+expr e6 call callee=e7 args=[_:e4,_:e5] type=Int call=kotlin.comparisons.minOf#5
 expr e8 name(a) type=Int ref=golden.sema.threeArgMaxInt.$1.a
 expr e9 name(b) type=Int ref=golden.sema.threeArgMaxInt.$1.b
 expr e10 name(c) type=Int ref=golden.sema.threeArgMaxInt.$1.c
@@ -60,7 +60,7 @@ expr e11 call callee=e12 args=[_:e8,_:e9,_:e10] type=Int call=kotlin.comparisons
 expr e13 name(a) type=Int ref=golden.sema.threeArgMinInt.$4.a
 expr e14 name(b) type=Int ref=golden.sema.threeArgMinInt.$4.b
 expr e15 name(c) type=Int ref=golden.sema.threeArgMinInt.$4.c
-expr e16 call callee=e17 args=[_:e13,_:e14,_:e15] type=Int call=kotlin.comparisons.minOf#6
+expr e16 call callee=e17 args=[_:e13,_:e14,_:e15] type=Int call=kotlin.comparisons.minOf#7
 expr e18 name(a) type=Long ref=golden.sema.threeArgMaxLong.$2.a
 expr e19 name(b) type=Long ref=golden.sema.threeArgMaxLong.$2.b
 expr e20 name(c) type=Long ref=golden.sema.threeArgMaxLong.$2.c
@@ -68,7 +68,7 @@ expr e21 call callee=e22 args=[_:e18,_:e19,_:e20] type=Long call=kotlin.comparis
 expr e23 name(a) type=Long ref=golden.sema.threeArgMinLong.$5.a
 expr e24 name(b) type=Long ref=golden.sema.threeArgMinLong.$5.b
 expr e25 name(c) type=Long ref=golden.sema.threeArgMinLong.$5.c
-expr e26 call callee=e27 args=[_:e23,_:e24,_:e25] type=Long call=kotlin.comparisons.minOf#9
+expr e26 call callee=e27 args=[_:e23,_:e24,_:e25] type=Long call=kotlin.comparisons.minOf#10
 expr e28 name(a) type=Double ref=golden.sema.threeArgMaxDouble.$0.a
 expr e29 name(b) type=Double ref=golden.sema.threeArgMaxDouble.$0.b
 expr e30 name(c) type=Double ref=golden.sema.threeArgMaxDouble.$0.c
