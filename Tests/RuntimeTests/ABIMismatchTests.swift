@@ -107,7 +107,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 259)
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 253)
     }
 
     func testRegexFunctionCount() {
@@ -209,10 +209,12 @@ final class ABIMismatchTests: XCTestCase {
         // - 6 ulp/nextUp/nextDown helpers
         // - 2 integral sign property helpers
         // - 3 coercion helpers
+        // - 16 IEEE 754 rounding mode convenience entry points (8 Double + 8 Float)
         // - 14 STDLIB-MATH-112 numeric constants (5 Double + 5 Float + 2 Int + 2 Long)
+        // - 2 generic mode-dispatch (round_mode, round_mode_float)
         // - 8 STDLIB-MATH-109 hyperbolic/cbrt entries (sinh, cosh, tanh, cbrt + Float overloads)
         // - 6 STDLIB-MATH-113 floating-point helpers
-        XCTAssertGreaterThanOrEqual(RuntimeABISpec.mathFunctions.count, 112)
+        XCTAssertGreaterThanOrEqual(RuntimeABISpec.mathFunctions.count, 130)
         // Random ABI includes default, seeded, bounded numeric helpers, range overloads, UInt/ULong helpers, byte array/unsigned byte helpers, SecureRandom helpers, and explicit bit extraction.
         XCTAssertGreaterThanOrEqual(RuntimeABISpec.randomFunctions.count, 36)
     }

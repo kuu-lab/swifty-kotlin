@@ -25,7 +25,7 @@ enum GoldenHarnessDump {
         try LexPhase().run(ctx)
 
         guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
-            return ""
+            throw GoldenHarnessDumpError.missingSyntaxTree
         }
 
         var lines: [String] = []
@@ -73,21 +73,18 @@ enum GoldenHarnessDump {
         return renderSemaOutput(ast: ast, sema: sema, interner: ctx.interner)
     }
 
+    // MARK: - Stable sema rendering
+
     private static func renderSemaOutput(ast: ASTModule, sema: SemaModule, interner: StringInterner) -> String {
-        var lines: [String] = []
+        let ctx = StableRenderContext(sema: sema, interner: interner)
 
-        // Render symbols
-        let symbols = sema.symbols.allSymbols().sorted { $0.id.rawValue < $1.id.rawValue }
-        for symbol in symbols {
-            lines.append(renderSymbol(symbol, sema: sema, interner: interner))
-        }
+        // 1. Render body lines (files, decls, exprs) first to track referenced symbols
+        var bodyLines: [String] = []
 
-        // Render files and declarations
         for file in ast.sortedFiles {
-            lines.append(renderFile(file, ast: ast, sema: sema, interner: interner))
+            bodyLines.append(renderFile(file, ast: ast, ctx: ctx))
         }
 
-        // Render expressions (skip those with no semantic info)
         for raw in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(raw))
             guard let expr = ast.arena.expr(exprID) else { continue }
@@ -95,28 +92,41 @@ enum GoldenHarnessDump {
             let hasRef = sema.bindings.identifierSymbols[exprID] != nil
             let hasCall = sema.bindings.callBindings[exprID] != nil
             guard hasType || hasRef || hasCall else { continue }
-            lines.append(renderExpression(expr, id: exprID, sema: sema, interner: interner))
+            bodyLines.append(renderExpression(expr, id: exprID, ctx: ctx))
         }
 
-        return lines.joined(separator: "\n") + "\n"
+        // 2. Transitively expand required symbols
+        ctx.expandRequiredSymbols()
+
+        // 3. Render only required symbol lines, sorted by FQ name for stability
+        let requiredSymbols = sema.symbols.allSymbols()
+            .filter { ctx.requiredSymbols.contains($0.id.rawValue) }
+            .sorted { ctx.stableKey(for: $0.id) < ctx.stableKey(for: $1.id) }
+
+        var symbolLines: [String] = []
+        for symbol in requiredSymbols {
+            symbolLines.append(renderSymbol(symbol, ctx: ctx))
+        }
+
+        return (symbolLines + bodyLines).joined(separator: "\n") + "\n"
     }
 
-    private static func renderSymbol(_ symbol: SemanticSymbol, sema: SemaModule, interner: StringInterner) -> String {
+    private static func renderSymbol(_ symbol: SemanticSymbol, ctx: StableRenderContext) -> String {
         var extra: [String] = []
-        if let signature = sema.symbols.functionSignature(for: symbol.id) {
-            extra.append("sig=\(GoldenHarnessSemaFormat.renderFunctionSignature(signature, types: sema.types))")
+        if let signature = ctx.sema.symbols.functionSignature(for: symbol.id) {
+            extra.append("sig=\(ctx.renderSignature(signature))")
         }
-        if let propertyType = sema.symbols.propertyType(for: symbol.id) {
-            extra.append("type=\(sema.types.renderType(propertyType))")
+        if let propertyType = ctx.sema.symbols.propertyType(for: symbol.id) {
+            extra.append("type=\(ctx.renderType(propertyType))")
         }
         let extras = extra.isEmpty ? "" : " " + extra.joined(separator: " ")
-        let fq = GoldenHarnessSemaFormat.renderFQName(symbol.fqName, interner: interner)
+        let key = ctx.stableKey(for: symbol.id)
         let flags = GoldenHarnessSemaFormat.renderSymbolFlags(symbol.flags)
-        return "symbol s\(symbol.id.rawValue) kind=\(symbol.kind) fq=\(fq) vis=\(symbol.visibility) flags=\(flags)\(extras)"
+        return "symbol fq=\(key) kind=\(symbol.kind) vis=\(symbol.visibility) flags=\(flags)\(extras)"
     }
 
-    private static func renderFile(_ file: ASTFile, ast: ASTModule, sema: SemaModule, interner: StringInterner) -> String {
-        var fileLine = "file f\(file.fileID.rawValue) package=\(GoldenHarnessSemaFormat.renderFQName(file.packageFQName, interner: interner))"
+    private static func renderFile(_ file: ASTFile, ast: ASTModule, ctx: StableRenderContext) -> String {
+        var fileLine = "file f\(file.fileID.rawValue) package=\(GoldenHarnessSemaFormat.renderFQName(file.packageFQName, interner: ctx.interner))"
         if !file.annotations.isEmpty {
             let renderedAnnotations = file.annotations.map { annotation in
                 let targetPrefix = annotation.useSiteTarget.map { "@\($0):" } ?? "@"
@@ -133,30 +143,43 @@ enum GoldenHarnessDump {
         var lines = [fileLine]
         for declID in file.topLevelDecls {
             guard let decl = ast.arena.decl(declID) else { continue }
+            let symKey: String
+            if let symbolID = ctx.sema.bindings.declSymbols[declID] {
+                ctx.requireSymbol(symbolID)
+                symKey = ctx.stableKey(for: symbolID)
+            } else {
+                symKey = "_"
+            }
             lines.append(
-                "  decl d\(declID.rawValue) \(GoldenHarnessSemaFormat.renderDecl(decl, interner: interner)) sym=\(GoldenHarnessSemaFormat.renderDeclSymbol(declID, sema: sema))"
+                "  decl d\(declID.rawValue) \(GoldenHarnessSemaFormat.renderDecl(decl, interner: ctx.interner)) sym=\(symKey)"
             )
         }
         return lines.joined(separator: "\n")
     }
 
-    private static func renderExpression(_ expr: Expr, id: ExprID, sema: SemaModule, interner: StringInterner) -> String {
-        var line = "expr e\(id.rawValue) \(GoldenHarnessExprFormat.renderExpr(expr, interner: interner))"
+    private static func renderExpression(_ expr: Expr, id: ExprID, ctx: StableRenderContext) -> String {
+        var line = "expr e\(id.rawValue) \(GoldenHarnessExprFormat.renderExpr(expr, interner: ctx.interner))"
 
-        if let exprType = sema.bindings.exprTypes[id] {
-            line += " type=\(sema.types.renderType(exprType))"
+        if let exprType = ctx.sema.bindings.exprTypes[id] {
+            line += " type=\(ctx.renderType(exprType))"
         } else {
             line += " type=_"
         }
 
-        if let refSymbol = sema.bindings.identifierSymbols[id] {
-            line += " ref=s\(refSymbol.rawValue)"
+        if let refSymbol = ctx.sema.bindings.identifierSymbols[id] {
+            if refSymbol.rawValue >= 0 {
+                ctx.requireSymbol(refSymbol)
+                line += " ref=\(ctx.stableKey(for: refSymbol))"
+            } else {
+                line += " ref=s\(refSymbol.rawValue)"
+            }
         }
 
-        if let callBinding = sema.bindings.callBindings[id] {
-            line += " call=s\(callBinding.chosenCallee.rawValue)"
+        if let callBinding = ctx.sema.bindings.callBindings[id] {
+            ctx.requireSymbol(callBinding.chosenCallee)
+            line += " call=\(ctx.stableKey(for: callBinding.chosenCallee))"
             if !callBinding.substitutedTypeArguments.isEmpty {
-                let typeArgs = callBinding.substitutedTypeArguments.map { sema.types.renderType($0) }.joined(separator: ",")
+                let typeArgs = callBinding.substitutedTypeArguments.map { ctx.renderType($0) }.joined(separator: ",")
                 line += " targs=[\(typeArgs)]"
             }
         }

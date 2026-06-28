@@ -1477,6 +1477,33 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-020: maxOf(Long, Long) — 2-arg Long overload
+    func testCodegenCompilesMaxOfLongTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            println(maxOf(3L, 7L))
+            val a = 100L
+            val b = 400L
+            println(maxOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfLongTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "7\n400\n")
+        }
+    }
+
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long)
     func testCodegenCompilesMaxOfLongVarargTopLevelCall() throws {
         let source = """
@@ -1503,6 +1530,35 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "8\n400\n")
+        }
+    }
+
+    // STDLIB-COMP-FN-046: minOf(a: Long, vararg other: Long)
+    func testCodegenCompilesMinOfLongVarargTopLevelCall() throws {
+        let source = """
+        fun main() {
+            println(minOf(5L, 2L, 8L, 1L))
+            val a = 100L
+            val b = 400L
+            val c = 200L
+            val d = 300L
+            println(minOf(a, b, c, d, 50L))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfLongVararg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "1\n50\n")
         }
     }
 
@@ -1668,6 +1724,32 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-029: minOf(T, T) where T : Comparable<T>
+    func testCodegenCompilesMinOfComparableTwoArgCall() throws {
+        let source = """
+        fun main() {
+            val a = "banana"
+            val b = "apple"
+            println(minOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfComparableTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "apple\n")
+        }
+    }
+
     // STDLIB-COMP-FN-030: minOf(T, T, T) where T : Comparable<T>
     func testCodegenCompilesMinOfComparableThreeArgCall() throws {
         let source = """
@@ -1744,6 +1826,31 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "1.5\n")
+        }
+    }
+
+    // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte — end-to-end codegen
+    func testCodegenCompilesUnsignedMinOfTopLevelCalls() throws {
+        let source = """
+        fun main() {
+            println(minOf(1u, 4000000000u) == 1u)
+            println(minOf(1u, 3u, 4000000000u) == 1u)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "UnsignedComparisonMinOf",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
         }
     }
 

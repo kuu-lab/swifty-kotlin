@@ -27,8 +27,8 @@ extension LexerParserEdgeCaseTests {
             XCTAssertFalse(ctx.tokens.isEmpty)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 1 user file + 2 bundled stdlib files (collections + text)
-            XCTAssertEqual(ast.files.count, 3)
+            // 1 user file + 4 bundled stdlib files (collections, text, sequences + time)
+            XCTAssertEqual(ast.files.count, 5)
             XCTAssertGreaterThanOrEqual(ast.declarationCount, 6)
             XCTAssertFalse(ctx.diagnostics.hasError)
         }
@@ -156,19 +156,19 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 2 bundled stdlib files (collections + text)
-            XCTAssertEqual(ast.files.count, 4)
+            // 2 user files + 4 bundled stdlib files (collections, text, sequences + time)
+            XCTAssertEqual(ast.files.count, 6)
 
-            XCTAssertEqual(ctx.tokensByFile.count, 4)
-            XCTAssertEqual(ctx.syntaxTrees.count, 4)
+            XCTAssertEqual(ctx.tokensByFile.count, 6)
+            XCTAssertEqual(ctx.syntaxTrees.count, 6)
 
             for (_, fileTokens) in ctx.tokensByFile {
                 XCTAssertTrue(fileTokens.last.map { $0.kind == .eof } ?? false)
             }
 
-            // Skip bundled stdlib files (indices 0 and 1), user files at indices 2 and 3
-            let file0 = ast.files[2]
-            let file1 = ast.files[3]
+            // Skip bundled stdlib files (indices 0, 1, 2 and 3), user files at indices 4 and 5
+            let file0 = ast.files[4]
+            let file1 = ast.files[5]
             XCTAssertNotEqual(file0.fileID, file1.fileID)
 
             let file0DeclNames = file0.topLevelDecls.compactMap { declID -> String? in
@@ -211,8 +211,8 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 2 bundled stdlib files (collections + text)
-            XCTAssertEqual(ast.files.count, 4)
+            // 2 user files + 4 bundled stdlib files (collections, text, sequences + time)
+            XCTAssertEqual(ast.files.count, 6)
 
             let allFunNames = ast.arena.declarations().compactMap { decl -> String? in
                 guard case let .funDecl(f) = decl else { return nil }
@@ -220,10 +220,10 @@ extension LexerParserEdgeCaseTests {
             }
             XCTAssertTrue(allFunNames.contains("alpha"))
             XCTAssertTrue(allFunNames.contains("beta"))
-            // 2 user functions + 54 bundled stdlib functions
-            XCTAssertEqual(allFunNames.count, 56)
+            // 2 user functions + 77 bundled stdlib functions
+            XCTAssertEqual(allFunNames.count, 79)
 
-            XCTAssertEqual(ctx.syntaxTrees.count, 4)
+            XCTAssertEqual(ctx.syntaxTrees.count, 6)
             for (_, cst, root) in ctx.syntaxTrees {
                 XCTAssertEqual(cst.node(root).kind, .kotlinFile)
             }
@@ -246,9 +246,9 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 2 bundled stdlib files (collections + text)
-            XCTAssertEqual(ast.files.count, 4)
-            XCTAssertEqual(ctx.syntaxTrees.count, 4)
+            // 2 user files + 4 bundled stdlib files (collections, text, sequences + time)
+            XCTAssertEqual(ast.files.count, 6)
+            XCTAssertEqual(ctx.syntaxTrees.count, 6)
 
             let rootKinds = ctx.syntaxTrees.map { $0.1.node($0.2).kind }
             XCTAssertTrue(rootKinds.contains(.kotlinFile))
@@ -258,7 +258,7 @@ extension LexerParserEdgeCaseTests {
             XCTAssertNotNil(scriptFile)
 
             // Find user's .kt file (not bundled stdlib)
-            let kotlinFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 2 })
+            let kotlinFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 4 })
             XCTAssertNotNil(kotlinFile)
             let kotlinDeclNames = (kotlinFile?.topLevelDecls ?? []).compactMap { declID -> String? in
                 guard let decl = ast.arena.decl(declID) else { return nil }

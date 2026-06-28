@@ -363,7 +363,12 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.lateinit) { value.insert(.lateinitProperty) }
     }
 
-    func hasDeclarationConflict(newKind: SymbolKind, existing: [SemanticSymbol]) -> Bool {
+    func hasDeclarationConflict(
+        newKind: SymbolKind,
+        existing: [SemanticSymbol],
+        symbols: SymbolTable? = nil,
+        newIsExtensionProperty: Bool = false
+    ) -> Bool {
         guard !existing.isEmpty else {
             return false
         }
@@ -376,6 +381,15 @@ extension DataFlowSemaPhase {
             }
         }
         if newKind == .property {
+            if newIsExtensionProperty, let symbols {
+                return existing.contains { sym in
+                    if isCallableLike(sym.kind) { return false }
+                    if sym.kind == .property {
+                        return symbols.extensionPropertyReceiverType(for: sym.id) == nil
+                    }
+                    return true
+                }
+            }
             return existing.contains { !isCallableLike($0.kind) }
         }
         if isCallableLike(newKind) {
@@ -403,7 +417,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         newFlags: SymbolFlags = [],
-        additionalExisting: [SemanticSymbol] = []
+        additionalExisting: [SemanticSymbol] = [],
+        newIsExtensionProperty: Bool = false
     ) {
         var existingByID: [SymbolID: SemanticSymbol] = [:]
         for symbol in symbols.lookupAll(fqName: fqName).compactMap({ symbols.symbol($0) }) {
@@ -427,7 +442,12 @@ extension DataFlowSemaPhase {
                 return
             }
         }
-        if hasDeclarationConflict(newKind: newKind, existing: existing) {
+        if hasDeclarationConflict(
+            newKind: newKind,
+            existing: existing,
+            symbols: symbols,
+            newIsExtensionProperty: newIsExtensionProperty
+        ) {
             diagnostics.error(
                 "KSWIFTK-SEMA-0001",
                 "Duplicate declaration in the same package scope.",
@@ -1043,6 +1063,8 @@ extension DataFlowSemaPhase {
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsParseIntRadixStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsJsonStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
@@ -1066,11 +1088,12 @@ extension DataFlowSemaPhase {
         // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
         // The Phase file preserves the exact original call order.
         registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
-        // Trailing platform-interop batch (Wasm + Js + late Reflect stubs).
-        // To add a new Js/Wasm interop stub, edit
-        // HeaderHelpers+SyntheticPhase_PlatformAndJS.swift instead of this file.
-        // The Phase file preserves the exact original call order.
-        registerSyntheticPhase_PlatformAndJS(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsCollectionsReadonlyMapStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsCollectionsReadonlySetStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

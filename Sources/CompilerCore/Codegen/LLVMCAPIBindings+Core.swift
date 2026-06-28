@@ -113,4 +113,9 @@ extension LLVMCAPIBindings {
         setInitializerFn?(global, value)
     }
 
+    func linkModules(_ dest: LLVMModuleRef, source: LLVMModuleRef) -> Bool {
+        guard let fn = linkModules2Fn else { return false }
+        return fn(dest, source) == 0
+    }
+
 }

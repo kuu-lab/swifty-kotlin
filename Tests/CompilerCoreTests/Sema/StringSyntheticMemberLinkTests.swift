@@ -58,8 +58,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "hexToUInt": "kk_string_hexToUInt",
             "hexToULong": "kk_string_hexToULong",
             "hexToUShort": "kk_string_hexToUShort",
-            "trimIndent": "kk_string_trimIndent",
-            "replaceIndentByMargin": "kk_string_replaceIndentByMargin",
         ]
 
         for (member, expectedLink) in expected {
@@ -307,11 +305,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             externalLink(for: "toBigDecimal", sema: sema, interner: interner),
             "kk_string_toBigDecimal",
             "String.toBigDecimal should link to kk_string_toBigDecimal"
-        )
-        XCTAssertEqual(
-            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner),
-            "kk_string_toBigDecimalOrNull",
-            "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
         )
         XCTAssertEqual(
             externalLink(for: "toBigInteger", sema: sema, interner: interner),
@@ -1175,6 +1168,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     }
 
     func testReplaceIndentByMarginResolvesInCallExpressions() throws {
+        // MIGRATION-TEXT-006: replaceIndentByMargin is now a Kotlin stdlib function.
+        // Verify it resolves to a valid callee without checking a C ABI link name.
         let source = """
         fun replaceIndentByMarginDefault(value: String): String {
             return value.replaceIndentByMargin()
@@ -1191,7 +1186,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-
+            XCTAssertFalse(ctx.diagnostics.hasError, "replaceIndentByMargin should resolve: \(ctx.diagnostics.diagnostics)")
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
@@ -1199,14 +1194,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 return ctx.interner.resolve(callee) == "replaceIndentByMargin"
             }
             XCTAssertEqual(callExprs.count, 3)
-            let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
+            for callExpr in callExprs {
+                XCTAssertNotNil(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceIndentByMargin"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(Set(links), ["kk_string_replaceIndentByMargin"])
         }
     }
 
@@ -1808,6 +1801,34 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testCharSequenceReduceOrNullResolvesInCallExpressions() throws {
+        let source = """
+        fun reduceFromSequence(value: CharSequence): Char? {
+            return value.reduceOrNull { acc, ch -> if (ch == 'b') ch else acc }
+        }
+
+        fun reduceFromString(value: String): Char? {
+            return value.reduceOrNull { acc, ch -> if (acc == 'a') acc else ch }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected CharSequence.reduceOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let bindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceOrNull"
+            }
+            XCTAssertEqual(bindings.count, 2)
+        }
+    }
+
     func testCharSequenceSumByResolvesInCallExpressions() throws {
         let source = """
         fun sumFromSequence(value: CharSequence): Int {
@@ -1985,43 +2006,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             XCTAssertEqual(
                 externalLinks,
                 ["kk_string_zip", "kk_string_zipTransform"]
-            )
-        }
-    }
-
-    // MARK: - STDLIB-TEXT-FN-019: indent
-
-    func testIndentOverloadsResolveToDifferentExternalLinks() throws {
-        let source = """
-        fun indentDefault(value: String): String {
-            return value.indent()
-        }
-
-        fun indentWithN(value: String): String {
-            return value.indent(4)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "indent"
-            }
-            XCTAssertEqual(callExprs.count, 2)
-            let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for indent"
-                )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
-            }
-            XCTAssertEqual(
-                Set(links),
-                ["kk_string_indent_default", "kk_string_indent"]
             )
         }
     }

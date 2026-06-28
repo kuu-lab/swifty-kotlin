@@ -320,17 +320,7 @@ extension CallLowerer {
                 {
                     return interner.intern("kk_array_binarySearch_compare")
                 }
-                if (externalLinkName == "kk_list_binarySearch" || externalLinkName == "kk_array_binarySearch"),
-                   isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-                   argumentCount == 5
-                {
-                    return interner.intern("kk_array_binarySearch_compare")
-                }
                 return interner.intern(externalLinkName)
-            }
-            if sema.symbols.symbol(chosenCallee)?.declSite != nil {
-                // Source-backed stdlib migrations lower through the chosen symbol's internal function.
-                return fallback
             }
             if let unresolvedSynthetic = unresolvedSyntheticMemberCallee(
                 memberName: fallbackName,

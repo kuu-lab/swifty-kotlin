@@ -796,19 +796,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "format",
-            externalLinkName: "kk_string_format",
-            receiverType: stringType,
-            parameters: [
-                ("args", types.nullableAnyType, false, true),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // Int.toString(radix: Int) / Long.toString(radix: Int) (STDLIB-152)
         registerSyntheticStringExtensionFunction(
             named: "toString",
@@ -828,55 +815,6 @@ extension DataFlowSemaPhase {
             receiverType: longType,
             parameters: [
                 ("radix", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimIndent",
-            externalLinkName: "kk_string_trimIndent",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimMargin",
-            externalLinkName: "kk_string_trimMargin_default",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimMargin",
-            externalLinkName: "kk_string_trimMargin",
-            receiverType: stringType,
-            parameters: [
-                ("marginPrefix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceIndentByMargin",
-            externalLinkName: "kk_string_replaceIndentByMargin",
-            receiverType: stringType,
-            parameters: [
-                ("newIndent", stringType, true, false),
-                ("marginPrefix", stringType, true, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1861,6 +1799,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-026: String.intern ---
+        registerSyntheticStringExtensionFunction(
+            named: "intern",
+            externalLinkName: "kk_string_intern",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-FN-027: CharSequence.isBlank ---
         registerSyntheticStringExtensionFunction(
             named: "isBlank",
@@ -1872,6 +1822,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
 
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
@@ -2043,82 +1994,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-FN-019: indent ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "indent",
-            externalLinkName: "kk_string_indent_default",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "indent",
-            externalLinkName: "kk_string_indent",
-            receiverType: stringType,
-            parameters: [
-                ("n", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-191: prependIndent / replaceIndent ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "prependIndent",
-            externalLinkName: "kk_string_prependIndent_default",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "prependIndent",
-            externalLinkName: "kk_string_prependIndent",
-            receiverType: stringType,
-            parameters: [
-                ("indent", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceIndent",
-            externalLinkName: "kk_string_replaceIndent_default",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceIndent",
-            externalLinkName: "kk_string_replaceIndent",
-            receiverType: stringType,
-            parameters: [
-                ("newIndent", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- STDLIB-192: equals(other, ignoreCase) ---
 
         let nullableStringType = types.make(.primitive(.string, .nullable))
@@ -2166,12 +2041,43 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase) — 3-arg overload
+        registerSyntheticStringExtensionFunction(
+            named: "replaceFirst",
+            externalLinkName: "kk_string_replaceFirst_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("oldValue", stringType, false, false),
+                ("newValue", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "replaceRange",
             externalLinkName: "kk_string_replaceRange",
             receiverType: stringType,
             parameters: [
                 ("range", intType, false, false),
+                ("replacement", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "replaceRange",
+            externalLinkName: "kk_string_replaceRange_indices",
+            receiverType: stringType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
                 ("replacement", stringType, false, false),
             ],
             returnType: stringType,
@@ -2202,6 +2108,40 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("range", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>) ---
+        // IntRange is represented as intType at the ABI level; Iterable<Int> uses List<out Int>.
+        // KIR lowering distinguishes the two via isRangeExpr on the argument.
+        let listOfIntTypeForSlice = makeListType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: intType
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "slice",
+            externalLinkName: "kk_string_slice_range",
+            receiverType: stringType,
+            parameters: [
+                ("indices", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "slice",
+            externalLinkName: "kk_string_slice_iterable",
+            receiverType: stringType,
+            parameters: [
+                ("indices", listOfIntTypeForSlice, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -2255,6 +2195,12 @@ extension DataFlowSemaPhase {
         let intCharToBoolType = types.make(.functionType(FunctionType(
             params: [intType, charType],
             returnType: boolType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let intCharToUnitType = types.make(.functionType(FunctionType(
+            params: [intType, charType],
+            returnType: types.unitType,
             isSuspend: false,
             nullability: .nonNull
         )))
@@ -2523,6 +2469,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-046: CharSequence.reduce(operation) ---
+        registerSyntheticStringExtensionFunction(
+            named: "reduce",
+            externalLinkName: "kk_string_reduce",
+            receiverType: charSequenceType,
+            parameters: [("operation", charCharToCharType, false, false)],
+            returnType: charType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-FN-049: CharSequence.reduceOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceOrNull",
@@ -2648,6 +2607,17 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // --- STDLIB-TEXT-FN-040: CharSequence.onEachIndexed(action: (Int, Char) -> Unit): S ---
+        registerSyntheticStringExtensionFunction(
+            named: "onEachIndexed",
+            externalLinkName: "kk_string_onEachIndexed",
+            receiverType: stringType,
+            parameters: [("action", intCharToUnitType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
         registerSyntheticStringExtensionFunction(
@@ -2715,6 +2685,17 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "findLast",
             externalLinkName: "kk_string_findLast",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // STDLIB-TEXT-FN-067: singleOrNull(predicate) overload
+        registerSyntheticStringExtensionFunction(
+            named: "singleOrNull",
+            externalLinkName: "kk_string_singleOrNull_predicate",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
@@ -3070,17 +3051,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "toBigDecimalOrNull",
-            externalLinkName: "kk_string_toBigDecimalOrNull",
-            receiverType: stringType,
-            parameters: [],
-            returnType: types.makeNullable(bigDecimalType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
             named: "toBigInteger",
             externalLinkName: "kk_string_toBigInteger",
             receiverType: stringType,
@@ -3317,6 +3287,22 @@ extension DataFlowSemaPhase {
             ],
             isVararg: [false, false, true],
             companionFQName: stringCompanionFQName,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-I18N-COMMON-001: String.format instance extension method ---
+        // Kotlin: "...".format(vararg args: Any?) -> String
+        // Receiver is the format string; routes to kk_string_format.
+        registerSyntheticStringExtensionFunction(
+            named: "format",
+            externalLinkName: "kk_string_format",
+            receiverType: stringType,
+            parameters: [
+                ("args", types.nullableAnyType, false, true),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )

@@ -377,28 +377,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toBigDecimal" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimal"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toBigDecimalOrNull" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toBigDecimalOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -594,6 +572,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "intern" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_intern"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "trim" {
                     instructions.append(.call(
                         symbol: nil,
@@ -648,6 +637,7 @@ extension CallLowerer {
                 || calleeStr == "chunkedSequence"
                 || calleeStr == "firstNotNullOf"
                 || calleeStr == "firstNotNullOfOrNull"
+                || calleeStr == "reduce"
                 || calleeStr == "reduceOrNull"
                 || calleeStr == "reduceRightIndexed"
                 || calleeStr == "reduceRightIndexedOrNull"
@@ -665,6 +655,7 @@ extension CallLowerer {
                     || calleeStr == "reduceRightOrNull"
                     || calleeStr == "sumBy"
                     || calleeStr == "sumByDouble"
+                    || calleeStr == "onEachIndexed"
                 {
                     let originalCallBinding = sema.bindings.callBindings[exprID]
                     let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
@@ -700,6 +691,7 @@ extension CallLowerer {
                     case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
                     case "sumBy": "kk_string_sumBy"
                     case "sumByDouble": "kk_string_sumByDouble"
+                    case "onEachIndexed": "kk_string_onEachIndexed"
                     default: "kk_string_reduceRightOrNull"
                     }
                     instructions.append(.call(
@@ -826,6 +818,10 @@ extension CallLowerer {
                     ("kk_string_find", [loweredReceiverID] + normalizedArgIDs)
                 case "findLast":
                     ("kk_string_findLast", [loweredReceiverID] + normalizedArgIDs)
+                case "reduce":
+                    ("kk_string_reduce", [loweredReceiverID] + normalizedArgIDs)
+                case "singleOrNull":
+                    ("kk_string_singleOrNull_predicate", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
@@ -882,6 +878,7 @@ extension CallLowerer {
                 if let runtimeCall {
                     let stringHOFCanThrow = calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
+                        || calleeStr == "reduce"
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
@@ -1339,6 +1336,47 @@ extension CallLowerer {
             }
         }
 
+        // STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase) — 3-arg overload
+        if args.count == 3, interner.resolve(calleeName) == "replaceFirst" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let thirdArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[2].expr] ?? sema.types.anyType
+            )
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               sema.types.isSubtype(thirdArgType, sema.types.booleanType)
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_replaceFirst_ignoreCase"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
+        // STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>)
+        if args.count == 1, interner.resolve(calleeName) == "slice" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
+                let isRange = sema.bindings.isRangeExpr(args[0].expr)
+                let sliceCallee = isRange ? "kk_string_slice_range" : "kk_string_slice_iterable"
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(sliceCallee),
+                    arguments: [loweredReceiverID, loweredArgIDs[0]],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         // String stdlib: removeRange(startIndex, endIndex) (STDLIB-TEXT-EDGE-008)
         if args.count == 2, interner.resolve(calleeName) == "removeRange" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
@@ -1382,6 +1420,23 @@ extension CallLowerer {
                     symbol: nil,
                     callee: interner.intern("kk_string_replaceRange"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
+        // String stdlib: replaceRange(startIndex, endIndex, replacement) (STDLIB-TEXT-FN-062)
+        if args.count == 3, interner.resolve(calleeName) == "replaceRange" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_replaceRange_indices"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
                     result: result,
                     canThrow: true,
                     thrownResult: nil

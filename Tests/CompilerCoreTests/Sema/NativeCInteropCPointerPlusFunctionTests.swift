@@ -104,25 +104,14 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
         let interner = ctx.interner
         let plusFQName = ["kotlinx", "cinterop", "plus"].map { interner.intern($0) }
         let plusCandidates = Set(sema.symbols.lookupAll(fqName: plusFQName))
-        let plusExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+        let cpointerPlusBound = ast.arena.exprs.indices.filter { index -> Bool in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case .binary(.add, _, _, _) = expr,
-                  let range = ast.arena.exprRange(exprID),
-                  range.start.file.rawValue == 0  // user source file only (bundled stdlibs are FileID 1+)
-            else {
-                return nil
-            }
-            return exprID
+                  let binding = sema.bindings.callBinding(for: exprID)
+            else { return false }
+            return plusCandidates.contains(binding.chosenCallee)
         }
-
-        XCTAssertEqual(plusExprs.count, 2)
-        for exprID in plusExprs {
-            let chosen = try XCTUnwrap(
-                sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                "Expected CPointer.plus binary expression to bind a callee"
-            )
-            XCTAssertTrue(plusCandidates.contains(chosen))
-        }
+        XCTAssertEqual(cpointerPlusBound.count, 2, "Expected exactly 2 binary adds bound to CPointer.plus")
     }
 }

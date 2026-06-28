@@ -1,30 +1,30 @@
-keyword(val) f2:0..3
-identifier(single) f2:4..10
-symbol(=) f2:11..12
-rawStringQuote f2:13..16
-stringSegment(hello) f2:16..21
-rawStringQuote f2:21..24
-keyword(val) f2:25..28
-identifier(multi) f2:29..34
-symbol(=) f2:35..36
-rawStringQuote f2:37..40
+keyword(val) f4:0..3
+identifier(single) f4:4..10
+symbol(=) f4:11..12
+rawStringQuote f4:13..16
+stringSegment(hello) f4:16..21
+rawStringQuote f4:21..24
+keyword(val) f4:25..28
+identifier(multi) f4:29..34
+symbol(=) f4:35..36
+rawStringQuote f4:37..40
 stringSegment(
     line1
     line2
-) f2:40..61
-rawStringQuote f2:61..64
-symbol(.) f2:64..65
-identifier(trimIndent) f2:65..75
-symbol(() f2:75..76
-symbol()) f2:76..77
-keyword(val) f2:78..81
-identifier(interpolated) f2:82..94
-symbol(=) f2:95..96
-rawStringQuote f2:97..100
-stringSegment(name = ) f2:100..107
-templateExprStart f2:107..109
-intLiteral(1) f2:109..110
-symbol(+) f2:111..112
-intLiteral(2) f2:113..114
-templateExprEnd f2:114..115
-rawStringQuote f2:115..118
+) f4:40..61
+rawStringQuote f4:61..64
+symbol(.) f4:64..65
+identifier(trimIndent) f4:65..75
+symbol(() f4:75..76
+symbol()) f4:76..77
+keyword(val) f4:78..81
+identifier(interpolated) f4:82..94
+symbol(=) f4:95..96
+rawStringQuote f4:97..100
+stringSegment(name = ) f4:100..107
+templateExprStart f4:107..109
+intLiteral(1) f4:109..110
+symbol(+) f4:111..112
+intLiteral(2) f4:113..114
+templateExprEnd f4:114..115
+rawStringQuote f4:115..118

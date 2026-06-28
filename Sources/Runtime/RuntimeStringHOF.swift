@@ -584,6 +584,43 @@ public func kk_string_firstNotNullOfOrNull(
     return runtimeNullSentinelInt
 }
 
+// MARK: - STDLIB-TEXT-FN-046: CharSequence.reduce
+
+@_cdecl("kk_string_reduce")
+public func kk_string_reduce(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard !codeUnits.isEmpty else {
+        return handleCollectionLambdaThrow(
+            runtimeAllocateThrowable(message: "Empty char sequence can't be reduced."),
+            outThrown
+        )
+    }
+    var acc = Int(codeUnits[0])
+    guard codeUnits.count > 1 else {
+        return acc
+    }
+    for index in 1 ..< codeUnits.count {
+        var thrown = 0
+        acc = maybeUnbox(runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            lhs: acc,
+            rhs: Int(codeUnits[index]),
+            outThrown: &thrown
+        ))
+        if thrown != 0 {
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+    }
+    return acc
+}
+
 // MARK: - STDLIB-TEXT-FN-049: CharSequence.reduceOrNull
 
 @_cdecl("kk_string_reduceOrNull")
@@ -988,6 +1025,36 @@ public func kk_string_findLast(
     return runtimeNullSentinelInt
 }
 
+// MARK: - STDLIB-TEXT-FN-067: String.singleOrNull(predicate)
+
+@_cdecl("kk_string_singleOrNull_predicate")
+public func kk_string_singleOrNull_predicate(
+    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    guard fnPtr != 0 else { return runtimeNullSentinelInt }
+    var foundScalar: UnicodeScalar?
+    for scalar in scalars {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
+        if result != 0 {
+            if foundScalar != nil { return runtimeNullSentinelInt }
+            foundScalar = scalar
+        }
+    }
+    if let char = foundScalar {
+        return kk_box_char(Int(char.value))
+    }
+    return runtimeNullSentinelInt
+}
+
 // MARK: - STDLIB-partition: String.partition(predicate)
 
 @_cdecl("kk_string_partition")
@@ -1024,4 +1091,26 @@ public func kk_string_partition(
     let first = runtimeMakeStringRaw(runtimeStringFromScalars(matched))
     let second = runtimeMakeStringRaw(runtimeStringFromScalars(unmatched))
     return kk_pair_new(first, second)
+}
+
+// MARK: - STDLIB-TEXT-FN-040: CharSequence.onEachIndexed
+@_cdecl("kk_string_onEachIndexed")
+public func kk_string_onEachIndexed(
+    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    guard fnPtr != 0 else { return strRaw }
+    for (index, scalar) in scalars.enumerated() {
+        var thrown = 0
+        _ = runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            lhs: index,
+            rhs: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 { outThrown?.pointee = thrown; return strRaw }
+    }
+    return strRaw
 }
