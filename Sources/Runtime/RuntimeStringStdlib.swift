@@ -304,6 +304,55 @@ public func kk_string_subSequence(
     kk_string_substring(strRaw, startRaw, endRaw, 1, outThrown)
 }
 
+// STDLIB-TEXT-FN-068: String.slice(indices: IntRange)
+@_cdecl("kk_string_slice_range")
+public func kk_string_slice_range(
+    _ strRaw: Int,
+    _ rangeRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        return runtimeMakeStringRaw("")
+    }
+    if range.first > range.last {
+        return runtimeMakeStringRaw("")
+    }
+    return kk_string_substring(strRaw, range.first, range.last + 1, 1, outThrown)
+}
+
+// STDLIB-TEXT-FN-068: String.slice(indices: Iterable<Int>)
+@_cdecl("kk_string_slice_iterable")
+public func kk_string_slice_iterable(
+    _ strRaw: Int,
+    _ indicesRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    let length = scalars.count
+    let indexElements: [Int]
+    if let indexList = runtimeListBox(from: indicesRaw) {
+        indexElements = indexList.elements
+    } else if let indexSet = runtimeSetBox(from: indicesRaw) {
+        indexElements = indexSet.elements
+    } else {
+        return runtimeMakeStringRaw("")
+    }
+    var result: [UnicodeScalar] = []
+    for rawIdx in indexElements {
+        let idx = kk_unbox_int(rawIdx)
+        if idx < 0 || idx >= length {
+            runtimeSetThrown(
+                outThrown,
+                message: "IndexOutOfBoundsException: index \(idx) out of range [0, \(length))"
+            )
+            return 0
+        }
+        result.append(scalars[idx])
+    }
+    return runtimeMakeStringRaw(runtimeStringFromScalars(result))
+}
+
 private func runtimeStringCodePointCount(
     units: [UInt16],
     startIndex: Int,

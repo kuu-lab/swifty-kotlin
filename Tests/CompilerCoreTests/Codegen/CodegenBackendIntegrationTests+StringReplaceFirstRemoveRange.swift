@@ -22,6 +22,12 @@ extension CodegenBackendIntegrationTests {
             // replaceRange(range, replacement) — replaces chars in the given inclusive range
             println("hello world".replaceRange(0..4, "bye"))
             println("hello world".replaceRange(6..10, "Kotlin"))
+
+            // replaceRange(startIndex, endIndex, replacement) — exclusive end (STDLIB-TEXT-FN-062)
+            println("hello world".replaceRange(0, 5, "bye"))
+            println("hello world".replaceRange(6, 11, "Kotlin"))
+            println("hello".replaceRange(1, 4, "EL"))
+            println("hello".replaceRange(0, 0, "HH"))
         }
         """
 
@@ -49,6 +55,10 @@ extension CodegenBackendIntegrationTests {
                 world
                 bye world
                 hello Kotlin
+                bye world
+                hello Kotlin
+                hELo
+                HHhello
                 """
                 + "\n"
             )
