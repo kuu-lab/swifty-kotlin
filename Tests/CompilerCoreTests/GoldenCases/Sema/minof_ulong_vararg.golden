@@ -341,7 +341,7 @@ symbol fq=kotlin.collections.sortedWith.$14.comparator kind=valueParameter vis=p
 symbol fq=kotlin.collections.sumOf kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sumOf.$42.T> params=[(kotlin.collections.sumOf.$42.T) -> Int] ret=Int
 symbol fq=kotlin.collections.sumOf.$42.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.sumOf.$42.selector kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#17 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong vararg=[0,1]
+symbol fq=kotlin.comparisons.minOf#18 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong vararg=[0,1]
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.other kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
@@ -2842,4 +2842,4 @@ expr e2474 name(a) type=ULong ref=golden.sema.minOfULongVararg.$20.a
 expr e2475 name(b) type=ULong ref=golden.sema.minOfULongVararg.$20.b
 expr e2476 name(c) type=ULong ref=golden.sema.minOfULongVararg.$20.c
 expr e2477 name(d) type=ULong ref=golden.sema.minOfULongVararg.$20.d
-expr e2478 call callee=e2473 args=[_:e2474,_:e2475,_:e2476,_:e2477] type=ULong call=kotlin.comparisons.minOf#17
+expr e2478 call callee=e2473 args=[_:e2474,_:e2475,_:e2476,_:e2477] type=ULong call=kotlin.comparisons.minOf#18

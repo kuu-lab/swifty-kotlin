@@ -339,7 +339,7 @@ symbol fq=kotlin.collections.sortedWith.$14.comparator kind=valueParameter vis=p
 symbol fq=kotlin.collections.sumOf kind=function vis=public flags=_ sig=recv=kotlin.collections.List<kotlin.collections.sumOf.$42.T> params=[(kotlin.collections.sumOf.$42.T) -> Int] ret=Int
 symbol fq=kotlin.collections.sumOf.$42.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.sumOf.$42.selector kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#23 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[kotlin.comparisons.minOf.T,kotlin.comparisons.minOf.T] ret=kotlin.comparisons.minOf.T bounds=[kotlin.Comparable<kotlin.comparisons.minOf.T>]
+symbol fq=kotlin.comparisons.minOf#24 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[kotlin.comparisons.minOf.T,kotlin.comparisons.minOf.T] ret=kotlin.comparisons.minOf.T bounds=[kotlin.Comparable<kotlin.comparisons.minOf.T>]
 symbol fq=kotlin.comparisons.minOf.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
@@ -2839,4 +2839,4 @@ expr e2471 memberCall recv=e2470 callee=DAYS args=[] type=kotlin.time.DurationUn
 expr e2472 memberCall recv=e2469 callee=toDuration args=[_:e2471] type=kotlin.time.Duration call=kotlin.time.toDuration#0
 expr e2474 name(a) type=String ref=golden.sema.pickSmallerString.$20.a
 expr e2475 name(b) type=String ref=golden.sema.pickSmallerString.$20.b
-expr e2476 call callee=e2473 args=[_:e2474,_:e2475] type=String call=kotlin.comparisons.minOf#23 targs=[String]
+expr e2476 call callee=e2473 args=[_:e2474,_:e2475] type=String call=kotlin.comparisons.minOf#24 targs=[String]

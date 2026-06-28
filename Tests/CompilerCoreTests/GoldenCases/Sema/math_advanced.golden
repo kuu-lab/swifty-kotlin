@@ -356,7 +356,7 @@ symbol fq=kotlin.comparisons.maxOf#6 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
+symbol fq=kotlin.comparisons.minOf#7 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
@@ -2889,4 +2889,4 @@ expr e2495 call callee=e2491 args=[_:e2492,_:e2493,_:e2494] type=Int call=kotlin
 expr e2497 name(a) type=Int ref=golden.sema.testMinOf3.$24.a
 expr e2498 name(b) type=Int ref=golden.sema.testMinOf3.$24.b
 expr e2499 name(c) type=Int ref=golden.sema.testMinOf3.$24.c
-expr e2500 call callee=e2496 args=[_:e2497,_:e2498,_:e2499] type=Int call=kotlin.comparisons.minOf#6
+expr e2500 call callee=e2496 args=[_:e2497,_:e2498,_:e2499] type=Int call=kotlin.comparisons.minOf#7

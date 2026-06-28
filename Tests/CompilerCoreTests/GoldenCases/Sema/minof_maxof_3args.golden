@@ -370,9 +370,9 @@ symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synth
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf#1 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Double,Double,Double] ret=Double
-symbol fq=kotlin.comparisons.minOf#4 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int
-symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=kotlin.comparisons.minOf#9 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Long,Long,Long] ret=Long
+symbol fq=kotlin.comparisons.minOf#10 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Long,Long,Long] ret=Long
+symbol fq=kotlin.comparisons.minOf#5 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int
+symbol fq=kotlin.comparisons.minOf#7 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
@@ -2882,7 +2882,7 @@ expr e2475 int(7) type=Int
 expr e2476 call callee=e2473 args=[_:e2474,_:e2475] type=Int call=kotlin.comparisons.maxOf#4
 expr e2478 int(3) type=Int
 expr e2479 int(7) type=Int
-expr e2480 call callee=e2477 args=[_:e2478,_:e2479] type=Int call=kotlin.comparisons.minOf#4
+expr e2480 call callee=e2477 args=[_:e2478,_:e2479] type=Int call=kotlin.comparisons.minOf#5
 expr e2482 name(a) type=Int ref=golden.sema.threeArgMaxInt.$21.a
 expr e2483 name(b) type=Int ref=golden.sema.threeArgMaxInt.$21.b
 expr e2484 name(c) type=Int ref=golden.sema.threeArgMaxInt.$21.c
@@ -2890,7 +2890,7 @@ expr e2485 call callee=e2481 args=[_:e2482,_:e2483,_:e2484] type=Int call=kotlin
 expr e2487 name(a) type=Int ref=golden.sema.threeArgMinInt.$24.a
 expr e2488 name(b) type=Int ref=golden.sema.threeArgMinInt.$24.b
 expr e2489 name(c) type=Int ref=golden.sema.threeArgMinInt.$24.c
-expr e2490 call callee=e2486 args=[_:e2487,_:e2488,_:e2489] type=Int call=kotlin.comparisons.minOf#6
+expr e2490 call callee=e2486 args=[_:e2487,_:e2488,_:e2489] type=Int call=kotlin.comparisons.minOf#7
 expr e2492 name(a) type=Long ref=golden.sema.threeArgMaxLong.$22.a
 expr e2493 name(b) type=Long ref=golden.sema.threeArgMaxLong.$22.b
 expr e2494 name(c) type=Long ref=golden.sema.threeArgMaxLong.$22.c
@@ -2898,7 +2898,7 @@ expr e2495 call callee=e2491 args=[_:e2492,_:e2493,_:e2494] type=Long call=kotli
 expr e2497 name(a) type=Long ref=golden.sema.threeArgMinLong.$25.a
 expr e2498 name(b) type=Long ref=golden.sema.threeArgMinLong.$25.b
 expr e2499 name(c) type=Long ref=golden.sema.threeArgMinLong.$25.c
-expr e2500 call callee=e2496 args=[_:e2497,_:e2498,_:e2499] type=Long call=kotlin.comparisons.minOf#9
+expr e2500 call callee=e2496 args=[_:e2497,_:e2498,_:e2499] type=Long call=kotlin.comparisons.minOf#10
 expr e2502 name(a) type=Double ref=golden.sema.threeArgMaxDouble.$20.a
 expr e2503 name(b) type=Double ref=golden.sema.threeArgMaxDouble.$20.b
 expr e2504 name(c) type=Double ref=golden.sema.threeArgMaxDouble.$20.c
