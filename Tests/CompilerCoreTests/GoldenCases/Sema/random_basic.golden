@@ -7,48 +7,48 @@ symbol fq=__local_5.f kind=local vis=private flags=_ type=Float
 symbol fq=__local_6.g kind=local vis=private flags=_ type=Double
 symbol fq=__local_7.h kind=local vis=private flags=_ type=Double
 symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
-symbol fq=kotlin.random.Random.nextBoolean kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Boolean
-symbol fq=kotlin.random.Random.nextDouble#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Double
-symbol fq=kotlin.random.Random.nextDouble#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Double] ret=Double
-symbol fq=kotlin.random.Random.nextDouble#2 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Double,Double] ret=Double
-symbol fq=kotlin.random.Random.nextDouble.from kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.random.Random.nextDouble.until kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.random.Random.nextFloat#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Float
-symbol fq=kotlin.random.Random.nextInt#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Int
-symbol fq=kotlin.random.Random.nextInt#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int] ret=Int
-symbol fq=kotlin.random.Random.nextInt#2 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int,Int] ret=Int
-symbol fq=kotlin.random.Random.nextInt.from kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.random.Random.nextInt.until kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.random.nextBoolean kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Boolean
+symbol fq=kotlin.random.nextDouble#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Double
+symbol fq=kotlin.random.nextDouble#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Double] ret=Double
+symbol fq=kotlin.random.nextDouble#2 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Double,Double] ret=Double
+symbol fq=kotlin.random.nextDouble.from kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.random.nextDouble.until kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.random.nextFloat#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Float
+symbol fq=kotlin.random.nextInt#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Int
+symbol fq=kotlin.random.nextInt#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int] ret=Int
+symbol fq=kotlin.random.nextInt#2 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int,Int] ret=Int
+symbol fq=kotlin.random.nextInt.from kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.random.nextInt.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandom kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f11 package=_
   decl d0 fun useRandom sym=useRandom
 expr e0 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
-expr e1 memberCall recv=e0 callee=nextInt args=[] type=Int call=kotlin.random.Random.nextInt#0
+expr e1 memberCall recv=e0 callee=nextInt args=[] type=Int call=kotlin.random.nextInt#0
 expr e2 localDecl a mutable=0 type=_ init=e1 type=Unit ref=__local_0.a
 expr e3 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e4 int(10) type=Int
-expr e5 memberCall recv=e3 callee=nextInt args=[_:e4] type=Int call=kotlin.random.Random.nextInt#1
+expr e5 memberCall recv=e3 callee=nextInt args=[_:e4] type=Int call=kotlin.random.nextInt#1
 expr e6 localDecl b mutable=0 type=_ init=e5 type=Unit ref=__local_1.b
 expr e7 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e8 int(1) type=Int
 expr e9 int(10) type=Int
-expr e10 memberCall recv=e7 callee=nextInt args=[_:e8,_:e9] type=Int call=kotlin.random.Random.nextInt#2
+expr e10 memberCall recv=e7 callee=nextInt args=[_:e8,_:e9] type=Int call=kotlin.random.nextInt#2
 expr e11 localDecl c mutable=0 type=_ init=e10 type=Unit ref=__local_2.c
 expr e12 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
-expr e13 memberCall recv=e12 callee=nextDouble args=[] type=Double call=kotlin.random.Random.nextDouble#0
+expr e13 memberCall recv=e12 callee=nextDouble args=[] type=Double call=kotlin.random.nextDouble#0
 expr e14 localDecl d mutable=0 type=_ init=e13 type=Unit ref=__local_3.d
 expr e15 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
-expr e16 memberCall recv=e15 callee=nextBoolean args=[] type=Boolean call=kotlin.random.Random.nextBoolean
+expr e16 memberCall recv=e15 callee=nextBoolean args=[] type=Boolean call=kotlin.random.nextBoolean
 expr e17 localDecl e mutable=0 type=_ init=e16 type=Unit ref=__local_4.e
 expr e18 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
-expr e19 memberCall recv=e18 callee=nextFloat args=[] type=Float call=kotlin.random.Random.nextFloat#0
+expr e19 memberCall recv=e18 callee=nextFloat args=[] type=Float call=kotlin.random.nextFloat#0
 expr e20 localDecl f mutable=0 type=_ init=e19 type=Unit ref=__local_5.f
 expr e21 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e22 double(5.0) type=Double
-expr e23 memberCall recv=e21 callee=nextDouble args=[_:e22] type=Double call=kotlin.random.Random.nextDouble#1
+expr e23 memberCall recv=e21 callee=nextDouble args=[_:e22] type=Double call=kotlin.random.nextDouble#1
 expr e24 localDecl g mutable=0 type=_ init=e23 type=Unit ref=__local_6.g
 expr e25 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e26 double(1.0) type=Double
 expr e27 double(10.0) type=Double
-expr e28 memberCall recv=e25 callee=nextDouble args=[_:e26,_:e27] type=Double call=kotlin.random.Random.nextDouble#2
+expr e28 memberCall recv=e25 callee=nextDouble args=[_:e26,_:e27] type=Double call=kotlin.random.nextDouble#2
 expr e29 localDecl h mutable=0 type=_ init=e28 type=Unit ref=__local_7.h

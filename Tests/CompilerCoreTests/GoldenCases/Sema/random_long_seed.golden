@@ -4,8 +4,8 @@ symbol fq=__local_2.b kind=local vis=private flags=_ type=Long
 symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
 symbol fq=kotlin.random.Random.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[Long] ret=kotlin.random.Random
 symbol fq=kotlin.random.Random.<init>.seed kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.random.Random.nextInt#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Int
-symbol fq=kotlin.random.Random.nextLong#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Long
+symbol fq=kotlin.random.nextInt#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Int
+symbol fq=kotlin.random.nextLong#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Long
 symbol fq=useRandomLongSeed kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f11 package=_
   decl d0 fun useRandomLongSeed sym=useRandomLongSeed
@@ -13,8 +13,8 @@ expr e0 long(42) type=Long
 expr e1 call callee=e2 args=[_:e0] type=kotlin.random.Random call=kotlin.random.Random.<init>#1
 expr e3 localDecl r mutable=0 type=_ init=e1 type=Unit ref=__local_0.r
 expr e4 name(r) type=kotlin.random.Random ref=__local_0.r
-expr e5 memberCall recv=e4 callee=nextInt args=[] type=Int call=kotlin.random.Random.nextInt#0
+expr e5 memberCall recv=e4 callee=nextInt args=[] type=Int call=kotlin.random.nextInt#0
 expr e6 localDecl a mutable=0 type=_ init=e5 type=Unit ref=__local_1.a
 expr e7 name(r) type=kotlin.random.Random ref=__local_0.r
-expr e8 memberCall recv=e7 callee=nextLong args=[] type=Long call=kotlin.random.Random.nextLong#0
+expr e8 memberCall recv=e7 callee=nextLong args=[] type=Long call=kotlin.random.nextLong#0
 expr e9 localDecl b mutable=0 type=_ init=e8 type=Unit ref=__local_2.b

@@ -218,7 +218,10 @@ extension LexerParserEdgeCaseTests {
             }
             XCTAssertTrue(allFunNames.contains("alpha"))
             XCTAssertTrue(allFunNames.contains("beta"))
+<<<<<<< HEAD
             XCTAssertGreaterThanOrEqual(allFunNames.count, 2)
+=======
+>>>>>>> origin/master
 
             XCTAssertEqual(ctx.syntaxTrees.count, ast.files.count)
             for (_, cst, root) in ctx.syntaxTrees {
