@@ -68,5 +68,28 @@ struct GoldenHarnessPersistenceTests {
         )
         #expect(written == actual)
     }
+
+    @Test
+    func semaRenderIncludesOnlyRequestedSourceFileBody() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("sample.kt")
+        try """
+        package sample
+
+        fun main() {
+            val x = 1
+        }
+        """.write(to: sourceURL, atomically: false, encoding: .utf8)
+
+        let output = try GoldenHarness.render(suiteName: "Sema", sourcePath: sourceURL.path)
+        let fileLines = output.split(separator: "\n").filter { $0.hasPrefix("file ") }
+
+        #expect(fileLines.count == 1)
+        #expect(fileLines.first?.contains("package=sample") == true)
+    }
 }
 #endif

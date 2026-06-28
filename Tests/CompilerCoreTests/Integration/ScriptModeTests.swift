@@ -213,12 +213,12 @@ import Testing
 
             let ast = try #require(ctx.ast)
             // 2 user files + 2 bundled stdlib files (collections + text)
-            #expect(ast.files.count == 6, "Both user files + bundled stdlib must produce an ASTFile")
+            #expect(ast.files.count == 7, "Both user files + bundled stdlib must produce an ASTFile")
 
             let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
             #expect(scriptFile != nil, "One ASTFile must have a non-empty scriptBody")
 
-            let regularFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 4 })
+            let regularFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 5 })
             #expect(regularFile != nil, "One ASTFile must have an empty scriptBody")
 
             #expect(!(ctx.diagnostics.hasError),

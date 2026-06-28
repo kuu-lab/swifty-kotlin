@@ -3,16 +3,7 @@
 import Foundation
 import XCTest
 
-// STDLIB-SYSTEM-FN-005: measureNanoTime end-to-end codegen tests.
-//
-// measureNanoTime { block } returns the elapsed nanoseconds as Long.
-// The exact value is non-deterministic (depends on the host clock), so tests
-// verify invariants that hold regardless of timing: the result is >= 0 and
-// the block body actually executes.
-
 extension CodegenBackendIntegrationTests {
-
-    // MARK: - Basic usage: result is non-negative
 
     func testMeasureNanoTimeReturnsNonNegativeLong() throws {
         let source = """
@@ -27,23 +18,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureNanoTimeNonNegative",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureNanoTimeNonNegative", expected: "true\n")
     }
-
-    // MARK: - Block body executes
 
     func testMeasureNanoTimeBlockBodyExecutes() throws {
         let source = """
@@ -59,23 +35,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureNanoTimeBlockExecutes",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureNanoTimeBlockExecutes", expected: "true\ntrue\n")
     }
-
-    // MARK: - Side effects inside block are visible after call
 
     func testMeasureNanoTimeSideEffectsAreVisible() throws {
         let source = """
@@ -92,23 +53,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureNanoTimeSideEffects",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureNanoTimeSideEffects", expected: "3\n")
     }
-
-    // MARK: - Nested measureNanoTime calls
 
     func testMeasureNanoTimeNestedCalls() throws {
         let source = """
@@ -126,19 +72,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MeasureNanoTimeNested",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MeasureNanoTimeNested", expected: "true\ntrue\n")
     }
 }
+

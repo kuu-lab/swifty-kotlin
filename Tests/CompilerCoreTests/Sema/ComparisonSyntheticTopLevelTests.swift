@@ -1197,6 +1197,46 @@ struct ComparisonSyntheticTopLevelTests {
         }
     }
 
+    // STDLIB-COMP-FN-040: minOf(a: Float, vararg other: Float) — 4+ args resolve to the vararg overload
+    @Test
+    func testVarargMinOfFloatResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(): Float = minOf(5.0f, 2.0f, 8.0f, 1.0f)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                })
+
+            #expect(sema.bindings.exprTypes[callExpr] == sema.types.floatType)
+            // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosen = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+
+            let sig = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(sig.parameterTypes == [sema.types.floatType, sema.types.floatType])
+            #expect(sig.returnType == sema.types.floatType)
+            #expect(sig.valueParameterIsVararg == [false, true])
+        }
+    }
+
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long) — 4+ args resolve to the vararg overload
     @Test
     func testVarargMaxOfLongResolvesToVarargOverload() throws {

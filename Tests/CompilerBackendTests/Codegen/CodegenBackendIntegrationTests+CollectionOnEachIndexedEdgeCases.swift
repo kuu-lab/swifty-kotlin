@@ -23,19 +23,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionOnEachIndexedEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "0=1;1=2;2=3;\n[10, 20, 30]\n0:10;1:20;2:30;\n[10, 20, 30]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CollectionOnEachIndexedEdgeCases", expected: "0=1;1=2;2=3;\n[10, 20, 30]\n0:10;1:20;2:30;\n[10, 20, 30]\n")
     }
 }
+

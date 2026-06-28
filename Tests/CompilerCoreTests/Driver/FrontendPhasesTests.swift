@@ -46,7 +46,7 @@ struct FrontendPhasesTests {
             #expect(throws: Never.self) { try LoadSourcesPhase().run(ctx) }
             // File should be loaded only once
             // 1 user file (deduped) + 2 bundled stdlib files (collections + text)
-            #expect(ctx.sourceManager.fileIDs().count == 5, "Duplicate paths should be loaded only once (+ bundled stdlib)")
+            #expect(ctx.sourceManager.fileIDs().count == 6, "Duplicate paths should be loaded only once (+ bundled stdlib)")
         }
     }
 
@@ -101,15 +101,15 @@ struct FrontendPhasesTests {
 
             try LexPhase().run(incrementalCtx)
             // FileID 0 = bundled collections, FileID 1 = bundled text, FileID 2 = kept, FileID 3 = changed
-            #expect(incrementalCtx.tokensByFile.map(\.0) == [FileID(rawValue: 5)])
+            #expect(incrementalCtx.tokensByFile.map(\.0) == [FileID(rawValue: 6)])
 
             try ParsePhase().run(incrementalCtx)
-            #expect(incrementalCtx.syntaxTrees.map(\.0) == [FileID(rawValue: 5)])
+            #expect(incrementalCtx.syntaxTrees.map(\.0) == [FileID(rawValue: 6)])
 
             try BuildASTPhase().run(incrementalCtx)
             let ast = try #require(incrementalCtx.ast)
-            #expect(ast.files.map(\.fileID) == [FileID(rawValue: 0), FileID(rawValue: 1), FileID(rawValue: 2), FileID(rawValue: 3), FileID(rawValue: 4), FileID(rawValue: 5)])
-            #expect(Set(ast.activeDeclsByFileRawID.keys) == Set([0, 1, 2, 3, 4, 5]))
+            #expect(ast.files.map(\.fileID) == [FileID(rawValue: 0), FileID(rawValue: 1), FileID(rawValue: 2), FileID(rawValue: 3), FileID(rawValue: 4), FileID(rawValue: 5), FileID(rawValue: 6)])
+            #expect(Set(ast.activeDeclsByFileRawID.keys) == Set([0, 1, 2, 3, 4, 5, 6]))
 
             let topLevelNames = ast.files.flatMap(\.topLevelDecls).compactMap { declID -> String? in
                 guard let decl = ast.arena.decl(declID), case let .funDecl(funDecl) = decl else {
