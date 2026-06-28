@@ -112,7 +112,7 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.contains#0 kind=function vis=public flags=synthetic|operatorFunction sig=recv=String params=[String] ret=Boolean
 symbol fq=kotlin.text.contains.other kind=valueParameter vis=private flags=synthetic
-file f11 package=golden.sema
+file f12 package=golden.sema
   decl d0 class User sym=golden.sema.User
   decl d1 class Database sym=golden.sema.Database
   decl d2 class Calculator sym=golden.sema.Calculator

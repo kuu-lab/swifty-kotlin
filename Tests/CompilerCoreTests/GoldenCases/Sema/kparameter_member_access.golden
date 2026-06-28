@@ -15,7 +15,7 @@ symbol fq=kotlin.reflect.KParameter.kind kind=property vis=public flags=syntheti
 symbol fq=kotlin.reflect.KParameter.name kind=property vis=public flags=synthetic type=String?
 symbol fq=kotlin.reflect.KParameter.type kind=property vis=public flags=synthetic type=kotlin.reflect.KType
 symbol fq=kotlin.reflect.KType kind=interface vis=public flags=synthetic
-file f11 package=golden.sema
+file f12 package=golden.sema
   decl d0 fun inspectIndex sym=golden.sema.inspectIndex
   decl d1 fun inspectName sym=golden.sema.inspectName
   decl d2 fun inspectType sym=golden.sema.inspectType

@@ -27,7 +27,7 @@ symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic s
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f11 package=_
+file f12 package=_
   decl d0 fun main sym=main
 expr e0 call callee=e1 args=[] type=kotlin.sequences.Sequence<out kotlin.collections.List<Int>> call=kotlin.sequences.emptySequence targs=[kotlin.collections.List<Int>]
 expr e2 memberCall recv=e0 callee=flatten args=[] type=kotlin.sequences.Sequence<out Int>

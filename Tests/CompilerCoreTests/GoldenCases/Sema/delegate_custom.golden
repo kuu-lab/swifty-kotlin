@@ -4,7 +4,7 @@ symbol fq=golden.sema.greeting kind=property vis=public flags=mutable type=Strin
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f11 package=golden.sema
+file f12 package=golden.sema
   decl d0 class StringDelegate sym=golden.sema.StringDelegate
   decl d1 property greeting var=1 sym=golden.sema.greeting
   decl d2 fun main sym=golden.sema.main

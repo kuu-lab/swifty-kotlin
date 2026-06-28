@@ -46,7 +46,7 @@ symbol fq=testIntProgressionReversed kind=function vis=public flags=_ sig=recv=_
 symbol fq=testLongProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Long>
 symbol fq=testUIntProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<UInt>
 symbol fq=testULongProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<ULong>
-file f11 package=_
+file f12 package=_
   decl d0 fun testIntProgression sym=testIntProgression
   decl d1 fun testLongProgression sym=testLongProgression
   decl d2 fun testCharProgression sym=testCharProgression

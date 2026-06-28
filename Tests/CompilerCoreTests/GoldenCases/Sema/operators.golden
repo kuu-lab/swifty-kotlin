@@ -30,7 +30,7 @@ symbol fq=typeCheck kind=function vis=public flags=_ sig=recv=_ params=[Any] ret
 symbol fq=typeCheck.$10.v kind=valueParameter vis=private flags=_
 symbol fq=unsafeCast kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=unsafeCast.$11.v kind=valueParameter vis=private flags=_
-file f11 package=_
+file f12 package=_
   decl d0 fun typeCheck sym=typeCheck
   decl d1 fun negatedTypeCheck sym=negatedTypeCheck
   decl d2 fun unsafeCast sym=unsafeCast

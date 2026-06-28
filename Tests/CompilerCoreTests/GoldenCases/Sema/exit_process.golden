@@ -1,7 +1,7 @@
 symbol fq=kotlin.system.exitProcess kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=Nothing
 symbol fq=kotlin.system.exitProcess.status kind=valueParameter vis=private flags=synthetic
 symbol fq=useExitProcess kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f11 package=_
+file f12 package=_
   decl d0 fun useExitProcess sym=useExitProcess
 expr e0 int(0) type=Int
 expr e1 call callee=e2 args=[_:e0] type=Nothing call=kotlin.system.exitProcess

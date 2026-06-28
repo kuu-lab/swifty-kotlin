@@ -6,7 +6,7 @@ symbol fq=golden.sema.varargMinULong.$0.d kind=valueParameter vis=private flags=
 symbol fq=kotlin.comparisons.minOf#18 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong vararg=[0,1]
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.other kind=valueParameter vis=private flags=synthetic
-file f11 package=golden.sema
+file f12 package=golden.sema
   decl d0 fun varargMinULong sym=golden.sema.varargMinULong
 expr e0 name(a) type=ULong ref=golden.sema.varargMinULong.$0.a
 expr e1 name(b) type=ULong ref=golden.sema.varargMinULong.$0.b

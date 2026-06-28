@@ -7,7 +7,7 @@ symbol fq=golden.sema.maxFromSequence.$1.xs kind=valueParameter vis=private flag
 symbol fq=kotlin.Comparator kind=interface vis=public flags=synthetic|funInterface
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
-file f11 package=golden.sema
+file f12 package=golden.sema
   decl d0 fun maxFromList sym=golden.sema.maxFromList
   decl d1 fun maxFromSequence sym=golden.sema.maxFromSequence
 expr e0 name(xs) type=kotlin.collections.List<Int> ref=golden.sema.maxFromList.$0.xs

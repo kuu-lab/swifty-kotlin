@@ -12,7 +12,7 @@ symbol fq=kotlinx.cinterop.toCValues#0 kind=function vis=public flags=synthetic 
 symbol fq=kotlinx.cinterop.toCValues.T kind=typeParameter vis=private flags=synthetic
 symbol fq=usePtrs kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Array<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?>] ret=Unit
 symbol fq=usePtrs.$0.ptrs kind=valueParameter vis=private flags=_
-file f11 package=_
+file f12 package=_
   decl d0 fun usePtrs sym=usePtrs
 expr e0 name(ptrs) type=kotlin.Array<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?> ref=usePtrs.$0.ptrs
 expr e1 memberCall recv=e0 callee=toCValues args=[] type=kotlinx.cinterop.CValues<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>>> call=kotlinx.cinterop.toCValues#0 targs=[kotlinx.cinterop.ByteVarOf<Int>]

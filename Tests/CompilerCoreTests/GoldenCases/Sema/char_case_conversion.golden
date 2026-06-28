@@ -4,7 +4,7 @@ symbol fq=charUppercase kind=function vis=public flags=_ sig=recv=_ params=[] re
 symbol fq=kotlin.text.lowercase#0 kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
 symbol fq=kotlin.text.titlecase kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
 symbol fq=kotlin.text.uppercase#0 kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=String
-file f11 package=_
+file f12 package=_
   decl d0 fun charUppercase sym=charUppercase
   decl d1 fun charLowercase sym=charLowercase
   decl d2 fun charTitlecase sym=charTitlecase

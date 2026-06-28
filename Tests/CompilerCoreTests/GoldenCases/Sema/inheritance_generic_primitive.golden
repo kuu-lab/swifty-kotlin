@@ -2,7 +2,7 @@ symbol fq=test.BoolContainer kind=class vis=public flags=_
 symbol fq=test.Container kind=interface vis=public flags=_
 symbol fq=test.IntContainer kind=class vis=public flags=_
 symbol fq=test.StringContainer kind=class vis=public flags=_
-file f11 package=test
+file f12 package=test
   decl d0 interface Container sym=test.Container
   decl d1 class IntContainer sym=test.IntContainer
   decl d2 class StringContainer sym=test.StringContainer

@@ -18,7 +18,7 @@ symbol fq=golden.sema.writeBlocked kind=function vis=public flags=_ sig=recv=_ p
 symbol fq=golden.sema.writeBlocked.$5.box kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.writeOnly kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Box<in Int>] ret=Unit
 symbol fq=golden.sema.writeOnly.$6.box kind=valueParameter vis=private flags=_
-file f11 package=golden.sema
+file f12 package=golden.sema
   decl d0 class E sym=golden.sema.E
   decl d1 class Box sym=golden.sema.Box
   decl d2 fun readOnly sym=golden.sema.readOnly
