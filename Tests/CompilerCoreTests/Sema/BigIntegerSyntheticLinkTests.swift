@@ -13,6 +13,24 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         }
     }
 
+    // Like allExprIDs but skips expressions from bundled stdlib files so that
+    // bitwise ops inside Random.nextLong / nextDouble don't pollute counts.
+    private func userExprIDs(
+        in ast: ASTModule,
+        sourceManager: SourceManager,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), predicate(exprID, expr) else { return nil }
+            if let range = ast.arena.exprRange(exprID),
+               sourceManager.path(of: range.start.file).starts(with: "__bundled_") {
+                return nil
+            }
+            return exprID
+        }
+    }
+
     // MARK: - Helpers
 
     private func assertBigIntegerExtensionCalls(
@@ -30,7 +48,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
 
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
-            let calls = allExprIDs(in: ast) { _, expr in
+            let calls = userExprIDs(in: ast, sourceManager: ctx.sourceManager) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == callName
             }
@@ -77,7 +95,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
 
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
-            let andCalls = allExprIDs(in: ast) { _, expr in
+            let andCalls = userExprIDs(in: ast, sourceManager: ctx.sourceManager) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "and"
             }

@@ -383,4 +383,15 @@ extension CallLowerer {
         }
         return sema.types.makeNonNullable(elementType) == sema.types.make(.primitive(.char, .nonNull))
     }
+
+    func isRandomType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else { return false }
+        return symbol.name == interner.intern("Random")
+    }
 }

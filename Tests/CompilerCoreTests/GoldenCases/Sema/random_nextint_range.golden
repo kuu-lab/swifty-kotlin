@@ -3,8 +3,8 @@ symbol fq=__local_1.a kind=local vis=private flags=_ type=Int
 symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
 symbol fq=kotlin.random.Random.<init>#0 kind=constructor vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.random.Random
 symbol fq=kotlin.random.Random.<init>.seed kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.random.Random.nextInt#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int] ret=Int
-symbol fq=kotlin.random.Random.nextInt.until kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.random.nextInt#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int] ret=Int
+symbol fq=kotlin.random.nextInt.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandomNextIntRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f5 package=_
   decl d0 fun useRandomNextIntRange sym=useRandomNextIntRange
@@ -15,5 +15,5 @@ expr e4 name(r) type=kotlin.random.Random ref=__local_0.r
 expr e5 int(10) type=Int
 expr e6 int(15) type=Int
 expr e7 binary(rangeTo) lhs=e5 rhs=e6 type=Int
-expr e8 memberCall recv=e4 callee=nextInt args=[_:e7] type=Int call=kotlin.random.Random.nextInt#1
+expr e8 memberCall recv=e4 callee=nextInt args=[_:e7] type=Int call=kotlin.random.nextInt#1
 expr e9 localDecl a mutable=0 type=_ init=e8 type=Unit ref=__local_1.a
