@@ -8,7 +8,7 @@ symbol fq=kotlin.comparisons.minOf.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 fun minOfComparable3ArgString sym=golden.sema.minOfComparable3ArgString
 expr e0 name(a) type=String ref=golden.sema.minOfComparable3ArgString.$0.a
 expr e1 name(b) type=String ref=golden.sema.minOfComparable3ArgString.$0.b

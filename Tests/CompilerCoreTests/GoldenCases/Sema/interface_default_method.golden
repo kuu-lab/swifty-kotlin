@@ -3,7 +3,7 @@ symbol fq=golden.sema.DefaultGreeter kind=class vis=public flags=_
 symbol fq=golden.sema.Dog kind=class vis=public flags=_
 symbol fq=golden.sema.FormalGreeter kind=class vis=public flags=_
 symbol fq=golden.sema.Greeter kind=interface vis=public flags=_
-file f4 package=golden.sema
+file f5 package=golden.sema
   decl d0 interface Greeter sym=golden.sema.Greeter
   decl d1 class FormalGreeter sym=golden.sema.FormalGreeter
   decl d2 class DefaultGreeter sym=golden.sema.DefaultGreeter

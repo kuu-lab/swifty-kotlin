@@ -4,7 +4,7 @@ symbol fq=Cat kind=class vis=public flags=_
 symbol fq=Dog kind=class vis=public flags=_
 symbol fq=describeAnimal kind=function vis=public flags=_ sig=recv=_ params=[Animal] ret=String
 symbol fq=describeAnimal.$0.a kind=valueParameter vis=private flags=_
-file f4 package=_
+file f5 package=_
   decl d0 class Animal sym=Animal
   decl d1 class Dog sym=Dog
   decl d2 class Cat sym=Cat
