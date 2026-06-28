@@ -57,9 +57,9 @@
 - [x] STDLIB-TEXT-FN-042: `padStart` 関数の実装
 - [x] STDLIB-TEXT-FN-043: `plus` 関数の実装
 - [x] STDLIB-TEXT-FN-044: `random` 関数の実装
-- [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
+- [x] STDLIB-TEXT-FN-046: `reduce` 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-049: `reduceOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-049: `reduceOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-051: `removeRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-053: `removeSurrounding` 関数の実装
 - [x] STDLIB-TEXT-FN-056: `replaceAfter` 関数の実装
@@ -107,7 +107,7 @@
 - [x] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [x] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
 - [x] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
-- [ ] STDLIB-COMP-FN-038: `minOf` 関数の実装（Float版、2引数）
+- [x] STDLIB-COMP-FN-038: `minOf` 関数の実装（Float版、2引数）
 - [ ] STDLIB-COMP-FN-040: `minOf` 関数の実装（Float版、vararg）
 - [ ] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-046: `minOf` 関数の実装（Long版、vararg）
@@ -368,7 +368,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
 - [ ] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
 - [x] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
-- [ ] CLEANUP-STUB-075: JS BigIntToLong stub削除（`HeaderHelpers+SyntheticJsBigIntToLongStubs.swift`）
+- [x] CLEANUP-STUB-075: JS BigIntToLong stub削除（`HeaderHelpers+SyntheticJsBigIntToLongStubs.swift`）
 - [x] CLEANUP-STUB-076: JS BigInt stub削除（`HeaderHelpers+SyntheticJsBigIntStubs.swift`）
 - [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
 - [ ] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
@@ -610,9 +610,9 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEADCODE-003: Flow/Channel 系 12 件を削除する — `kk_callback_flow_await_close` / `kk_callback_flow_create`、`kk_channel_flow_create` / `kk_channel_flow_send` / `kk_channel_flow_try_send`、`kk_channel_pipeline_drain`、`kk_channel_send_suspending`、`kk_broadcast_channel_close` / `create` / `send` / `subscribe` / `unsubscribe`（主に `RuntimeCoroutineChannel.swift` / `RuntimeCoroutineFlow.swift`）
 - [ ] DEADCODE-004: リフレクション系 32 件を削除する — `kk_kconstructor_*` 全 12 件、`kk_kclass_get_field_count` / `get_instance_size_words` / `get_qualified_name` / `get_simple_name` / `get_superclass_name` / `is_data_class` / `is_sealed_class` / `is_value_class`、`kk_kproperty_get` / `set` / `stub_get_value` / `stub_getter` / `stub_set_getter` / `stub_set_setter` / `stub_set_value` / `stub_setter`、`kk_callable_ref_call_0..3`（主に `RuntimeReflection.swift`（55 件中 22 件）と `RuntimeDelegates.swift`。KClass/KProperty の生きている経路は別名で配線済み）
 - [ ] DEADCODE-005: `__string_*` ブリッジ 12 件を削除する — `__string_removePrefix` / `removeRange` / `removeRange_range` / `removeSuffix` / `removeSurrounding` / `removeSurrounding_pair` / `replace` / `replaceFirst` / `replaceRange` / `replace_char` / `replace_char_ignoreCase` / `replace_ignoreCase`（`RuntimeStringStdlib.swift`。同機能は `kk_string_*` 側が配線済みで `__` 版は .kt からも参照ゼロ。RF-RT-003 の「`__` ブリッジ降格」方針との整合を確認の上で削除）
-- [ ] DEADCODE-007: HTTP/Network 系 6 件を削除する — `kk_http_client_clearAuthentication` / `get_async` / `post` / `setBasicAuth` / `setDefaultHeader`、`kk_http_response_contentType`（`RuntimeNetwork.swift`。HTTP 面全体がターゲット外だが、他の `kk_http_*` は Sema stub から emit されるため、まず未到達 6 件のみ。残りは DEADCODE-012 の棚卸しで判定）
+- [x] DEADCODE-007: HTTP/Network 系 6 件を削除する — `kk_http_client_clearAuthentication` / `get_async` / `post` / `setBasicAuth` / `setDefaultHeader`、`kk_http_response_contentType`（`RuntimeNetwork.swift`。HTTP 面全体がターゲット外だが、他の `kk_http_*` は Sema stub から emit されるため、まず未到達 6 件のみ。残りは DEADCODE-012 の棚卸しで判定）
 - [x] DEADCODE-009: Array HOF 8 件を削除する — `kk_array_filterIndexed` / `filterNot` / `filterNotNull` / `first` / `firstOrNull` / `last` / `lastOrNull` / `mapIndexed`（`RuntimeCollectionHOFArray.swift`。Array 受信者のこれらは `StdlibSurfaceSpec.collectionHOF*` テーブルにも載っておらず別経路で lowering される）
-- [ ] DEADCODE-010: 数値・GC・その他散在 24 件を削除する — `kk_double_coerceAtLeast_range` / `coerceAtMost_range`、`kk_float_coerceAtLeast_range` / `coerceAtMost_range`、`kk_long_coerceAtLeast_range` / `coerceAtMost_range`、`kk_math_e` / `kk_math_pi`、`kk_char_get` / `kk_char_plus`、`kk_clock_gettime_realtime`、`kk_mem_scope_alloc` / `enter` / `exit`、`kk_native_alloc_bytes` / `heap_alloc` / `heap_free`、`kk_panic`、`kk_write_barrier`、`kk_hexformat_prefix` / `suffix`、`kk_timedvalue_toString`、`kk_path_equals`、`kk_sequence_builder_yieldAll_iterator`（`yieldAll` 3 オーバーロードは全て無印 `kk_sequence_builder_yieldAll` に束縛済み）
+- [x] DEADCODE-010: 数値・GC・その他散在 24 件を削除する — `kk_double_coerceAtLeast_range` / `coerceAtMost_range`、`kk_float_coerceAtLeast_range` / `coerceAtMost_range`、`kk_long_coerceAtLeast_range` / `coerceAtMost_range`、`kk_math_e` / `kk_math_pi`、`kk_char_get` / `kk_char_plus`、`kk_clock_gettime_realtime`、`kk_mem_scope_alloc` / `enter` / `exit`、`kk_native_alloc_bytes` / `heap_alloc` / `heap_free`、`kk_panic`、`kk_write_barrier`、`kk_hexformat_prefix` / `suffix`、`kk_timedvalue_toString`、`kk_path_equals`、`kk_sequence_builder_yieldAll_iterator`（`yieldAll` 3 オーバーロードは全て無印 `kk_sequence_builder_yieldAll` に束縛済み）
 
 ### CompilerCore / LSPServer / RuntimeABI: 参照ゼロの Swift シンボル
 - [x] DEADCODE-011: 参照ゼロの Swift 宣言 7 件を削除する — `StdlibSurfaceSpec.collectionHOFRuntimeLinkNames(ownerKind:)`（`Sources/RuntimeABI/StdlibSurfaceSpec.swift:127`、単数形 `collectionHOFRuntimeLinkName` のみ使用）、`DocumentStore.allURIs()`（`Sources/LSPServer/DocumentStore.swift:67`）、`PositionResolver.enclosingDecl(at:)`（`Sources/LSPServer/PositionResolver.swift:39`）、`runtimeParallelStreamElements(from:)`（`Sources/Runtime/RuntimeParallel.swift:50`）、ネスト関数 `buildBoolCondition`（`Sources/CompilerCore/Codegen/NativeEmitter+FunctionEmission.swift:331`）、`runtimeRetainObjectHandle` と `typealias ComparatorLambda`（`Sources/Runtime/RuntimeCollectionHelpers.swift:525-528`）

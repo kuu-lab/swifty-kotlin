@@ -1230,6 +1230,7 @@ extension CallTypeChecker {
                    "reduceRightIndexed",
                    "reduceRightIndexedOrNull",
                    "reduceRightOrNull",
+                   "reduceOrNull",
                    "sumBy",
                    "sumByDouble",
                ].contains(calleeStr)
@@ -1245,7 +1246,7 @@ extension CallTypeChecker {
                         [intType, charType]
                     case "reduceRightIndexed", "reduceRightIndexedOrNull":
                         [intType, charType, charType]
-                    case "reduceRightOrNull":
+                    case "reduceRightOrNull", "reduceOrNull":
                         [charType, charType]
                     case "zipWithNext":
                         [charType, charType]
@@ -1261,7 +1262,7 @@ extension CallTypeChecker {
                         sema.types.nullableAnyType
                     case "reduceRightIndexed", "reduceRightIndexedOrNull":
                         charType
-                    case "reduceRightOrNull":
+                    case "reduceRightOrNull", "reduceOrNull":
                         charType
                     case "zipWithNext":
                         sema.types.anyType
@@ -1477,7 +1478,7 @@ extension CallTypeChecker {
                 case "ifBlank", "ifEmpty": sema.types.stringType
                 case "reduceRightIndexed": charType
                 case "reduceRightIndexedOrNull": sema.types.make(.primitive(.char, .nullable))
-                case "reduceRightOrNull": sema.types.make(.primitive(.char, .nullable))
+                case "reduceRightOrNull", "reduceOrNull": sema.types.make(.primitive(.char, .nullable))
                 case "sumBy": sema.types.intType
                 case "sumByDouble": sema.types.doubleType
                 default: sema.types.anyType
