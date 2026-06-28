@@ -145,12 +145,12 @@ final class ScriptModeTests: XCTestCase {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            XCTAssertEqual(ast.files.count, 5, "Both user files + bundled stdlib must produce an ASTFile")
+            XCTAssertEqual(ast.files.count, 6, "Both user files + bundled stdlib must produce an ASTFile")
 
             let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
             XCTAssertNotNil(scriptFile, "One ASTFile must have a non-empty scriptBody")
 
-            let regularFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 2 })
+            let regularFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 4 })
             XCTAssertNotNil(regularFile, "One ASTFile must have an empty scriptBody")
 
             XCTAssertFalse(ctx.diagnostics.hasError,

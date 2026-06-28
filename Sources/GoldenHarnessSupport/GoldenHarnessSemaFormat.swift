@@ -20,13 +20,6 @@ enum GoldenHarnessSemaFormat {
         }
     }
 
-    static func renderDeclSymbol(_ declID: DeclID, sema: SemaModule) -> String {
-        if let symbol = sema.bindings.declSymbols[declID] {
-            return "s\(symbol.rawValue)"
-        }
-        return "_"
-    }
-
     static func renderAnnotationArgument(_ argument: String) -> String {
         guard argument.count >= 2,
               argument.first == "\"",

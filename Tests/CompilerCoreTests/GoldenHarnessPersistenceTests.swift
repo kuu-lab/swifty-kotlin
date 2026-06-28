@@ -16,12 +16,12 @@ struct GoldenHarnessPersistenceTests {
         try "".write(to: sourceURL, atomically: false, encoding: .utf8)
 
         let actual = """
-        symbol s11 kind=function fq=sample.wrap vis=public flags=synthetic sig=recv=_ params=[Int] ret=Int suspend=0 defaults=[0] vararg=[0]
-        symbol s21 kind=valueParameter fq=sample.wrap.$301.value vis=private flags=synthetic
-        symbol s31 kind=local fq=__local_27.tmp vis=private flags=_ type=Int
-        expr e0 name(value) type=Int ref=s21
+        symbol fq=sample.wrap kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=Int
+        symbol fq=sample.wrap.$301.value kind=valueParameter vis=private flags=synthetic
+        symbol fq=__local_27.tmp kind=local vis=private flags=_ type=Int
+        expr e0 name(value) type=Int ref=sample.wrap.$301.value
         expr e1 name(it) type=Int ref=s-1008960
-        expr e2 name(tmp) type=Int ref=s31
+        expr e2 name(tmp) type=Int ref=__local_27.tmp
         """
 
         let persisted = try GoldenHarness.persistIfUpdating(

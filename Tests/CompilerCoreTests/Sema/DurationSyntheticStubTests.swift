@@ -59,19 +59,24 @@ final class DurationSyntheticStubTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        let toIsoFQName = durationFQName + [interner.intern("toIsoString")]
-        let toIsoSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: toIsoFQName).first { symbolID in
+        // MIGRATION-TIME-002: toIsoString is now a Kotlin-source extension function at
+        // package scope ["kotlin","time","toIsoString"], not a synthetic stub member.
+        let toIsoPackageFQName = ["kotlin", "time", "toIsoString"].map { interner.intern($0) }
+        let toIsoSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: toIsoPackageFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return signature.receiverType == durationType
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == sema.types.stringType
-        })
-        XCTAssertEqual(sema.symbols.externalLinkName(for: toIsoSymbol), "kk_duration_toIsoString")
-        XCTAssertFalse(
-            sema.symbols.symbol(toIsoSymbol)?.flags.contains(.operatorFunction) == true,
-            "Duration.toIsoString should not be registered as an operator"
+        }, "Duration.toIsoString should be present as a Kotlin-source extension (MIGRATION-TIME-002)")
+        XCTAssertNil(
+            sema.symbols.externalLinkName(for: toIsoSymbol),
+            "Duration.toIsoString should be a bundled Kotlin function with no C external link (MIGRATION-TIME-002)"
+        )
+        XCTAssertNotNil(
+            sema.symbols.symbol(toIsoSymbol)?.declSite,
+            "Duration.toIsoString should have a declSite (Kotlin source, not a synthetic stub)"
         )
 
         let companionFQName = durationFQName + [interner.intern("Companion")]
@@ -134,48 +139,48 @@ final class DurationSyntheticStubTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let toComponentsFQName = durationFQName + [interner.intern("toComponents")]
-        let overloads: [(link: String, params: [TypeID])] = [
-            ("kk_duration_toComponents_seconds", [sema.types.longType, sema.types.intType]),
-            ("kk_duration_toComponents_minutes", [sema.types.longType, sema.types.intType, sema.types.intType]),
-            (
-                "kk_duration_toComponents_hours",
-                [sema.types.longType, sema.types.intType, sema.types.intType, sema.types.intType]
-            ),
-            (
-                "kk_duration_toComponents_days",
-                [
-                    sema.types.longType,
-                    sema.types.intType,
-                    sema.types.intType,
-                    sema.types.intType,
-                    sema.types.intType,
-                ]
-            ),
-        ]
 
-        for overload in overloads {
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: toComponentsFQName).first { symbolID in
-                sema.symbols.externalLinkName(for: symbolID) == overload.link
-            })
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            XCTAssertEqual(signature.receiverType, durationType)
-            XCTAssertEqual(signature.parameterTypes.count, 1)
-            XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-            XCTAssertEqual(signature.returnType, sema.types.make(.typeParam(TypeParamType(
-                symbol: signature.typeParameterSymbols[0]
-            ))))
-            XCTAssertTrue(
-                sema.symbols.symbol(symbol)?.flags.contains(.inlineFunction) == true,
-                "Duration.toComponents should be registered as inline synthetic surface"
+        // MIGRATION-TIME-002: toComponents overloads are now Kotlin-source extension functions
+        // at package scope ["kotlin","time","toComponents"], not synthetic stubs.
+        let oldToComponentsFQName = durationFQName + [interner.intern("toComponents")]
+        let oldCLinkNames = [
+            "kk_duration_toComponents_seconds",
+            "kk_duration_toComponents_minutes",
+            "kk_duration_toComponents_hours",
+            "kk_duration_toComponents_days",
+        ]
+        for linkName in oldCLinkNames {
+            XCTAssertFalse(
+                sema.symbols.lookupAll(fqName: oldToComponentsFQName).contains { symbolID in
+                    sema.symbols.externalLinkName(for: symbolID) == linkName
+                },
+                "Duration.toComponents should no longer have C stub '\(linkName)' (MIGRATION-TIME-002)"
             )
-            guard let actionType = signature.parameterTypes.first,
-                  case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(actionType))
-            else {
-                return XCTFail("Duration.toComponents action must be a function type")
-            }
-            XCTAssertEqual(functionType.params, overload.params)
-            XCTAssertEqual(functionType.returnType, signature.returnType)
+        }
+
+        let toComponentsFQName = ["kotlin", "time", "toComponents"].map { interner.intern($0) }
+        let expectedLambdaArities = [2, 3, 4, 5]
+        for expectedArity in expectedLambdaArities {
+            let symbol = try XCTUnwrap(
+                sema.symbols.lookupAll(fqName: toComponentsFQName).first { symbolID in
+                    guard let sig = sema.symbols.functionSignature(for: symbolID),
+                          sig.receiverType == durationType,
+                          sig.parameterTypes.count == 1,
+                          case let .functionType(ft) = sema.types.kind(
+                              of: sema.types.makeNonNullable(sig.parameterTypes[0]))
+                    else { return false }
+                    return ft.params.count == expectedArity
+                },
+                "Missing toComponents overload with lambda arity \(expectedArity) (MIGRATION-TIME-002)"
+            )
+            XCTAssertNotNil(
+                sema.symbols.symbol(symbol)?.declSite,
+                "Duration.toComponents (arity \(expectedArity)) should have a declSite (Kotlin source)"
+            )
+            XCTAssertNil(
+                sema.symbols.externalLinkName(for: symbol),
+                "Duration.toComponents (arity \(expectedArity)) should have no C external link"
+            )
         }
     }
 
