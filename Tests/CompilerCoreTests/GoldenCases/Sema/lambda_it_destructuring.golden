@@ -1,0 +1,30 @@
+symbol fq=__destructuring_0.num kind=local vis=private flags=_ type=Int
+symbol fq=golden.sema.useDestructuring kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
+symbol fq=golden.sema.useIt kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
+symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
+symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+file f4 package=golden.sema
+  decl d0 fun useIt sym=golden.sema.useIt
+  decl d1 fun useDestructuring sym=golden.sema.useDestructuring
+expr e0 int(1) type=Int
+expr e1 int(2) type=Int
+expr e2 int(3) type=Int
+expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=kotlin.collections.List<out Int>
+expr e5 name(it) type=Int ref=s-0
+expr e6 int(2) type=Int
+expr e7 binary(multiply) lhs=e5 rhs=e6 type=Int
+expr e8 lambda params=[] body=e7 label=map type=(Int) -> Any
+expr e9 memberCall recv=e3 callee=map args=[_:e8] type=kotlin.collections.List<Int>
+expr e10 int(1) type=Int
+expr e11 string(a) type=String
+expr e12 memberCall recv=e10 callee=to args=[_:e11] type=kotlin.Pair<Int, String>
+expr e13 int(2) type=Int
+expr e14 string(b) type=String
+expr e15 memberCall recv=e13 callee=to args=[_:e14] type=kotlin.Pair<Int, String>
+expr e16 call callee=e17 args=[_:e12,_:e15] type=kotlin.collections.List<out kotlin.Pair<Int, String>>
+expr e18 name(num) type=Int ref=__destructuring_0.num
+expr e19 name(__destructured_0) type=kotlin.Pair<Int, String> ref=s-1
+expr e20 destructuringDecl names=[num,_] mutable=0 init=e19 type=Unit
+expr e21 blockExpr stmts=[e20] trailing=e18 type=Int
+expr e22 lambda params=[__destructured_0] body=e21 label=map type=(kotlin.Pair<Int, String>) -> Any
+expr e23 memberCall recv=e16 callee=map args=[_:e22] type=kotlin.collections.List<Int>
