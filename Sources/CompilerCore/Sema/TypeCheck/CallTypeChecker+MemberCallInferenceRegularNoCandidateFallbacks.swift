@@ -552,6 +552,8 @@ extension CallTypeChecker {
                     sema.types.make(.primitive(.int, .nonNull))
                 case "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast":
                     sema.types.stringType
+                case "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast":
+                    sema.types.stringType
                 case "prependIndent", "replaceIndent", "replaceIndentByMargin":
                     sema.types.stringType
                 case "commonPrefixWith", "commonSuffixWith":
@@ -1066,6 +1068,38 @@ extension CallTypeChecker {
                 return finalType
             }
         }
+        // String stdlib: replaceRange(startIndex, endIndex, replacement) (STDLIB-TEXT-FN-062)
+        if args.count == 3, interner.resolve(calleeName) == "replaceRange" {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            let startType = sema.types.makeNonNullable(argTypes[0])
+            let endType = sema.types.makeNonNullable(argTypes[1])
+            let replacementType = sema.types.makeNonNullable(argTypes[2])
+            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+               sema.types.isSubtype(startType, sema.types.intType),
+               sema.types.isSubtype(endType, sema.types.intType),
+               sema.types.isSubtype(replacementType, sema.types.stringType)
+            {
+                if let boundType = tryBindSyntheticStringMemberFallback(
+                    id,
+                    calleeName: calleeName,
+                    receiverType: receiverTypeForCheck,
+                    args: args,
+                    argTypes: argTypes,
+                    range: range,
+                    ctx: ctx,
+                    expectedType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    safeCall: safeCall
+                ) {
+                    return boundType
+                }
+                let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
         // String stdlib: removeRange(startIndex, endIndex) (STDLIB-TEXT-EDGE-008)
         if args.count == 2, interner.resolve(calleeName) == "removeRange" {
             let receiverTypeForCheck = safeCall
@@ -1196,6 +1230,7 @@ extension CallTypeChecker {
                    "reduceRightIndexed",
                    "reduceRightIndexedOrNull",
                    "reduceRightOrNull",
+                   "reduceOrNull",
                    "sumBy",
                    "sumByDouble",
                ].contains(calleeStr)
@@ -1211,7 +1246,7 @@ extension CallTypeChecker {
                         [intType, charType]
                     case "reduceRightIndexed", "reduceRightIndexedOrNull":
                         [intType, charType, charType]
-                    case "reduceRightOrNull":
+                    case "reduceRightOrNull", "reduceOrNull":
                         [charType, charType]
                     case "zipWithNext":
                         [charType, charType]
@@ -1227,7 +1262,7 @@ extension CallTypeChecker {
                         sema.types.nullableAnyType
                     case "reduceRightIndexed", "reduceRightIndexedOrNull":
                         charType
-                    case "reduceRightOrNull":
+                    case "reduceRightOrNull", "reduceOrNull":
                         charType
                     case "zipWithNext":
                         sema.types.anyType
@@ -1443,7 +1478,7 @@ extension CallTypeChecker {
                 case "ifBlank", "ifEmpty": sema.types.stringType
                 case "reduceRightIndexed": charType
                 case "reduceRightIndexedOrNull": sema.types.make(.primitive(.char, .nullable))
-                case "reduceRightOrNull": sema.types.make(.primitive(.char, .nullable))
+                case "reduceRightOrNull", "reduceOrNull": sema.types.make(.primitive(.char, .nullable))
                 case "sumBy": sema.types.intType
                 case "sumByDouble": sema.types.doubleType
                 default: sema.types.anyType
