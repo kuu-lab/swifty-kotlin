@@ -3,14 +3,7 @@
 import Foundation
 import XCTest
 
-// STDLIB-004: Primitive array edge case coverage
-// Covers IntArray/LongArray/ShortArray/ByteArray/CharArray/DoubleArray/FloatArray/BooleanArray
-// and unsigned variants, exercising zero-init constructor, fill, copyOf, contentEquals,
-// toList round-trip, asList view semantics, and size-zero semantics — distinct from
-// generic-array coverage in #1185.
 extension CodegenBackendIntegrationTests {
-
-    // MARK: - Zero-initialized constructor (IntArray(n) without lambda)
 
     func testPrimitiveArrayZeroInit() throws {
         let source = """
@@ -29,23 +22,8 @@ extension CodegenBackendIntegrationTests {
             println(ba[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveArrayZeroInit",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "4\n0\n0\n2\n0\n3\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrimitiveArrayZeroInit", expected: "4\n0\n0\n2\n0\n3\nfalse\n")
     }
-
-    // MARK: - Size-zero primitive arrays
 
     func testPrimitiveArraySizeZero() throws {
         let source = """
@@ -60,23 +38,8 @@ extension CodegenBackendIntegrationTests {
             println(emptyBool.size)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveArraySizeZero",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "0\n0\n0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrimitiveArraySizeZero", expected: "0\n0\n0\n")
     }
-
-    // MARK: - Factory with init lambda vs zero-init
 
     func testPrimitiveArrayFactoryVsZeroInit() throws {
         let source = """
@@ -93,23 +56,8 @@ extension CodegenBackendIntegrationTests {
             println(zeroInit[4])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveArrayFactoryVsZeroInit",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "0\n4\n8\n0\n0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrimitiveArrayFactoryVsZeroInit", expected: "0\n4\n8\n0\n0\n")
     }
-
-    // MARK: - Multiple primitive type creation (Short, Byte, Double, Float)
 
     func testPrimitiveArrayMultipleTypes() throws {
         let source = """
@@ -131,23 +79,8 @@ extension CodegenBackendIntegrationTests {
             println(floats[1])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveArrayMultipleTypes",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n20\n3\n1\n2\n1.5\n2\n4.0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrimitiveArrayMultipleTypes", expected: "3\n20\n3\n1\n2\n1.5\n2\n4.0\n")
     }
-
-    // MARK: - UIntArray factory and element access
 
     func testUIntArrayFactoryAndAccess() throws {
         let source = """
@@ -158,20 +91,7 @@ extension CodegenBackendIntegrationTests {
             println(uints[2])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UIntArrayFactoryAndAccess",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n1\n3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UIntArrayFactoryAndAccess", expected: "3\n1\n3\n")
     }
 
     func testUnsignedPrimitiveArrayCopyOfRange() throws {
@@ -184,20 +104,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedPrimitiveArrayCopyOfRange",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "UnsignedPrimitiveArrayCopyOfRange",
+            expected:
                 """
                 [2, 3]
                 [10, 20]
@@ -205,8 +115,7 @@ extension CodegenBackendIntegrationTests {
                 [1000]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testArrayReversedArrayOverloads() throws {
@@ -220,20 +129,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayReversedArrayOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayReversedArrayOverloads",
+            expected:
                 """
                 [c, b, a]
                 [4, 3, 2, 1]
@@ -242,8 +141,7 @@ extension CodegenBackendIntegrationTests {
                 []
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testArraySortedArrayOverloads() throws {
@@ -256,20 +154,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArraySortedArrayOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArraySortedArrayOverloads",
+            expected:
                 """
                 [a, b, c]
                 [1, 2, 3, 4]
@@ -277,8 +165,7 @@ extension CodegenBackendIntegrationTests {
                 [0, 0, 1]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testArraySortedArrayDescendingOverloads() throws {
@@ -291,20 +178,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArraySortedArrayDescendingOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArraySortedArrayDescendingOverloads",
+            expected:
                 """
                 [c, b, a]
                 [4, 3, 2, 1]
@@ -312,8 +189,7 @@ extension CodegenBackendIntegrationTests {
                 [1, 0, 0]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testArrayCopyIntoOverloads() throws {
@@ -338,20 +214,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayCopyIntoOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayCopyIntoOverloads",
+            expected:
                 """
                 [x, b, c, w, q]
                 [1, 2, 3]
@@ -359,8 +225,7 @@ extension CodegenBackendIntegrationTests {
                 [10, 20, 30]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testArraySliceArrayOverloads() throws {
@@ -375,20 +240,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArraySliceArrayOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArraySliceArrayOverloads",
+            expected:
                 """
                 [b, c]
                 [d, a]
@@ -397,8 +252,7 @@ extension CodegenBackendIntegrationTests {
                 [1, 0]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testSignedArrayViewConversionsFromUnsignedArrays() throws {
@@ -420,20 +274,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SignedArrayViewConversionsFromUnsignedArrays",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SignedArrayViewConversionsFromUnsignedArrays",
+            expected:
                 """
                 [1, 9, 3]
                 [10, 20]
@@ -441,8 +285,7 @@ extension CodegenBackendIntegrationTests {
                 [1000, 2000]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testUnsignedArrayViewConversions() throws {
@@ -464,20 +307,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedArrayViewConversions",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "UnsignedArrayViewConversions",
+            expected:
                 """
                 [1, 9, 3]
                 [10, 20]
@@ -485,8 +318,7 @@ extension CodegenBackendIntegrationTests {
                 [1000, 2000]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testUnsignedCollectionToPrimitiveArrayConversions() throws {
@@ -510,23 +342,8 @@ extension CodegenBackendIntegrationTests {
             println(ulongs[1])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedCollectionToPrimitiveArrayConversions",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "2\n1\n255\n2\n65535\n2\n4000000000\n2\n4000000000\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UnsignedCollectionToPrimitiveArrayConversions", expected: "2\n1\n255\n2\n65535\n2\n4000000000\n2\n4000000000\n")
     }
-
-    // MARK: - fill on primitive array
 
     func testPrimitiveArrayFill() throws {
         let source = """
@@ -544,23 +361,8 @@ extension CodegenBackendIntegrationTests {
             println(bools[2])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveArrayFill",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "0\n7\n7\nfalse\ntrue\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrimitiveArrayFill", expected: "0\n7\n7\nfalse\ntrue\ntrue\n")
     }
-
-    // MARK: - copyOf on primitive array (element access on copy)
 
     func testPrimitiveArrayCopyOf() throws {
         let source = """
@@ -576,23 +378,8 @@ extension CodegenBackendIntegrationTests {
             println(copy[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveArrayCopyOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "1\n3\n1\n99\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrimitiveArrayCopyOf", expected: "1\n3\n1\n99\n")
     }
-
-    // MARK: - contentEquals on generic Array<Int> (primitive arrays use Array<T> box)
 
     func testBoxedIntArrayContentEquals() throws {
         let source = """
@@ -608,23 +395,8 @@ extension CodegenBackendIntegrationTests {
             println(empty1.contentEquals(empty2))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BoxedIntArrayContentEquals",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "true\nfalse\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BoxedIntArrayContentEquals", expected: "true\nfalse\ntrue\n")
     }
-
-    // MARK: - toList round-trip for primitive arrays
 
     func testPrimitiveArrayToListRoundTrip() throws {
         let source = """
@@ -641,23 +413,8 @@ extension CodegenBackendIntegrationTests {
             println(longList[1])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "PrimitiveArrayToListRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n10\n30\n2\n200\n")
-        }
+        try assertKotlinOutput(source, moduleName: "PrimitiveArrayToListRoundTrip", expected: "3\n10\n30\n2\n200\n")
     }
-
-    // MARK: - asList view for unsigned primitive arrays
 
     func testUnsignedPrimitiveArrayAsListViewReflectsMutations() throws {
         let source = """
@@ -670,20 +427,7 @@ extension CodegenBackendIntegrationTests {
             println(uintView[1])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedPrimitiveArrayAsListView",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n200\n900\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayAsListView", expected: "3\n200\n900\n")
     }
 
     func testUnsignedPrimitiveArrayToTypedArrayReturnsGenericArrays() throws {
@@ -710,23 +454,8 @@ extension CodegenBackendIntegrationTests {
             println(ulongTyped[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedPrimitiveArrayToTypedArray",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "200\n200\n900\n1000\n1000\n9000\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayToTypedArray", expected: "200\n200\n900\n1000\n1000\n9000\n")
     }
-
-    // MARK: - copyOf(newSize, init) for unsigned primitive arrays
 
     func testUnsignedPrimitiveArrayCopyOfNewSizeAndInit() throws {
         let source = """
@@ -760,20 +489,7 @@ extension CodegenBackendIntegrationTests {
             println(ulongGrow[2])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedPrimitiveArrayCopyOfNewSizeAndInit",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "2\n1\n4\n10\n20\n700\n700\n10\n1\n10\n100\n9000\n9000\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayCopyOfNewSizeAndInit", expected: "2\n1\n4\n10\n20\n700\n700\n10\n1\n10\n100\n9000\n9000\n")
     }
 
     func testUnsignedPrimitiveArrayCopyOfRangeReturnsUnsignedArrays() throws {
@@ -804,23 +520,8 @@ extension CodegenBackendIntegrationTests {
             println(ulongCopy[1])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedPrimitiveArrayCopyOfRangeReturnsUnsignedArrays",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "0\n0\n2\n200\n200\n900\n2\n2000\n2000\n9000\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UnsignedPrimitiveArrayCopyOfRangeReturnsUnsignedArrays", expected: "0\n0\n2\n200\n200\n900\n2\n2000\n2000\n9000\n")
     }
-
-    // MARK: - toIntArray from List round-trip
 
     func testListToIntArrayRoundTrip() throws {
         let source = """
@@ -837,20 +538,7 @@ extension CodegenBackendIntegrationTests {
             println(arr[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToIntArrayRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n5\n15\n5\n99\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToIntArrayRoundTrip", expected: "3\n5\n15\n5\n99\n")
     }
 
     func testListToByteArrayRoundTrip() throws {
@@ -868,20 +556,7 @@ extension CodegenBackendIntegrationTests {
             println(arr[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToByteArrayRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n1\n-2\n127\n1\n-8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToByteArrayRoundTrip", expected: "3\n1\n-2\n127\n1\n-8\n")
     }
 
     func testListToLongArrayRoundTrip() throws {
@@ -898,20 +573,7 @@ extension CodegenBackendIntegrationTests {
             println(arr[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToLongArrayRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n5\n15\n5\n99\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToLongArrayRoundTrip", expected: "3\n5\n15\n5\n99\n")
     }
 
     func testListToBooleanArrayRoundTrip() throws {
@@ -928,20 +590,7 @@ extension CodegenBackendIntegrationTests {
             println(if (arr[1]) "T" else "F")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToBooleanArrayRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\nT\nF\nF\nT\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToBooleanArrayRoundTrip", expected: "3\nT\nF\nF\nT\n")
     }
 
     func testListToShortArrayRoundTrip() throws {
@@ -959,20 +608,7 @@ extension CodegenBackendIntegrationTests {
             println(arr[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToShortArrayRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n1\n-2\n32767\n1\n7\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToShortArrayRoundTrip", expected: "3\n1\n-2\n32767\n1\n7\n")
     }
 
     func testListToDoubleArrayRoundTrip() throws {
@@ -990,20 +626,7 @@ extension CodegenBackendIntegrationTests {
             println(arr[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToDoubleArrayRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n1.5\n-2.25\n0.5\n1.5\n9.25\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToDoubleArrayRoundTrip", expected: "3\n1.5\n-2.25\n0.5\n1.5\n9.25\n")
     }
 
     func testListToFloatArrayRoundTrip() throws {
@@ -1021,23 +644,8 @@ extension CodegenBackendIntegrationTests {
             println(arr[0])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToFloatArrayRoundTrip",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "3\n1.5\n-2.25\n0.5\n1.5\n9.25\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToFloatArrayRoundTrip", expected: "3\n1.5\n-2.25\n0.5\n1.5\n9.25\n")
     }
-
-    // MARK: - contentHashCode stability for boxed int arrays
 
     func testBoxedIntArrayContentHashCode() throws {
         let source = """
@@ -1051,20 +659,7 @@ extension CodegenBackendIntegrationTests {
             println(a.contentHashCode() == c.contentHashCode())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BoxedIntArrayContentHashCode",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "true\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BoxedIntArrayContentHashCode", expected: "true\nfalse\n")
     }
 
     func testArrayContentDeepToString() throws {
@@ -1078,23 +673,8 @@ extension CodegenBackendIntegrationTests {
             println(self.contentDeepToString())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayContentDeepToString",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "[[1, 2], [x, y], [3, 4]]\n[[...]]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayContentDeepToString", expected: "[[1, 2], [x, y], [3, 4]]\n[[...]]\n")
     }
-
-    // MARK: - contentToString for boxed and primitive arrays
 
     func testArrayContentToStringOverloads() throws {
         let source = """
@@ -1116,20 +696,10 @@ extension CodegenBackendIntegrationTests {
             println(ulongArrayOf(1uL, 4000000000uL).contentToString())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayContentToStringOverloads",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayContentToStringOverloads",
+            expected:
                 """
                 [1, two, 3]
                 [1, -2, 3]
@@ -1146,8 +716,7 @@ extension CodegenBackendIntegrationTests {
                 [1, 4000000000]
                 """
                 + "\n"
-            )
-        }
+        )
     }
 
     func testArrayContentDeepHashCode() throws {
@@ -1169,20 +738,7 @@ extension CodegenBackendIntegrationTests {
             println(primitiveLeft.contentDeepHashCode() == primitiveDifferent.contentDeepHashCode())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayContentDeepHashCode",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "true\nfalse\nfalse\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayContentDeepHashCode", expected: "true\nfalse\nfalse\ntrue\nfalse\n")
     }
 
     func testArrayContentDeepEquals() throws {
@@ -1204,19 +760,7 @@ extension CodegenBackendIntegrationTests {
             println(primitiveLeft.contentDeepEquals(primitiveDifferent))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ArrayContentDeepEquals",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(out, "true\nfalse\nfalse\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ArrayContentDeepEquals", expected: "true\nfalse\nfalse\ntrue\nfalse\n")
     }
 }
+

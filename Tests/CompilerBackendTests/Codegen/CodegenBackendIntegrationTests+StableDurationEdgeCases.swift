@@ -3,25 +3,7 @@
 import Foundation
 import XCTest
 
-// STDLIB-032: kotlin.time stable Duration edge-case coverage.
-//
-// Stable surface verified (Kotlin 2.x, no @ExperimentalTime required):
-//   - Unit extension properties: Int.seconds / .milliseconds / .microseconds /
-//     .nanoseconds / .minutes / .hours / .days  (and Long variants)
-//   - inWholeSeconds / inWholeMilliseconds / inWholeMicroseconds /
-//     inWholeNanoseconds / inWholeMinutes / inWholeHours
-//   - absoluteValue, isNegative, isPositive, isFinite, isInfinite
-//   - Arithmetic via operator forms: duration + duration, duration - duration,
-//     duration * Int, duration / Int, -duration  (operator-lowering path)
-//   - Comparison operators: < > <= >= on Duration (compareTo-desugared)
-//
-// Known gaps (not yet lowered in this compiler):
-//   - toComponents { days, hours, minutes, seconds, nanoseconds -> ... }
-
 extension CodegenBackendIntegrationTests {
-
-    // MARK: - Unit extension properties (Int receiver)
-    // Verifies all seven stable unit helpers map correctly to nanoseconds internally.
 
     func testDurationStableUnitExtensionPropertiesInt() throws {
         let source = """
@@ -45,20 +27,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableUnitExtInt",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "DurationStableUnitExtInt",
+            expected:
                 """
                 1
                 1500
@@ -68,12 +40,8 @@ extension CodegenBackendIntegrationTests {
                 2
                 96
                 """ + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - Unit extension properties (Long receiver)
-    // Kotlin stable: val Long.seconds: Duration etc.
 
     func testDurationStableUnitExtensionPropertiesLong() throws {
         let source = """
@@ -104,20 +72,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableUnitExtLong",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "DurationStableUnitExtLong",
+            expected:
                 """
                 5
                 2500
@@ -133,12 +91,8 @@ extension CodegenBackendIntegrationTests {
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - inWhole* accessors coverage
-    // All six stable inWholeX properties are tested together.
 
     func testDurationStableInWholeAccessors() throws {
         let source = """
@@ -155,20 +109,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableInWholeAccessors",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "DurationStableInWholeAccessors",
+            expected:
                 """
                 2
                 120
@@ -177,12 +121,8 @@ extension CodegenBackendIntegrationTests {
                 7200000000
                 7200000000000
                 """ + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - Negative duration from negative Int literal
-    // Using the pattern (-N).unit which constructs a negative duration.
 
     func testDurationStableNegativeLiteralDuration() throws {
         let source = """
@@ -201,23 +141,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableNegativeLiteralDuration",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "-5\ntrue\nfalse\n-1500\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableNegativeLiteralDuration", expected: "-5\ntrue\nfalse\n-1500\ntrue\n")
     }
-
-    // MARK: - absoluteValue on negative duration
 
     func testDurationStableAbsoluteValue() throws {
         let source = """
@@ -236,23 +161,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableAbsoluteValue",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7\nfalse\ntrue\n3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableAbsoluteValue", expected: "7\nfalse\ntrue\n3\n")
     }
-
-    // MARK: - isFinite / isInfinite with overflow sentinel
 
     func testDurationStableIsFiniteIsInfinite() throws {
         let source = """
@@ -271,23 +181,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableIsFiniteInfinite",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableIsFiniteInfinite", expected: "true\nfalse\ntrue\nfalse\n")
     }
-
-    // MARK: - Companion constants (ZERO / INFINITE)
 
     func testDurationStableCompanionConstants() throws {
         let source = """
@@ -300,20 +195,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableCompanionConstants",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "0\ntrue\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableCompanionConstants", expected: "0\ntrue\ntrue\n")
     }
 
     func testDurationStableIsoStringAndParse() throws {
@@ -330,20 +212,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableIsoStringAndParse",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "DurationStableIsoStringAndParse",
+            expected:
                 """
                 PT0.000000003S
                 PT1H30M
@@ -351,8 +223,7 @@ extension CodegenBackendIntegrationTests {
                 90
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testDurationStableParseIsoString() throws {
@@ -366,23 +237,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableParseIsoString",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "93784\nfalse\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableParseIsoString", expected: "93784\nfalse\ntrue\n")
     }
-
-    // MARK: - Double receiver extension properties
 
     func testDurationStableDoubleReceiverExtensionProperties() throws {
         let source = """
@@ -395,23 +251,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableDoubleReceiverExtensions",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1500\n30\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableDoubleReceiverExtensions", expected: "1500\n30\n")
     }
-
-    // MARK: - Numeric.toDuration(unit)
 
     func testDurationStableNumericToDurationUnitOverloads() throws {
         let source = """
@@ -429,23 +270,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableToDurationUnit",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2\n1500\n90\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableToDurationUnit", expected: "2\n1500\n90\n")
     }
-
-    // MARK: - Duration / Duration -> Double
 
     func testDurationStableDurationDivisionReturnsDouble() throws {
         let source = """
@@ -457,23 +283,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableDivisionReturnsDouble",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1.5\n0.25\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableDivisionReturnsDouble", expected: "1.5\n0.25\n")
     }
-
-    // MARK: - inWholeDays accessor
 
     func testDurationStableInWholeDays() throws {
         let source = """
@@ -486,20 +297,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableInWholeDays",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2\n1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableInWholeDays", expected: "2\n1\n")
     }
 
     func testDurationStableToComponentsOverloads() throws {
@@ -538,24 +336,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableToComponents",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n2\n3\n4\n5\n26\n3\n4\n5\n1563\n4\n5\n-1\n-500000000\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableToComponents", expected: "1\n2\n3\n4\n5\n26\n3\n4\n5\n1563\n4\n5\n-1\n-500000000\n")
     }
-
-    // MARK: - Arithmetic: addition and subtraction via operator syntax
-    // Covers the operator-lowering path for Duration + Duration and Duration - Duration.
 
     func testDurationStableArithmeticAddSubtract() throws {
         let source = """
@@ -569,24 +351,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableAddSubtract",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "2500\n1500\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableAddSubtract", expected: "2500\n1500\ntrue\n")
     }
-
-    // MARK: - Arithmetic: multiplication and division by Int
-    // Covers Duration * Int and Duration / Int operator lowering.
 
     func testDurationStableArithmeticTimesDiv() throws {
         let source = """
@@ -600,24 +366,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableTimesDiv",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "20\n5\n0\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableTimesDiv", expected: "20\n5\n0\nfalse\n")
     }
-
-    // MARK: - Unary minus operator
-    // Covers unary `-duration`.
 
     func testDurationStableUnaryMinus() throws {
         let source = """
@@ -631,24 +381,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableUnaryMinus",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "-5\ntrue\n5\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableUnaryMinus", expected: "-5\ntrue\n5\n")
     }
-
-    // MARK: - Comparison operators (< > <= >=) on Duration
-    // Covers compareTo-desugared binary operators.
 
     func testDurationStableComparisonOperators() throws {
         let source = """
@@ -664,24 +398,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableComparisonOperators",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableComparisonOperators", expected: "true\ntrue\ntrue\nfalse\n")
     }
-
-    // MARK: - INFINITE saturation: adding to saturated sentinel stays INFINITE
-    // Verifies saturation semantics once Duration + Duration is routed.
 
     func testDurationStableInfiniteAddSaturation() throws {
         let source = """
@@ -698,24 +416,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableInfiniteAddSaturation",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\nfalse\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableInfiniteAddSaturation", expected: "true\ntrue\nfalse\nfalse\n")
     }
-
-    // MARK: - Division by zero saturates to INFINITE
-    // Verifies Duration / Int saturation behavior.
 
     func testDurationStableDivByZeroSaturatesToInfinite() throws {
         let source = """
@@ -727,24 +429,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableDivByZero",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableDivByZero", expected: "true\ntrue\n")
     }
-
-    // MARK: - Negative zero: -ZERO equals ZERO (same nanosecond count = 0)
-    // Covers the zero-preserving unary minus case.
 
     func testDurationStableNegativeZeroEqualsPositiveZero() throws {
         let source = """
@@ -761,23 +447,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableNegativeZeroEqualsPositiveZero",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "0\n0\nfalse\nfalse\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableNegativeZeroEqualsPositiveZero", expected: "0\n0\nfalse\nfalse\ntrue\n")
     }
-
-    // MARK: - Zero duration predicates (no operator forms needed)
 
     func testDurationStableZeroDurationPredicates() throws {
         let source = """
@@ -793,26 +464,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableZeroPredicates",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            // isPositive: nanoseconds > 0 => false for zero
-            // isNegative: nanoseconds < 0 => false for zero
-            // isFinite:   nanoseconds != Int64.max/min => true for zero
-            XCTAssertEqual(normalizedStdout, "0\nfalse\nfalse\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableZeroPredicates", expected: "0\nfalse\nfalse\ntrue\nfalse\n")
     }
-
-    // MARK: - inWholeNanoseconds for small and negative durations
 
     func testDurationStableInWholeNanoseconds() throws {
         let source = """
@@ -829,23 +482,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableInWholeNs",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "10000000000\n-3000000000\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableInWholeNs", expected: "10000000000\n-3000000000\n")
     }
-
-    // MARK: - Cross-unit consistency: same duration expressed via different units
 
     func testDurationStableCrossUnitConsistency() throws {
         let source = """
@@ -875,20 +513,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableCrossUnit",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "DurationStableCrossUnit",
+            expected:
                 """
                 1
                 60
@@ -900,14 +528,8 @@ extension CodegenBackendIntegrationTests {
                 1000000
                 1000000
                 """ + "\n"
-            )
-        }
+        )
     }
-
-    // MARK: - Stable/experimental boundary
-    // isNegative / isPositive / isFinite / isInfinite are @Stable since Kotlin 1.6.
-    // This test intentionally has no @OptIn — compilation failure would indicate
-    // these predicates are incorrectly gated behind @ExperimentalTime.
 
     func testDurationStableBoundaryPredicatesRequireNoOptIn() throws {
         let source = """
@@ -922,23 +544,8 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationStableBoundaryPredicates",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationStableBoundaryPredicates", expected: "true\nfalse\ntrue\nfalse\n")
     }
-
-    // MARK: - DurationUnit.toTimeUnit() (STDLIB-TIME-FN-012)
 
     func testDurationUnitToTimeUnitConversion() throws {
         let source = """
@@ -965,19 +572,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DurationUnitToTimeUnit",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "ns\ns\nd\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "DurationUnitToTimeUnit", expected: "ns\ns\nd\ntrue\nfalse\n")
     }
 }
+

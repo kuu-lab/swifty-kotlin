@@ -17,20 +17,7 @@ extension CodegenBackendIntegrationTests {
             println(t.isMarkedNullable)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CinteropTypeOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "false\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CinteropTypeOf", expected: "false\n")
     }
 
     func testCodegenCinteropTypeOfNullable() throws {
@@ -45,19 +32,7 @@ extension CodegenBackendIntegrationTests {
             println(t.isMarkedNullable)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CinteropTypeOfNullable",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CinteropTypeOfNullable", expected: "true\n")
     }
 }
+

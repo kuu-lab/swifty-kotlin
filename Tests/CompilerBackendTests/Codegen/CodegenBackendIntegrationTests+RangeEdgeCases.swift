@@ -23,20 +23,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RangeEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RangeEdgeCases",
+            expected:
                 """
                 [1, 2, 3, 4]
                 [5, 3, 1]
@@ -47,8 +37,7 @@ extension CodegenBackendIntegrationTests {
                 5
                 5
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesRangeRandomOrNullEdgeCases() throws {
@@ -130,20 +119,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "RangeRandomOrNullEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "RangeRandomOrNullEdgeCases",
+            expected:
                 """
                 true
                 true
@@ -151,8 +130,7 @@ extension CodegenBackendIntegrationTests {
                 true
                 true
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesByteAndShortCoercionCases() throws {
@@ -174,20 +152,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ByteAndShortCoercionCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ByteAndShortCoercionCases",
+            expected:
                 """
                 -5
                 -10
@@ -196,8 +164,7 @@ extension CodegenBackendIntegrationTests {
                 -10
                 10
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenCompilesUnsignedCoercionCases() throws {
@@ -235,20 +202,10 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedCoercionCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "UnsignedCoercionCases",
+            expected:
                 """
                 5
                 1
@@ -265,8 +222,7 @@ extension CodegenBackendIntegrationTests {
                 5
                 5
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenLongRangeFirstAndLastOrNull() throws {
@@ -302,3 +258,4 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
+

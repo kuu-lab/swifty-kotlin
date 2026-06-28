@@ -5,12 +5,14 @@ import Foundation
 /// Each dump uses a fresh `CompilationContext` from `makeCompilationContext`.
 
 enum GoldenHarnessDumpError: Error, CustomStringConvertible {
+    case missingSourceFile
     case missingSyntaxTree
     case missingAST
     case missingSema
 
     var description: String {
         switch self {
+        case .missingSourceFile: "source file not registered after loading"
         case .missingSyntaxTree: "syntax tree not available after parse"
         case .missingAST: "AST not available after frontend"
         case .missingSema: "sema module not available"
@@ -69,25 +71,34 @@ enum GoldenHarnessDump {
         guard let sema = ctx.sema else {
             throw GoldenHarnessDumpError.missingSema
         }
+        guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
+            throw GoldenHarnessDumpError.missingSourceFile
+        }
 
-        return renderSemaOutput(ast: ast, sema: sema, interner: ctx.interner)
+        return renderSemaOutput(ast: ast, sema: sema, interner: ctx.interner, sourceFileID: sourceFileID)
     }
 
     // MARK: - Stable sema rendering
 
-    private static func renderSemaOutput(ast: ASTModule, sema: SemaModule, interner: StringInterner) -> String {
+    private static func renderSemaOutput(
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner,
+        sourceFileID: FileID
+    ) -> String {
         let ctx = StableRenderContext(sema: sema, interner: interner)
 
         // 1. Render body lines (files, decls, exprs) first to track referenced symbols
         var bodyLines: [String] = []
 
-        for file in ast.sortedFiles {
+        for file in ast.sortedFiles where file.fileID == sourceFileID {
             bodyLines.append(renderFile(file, ast: ast, ctx: ctx))
         }
 
         for raw in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(raw))
             guard let expr = ast.arena.expr(exprID) else { continue }
+            guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else { continue }
             let hasType = sema.bindings.exprTypes[exprID] != nil
             let hasRef = sema.bindings.identifierSymbols[exprID] != nil
             let hasCall = sema.bindings.callBindings[exprID] != nil

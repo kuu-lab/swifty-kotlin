@@ -274,3 +274,4 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(fnName.hasPrefix("kk_fn_renamedForJava_"))
     }
 }
+
