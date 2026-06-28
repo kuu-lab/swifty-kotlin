@@ -133,13 +133,13 @@ public struct KotlinMetadata: Codable, Equatable, Sendable {
     }
 }
 
-public enum RuntimeMetadataCodec {
-    public enum Error: Swift.Error, Equatable {
+enum RuntimeMetadataCodec {
+    enum Error: Swift.Error, Equatable {
         case invalidUTF8
         case decodingFailed(String)
     }
 
-    public static func serialize(_ metadata: KotlinMetadata) throws -> String {
+    static func serialize(_ metadata: KotlinMetadata) throws -> String {
         let encoder = JSONEncoder()
         if #available(macOS 10.13, *) {
             encoder.outputFormatting = [.sortedKeys]
@@ -151,7 +151,7 @@ public enum RuntimeMetadataCodec {
         return encoded
     }
 
-    public static func deserialize(_ string: String) throws -> KotlinMetadata {
+    static func deserialize(_ string: String) throws -> KotlinMetadata {
         let decoder = JSONDecoder()
         guard let data = string.data(using: .utf8) else {
             throw Error.invalidUTF8

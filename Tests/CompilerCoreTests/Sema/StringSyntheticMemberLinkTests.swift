@@ -1953,4 +1953,28 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testCharSequenceReduceOrNullResolvesInCallExpressions() throws {
+        let source = """
+        fun reduceFromSequence(value: CharSequence): Char? {
+            return value.reduceOrNull { acc, ch -> if (ch == 'b') ch else acc }
+        }
+        fun reduceFromString(value: String): Char? {
+            return value.reduceOrNull { acc, ch -> if (acc == 'a') acc else ch }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Expected CharSequence.reduceOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+            let sema = try #require(ctx.sema)
+            let bindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceOrNull"
+            }
+            #expect(bindings.count == 2)
+        }
+    }
 }
