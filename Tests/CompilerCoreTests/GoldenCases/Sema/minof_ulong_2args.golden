@@ -196,9 +196,9 @@ symbol fq=__local_174.sb kind=local vis=private flags=_ type=kotlin.text.StringB
 symbol fq=__local_175.i kind=local vis=private flags=mutable type=Int
 symbol fq=__local_176.len kind=local vis=private flags=_ type=Int
 symbol fq=__local_177.sb kind=local vis=private flags=_ type=kotlin.text.StringBuilder
-symbol fq=golden.sema.minOfULongTwoArg kind=function vis=public flags=_ sig=recv=_ params=[ULong,ULong] ret=ULong
-symbol fq=golden.sema.minOfULongTwoArg.$20.a kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.minOfULongTwoArg.$20.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.twoArgMinULong kind=function vis=public flags=_ sig=recv=_ params=[ULong,ULong] ret=ULong
+symbol fq=golden.sema.twoArgMinULong.$20.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.twoArgMinULong.$20.b kind=valueParameter vis=private flags=_
 symbol fq=java.util.Locale kind=class vis=public flags=synthetic type=java.util.Locale
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
@@ -658,7 +658,7 @@ file f4 package=kotlin.time
   decl d117 property hours var=0 sym=kotlin.time.hours
   decl d118 property days var=0 sym=kotlin.time.days
 file f5 package=golden.sema
-  decl d119 fun minOfULongTwoArg sym=golden.sema.minOfULongTwoArg
+  decl d119 fun twoArgMinULong sym=golden.sema.twoArgMinULong
 expr e1 call callee=e0 args=[] type=Boolean call=kotlin.collections.List.isEmpty targs=[kotlin.collections.first.$27.T]
 expr e3 string(Collection is empty.) type=String
 expr e4 call callee=e2 args=[_:e3] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
@@ -2928,6 +2928,6 @@ expr e2507 this type=Double
 expr e2508 name(DurationUnit) type=Any ref=kotlin.time.DurationUnit
 expr e2509 memberCall recv=e2508 callee=DAYS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.DAYS
 expr e2510 memberCall recv=e2507 callee=toDuration args=[_:e2509] type=kotlin.time.Duration call=kotlin.time.toDuration#0
-expr e2512 name(a) type=ULong ref=golden.sema.minOfULongTwoArg.$20.a
-expr e2513 name(b) type=ULong ref=golden.sema.minOfULongTwoArg.$20.b
+expr e2512 name(a) type=ULong ref=golden.sema.twoArgMinULong.$20.a
+expr e2513 name(b) type=ULong ref=golden.sema.twoArgMinULong.$20.b
 expr e2514 call callee=e2511 args=[_:e2512,_:e2513] type=ULong call=kotlin.comparisons.minOf#16
