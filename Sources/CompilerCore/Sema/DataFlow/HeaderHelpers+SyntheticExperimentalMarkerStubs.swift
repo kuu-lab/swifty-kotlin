@@ -18,7 +18,6 @@
 /// | ExperimentalAssociatedObjects | kotlin.reflect    | ERROR    |
 /// | ExperimentalJsCollectionsApi | kotlin.js         | WARNING  |
 /// | ExperimentalJsExport      | kotlin.js            | WARNING  |
-/// | ExperimentalJsFileName    | kotlin.js            | WARNING  |
 /// | ExperimentalJsReflectionCreateInstance | kotlin.js | WARNING |
 /// | ExperimentalJsStatic      | kotlin.js            | WARNING  |
 /// | ExperimentalWasmJsInterop | kotlin.js            | WARNING  |
@@ -121,7 +120,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- kotlin.js.ExperimentalJsFileName (WARNING) ---
+        // --- kotlin.js package ---
         let kotlinJsPkg = ensurePackage(
             path: ["kotlin", "js"],
             symbols: symbols,
@@ -146,16 +145,6 @@ extension DataFlowSemaPhase {
         // --- kotlin.js.ExperimentalJsExport (WARNING) ---
         registerSyntheticExperimentalMarker(
             named: "ExperimentalJsExport",
-            packageFQName: kotlinJsPkg,
-            packageSymbol: kotlinJsPkgSymbol,
-            severity: "WARNING",
-            targetArguments: nil,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalJsFileName",
             packageFQName: kotlinJsPkg,
             packageSymbol: kotlinJsPkgSymbol,
             severity: "WARNING",

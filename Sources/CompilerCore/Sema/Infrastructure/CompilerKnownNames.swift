@@ -13,7 +13,6 @@ enum KnownCompilerAnnotation {
     case jvmField
     case jvmOverloads
     case experimentalJsExport
-    case experimentalJsFileName
     case experimentalJsStatic
     case experimentalJsReflectionCreateInstance
     case experimentalJsCollectionsApi
@@ -64,8 +63,6 @@ enum KnownCompilerAnnotation {
             "JvmOverloads"
         case .experimentalJsExport:
             "ExperimentalJsExport"
-        case .experimentalJsFileName:
-            "ExperimentalJsFileName"
         case .experimentalJsStatic:
             "ExperimentalJsStatic"
         case .experimentalJsReflectionCreateInstance:
@@ -139,8 +136,6 @@ enum KnownCompilerAnnotation {
             "kotlin.jvm.JvmOverloads"
         case .experimentalJsExport:
             "kotlin.js.ExperimentalJsExport"
-        case .experimentalJsFileName:
-            "kotlin.js.ExperimentalJsFileName"
         case .experimentalJsStatic:
             "kotlin.js.ExperimentalJsStatic"
         case .experimentalJsReflectionCreateInstance:
