@@ -3,7 +3,6 @@
 import XCTest
 
 final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
-    // MARK: - Binary Format Header
 
     func testSerializeEmptyRecordsProducesValidHeader() {
         let data = RuntimeReflectionMetadataEmitter.serialize([])
@@ -26,8 +25,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         let version = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
         XCTAssertEqual(UInt32(littleEndian: version), 1)
     }
-
-    // MARK: - Single Record Round-Trip
 
     func testSerializeAndDecodeSingleClassRecord() {
         let record = MetadataRecord(
@@ -87,8 +84,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertEqual(r.flags & (1 << 4), 1 << 4, "inline flag should be set")
     }
 
-    // MARK: - Multiple Records
-
     func testSerializeAndDecodeMultipleRecords() {
         let records = [
             MetadataRecord(kind: .class, mangledName: "m1", fqName: "pkg.ClassA", declaredFieldCount: 2),
@@ -117,8 +112,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertEqual(decoded?[3].arity, 1)
     }
 
-    // MARK: - Flags Encoding
-
     func testFlagsBitEncoding() {
         // dataClass=1, sealedClass=1, valueClass=1, suspend=1, inline=1
         let record = MetadataRecord(
@@ -146,8 +139,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertEqual(flags, 0)
     }
 
-    // MARK: - Kind Ordinal Coverage
-
     func testKindOrdinalForAllKinds() {
         // Verify unique ordinals for all kinds.
         let allKinds: [SymbolKind] = [
@@ -164,8 +155,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         }
         XCTAssertEqual(ordinals.count, allKinds.count)
     }
-
-    // MARK: - String Table Deduplication
 
     func testStringTableDeduplicates() {
         // Two records with the same fqName should share a string table entry.
@@ -186,8 +175,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertEqual(decoded?[1].simpleName, "Same")
     }
 
-    // MARK: - Sentinel Values
-
     func testOptionalFieldsSentinel() {
         let record = MetadataRecord(
             kind: .function,
@@ -207,8 +194,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertNil(r.instanceSizeWords)
     }
 
-    // MARK: - Record Size Consistency
-
     func testRecordSizeIs24Bytes() {
         // Each record in the binary format should be exactly 24 bytes.
         XCTAssertEqual(RuntimeReflectionMetadataEmitter.recordSize, 24)
@@ -225,8 +210,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         let expectedSize = 16 + 24 + 4 + 12 + 7
         XCTAssertEqual(data.count, expectedSize)
     }
-
-    // MARK: - Decoder Error Cases
 
     func testDecodeRejectsEmptyData() {
         let result = RuntimeReflectionMetadataDecoder.decode(Data())
@@ -256,8 +239,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    // MARK: - Simple Name Extraction
-
     func testSimpleNameExtractionFromFQName() {
         let record = MetadataRecord(kind: .class, mangledName: "m1", fqName: "com.example.pkg.MyClass")
         let data = RuntimeReflectionMetadataEmitter.serialize([record])
@@ -276,8 +257,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertEqual(decoded?[0].simpleName, "main")
         XCTAssertEqual(decoded?[0].fqName, "main")
     }
-
-    // MARK: - Sealed/Value Class Flags
 
     func testSealedClassFlag() {
         let record = MetadataRecord(
@@ -311,8 +290,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertEqual(valueFlags & (1 << 2), 1 << 2, "valueClass bit should be set")
     }
 
-    // MARK: - Arity Clamping
-
     func testArityClampedToU16Max() {
         // Arity larger than UInt16.max should be clamped.
         let record = MetadataRecord(
@@ -327,8 +304,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertNotNil(decoded)
         XCTAssertEqual(decoded?[0].arity, UInt16.max)
     }
-
-    // MARK: - Enum Class and Annotation Class Kinds
 
     func testEnumClassKindOrdinal() {
         let record = MetadataRecord(

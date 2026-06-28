@@ -24,20 +24,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ScopeFunctions",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "5\n5\n30\n5\n5\n5\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ScopeFunctions", expected: "5\n5\n30\n5\n5\n5\n")
     }
 
     func testCodegenCompilesStringBuilderAppendVarargInReceiverLambda() throws {
@@ -66,20 +53,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "StringBuilderAppendVarargReceiverLambda",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "Hello, World!\nKotlin is fun\n")
-        }
+        try assertKotlinOutput(source, moduleName: "StringBuilderAppendVarargReceiverLambda", expected: "Hello, World!\nKotlin is fun\n")
     }
 
     func testCodegenCompilesUIntArrayConstructorIndexingAndFactory() throws {
@@ -96,19 +70,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UIntArrayExecutable",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\n0\n9\n4\n9\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UIntArrayExecutable", expected: "3\n0\n9\n4\n9\n")
     }
 }
+

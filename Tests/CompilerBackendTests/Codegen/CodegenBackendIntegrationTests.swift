@@ -107,20 +107,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MetadataReflection",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MetadataReflection", expected: "1\n0\n")
     }
 
     func testCodegenProducesDeterministicKirOutput() throws {
@@ -166,20 +153,10 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "DataClassToString",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "DataClassToString",
+            expected:
                 """
                 Person(name=Alice, age=30)
                 true
@@ -191,8 +168,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
                 Person(name=Alice, age=31)
 
                 """
-            )
-        }
+        )
     }
 
     func testCodegenCompilesStringStdlibMixedThrowCalls() throws {
@@ -259,20 +235,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IntPrimitiveConversions",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "42.0\n44\n-32768\n")
-        }
+        try assertKotlinOutput(source, moduleName: "IntPrimitiveConversions", expected: "42.0\n44\n-32768\n")
     }
 
     func testCodegenCompilesComparisonTopLevelCalls() throws {
@@ -283,20 +246,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparisonTopLevelCalls",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7\n3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ComparisonTopLevelCalls", expected: "7\n3\n")
     }
 
     func testCodegenCompilesUnsignedMaxOfTopLevelCalls() throws {
@@ -307,20 +257,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedComparisonMaxOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UnsignedComparisonMaxOf", expected: "true\ntrue\n")
     }
 
     func testCodegenCompilesComparatorMaxOfTopLevelCalls() throws {
@@ -331,20 +268,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorComparisonMaxOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ComparatorComparisonMaxOf", expected: "true\ntrue\n")
     }
 
     func testCodegenCompilesComparatorSortedWithTopLevelCalls() throws {
@@ -358,28 +282,17 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ComparatorComparisonSortedWith",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "ComparatorComparisonSortedWith",
+            expected:
                 """
                 [1, 1, 3, 4, 5, 9]
                 [9, 5, 4, 3, 1, 1]
                 [9, 5, 4, 3, 1, 1]
 
                 """
-            )
-        }
+        )
     }
 
     func testCodegenCompilesGenericMaxOfTopLevelCalls() throws {
@@ -390,20 +303,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "GenericComparisonMaxOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "GenericComparisonMaxOf", expected: "true\ntrue\n")
     }
 
     func testCodegenGenericComparableTreatsNaNAsGreaterThanFiniteValues() throws {
@@ -417,20 +317,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "NaNComparable",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "NaN\nNaN\n")
-        }
+        try assertKotlinOutput(source, moduleName: "NaNComparable", expected: "NaN\nNaN\n")
     }
 
     func testCodegenListOfIndexingUsesListRuntimeGet() throws {
@@ -448,20 +335,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListGetRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\n1\n2\n3\ntrue\nfalse\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListGetRuntime", expected: "3\n1\n2\n3\ntrue\nfalse\nfalse\n")
     }
 
     func testCodegenEnumNameAndOrdinal() throws {
@@ -476,20 +350,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "EnumNameOrdinal",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "RED\n0\nGREEN\n1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "EnumNameOrdinal", expected: "RED\n0\nGREEN\n1\n")
     }
 
     func testCodegenEnumValuesAndValueOf() throws {
@@ -557,20 +418,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MutableListBasicRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 3]\n2\n[1, 3]\n[]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MutableListBasicRuntime", expected: "[1, 2, 3]\n2\n[1, 3]\n[]\n")
     }
 
     func testCodegenListComponentNUsesRuntimeAccessors() throws {
@@ -585,20 +433,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListComponentNRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "a\nb\nc\nd\ne\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListComponentNRuntime", expected: "a\nb\nc\nd\ne\n")
     }
 
     func testCodegenListFilterIsInstanceToUsesRuntimeHelper() throws {
@@ -612,20 +447,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListFilterIsInstanceToRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[99, 1, 3]\n[99, 1, 3]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListFilterIsInstanceToRuntime", expected: "[99, 1, 3]\n[99, 1, 3]\n")
     }
 
     func testCodegenCollectionContainsAndContainsAllUseRuntimeHelpers() throws {
@@ -644,20 +466,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CollectionContainsRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CollectionContainsRuntime", expected: "true\nfalse\ntrue\nfalse\ntrue\ntrue\nfalse\n")
     }
 
     func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
@@ -672,20 +481,10 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MutableListRemoveFirstOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableListRemoveFirstOrNull",
+            expected:
                 """
                 1
                 [2]
@@ -694,8 +493,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
                 -1
                 []
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenMutableListRemoveLastOrNullUsesCanonicalDiffCase() throws {
@@ -710,20 +508,10 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MutableListRemoveLastOrNull",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableListRemoveLastOrNull",
+            expected:
                 """
                 2
                 [1]
@@ -732,8 +520,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
                 -1
                 []
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenMutableListSortWithUsesCanonicalDiffCase() throws {
@@ -748,27 +535,16 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         )
         let source = try String(contentsOf: caseURL, encoding: .utf8)
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MutableListSortWith",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableListSortWith",
+            expected:
                 """
                 [1, 3, 4]
                 [4, 3, 1]
                 [fig, pear, apple]
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testCodegenSetFactoriesAndMutableSetMutationsUseRuntimeSetBox() throws {
@@ -789,20 +565,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SetRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 3]\n3\ntrue\nfalse\nfalse\ntrue\ntrue\n[2, 3]\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SetRuntime", expected: "[1, 2, 3]\n3\ntrue\nfalse\nfalse\ntrue\ntrue\n[2, 3]\ntrue\n")
     }
 
     func testCodegenSetOfNotNullFiltersNullsAndDeduplicates() throws {
@@ -818,20 +581,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SetOfNotNullRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[a, b]\n2\n[]\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "SetOfNotNullRuntime", expected: "[a, b]\n2\n[]\ntrue\n")
     }
 
     func testCodegenLinkedSetOfFactoryUsesMutableRuntimeSet() throws {
@@ -848,20 +598,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "LinkedSetOfFactoryRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2]\ntrue\n[1, 2, 3]\n[x]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "LinkedSetOfFactoryRuntime", expected: "[1, 2]\ntrue\n[1, 2, 3]\n[x]\n")
     }
 
     func testCodegenHashSetOfFactoryUsesMutableRuntimeSet() throws {
@@ -878,20 +615,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "HashSetOfFactoryRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2]\ntrue\n[1, 2, 3]\n[x]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "HashSetOfFactoryRuntime", expected: "[1, 2]\ntrue\n[1, 2, 3]\n[x]\n")
     }
 
     func testCodegenMutableSetAddAllAcceptsSetAndListCollections() throws {
@@ -907,20 +631,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MutableSetAddAllRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\n[1, 2, 3, 4]\ntrue\n[1, 2, 3, 4, 5]\n[]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MutableSetAddAllRuntime", expected: "true\n[1, 2, 3, 4]\ntrue\n[1, 2, 3, 4, 5]\n[]\n")
     }
 
     func testCodegenIterableFirstNotNullOfReturnsFirstValueAndThrowsWhenMissing() throws {
@@ -937,26 +648,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "IterableFirstNotNullOfRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            do {
-                try LinkPhase().run(ctx)
-            } catch {
-                let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
-                XCTFail("Link failed for firstNotNullOf: \(diagnostics)")
-                throw error
-            }
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "hit\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "IterableFirstNotNullOfRuntime", expected: "hit\nempty\n")
     }
 
     func testCodegenListPlusSetAppendsSetElements() throws {
@@ -968,20 +660,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListPlusSetRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 4, 5]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListPlusSetRuntime", expected: "[1, 2, 4, 5]\n")
     }
 
     func testCodegenMutableMapBasicMutationsUseRuntimeMapBox() throws {
@@ -1002,20 +681,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MutableMapBasicRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\ntrue\n1\n{a=3, b=2}\n2\n{a=3}\n3\n7\n{a=3, c=7}\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MutableMapBasicRuntime", expected: "{a=1, b=2}\ntrue\n1\n{a=3, b=2}\n2\n{a=3}\n3\n7\n{a=3, c=7}\ntrue\n")
     }
 
     func testCodegenLinkedMapOfFactoryUsesMutableRuntimeMap() throws {
@@ -1033,20 +699,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "LinkedMapOfFactoryRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
-        }
+        try assertKotlinOutput(source, moduleName: "LinkedMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
     }
 
     func testCodegenHashMapOfFactoryUsesMutableRuntimeMap() throws {
@@ -1064,20 +717,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "HashMapOfFactoryRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
-        }
+        try assertKotlinOutput(source, moduleName: "HashMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
     }
 
     func testCodegenBuildMapUseRuntimeBuilder() throws {
@@ -1091,20 +731,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BuildMapRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BuildMapRuntime", expected: "{a=1, b=2}\n")
     }
 
     func testCodegenBuildSetUseRuntimeBuilder() throws {
@@ -1122,20 +749,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "BuildSetRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[a, b, c]\n3\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "BuildSetRuntime", expected: "[a, b, c]\n3\ntrue\n")
     }
 
     func testCodegenMapWithDefaultUsesRuntimeDefaultForGetValue() throws {
@@ -1149,20 +763,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MapWithDefaultRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "10\n200\nnull\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MapWithDefaultRuntime", expected: "10\n200\nnull\n")
     }
 
     func testCodegenListMaxOfOrNullReturnsLargestTransformedValueOrNull() throws {
@@ -1174,20 +775,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListMaxOfOrNullRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "9\nnull\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListMaxOfOrNullRuntime", expected: "9\nnull\n")
     }
 
     func testCodegenListMaxOrNullReturnsLargestElementOrNull() throws {
@@ -1199,20 +787,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListMaxOrNullRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "4\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListMaxOrNullRuntime", expected: "4\ntrue\n")
     }
 
     func testCodegenListFlattenUsesRuntimeHelper() throws {
@@ -1244,20 +819,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListMaxOfWithOrNullRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "9\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListMaxOfWithOrNullRuntime", expected: "9\ntrue\n")
     }
 
     func testCodegenListMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() throws {
@@ -1273,20 +835,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListMinOfRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "20\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListMinOfRuntime", expected: "20\nempty\n")
     }
 
     func testCodegenListMaxOfWithReturnsLargestTransformedValueAndThrowsOnEmpty() throws {
@@ -1303,20 +852,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListMaxOfWithRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "9\nempty\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListMaxOfWithRuntime", expected: "9\nempty\n")
     }
 
     func testCodegenListFlatMapIndexedUsesRuntimeHelper() throws {
@@ -1354,20 +890,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ListToHashSetRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[1, 2, 3]\ntrue\nfalse\n[1, 2, 3, 4]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "ListToHashSetRuntime", expected: "[1, 2, 3]\ntrue\nfalse\n[1, 2, 3, 4]\n")
     }
 
     // STDLIB-COMP-FN-009: maxOf(Byte, Byte, Byte)
@@ -1381,20 +904,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfByteThreeArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfByteThreeArg", expected: "7\n")
     }
 
     // STDLIB-COMP-FN-017: maxOf(Int, Int)
@@ -1407,20 +917,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfIntTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfIntTwoArg", expected: "8\n")
     }
 
     // STDLIB-COMP-FN-041: minOf(Int, Int)
@@ -1433,20 +930,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfIntTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "4\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfIntTwoArg", expected: "4\n")
     }
 
     // STDLIB-COMP-FN-043: minOf(a: Int, vararg other: Int)
@@ -1462,23 +946,9 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfIntVararg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n-9\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfIntVararg", expected: "1\n-9\n")
     }
 
-    // STDLIB-COMP-FN-020: maxOf(Long, Long) — 2-arg Long overload
     func testCodegenCompilesMaxOfLongTwoArgTopLevelCall() throws {
         let source = """
         fun main() {
@@ -1489,20 +959,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfLongTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7\n400\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfLongTwoArg", expected: "7\n400\n")
     }
 
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long)
@@ -1518,20 +975,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfLongVararg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "8\n400\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfLongVararg", expected: "8\n400\n")
     }
 
     // STDLIB-COMP-FN-046: minOf(a: Long, vararg other: Long)
@@ -1573,20 +1017,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfByteTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfByteTwoArg", expected: "3\n")
     }
 
     // STDLIB-COMP-FN-034: minOf(a: Byte, vararg other: Byte)
@@ -1601,20 +1032,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfByteVararg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfByteVararg", expected: "1\n")
     }
 
     // STDLIB-COMP-FN-012: maxOf(Double, Double, Double)
@@ -1628,20 +1046,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfDoubleThreeArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7.25\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfDoubleThreeArg", expected: "7.25\n")
     }
 
     // STDLIB-COMP-FN-024: maxOf(Short, Short, Short)
@@ -1655,20 +1060,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfShortThreeArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfShortThreeArg", expected: "7\n")
     }
 
     // STDLIB-COMP-FN-036: minOf(Double, Double, Double)
@@ -1682,20 +1074,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfDoubleThreeArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1.5\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfDoubleThreeArg", expected: "1.5\n")
     }
 
     // STDLIB-COMP-FN-039: minOf(Float, Float, Float)
@@ -1709,20 +1088,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfFloatThreeArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1.5\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfFloatThreeArg", expected: "1.5\n")
     }
 
     // STDLIB-COMP-FN-029: minOf(T, T) where T : Comparable<T>
@@ -1762,20 +1128,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfComparableThreeArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "apple\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfComparableThreeArg", expected: "apple\n")
     }
 
     // STDLIB-COMP-FN-011: maxOf(Double, Double)
@@ -1788,20 +1141,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MaxOfDoubleTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "7.25\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MaxOfDoubleTwoArg", expected: "7.25\n")
     }
 
     // STDLIB-COMP-FN-035: minOf(Double, Double)
@@ -1814,20 +1154,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfDoubleTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "1.5\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfDoubleTwoArg", expected: "1.5\n")
     }
 
     // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte — end-to-end codegen
@@ -1857,3 +1184,4 @@ final class CodegenBackendIntegrationTests: XCTestCase {
 
     // MARK: - Private Helpers
 }
+

@@ -3,7 +3,6 @@
 import XCTest
 
 final class NameManglerTests: XCTestCase {
-    // MARK: - Basic Mangling
 
     func testMangleProducesKKPrefix() throws {
         let mangler = NameMangler()
@@ -112,8 +111,6 @@ final class NameManglerTests: XCTestCase {
         XCTAssertEqual(lastPart.count, 8)
         XCTAssertTrue(lastPart.allSatisfy(\.isHexDigit))
     }
-
-    // MARK: - Kind Codes
 
     func testMangleKindCodeForFunction() throws {
         let mangler = NameMangler()
@@ -267,8 +264,6 @@ final class NameManglerTests: XCTestCase {
         XCTAssertTrue(result.contains("__T__"))
     }
 
-    // MARK: - Getter / Setter DeclKind
-
     func testMangleGetterDeclKindOverridesKindCode() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -309,8 +304,6 @@ final class NameManglerTests: XCTestCase {
         XCTAssertTrue(result.contains("__S__"))
     }
 
-    // MARK: - mangledSignature
-
     func testMangledSignatureForFunctionWithSignature() throws {
         let mangler = NameMangler()
         let interner = StringInterner()
@@ -339,8 +332,6 @@ final class NameManglerTests: XCTestCase {
         // Should contain encoded function type with Int params
         XCTAssertTrue(sig.contains("I"))
     }
-
-    // MARK: - Value Class Mangling
 
     func testEncodeTypeUnboxesValueClassToUnderlyingType() throws {
         let mangler = NameMangler()

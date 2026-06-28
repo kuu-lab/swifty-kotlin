@@ -14,20 +14,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharPredicatesRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CharPredicatesRuntime", expected: "true\ntrue\ntrue\ntrue\n")
     }
 
     // STDLIB-TEXT-PROP-008: Char.isIdentifierIgnorable end-to-end execution test
@@ -39,23 +26,9 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharIsIdentifierIgnorableRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CharIsIdentifierIgnorableRuntime", expected: "true\nfalse\n")
     }
 
-    // STDLIB-TEXT-PROP-015: Char.isSurrogate end-to-end execution test
     func testCodegenCharIsSurrogateMatchesExpectedOutput() throws {
         let source = """
         fun main() {
@@ -64,25 +37,7 @@ extension CodegenBackendIntegrationTests {
             println('A'.isSurrogate())
         }
         """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharIsSurrogateRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                "true\ntrue\nfalse\n",
-                "0xD800 and 0xDFFF are surrogates; 'A' is not"
-            )
-        }
+        try assertKotlinOutput(source, moduleName: "CharIsSurrogateRuntime", expected: "true\ntrue\nfalse\n")
     }
 
     // STDLIB-TEXT-PROP-016: Char.isTitleCase end-to-end execution test
@@ -94,20 +49,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharIsTitleCaseRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CharIsTitleCaseRuntime", expected: "true\nfalse\n")
     }
 
     func testCodegenCharCaseConversionHelpersHandleUnicodeMappings() throws {
@@ -119,19 +61,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharCaseConversionRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "SS\nǅ\ni̇\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CharCaseConversionRuntime", expected: "SS\nǅ\ni̇\n")
     }
 }
+

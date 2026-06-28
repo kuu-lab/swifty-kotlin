@@ -3,38 +3,7 @@
 import Foundation
 import XCTest
 
-/// Behavioral parity tests for Kotlin's 32-bit `Int` arithmetic semantics.
-///
-/// Reference: Kotlin language spec / `kotlin.Int` API docs. `Int` is a 32-bit
-/// signed integer whose arithmetic operators wrap around using two's
-/// complement, and whose shift operators (`shl`, `shr`, `ushr`) use only the
-/// low five bits of the shift distance. These tests compile and run real
-/// programs and assert the documented results, guarding ``IntegerNarrowingPass``.
 extension CodegenBackendIntegrationTests {
-    private func assertProgramOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, expected, file: file, line: line)
-        }
-    }
-
-    /// `Int` arithmetic overflows with two's-complement wraparound.
     func testCodegenIntArithmeticWrapsAt32Bits() throws {
         let source = """
         fun main() {
@@ -47,7 +16,7 @@ extension CodegenBackendIntegrationTests {
             println(Int.MIN_VALUE % -1)
         }
         """
-        try assertProgramOutput(
+        try assertKotlinOutput(
             source,
             moduleName: "IntOverflowArithmetic",
             expected: """
@@ -61,9 +30,6 @@ extension CodegenBackendIntegrationTests {
             """ + "\n"
         )
     }
-
-    /// Overflow also holds when the operands are runtime values rather than
-    /// compile-time constants (exercises the codegen path, not constant folding).
     func testCodegenIntArithmeticWrapsForRuntimeValues() throws {
         let source = """
         fun addOne(x: Int): Int = x + 1
@@ -81,7 +47,7 @@ extension CodegenBackendIntegrationTests {
             println(acc)
         }
         """
-        try assertProgramOutput(
+        try assertKotlinOutput(
             source,
             moduleName: "IntOverflowRuntime",
             expected: """
@@ -92,9 +58,6 @@ extension CodegenBackendIntegrationTests {
             """ + "\n"
         )
     }
-
-    /// `Int` shift operators mask the shift distance to its low five bits and
-    /// keep results within 32 bits.
     func testCodegenIntShiftSemantics() throws {
         let source = """
         fun main() {
@@ -109,7 +72,7 @@ extension CodegenBackendIntegrationTests {
             println(Int.MIN_VALUE ushr 31)
         }
         """
-        try assertProgramOutput(
+        try assertKotlinOutput(
             source,
             moduleName: "IntShiftSemantics",
             expected: """
@@ -125,8 +88,6 @@ extension CodegenBackendIntegrationTests {
             """ + "\n"
         )
     }
-
-    /// `Int` bitwise operators produce 32-bit results.
     func testCodegenIntBitwiseSemantics() throws {
         let source = """
         fun main() {
@@ -137,7 +98,7 @@ extension CodegenBackendIntegrationTests {
             println(255.inv())
         }
         """
-        try assertProgramOutput(
+        try assertKotlinOutput(
             source,
             moduleName: "IntBitwiseSemantics",
             expected: """
@@ -149,9 +110,6 @@ extension CodegenBackendIntegrationTests {
             """ + "\n"
         )
     }
-
-    /// Regression guard: `Long.MIN_VALUE` arithmetic must not be corrupted by
-    /// the null sentinel (`Int64.min`) used in nullable boxing.
     func testCodegenLongMinValueArithmetic() throws {
         let source = """
         fun main() {
@@ -161,7 +119,7 @@ extension CodegenBackendIntegrationTests {
             println(-lmin)
         }
         """
-        try assertProgramOutput(
+        try assertKotlinOutput(
             source,
             moduleName: "LongMinValueArithmetic",
             expected: """
@@ -171,9 +129,6 @@ extension CodegenBackendIntegrationTests {
             """ + "\n"
         )
     }
-
-    /// Regression guard: `Long` arithmetic and shifts stay 64-bit and must not
-    /// be narrowed by ``IntegerNarrowingPass``.
     func testCodegenLongArithmeticStays64Bit() throws {
         let source = """
         fun main() {
@@ -186,7 +141,7 @@ extension CodegenBackendIntegrationTests {
             println(i + l)
         }
         """
-        try assertProgramOutput(
+        try assertKotlinOutput(
             source,
             moduleName: "LongArithmetic64Bit",
             expected: """
@@ -199,3 +154,4 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
+
