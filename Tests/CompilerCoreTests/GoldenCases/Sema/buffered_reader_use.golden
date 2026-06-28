@@ -30,7 +30,7 @@ expr e3 localDecl file mutable=0 type=_ init=e1 type=Unit ref=__local_0.file
 expr e4 name(file) type=java.io.File ref=__local_0.file
 expr e5 memberCall recv=e4 callee=bufferedReader args=[] type=java.io.BufferedReader call=java.io.File.bufferedReader
 expr e6 name(reader) type=java.io.BufferedReader ref=s-0
-expr e7 memberCall recv=e6 callee=readText args=[] type=String call=kotlin.io.readText
+expr e7 memberCall recv=e6 callee=readText args=[] type=String call=kotlin.io.readText#1
 expr e8 lambda params=[reader] body=e7 label=use type=(java.io.BufferedReader) -> String
 expr e9 memberCall recv=e5 callee=use args=[_:e8] type=String
 expr e10 return value=e9 type=Nothing
