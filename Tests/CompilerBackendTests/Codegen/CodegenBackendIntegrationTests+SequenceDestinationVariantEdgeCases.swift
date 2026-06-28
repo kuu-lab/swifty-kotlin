@@ -14,20 +14,7 @@ extension CodegenBackendIntegrationTests {
             println(dest)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "STDLIBSEQ022_MAP_TO",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[seed, 1, 2, 3]\n[seed, 1, 2, 3]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "STDLIBSEQ022_MAP_TO", expected: "[seed, 1, 2, 3]\n[seed, 1, 2, 3]\n")
     }
 
     func testSequenceMapNotNullToAppendsNonNullTransforms() throws {
@@ -42,20 +29,7 @@ extension CodegenBackendIntegrationTests {
             println(dest)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "STDLIBSEQ022_MAP_NOT_NULL_TO",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[seed, 2, 4]\n[seed, 2, 4]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "STDLIBSEQ022_MAP_NOT_NULL_TO", expected: "[seed, 2, 4]\n[seed, 2, 4]\n")
     }
 
     func testSequenceMapIndexedToAppendsIndexedTransforms() throws {
@@ -71,20 +45,7 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "STDLIBSEQ022_MAP_INDEXED_TO",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[seed, 0:10, 1:20, 2:30]\n[seed, 0:10, 1:20, 2:30]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "STDLIBSEQ022_MAP_INDEXED_TO", expected: "[seed, 0:10, 1:20, 2:30]\n[seed, 0:10, 1:20, 2:30]\n")
     }
 
     func testSequenceFlatMapToAppendsFlattenedTransforms() throws {
@@ -99,25 +60,14 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFlatMapToRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapToRuntime",
+            expected:
                 """
                 [seed, a, aa, bc, bcbc]
                 """ + "\n"
-            )
-        }
+        )
     }
 
     func testSequenceMapIndexedNotNullToAppendsNonNullIndexedTransforms() throws {
@@ -132,20 +82,7 @@ extension CodegenBackendIntegrationTests {
             println(result)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "STDLIBSEQ022_02",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[seed, 0:10, 2:30]\n[seed, 0:10, 2:30]\n")
-        }
+        try assertKotlinOutput(source, moduleName: "STDLIBSEQ022_02", expected: "[seed, 0:10, 2:30]\n[seed, 0:10, 2:30]\n")
     }
 
     func testSequenceFlatMapIndexedToAppendsFlattenedIndexedTransforms() throws {
@@ -160,24 +97,14 @@ extension CodegenBackendIntegrationTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "SequenceFlatMapIndexedToRuntime",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFlatMapIndexedToRuntime",
+            expected:
                 """
                 [seed, 0:a, aa, 1:bc, bcbc]
                 """ + "\n"
-            )
-        }
+        )
     }
 }
+

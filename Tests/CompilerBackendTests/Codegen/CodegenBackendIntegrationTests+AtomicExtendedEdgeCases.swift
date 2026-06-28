@@ -6,8 +6,6 @@ import XCTest
 // STDLIB-033: kotlin.concurrent / kotlin.concurrent.atomics parity edge cases
 extension CodegenBackendIntegrationTests {
 
-    // MARK: - AtomicInt extended edge cases
-
     func testCodegenAtomicIntCASSuccessReturnsTrueAndUpdatesValue() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -20,13 +18,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntCASSuccess", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\n20\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntCASSuccess", expected: "true\n20\n")
     }
 
     func testCodegenAtomicIntAsJavaAtomic() throws {
@@ -41,13 +33,7 @@ extension CodegenBackendIntegrationTests {
             println("ok")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntAsJavaAtomic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntAsJavaAtomic", expected: "ok\n")
     }
 
     func testCodegenAtomicIntCASFailureReturnsFalseAndLeavesValue() throws {
@@ -62,13 +48,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntCASFailure", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "false\n10\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntCASFailure", expected: "false\n10\n")
     }
 
     func testCodegenAtomicIntCompareAndExchangeReturnsCurrentValue() throws {
@@ -86,13 +66,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntCAE", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "5\n10\n10\n10\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntCAE", expected: "5\n10\n10\n10\n")
     }
 
     func testCodegenAtomicIntFetchAndIncrementReturnsOldValue() throws {
@@ -110,13 +84,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntIncrement", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "7\n8\n8\n7\n8\n8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntIncrement", expected: "7\n8\n8\n7\n8\n8\n")
     }
 
     func testCodegenAtomicIntLargePositiveValue() throws {
@@ -135,14 +103,7 @@ extension CodegenBackendIntegrationTests {
             println(after > 0)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntLargeValue", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalized, "2147483647\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntLargeValue", expected: "2147483647\ntrue\n")
     }
 
     func testCodegenAtomicIntStoreAndLoad() throws {
@@ -157,16 +118,8 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntStoreLoad", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "0\n42\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntStoreLoad", expected: "0\n42\n")
     }
-
-    // MARK: - AtomicLong edge cases
 
     func testCodegenAtomicLongAsJavaAtomic() throws {
         let source = """
@@ -180,13 +133,7 @@ extension CodegenBackendIntegrationTests {
             println("ok")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongAsJavaAtomic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongAsJavaAtomic", expected: "ok\n")
     }
 
     func testCodegenAtomicLongBasicOperations() throws {
@@ -203,13 +150,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongBasic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "100\n200\n200\n300\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongBasic", expected: "100\n200\n200\n300\n")
     }
 
     func testCodegenAtomicLongCASSuccessAndFailure() throws {
@@ -225,13 +166,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongCAS", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\n60\nfalse\n60\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongCAS", expected: "true\n60\nfalse\n60\n")
     }
 
     func testCodegenAtomicLongCompareAndExchangeReturnsCurrentValue() throws {
@@ -247,13 +182,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongCAE", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n20\n20\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongCAE", expected: "10\n20\n20\n20\n")
     }
 
     func testCodegenAtomicLongArithmeticOperations() throws {
@@ -274,13 +203,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArithmetic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "5\n5\n8\n8\n9\n9\n8\n9\n9\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArithmetic", expected: "5\n5\n8\n8\n9\n9\n8\n9\n9\n")
     }
 
     func testCodegenAtomicLongNegativeDeltaArithmetic() throws {
@@ -296,16 +219,8 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongNegativeDelta", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "7\n7\n7\n5\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongNegativeDelta", expected: "7\n7\n7\n5\n")
     }
-
-    // MARK: - AtomicBoolean edge cases
 
     func testCodegenAtomicBooleanBasicOperations() throws {
         let source = """
@@ -321,13 +236,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicBooleanBasic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "false\ntrue\ntrue\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicBooleanBasic", expected: "false\ntrue\ntrue\nfalse\n")
     }
 
     func testCodegenAtomicBooleanAsJavaAtomic() throws {
@@ -342,13 +251,7 @@ extension CodegenBackendIntegrationTests {
             println("ok")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicBooleanAsJavaAtomic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicBooleanAsJavaAtomic", expected: "ok\n")
     }
 
     func testCodegenAsKotlinAtomicIntOverload() throws {
@@ -383,13 +286,7 @@ extension CodegenBackendIntegrationTests {
             println(intArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicArrayOverloads", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "11\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AsKotlinAtomicArrayOverloads", expected: "11\n")
     }
 
     func testCodegenAtomicBooleanCASSuccessAndFailure() throws {
@@ -405,13 +302,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicBooleanCAS", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\nfalse\nfalse\nfalse\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicBooleanCAS", expected: "true\nfalse\nfalse\nfalse\n")
     }
 
     func testCodegenAtomicBooleanCompareAndExchangeReturnsCurrentValue() throws {
@@ -429,16 +320,8 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicBooleanCAE", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "false\ntrue\ntrue\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicBooleanCAE", expected: "false\ntrue\ntrue\ntrue\n")
     }
-
-    // MARK: - AtomicReference identity semantics
 
     func testCodegenAtomicReferenceAsJavaAtomic() throws {
         let source = """
@@ -452,13 +335,7 @@ extension CodegenBackendIntegrationTests {
             println("ok")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicReferenceAsJavaAtomic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicReferenceAsJavaAtomic", expected: "ok\n")
     }
 
     func testCodegenAtomicReferenceIdentityVsEqualityCAS() throws {
@@ -478,15 +355,7 @@ extension CodegenBackendIntegrationTests {
             println(ref.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicRefIdentity", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalized = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            // CAS with the identity-loaded reference must succeed
-            XCTAssertEqual(normalized, "true\nhello\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicRefIdentity", expected: "true\nhello\n")
     }
 
     func testCodegenAtomicReferenceCompareAndExchangeReturnsCurrentValue() throws {
@@ -509,13 +378,7 @@ extension CodegenBackendIntegrationTests {
             println(ref.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicRefCAE", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "alpha\nbeta\nbeta\nbeta\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicRefCAE", expected: "alpha\nbeta\nbeta\nbeta\n")
     }
 
     func testCodegenAtomicReferenceExchangeAndStore() throws {
@@ -534,13 +397,7 @@ extension CodegenBackendIntegrationTests {
             println(ref.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicRefExchangeStore", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "v1\nv2\nv3\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicRefExchangeStore", expected: "v1\nv2\nv3\n")
     }
 
     func testCodegenAtomicArrayAsJavaAtomicArray() throws {
@@ -555,13 +412,7 @@ extension CodegenBackendIntegrationTests {
             println("ok")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicArrayAsJavaAtomicArray", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicArrayAsJavaAtomicArray", expected: "ok\n")
     }
 
     func testCodegenAtomicArrayFetchAndUpdateAt() throws {
@@ -577,13 +428,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicArrayFetchAndUpdateAt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "a\nab\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicArrayFetchAndUpdateAt", expected: "a\nab\n")
     }
 
     func testCodegenAtomicArrayUpdateAt() throws {
@@ -598,13 +443,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicArrayUpdateAt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ab\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicArrayUpdateAt", expected: "ab\n")
     }
 
     func testCodegenAtomicArrayCompareAndSetAt() throws {
@@ -622,13 +461,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicArrayCompareAndSetAt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\nb\nfalse\nb\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicArrayCompareAndSetAt", expected: "true\nb\nfalse\nb\n")
     }
 
     func testCodegenAtomicArrayOfNullsFactory() throws {
@@ -645,13 +478,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(1))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicArrayOfNullsFactory", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "2\nfirst\nvalue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicArrayOfNullsFactory", expected: "2\nfirst\nvalue\n")
     }
 
     func testCodegenAtomicArrayOfFactory() throws {
@@ -677,13 +504,7 @@ extension CodegenBackendIntegrationTests {
             println(spread.loadAt(1))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicArrayOfFactory", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "2\nfirst\nvalue\nnext\n0\n2\nspread\nvalues\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicArrayOfFactory", expected: "2\nfirst\nvalue\nnext\n0\n2\nspread\nvalues\n")
     }
 
     func testCodegenAtomicArrayUpdateAndFetchAt() throws {
@@ -699,16 +520,8 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicArrayUpdateAndFetchAt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ab\nab\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicArrayUpdateAndFetchAt", expected: "ab\nab\n")
     }
-
-    // MARK: - AtomicIntArray edge cases
 
     func testCodegenAtomicIntArrayAsJavaAtomicArray() throws {
         let source = """
@@ -722,13 +535,7 @@ extension CodegenBackendIntegrationTests {
             println("ok")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayAsJavaAtomicArray", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayAsJavaAtomicArray", expected: "ok\n")
     }
 
     func testCodegenAtomicIntArrayBasicOperations() throws {
@@ -746,13 +553,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(1))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayBasic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "3\n0\n42\n42\n99\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayBasic", expected: "3\n0\n42\n42\n99\n")
     }
 
     func testCodegenAtomicIntArrayInitFactory() throws {
@@ -768,13 +569,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(2))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayInitFactory", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "3\n0\n1\n2\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayInitFactory", expected: "3\n0\n1\n2\n")
     }
 
     func testCodegenAtomicIntArrayCASOperations() throws {
@@ -793,13 +588,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayCAS", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\n20\nfalse\n20\n20\n50\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayCAS", expected: "true\n20\nfalse\n20\n20\n50\n")
     }
 
     func testCodegenAtomicIntArrayArithmeticOperations() throws {
@@ -822,13 +611,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayArithmetic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "5\n5\n8\n8\n9\n10\n10\n10\n9\n8\n8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayArithmetic", expected: "5\n5\n8\n8\n9\n10\n10\n10\n9\n8\n8\n")
     }
 
     func testCodegenAtomicIntArrayFetchAndUpdateAt() throws {
@@ -847,13 +630,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayFetchAndUpdateAt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n20\n15\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayFetchAndUpdateAt", expected: "10\n20\n20\n15\n")
     }
 
     func testCodegenAtomicIntArrayIndexOperator() throws {
@@ -869,13 +646,7 @@ extension CodegenBackendIntegrationTests {
             println(arr[1])
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayIndexOp", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "7\n13\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayIndexOp", expected: "7\n13\n")
     }
 
     func testCodegenAsKotlinAtomicArrayOverloads() throws {
@@ -889,16 +660,8 @@ extension CodegenBackendIntegrationTests {
             println(intArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicArrayOverloads", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AsKotlinAtomicArrayOverloads", expected: "0\n")
     }
-
-    // MARK: - AtomicLongArray edge cases
 
     func testCodegenAtomicLongArrayAsJavaAtomicArray() throws {
         let source = """
@@ -912,13 +675,7 @@ extension CodegenBackendIntegrationTests {
             println("ok")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayAsJavaAtomicArray", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayAsJavaAtomicArray", expected: "ok\n")
     }
 
     func testCodegenAtomicLongArrayBasicOperations() throws {
@@ -936,13 +693,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(2))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayBasic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "3\n0\n100\n100\n200\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayBasic", expected: "3\n0\n100\n100\n200\n")
     }
 
     func testCodegenAtomicLongArrayInitFactory() throws {
@@ -960,13 +711,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(2))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayInitFactory", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "3\n10\n20\n30\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayInitFactory", expected: "3\n10\n20\n30\n")
     }
 
     func testCodegenAtomicLongArrayCASOperations() throws {
@@ -985,13 +730,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayCAS", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\n20\nfalse\n20\n20\n50\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayCAS", expected: "true\n20\nfalse\n20\n20\n50\n")
     }
 
     func testCodegenAtomicLongArrayArithmeticOperations() throws {
@@ -1013,13 +752,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayArithmetic", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "5\n5\n8\n8\n9\n10\n10\n9\n8\n8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayArithmetic", expected: "5\n5\n8\n8\n9\n10\n10\n9\n8\n8\n")
     }
 
     func testCodegenAtomicLongArrayFetchAndUpdateAtThirdScenario() throws {
@@ -1038,13 +771,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayFetchAndUpdateAt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "7\n21\n21\n17\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayFetchAndUpdateAt", expected: "7\n21\n21\n17\n")
     }
 
     func testCodegenAtomicIncrementAndGetOverloads() throws {
@@ -1075,13 +802,7 @@ extension CodegenBackendIntegrationTests {
             println(longArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIncrementAndGet", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "2\n2\n4\n4\n6\n6\n8\n8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIncrementAndGet", expected: "2\n2\n4\n4\n6\n6\n8\n8\n")
     }
 
     func testCodegenAtomicLongArrayFetchAndUpdateAtSecondScenario() throws {
@@ -1100,13 +821,7 @@ extension CodegenBackendIntegrationTests {
             println(arr.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayFetchAndUpdateAt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n20\n15\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayFetchAndUpdateAt", expected: "10\n20\n20\n15\n")
     }
 
     func testCodegenAtomicGetAndIncrementOverloads() throws {
@@ -1137,13 +852,7 @@ extension CodegenBackendIntegrationTests {
             println(longArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicGetAndIncrement", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n2\n3\n4\n5\n6\n7\n8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicGetAndIncrement", expected: "1\n2\n3\n4\n5\n6\n7\n8\n")
     }
 
     func testCodegenAtomicGetAndDecrementOverloads() throws {
@@ -1174,13 +883,7 @@ extension CodegenBackendIntegrationTests {
             println(longArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicGetAndDecrement", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "2\n1\n4\n3\n6\n5\n8\n7\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicGetAndDecrement", expected: "2\n1\n4\n3\n6\n5\n8\n7\n")
     }
 
     func testCodegenAtomicGetAndAddOverloads() throws {
@@ -1211,13 +914,7 @@ extension CodegenBackendIntegrationTests {
             println(longArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicGetAndAdd", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n3\n3\n7\n5\n7\n7\n10\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicGetAndAdd", expected: "1\n3\n3\n7\n5\n7\n7\n10\n")
     }
 
     func testCodegenAtomicDecrementAndGetOverloads() throws {
@@ -1248,13 +945,7 @@ extension CodegenBackendIntegrationTests {
             println(longArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicDecrementAndGet", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n1\n3\n3\n5\n5\n7\n7\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicDecrementAndGet", expected: "1\n1\n3\n3\n5\n5\n7\n7\n")
     }
 
     func testCodegenAtomicAddAndGetOverloads() throws {
@@ -1285,16 +976,8 @@ extension CodegenBackendIntegrationTests {
             println(longArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicAddAndGet", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "3\n3\n7\n7\n7\n7\n10\n10\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicAddAndGet", expected: "3\n3\n7\n7\n7\n7\n10\n10\n")
     }
-
-    // MARK: - AtomicInt default initial value
 
     func testCodegenAtomicIntDefaultInitialValue() throws {
         let source = """
@@ -1306,16 +989,8 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntDefaultInit", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntDefaultInit", expected: "0\n")
     }
-
-    // MARK: - AtomicInt getAndUpdate / updateAndGet
 
     func testCodegenAtomicIntGetAndUpdate() throws {
         let source = """
@@ -1335,13 +1010,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntGetAndUpdate", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n20\n17\n22\n22\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntGetAndUpdate", expected: "10\n20\n20\n17\n22\n22\n")
     }
 
     func testCodegenAtomicLongGetAndUpdate() throws {
@@ -1362,16 +1031,8 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongGetAndUpdate", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n20\n17\n22\n22\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongGetAndUpdate", expected: "10\n20\n20\n17\n22\n22\n")
     }
-
-    // MARK: - AtomicBoolean getAndUpdate / updateAndGet
 
     func testCodegenAtomicBooleanGetAndUpdate() throws {
         let source = """
@@ -1390,16 +1051,8 @@ extension CodegenBackendIntegrationTests {
             println(new2)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicBooleanGetAndUpdate", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "false\ntrue\ntrue\nfalse\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicBooleanGetAndUpdate", expected: "false\ntrue\ntrue\nfalse\ntrue\n")
     }
-
-    // MARK: - Atomic getAndSet
 
     func testCodegenAtomicGetAndSetOverloads() throws {
         let source = """
@@ -1440,16 +1093,8 @@ extension CodegenBackendIntegrationTests {
             println(longArray.loadAt(0))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicGetAndSet", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n2\n3\n4\na\nb\nx\ny\n5\n6\n7\n8\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicGetAndSet", expected: "1\n2\n3\n4\na\nb\nx\ny\n5\n6\n7\n8\n")
     }
-
-    // MARK: - kotlin.concurrent (non-atomics) AtomicInt
 
     func testCodegenKotlinConcurrentAtomicIntLoadStore() throws {
         let source = """
@@ -1462,13 +1107,7 @@ extension CodegenBackendIntegrationTests {
             println(a.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "KConcurrentAtomicInt", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "5\n10\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KConcurrentAtomicInt", expected: "5\n10\n")
     }
 
     func testCodegenKotlinConcurrentAtomicLongOperations() throws {
@@ -1483,13 +1122,7 @@ extension CodegenBackendIntegrationTests {
             println(value.addAndFetch(2L))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "KConcurrentAtomicLong", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "5\n10\n12\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KConcurrentAtomicLong", expected: "5\n10\n12\n")
     }
 
     func testCodegenKotlinConcurrentAtomicReferenceOperations() throws {
@@ -1504,13 +1137,7 @@ extension CodegenBackendIntegrationTests {
             println(ref.load())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "KConcurrentAtomicReference", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "first\nsecond\nthird\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KConcurrentAtomicReference", expected: "first\nsecond\nthird\n")
     }
 
     func testCodegenKotlinConcurrentAtomicIntArrayOperations() throws {
@@ -1527,13 +1154,7 @@ extension CodegenBackendIntegrationTests {
             println(values.size)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "KConcurrentAtomicIntArray", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n15\n2\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KConcurrentAtomicIntArray", expected: "10\n20\n15\n2\n")
     }
 
     func testCodegenKotlinConcurrentAtomicLongArrayOperations() throws {
@@ -1550,16 +1171,8 @@ extension CodegenBackendIntegrationTests {
             println(values.size)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "KConcurrentAtomicLongArray", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n15\n2\n")
-        }
+        try assertKotlinOutput(source, moduleName: "KConcurrentAtomicLongArray", expected: "10\n20\n15\n2\n")
     }
-
-    // MARK: - ABI-001: AtomicBoolean.value setter
 
     func testCodegenAtomicBooleanValueSetterWiresBoolStore() throws {
         let source = """
@@ -1572,13 +1185,7 @@ extension CodegenBackendIntegrationTests {
             println(a.value)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicBoolSetterABI001", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "true\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicBoolSetterABI001", expected: "true\n")
     }
 
     func testCodegenAtomicIntValueSetterWiresIntStore() throws {
@@ -1592,16 +1199,8 @@ extension CodegenBackendIntegrationTests {
             println(a.value)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntSetterABI001", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "42\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntSetterABI001", expected: "42\n")
     }
-
-    // MARK: - BUG-01: AtomicReference getAndUpdate / fetchAndUpdate / updateAndGet type inference
 
     func testCodegenAtomicReferenceGetAndUpdate() throws {
         let source = """
@@ -1623,16 +1222,8 @@ extension CodegenBackendIntegrationTests {
             println(a.value)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicRefGetAndUpdateBUG01", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "hello\nhello!\nhello!\nhello!?\nHELLO!?\nHELLO!?~\nHELLO!?~\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicRefGetAndUpdateBUG01", expected: "hello\nhello!\nhello!\nhello!?\nHELLO!?\nHELLO!?~\nHELLO!?~\n")
     }
-
-    // MARK: - BUG-02: AtomicIntArray / AtomicLongArray OOB throws IndexOutOfBoundsException
 
     func testCodegenAtomicIntArrayOOBLoadThrowsIndexOutOfBounds() throws {
         let source = """
@@ -1649,13 +1240,7 @@ extension CodegenBackendIntegrationTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayOOBLoad", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "caught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayOOBLoad", expected: "caught\n")
     }
 
     func testCodegenAtomicIntArrayOOBStoreThrowsIndexOutOfBounds() throws {
@@ -1673,13 +1258,7 @@ extension CodegenBackendIntegrationTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntArrayOOBStore", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "caught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicIntArrayOOBStore", expected: "caught\n")
     }
 
     func testCodegenAtomicLongArrayOOBLoadThrowsIndexOutOfBounds() throws {
@@ -1697,13 +1276,7 @@ extension CodegenBackendIntegrationTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayOOBLoad", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "caught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayOOBLoad", expected: "caught\n")
     }
 
     func testCodegenAtomicLongArrayOOBStoreThrowsIndexOutOfBounds() throws {
@@ -1721,12 +1294,7 @@ extension CodegenBackendIntegrationTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayOOBStore", emit: .executable, outputPath: outputBase)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "caught\n")
-        }
+        try assertKotlinOutput(source, moduleName: "AtomicLongArrayOOBStore", expected: "caught\n")
     }
 }
+

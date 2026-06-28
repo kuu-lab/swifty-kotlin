@@ -13,19 +13,7 @@ extension CodegenBackendIntegrationTests {
             println('A'.compareTo('A'))
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "CharCompareTo",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "25\n-25\n0\n")
-        }
+        try assertKotlinOutput(source, moduleName: "CharCompareTo", expected: "25\n-25\n0\n")
     }
 }
+
