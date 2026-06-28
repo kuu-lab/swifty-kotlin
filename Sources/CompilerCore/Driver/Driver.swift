@@ -7,7 +7,10 @@ public final class CompilerDriver {
         let incrementalEnabled: Bool
     }
 
-    public init() {
+    private let backendPhases: @Sendable () -> [CompilerPhase]
+
+    public init(backendPhases: @escaping @Sendable () -> [CompilerPhase] = { [] }) {
+        self.backendPhases = backendPhases
     }
 
     public func run(options: CompilerOptions) -> Int {
@@ -57,11 +60,19 @@ public final class CompilerDriver {
             SemaPhase(),
             BuildKIRPhase(),
             LoweringPhase(),
-            CodegenPhase(),
-            LinkPhase(),
         ]
 
         executePhases(ctx: ctx, phases: phases, incrementalEnabled: prepared.incrementalEnabled)
+
+        if !ctx.diagnostics.hasError, !ctx.incrementalOutputRestored {
+            if ctx.options.emit == .kirDump {
+                emitKIRDump(ctx: ctx)
+            } else {
+                let backend = backendPhases()
+                executePhases(ctx: ctx, phases: backend, incrementalEnabled: false)
+            }
+        }
+
         return finalizeRun(ctx: ctx, printDiagnostics: printDiagnostics, timePhasesEnabled: prepared.timePhasesEnabled)
     }
 
@@ -204,6 +215,20 @@ public final class CompilerDriver {
         }
 
         return (ctx.diagnostics.hasError ? 1 : 0, ctx.diagnostics.diagnostics)
+    }
+
+    private func emitKIRDump(ctx: CompilationContext) {
+        guard let kir = ctx.kir else {
+            ctx.diagnostics.error("KSWIFTK-PIPELINE-0003", "KIR not available for dump.", range: nil)
+            return
+        }
+        let path = ctx.options.outputPath + ".kir"
+        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        do {
+            try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+        } catch {
+            ctx.diagnostics.error("KSWIFTK-PIPELINE-0003", "Could not write KIR dump: \(error)", range: nil)
+        }
     }
 
     /// Builds a dependency graph from the current compilation state.
