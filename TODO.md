@@ -224,7 +224,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeRandom.swift` (38 @_cdecl)
 > 移行先: `Stdlib/kotlin/random/Random.kt`
 
-- [ ] MIGRATION-RANDOM-001: `Random` クラス API を Kotlin source に移行する（`nextInt`, `nextLong`, `nextDouble`, `nextFloat`, `nextBoolean`, `nextBytes` — PRNG ステート管理はブリッジに委譲）
+- [x] MIGRATION-RANDOM-001: `Random` クラス API を Kotlin source に移行する（`nextInt`, `nextLong`, `nextDouble`, `nextFloat`, `nextBoolean`, `nextBytes` — PRNG ステート管理はブリッジに委譲）
 
 ### Phase M8: kotlin.time / Duration
 > 移行元: `Sources/Runtime/RuntimeDuration.swift` (61 @_cdecl)

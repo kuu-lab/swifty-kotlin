@@ -15,6 +15,24 @@ struct BigIntegerSyntheticLinkTests {
         }
     }
 
+    // Like allExprIDs but skips expressions from bundled stdlib files so that
+    // bitwise ops inside Random.nextLong / nextDouble don't pollute counts.
+    private func userExprIDs(
+        in ast: ASTModule,
+        sourceManager: SourceManager,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), predicate(exprID, expr) else { return nil }
+            if let range = ast.arena.exprRange(exprID),
+               sourceManager.path(of: range.start.file).starts(with: "__bundled_") {
+                return nil
+            }
+            return exprID
+        }
+    }
+
     // MARK: - Helpers
 
     private func assertBigIntegerExtensionCalls(
@@ -22,7 +40,9 @@ struct BigIntegerSyntheticLinkTests {
         source: String,
         expectedCount: Int,
         expectedLinkName: String,
-        expectedFQName: [String]
+        expectedFQName: [String],
+        file: StaticString = #file,
+        line: UInt = #line
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -30,19 +50,15 @@ struct BigIntegerSyntheticLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let calls = allExprIDs(in: ast) { _, expr in
+            let calls = userExprIDs(in: ast, sourceManager: ctx.sourceManager) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == callName
             }
 
-            #expect(calls.count == expectedCount,
-                "Expected \(expectedCount) BigInteger.\(callName) calls")
+            #expect(calls.count == expectedCount, "Expected \(expectedCount) BigInteger.\(callName) calls")
 
             for callExpr in calls {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected BigInteger.\(callName) to resolve"
-                )
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedLinkName)
                 let symbol = try #require(sema.symbols.symbol(chosenCallee))
                 let fqName = symbol.fqName.map { ctx.interner.resolve($0) }
@@ -53,7 +69,8 @@ struct BigIntegerSyntheticLinkTests {
 
     // MARK: - and (existing, baseline)
 
-    @Test func testBigIntegerAndResolvesToSyntheticKotlinExtension() throws {
+    @Test
+    func testBigIntegerAndResolvesToSyntheticKotlinExtension() throws {
         let source = """
         import java.math.BigInteger
 
@@ -71,7 +88,7 @@ struct BigIntegerSyntheticLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let andCalls = allExprIDs(in: ast) { _, expr in
+            let andCalls = userExprIDs(in: ast, sourceManager: ctx.sourceManager) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "and"
             }
@@ -79,10 +96,7 @@ struct BigIntegerSyntheticLinkTests {
             #expect(andCalls.count == 2, "Expected both infix and dotted BigInteger.and calls")
 
             for callExpr in andCalls {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected BigInteger.and to resolve"
-                )
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_biginteger_and")
 
                 let symbol = try #require(sema.symbols.symbol(chosenCallee))
@@ -94,7 +108,8 @@ struct BigIntegerSyntheticLinkTests {
 
     // MARK: - Bitwise and shift extension functions (STDLIB-GAP-PH1)
 
-    @Test func testBigIntegerOrResolvesToSyntheticKotlinExtension() throws {
+    @Test
+    func testBigIntegerOrResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "or",
             source: """
@@ -111,7 +126,8 @@ struct BigIntegerSyntheticLinkTests {
         )
     }
 
-    @Test func testBigIntegerXorResolvesToSyntheticKotlinExtension() throws {
+    @Test
+    func testBigIntegerXorResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "xor",
             source: """
@@ -128,7 +144,8 @@ struct BigIntegerSyntheticLinkTests {
         )
     }
 
-    @Test func testBigIntegerInvResolvesToSyntheticKotlinExtension() throws {
+    @Test
+    func testBigIntegerInvResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "inv",
             source: """
@@ -144,7 +161,8 @@ struct BigIntegerSyntheticLinkTests {
         )
     }
 
-    @Test func testBigIntegerShlResolvesToSyntheticKotlinExtension() throws {
+    @Test
+    func testBigIntegerShlResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "shl",
             source: """
@@ -161,7 +179,8 @@ struct BigIntegerSyntheticLinkTests {
         )
     }
 
-    @Test func testBigIntegerShrResolvesToSyntheticKotlinExtension() throws {
+    @Test
+    func testBigIntegerShrResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "shr",
             source: """
@@ -180,7 +199,8 @@ struct BigIntegerSyntheticLinkTests {
 
     // MARK: - Instance methods (STDLIB-GAP-PH1)
 
-    @Test func testBigIntegerToByteArrayResolvesToSyntheticInstanceMethod() throws {
+    @Test
+    func testBigIntegerToByteArrayResolvesToSyntheticInstanceMethod() throws {
         try assertBigIntegerExtensionCalls(
             callName: "toByteArray",
             source: """
@@ -196,7 +216,8 @@ struct BigIntegerSyntheticLinkTests {
         )
     }
 
-    @Test func testBigIntegerModInverseResolvesToSyntheticInstanceMethod() throws {
+    @Test
+    func testBigIntegerModInverseResolvesToSyntheticInstanceMethod() throws {
         try assertBigIntegerExtensionCalls(
             callName: "modInverse",
             source: """
@@ -212,7 +233,8 @@ struct BigIntegerSyntheticLinkTests {
         )
     }
 
-    @Test func testBigIntegerModPowResolvesToSyntheticInstanceMethod() throws {
+    @Test
+    func testBigIntegerModPowResolvesToSyntheticInstanceMethod() throws {
         try assertBigIntegerExtensionCalls(
             callName: "modPow",
             source: """
