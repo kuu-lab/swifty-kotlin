@@ -25,7 +25,6 @@
 
 #### kotlin.text 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-053: `removeSurrounding` 関数の実装
 
 #### kotlin.time 型の実装
 
