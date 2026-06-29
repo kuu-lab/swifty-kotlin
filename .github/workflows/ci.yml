@@ -60,7 +60,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Show toolchain versions
         run: swift --version
       - name: Build compiler and tests
@@ -80,7 +81,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Show toolchain versions
         run: swift --version
       - name: Run smoke tests with strict concurrency warnings
@@ -110,22 +112,32 @@ jobs:
             test-filter: '^CompilerCoreTests\\.'
             workers: "8"
             build-jobs: "8"
+            needs-llvm: true
+          - test-target: CompilerBackendTests
+            test-filter: '^CompilerBackendTests\\.'
+            workers: "4"
+            build-jobs: "4"
+            needs-llvm: true
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
             workers: "4"
             build-jobs: "4"
+            needs-llvm: true
           - test-target: RuntimeTestsParallel
             test-filter: '^RuntimeTestsParallel\\.'
             workers: "4"
             build-jobs: "4"
+            needs-llvm: true
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
             workers: "4"
             build-jobs: "4"
+            needs-llvm: true
           - test-target: LSPServerTests
             test-filter: '^LSPServerTests\\.'
             workers: "4"
             build-jobs: "4"
+            needs-llvm: true
     steps:
       - uses: actions/checkout@v4
       - name: Free disk space
@@ -135,7 +147,13 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           df -h
+      - name: Setup Swift
+        if: ${{ !matrix.needs-llvm }}
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.2"
       - name: Setup Swift and LLVM
+        if: ${{ matrix.needs-llvm }}
         uses: ./.github/actions/setup-swift-llvm
         with:
           swift-version: "6.2"
@@ -143,7 +161,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Show toolchain versions
         run: swift --version
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
@@ -220,7 +239,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
       - name: Verify prerequisites
         run: |
           java -version

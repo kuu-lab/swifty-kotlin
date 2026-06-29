@@ -1,0 +1,11 @@
+symbol fq=__local_0.x kind=local vis=private flags=_ type=Int
+symbol fq=useMeasureTimeMillis kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
+file f12 package=_
+  decl d0 fun useMeasureTimeMillis sym=useMeasureTimeMillis
+expr e0 int(1) type=Int
+expr e1 int(2) type=Int
+expr e2 binary(add) lhs=e0 rhs=e1 type=Int
+expr e3 localDecl x mutable=0 type=_ init=e2 type=Unit ref=__local_0.x
+expr e4 blockExpr stmts=[e3] trailing=_ type=Unit
+expr e5 lambda params=[] body=e4 label=measureTimeMillis type=() -> Unit
+expr e6 call callee=e7 args=[_:e5] type=Long
