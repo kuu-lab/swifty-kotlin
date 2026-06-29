@@ -29,8 +29,4 @@ fun main() {
     println(noneNegative)
     println(firstEven)
     println(lastEven)
-
-    val emptySeq = emptySequence<Int>()
-    val isEmpty: Boolean = emptySeq.none()
-    println(isEmpty)
 }

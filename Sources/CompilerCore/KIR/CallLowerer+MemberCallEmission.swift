@@ -230,13 +230,19 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
-        if loweredCallee == interner.intern("kk_random_nextLong_until"),
+        let receiverIsRandom = isRandomType(
+            sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
+            sema: sema, interner: interner
+        )
+        if (loweredCallee == interner.intern("kk_random_nextLong_until")
+            || (receiverIsRandom && loweredCallee == interner.intern("nextLong"))),
            sourceArgExprs.count == 1,
            sema.bindings.isRangeExpr(sourceArgExprs[0])
         {
             loweredCallee = interner.intern("kk_random_nextLong_rangeObject")
         }
-        if loweredCallee == interner.intern("kk_random_nextInt_until"),
+        if (loweredCallee == interner.intern("kk_random_nextInt_until")
+            || (receiverIsRandom && loweredCallee == interner.intern("nextInt"))),
            sourceArgExprs.count == 1,
            sema.bindings.isRangeExpr(sourceArgExprs[0])
             || nominalRangeElementType(
@@ -246,6 +252,15 @@ extension CallLowerer {
             ) == sema.types.intType
         {
             loweredCallee = interner.intern("kk_random_nextInt_rangeObject")
+        }
+        // When Sema failed to resolve nextLong/nextInt on Random (chosenCallee == nil),
+        // appendReceiverToMemberArguments skips the receiver. Insert it now so the
+        // runtime ABI (randomRaw, rangeRaw, outThrown) is satisfied.
+        if (loweredCallee == interner.intern("kk_random_nextLong_rangeObject")
+            || loweredCallee == interner.intern("kk_random_nextInt_rangeObject")),
+           finalArguments.count == 1
+        {
+            finalArguments.insert(receiver.loweredID, at: 0)
         }
         if loweredCallee == interner.intern("kk_worker_execute"),
            finalArguments.count == 4,

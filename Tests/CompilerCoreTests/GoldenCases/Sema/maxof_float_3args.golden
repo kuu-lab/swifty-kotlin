@@ -1,0 +1,14 @@
+symbol fq=golden.sema.threeArgMaxFloat kind=function vis=public flags=_ sig=recv=_ params=[Float,Float,Float] ret=Float
+symbol fq=golden.sema.threeArgMaxFloat.$0.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.threeArgMaxFloat.$0.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.threeArgMaxFloat.$0.c kind=valueParameter vis=private flags=_
+symbol fq=kotlin.comparisons.maxOf#3 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Float,Float,Float] ret=Float
+symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
+file f12 package=golden.sema
+  decl d0 fun threeArgMaxFloat sym=golden.sema.threeArgMaxFloat
+expr e0 name(a) type=Float ref=golden.sema.threeArgMaxFloat.$0.a
+expr e1 name(b) type=Float ref=golden.sema.threeArgMaxFloat.$0.b
+expr e2 name(c) type=Float ref=golden.sema.threeArgMaxFloat.$0.c
+expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=Float call=kotlin.comparisons.maxOf#3
