@@ -8,16 +8,16 @@ symbol fq=kotlinx.coroutines.launch.block kind=valueParameter vis=private flags=
 symbol fq=kotlinx.coroutines.runBlocking kind=function vis=public flags=synthetic sig=recv=_ params=[suspend () -> Any] ret=Any
 symbol fq=kotlinx.coroutines.runBlocking.block kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 fun main sym=golden.sema.main
-expr e0 int(10) type=Long
-expr e1 call callee=e2 args=[_:e0] type=Unit
-expr e3 lambda params=[] body=e1 label=launch type=suspend () -> Unit
-expr e4 call callee=e5 args=[_:e3] type=kotlinx.coroutines.Job call=kotlinx.coroutines.launch#1
-expr e6 localDecl job mutable=0 type=_ init=e4 type=Unit ref=__local_0.job
-expr e7 name(job) type=kotlinx.coroutines.Job ref=__local_0.job
-expr e8 memberCall recv=e7 callee=cancel args=[] type=Unit call=kotlinx.coroutines.Job.cancel
-expr e9 name(job) type=kotlinx.coroutines.Job ref=__local_0.job
-expr e10 memberCall recv=e9 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join
-expr e11 blockExpr stmts=[e6,e8] trailing=e10 type=Unit
-expr e12 lambda params=[] body=e11 label=runBlocking type=suspend () -> Any
-expr e13 call callee=e14 args=[_:e12] type=Any call=kotlinx.coroutines.runBlocking
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@8:15#1 int(10) type=Long
+expr e@8:9#3 call callee=e@8:9#2 args=[_:e@8:15#1] type=Unit
+expr e@7:22 lambda params=[] body=e@8:9#3 label=launch type=suspend () -> Unit
+expr e@7:15#1 call callee=e@7:15#0 args=[_:e@7:22] type=kotlinx.coroutines.Job call=kotlinx.coroutines.launch#1
+expr e@7:5#3 localDecl job mutable=0 type=_ init=e@7:15#1 type=Unit ref=__local_0.job
+expr e@10:5#1 name(job) type=kotlinx.coroutines.Job ref=__local_0.job
+expr e@10:5#2 memberCall recv=e@10:5#1 callee=cancel args=[] type=Unit call=kotlinx.coroutines.Job.cancel
+expr e@11:5#2 name(job) type=kotlinx.coroutines.Job ref=__local_0.job
+expr e@11:5#3 memberCall recv=e@11:5#2 callee=join args=[] type=Unit call=kotlinx.coroutines.Job.join
+expr e@7:5#4 blockExpr stmts=[e@7:5#3,e@10:5#2] trailing=e@11:5#3 type=Unit
+expr e@6:26 lambda params=[] body=e@7:5#4 label=runBlocking type=suspend () -> Any
+expr e@6:14#1 call callee=e@6:14#0 args=[_:e@6:26] type=Any call=kotlinx.coroutines.runBlocking

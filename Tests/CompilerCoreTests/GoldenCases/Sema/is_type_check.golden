@@ -12,58 +12,58 @@ symbol fq=golden.sema.smartCastAfterNegatedIs kind=function vis=public flags=_ s
 symbol fq=golden.sema.smartCastAfterNegatedIs.$5.v kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 file f13 package=golden.sema
-  decl d0 fun basicIs sym=golden.sema.basicIs
-  decl d1 fun negatedIs sym=golden.sema.negatedIs
-  decl d2 fun smartCastAfterIs sym=golden.sema.smartCastAfterIs
-  decl d3 fun combinedCondition sym=golden.sema.combinedCondition
-  decl d4 fun smartCastAfterNegatedIs sym=golden.sema.smartCastAfterNegatedIs
-  decl d5 fun combinedOrCondition sym=golden.sema.combinedOrCondition
-expr e0 name(v) type=Any ref=golden.sema.basicIs.$0.v
-expr e1 isCheck expr=e0 type=t0 type=Boolean
-expr e2 name(v) type=Any ref=golden.sema.negatedIs.$3.v
-expr e3 isCheck! expr=e2 type=t1 type=Boolean
-expr e4 name(v) type=Any ref=golden.sema.smartCastAfterIs.$4.v
-expr e5 isCheck expr=e4 type=t2 type=Boolean
-expr e6 name(v) type=String ref=golden.sema.smartCastAfterIs.$4.v
-expr e7 memberCall recv=e6 callee=length args=[] type=Int call=kotlin.text.length
-expr e8 return value=e7 type=Nothing
-expr e9 blockExpr stmts=[] trailing=e8 type=Nothing
-expr e10 if cond=e5 then=e9 else=_ type=Unit
-expr e11 int(0) type=Int
-expr e12 return value=e11 type=Nothing
-expr e13 name(v) type=Any ref=golden.sema.combinedCondition.$1.v
-expr e14 isCheck expr=e13 type=t3 type=Boolean
-expr e15 name(v) type=String ref=golden.sema.combinedCondition.$1.v
-expr e16 memberCall recv=e15 callee=length args=[] type=Int call=kotlin.text.length
-expr e17 int(3) type=Int
-expr e18 binary(greaterThan) lhs=e16 rhs=e17 type=Boolean
-expr e19 binary(logicalAnd) lhs=e14 rhs=e18 type=Boolean
-expr e20 name(v) type=String ref=golden.sema.combinedCondition.$1.v
-expr e21 return value=e20 type=Nothing
-expr e22 blockExpr stmts=[] trailing=e21 type=Nothing
-expr e23 if cond=e19 then=e22 else=_ type=Unit
-expr e24 string() type=String
-expr e25 return value=e24 type=Nothing
-expr e26 name(v) type=Any ref=golden.sema.smartCastAfterNegatedIs.$5.v
-expr e27 isCheck! expr=e26 type=t4 type=Boolean
-expr e28 int(0) type=Int
-expr e29 return value=e28 type=Nothing
-expr e30 blockExpr stmts=[] trailing=e29 type=Nothing
-expr e31 name(v) type=String ref=golden.sema.smartCastAfterNegatedIs.$5.v
-expr e32 memberCall recv=e31 callee=length args=[] type=Int call=kotlin.text.length
-expr e33 return value=e32 type=Nothing
-expr e34 blockExpr stmts=[] trailing=e33 type=Nothing
-expr e35 if cond=e27 then=e30 else=e34 type=Nothing
-expr e36 name(v) type=Any ref=golden.sema.combinedOrCondition.$2.v
-expr e37 isCheck! expr=e36 type=t5 type=Boolean
-expr e38 name(v) type=String ref=golden.sema.combinedOrCondition.$2.v
-expr e39 memberCall recv=e38 callee=length args=[] type=Int call=kotlin.text.length
-expr e40 int(0) type=Int
-expr e41 binary(equal) lhs=e39 rhs=e40 type=Boolean
-expr e42 binary(logicalOr) lhs=e37 rhs=e41 type=Boolean
-expr e43 string() type=String
-expr e44 return value=e43 type=Nothing
-expr e45 blockExpr stmts=[] trailing=e44 type=Nothing
-expr e46 if cond=e42 then=e45 else=_ type=Unit
-expr e47 name(v) type=Any ref=golden.sema.combinedOrCondition.$2.v
-expr e48 return value=e47 type=Nothing
+  decl golden.sema.basicIs fun basicIs sym=golden.sema.basicIs
+  decl golden.sema.negatedIs fun negatedIs sym=golden.sema.negatedIs
+  decl golden.sema.smartCastAfterIs fun smartCastAfterIs sym=golden.sema.smartCastAfterIs
+  decl golden.sema.combinedCondition fun combinedCondition sym=golden.sema.combinedCondition
+  decl golden.sema.smartCastAfterNegatedIs fun smartCastAfterNegatedIs sym=golden.sema.smartCastAfterNegatedIs
+  decl golden.sema.combinedOrCondition fun combinedOrCondition sym=golden.sema.combinedOrCondition
+expr e@3:32#0 name(v) type=Any ref=golden.sema.basicIs.$0.v
+expr e@3:32#1 isCheck expr=e@3:32#0 type=String type=Boolean
+expr e@5:34#0 name(v) type=Any ref=golden.sema.negatedIs.$3.v
+expr e@5:34#1 isCheck! expr=e@5:34#0 type=Int type=Boolean
+expr e@8:9#0 name(v) type=Any ref=golden.sema.smartCastAfterIs.$4.v
+expr e@8:9#1 isCheck expr=e@8:9#0 type=String type=Boolean
+expr e@9:16#0 name(v) type=String ref=golden.sema.smartCastAfterIs.$4.v
+expr e@9:16#1 memberCall recv=e@9:16#0 callee=length args=[] type=Int call=kotlin.text.length
+expr e@9:9 return value=e@9:16#1 type=Nothing
+expr e@8:22 blockExpr stmts=[] trailing=e@9:9 type=Nothing
+expr e@8:5#2 if cond=e@8:9#1 then=e@8:22 else=_ type=Unit
+expr e@11:12 int(0) type=Int
+expr e@11:5#2 return value=e@11:12 type=Nothing
+expr e@15:9#0 name(v) type=Any ref=golden.sema.combinedCondition.$1.v
+expr e@15:9#1 isCheck expr=e@15:9#0 type=String type=Boolean
+expr e@15:24#0 name(v) type=String ref=golden.sema.combinedCondition.$1.v
+expr e@15:24#1 memberCall recv=e@15:24#0 callee=length args=[] type=Int call=kotlin.text.length
+expr e@15:35#2 int(3) type=Int
+expr e@15:24#2 binary(greaterThan) lhs=e@15:24#1 rhs=e@15:35#2 type=Boolean
+expr e@15:9#2 binary(logicalAnd) lhs=e@15:9#1 rhs=e@15:24#2 type=Boolean
+expr e@16:16#2 name(v) type=String ref=golden.sema.combinedCondition.$1.v
+expr e@16:9 return value=e@16:16#2 type=Nothing
+expr e@15:38 blockExpr stmts=[] trailing=e@16:9 type=Nothing
+expr e@15:5#6 if cond=e@15:9#2 then=e@15:38 else=_ type=Unit
+expr e@18:12#4 string() type=String
+expr e@18:5#4 return value=e@18:12#4 type=Nothing
+expr e@22:9#1 name(v) type=Any ref=golden.sema.smartCastAfterNegatedIs.$5.v
+expr e@22:9#2 isCheck! expr=e@22:9#1 type=String type=Boolean
+expr e@23:16 int(0) type=Int
+expr e@23:9#2 return value=e@23:16 type=Nothing
+expr e@22:23#1 blockExpr stmts=[] trailing=e@23:9#2 type=Nothing
+expr e@25:16#0 name(v) type=String ref=golden.sema.smartCastAfterNegatedIs.$5.v
+expr e@25:16#1 memberCall recv=e@25:16#0 callee=length args=[] type=Int call=kotlin.text.length
+expr e@25:9 return value=e@25:16#1 type=Nothing
+expr e@24:12#4 blockExpr stmts=[] trailing=e@25:9 type=Nothing
+expr e@22:5#4 if cond=e@22:9#2 then=e@22:23#1 else=e@24:12#4 type=Nothing
+expr e@30:9#3 name(v) type=Any ref=golden.sema.combinedOrCondition.$2.v
+expr e@30:9#4 isCheck! expr=e@30:9#3 type=String type=Boolean
+expr e@30:25#0 name(v) type=String ref=golden.sema.combinedOrCondition.$2.v
+expr e@30:25#1 memberCall recv=e@30:25#0 callee=length args=[] type=Int call=kotlin.text.length
+expr e@30:37 int(0) type=Int
+expr e@30:25#2 binary(equal) lhs=e@30:25#1 rhs=e@30:37 type=Boolean
+expr e@30:9#5 binary(logicalOr) lhs=e@30:9#4 rhs=e@30:25#2 type=Boolean
+expr e@31:16#4 string() type=String
+expr e@31:9#3 return value=e@31:16#4 type=Nothing
+expr e@30:40 blockExpr stmts=[] trailing=e@31:9#3 type=Nothing
+expr e@30:5#7 if cond=e@30:9#5 then=e@30:40 else=_ type=Unit
+expr e@33:12#2 name(v) type=Any ref=golden.sema.combinedOrCondition.$2.v
+expr e@33:5#5 return value=e@33:12#2 type=Nothing

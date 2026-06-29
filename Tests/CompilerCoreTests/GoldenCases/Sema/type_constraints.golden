@@ -35,72 +35,72 @@ symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.Comparable.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.Comparable.compareTo kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.Comparable.T params=[kotlin.Comparable.T] ret=Int
 file f13 package=golden.sema
-  decl d0 fun clamp sym=golden.sema.clamp
-  decl d1 fun maxItem sym=golden.sema.maxItem
-  decl d2 fun processItem sym=golden.sema.processItem
-  decl d3 class BoundedBox sym=golden.sema.BoundedBox
-  decl d4 fun useConstraints sym=golden.sema.useConstraints
-expr e0 name(value) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.value
-expr e1 name(min) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.min
-expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.clamp.$3.T]
-expr e3 name(min) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.min
-expr e4 name(value) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.value
-expr e5 name(max) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.max
-expr e6 binary(greaterThan) lhs=e4 rhs=e5 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.clamp.$3.T]
-expr e7 name(max) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.max
-expr e8 name(value) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.value
-expr e9 when subject=_ branches=[e2->e3,e6->e7] else=e8 type=golden.sema.clamp.$3.T
-expr e10 name(a) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.a
-expr e11 name(b) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.b
-expr e12 binary(greaterThan) lhs=e10 rhs=e11 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.maxItem.$4.T]
-expr e13 name(a) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.a
-expr e14 name(b) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.b
-expr e15 if cond=e12 then=e13 else=e14 type=golden.sema.maxItem.$4.T
-expr e16 name(v) type=golden.sema.processItem.$5.T ref=golden.sema.processItem.$5.v
-expr e17 memberCall recv=e16 callee=toString args=[] type=String
-expr e18 name(value) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.value
-expr e19 name(other) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.isLessThan.$2.other
-expr e20 binary(lessThan) lhs=e18 rhs=e19 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.BoundedBox.$class0.T]
-expr e21 name(value) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.value
-expr e22 name(other) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.isGreaterThan.$1.other
-expr e23 binary(greaterThan) lhs=e21 rhs=e22 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.BoundedBox.$class0.T]
-expr e24 name(value) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.value
-expr e25 memberCall recv=e24 callee=toString args=[] type=String
-expr e26 int(5) type=Int
-expr e27 int(1) type=Int
-expr e28 int(10) type=Int
-expr e29 call callee=e30 args=[_:e26,_:e27,_:e28] type=Int call=golden.sema.clamp targs=[Int]
-expr e31 localDecl c1 mutable=0 type=_ init=e29 type=Unit ref=__local_0.c1
-expr e32 string(b) type=String
-expr e33 string(a) type=String
-expr e34 string(c) type=String
-expr e35 call callee=e36 args=[_:e32,_:e33,_:e34] type=String call=golden.sema.clamp targs=[String]
-expr e37 localDecl c2 mutable=0 type=_ init=e35 type=Unit ref=__local_1.c2
-expr e38 int(3) type=Int
-expr e39 int(7) type=Int
-expr e40 call callee=e41 args=[_:e38,_:e39] type=Int call=golden.sema.maxItem targs=[Int]
-expr e42 localDecl m1 mutable=0 type=_ init=e40 type=Unit ref=__local_2.m1
-expr e43 string(apple) type=String
-expr e44 string(banana) type=String
-expr e45 call callee=e46 args=[_:e43,_:e44] type=String call=golden.sema.maxItem targs=[String]
-expr e47 localDecl m2 mutable=0 type=_ init=e45 type=Unit ref=__local_3.m2
-expr e48 int(42) type=Int
-expr e49 call callee=e50 args=[_:e48] type=String call=golden.sema.processItem targs=[Int]
-expr e51 localDecl p1 mutable=0 type=_ init=e49 type=Unit ref=__local_4.p1
-expr e52 string(hello) type=String
-expr e53 call callee=e54 args=[_:e52] type=String call=golden.sema.processItem targs=[String]
-expr e55 localDecl p2 mutable=0 type=_ init=e53 type=Unit ref=__local_5.p2
-expr e56 int(5) type=Int
-expr e57 call callee=e58 args=[_:e56] type=golden.sema.BoundedBox<Int> call=golden.sema.BoundedBox.<init> targs=[Int]
-expr e59 localDecl box mutable=0 type=_ init=e57 type=Unit ref=__local_6.box
-expr e60 name(box) type=golden.sema.BoundedBox<Int> ref=__local_6.box
-expr e61 int(10) type=Int
-expr e62 memberCall recv=e60 callee=isLessThan args=[_:e61] type=Boolean call=golden.sema.BoundedBox.isLessThan targs=[Int]
-expr e63 localDecl lt mutable=0 type=_ init=e62 type=Unit ref=__local_7.lt
-expr e64 name(box) type=golden.sema.BoundedBox<Int> ref=__local_6.box
-expr e65 int(3) type=Int
-expr e66 memberCall recv=e64 callee=isGreaterThan args=[_:e65] type=Boolean call=golden.sema.BoundedBox.isGreaterThan targs=[Int]
-expr e67 localDecl gt mutable=0 type=_ init=e66 type=Unit ref=__local_8.gt
-expr e68 name(box) type=golden.sema.BoundedBox<Int> ref=__local_6.box
-expr e69 memberCall recv=e68 callee=describe args=[] type=String call=golden.sema.BoundedBox.describe targs=[Int]
-expr e70 localDecl desc mutable=0 type=_ init=e69 type=Unit ref=__local_9.desc
+  decl golden.sema.clamp fun clamp sym=golden.sema.clamp
+  decl golden.sema.maxItem fun maxItem sym=golden.sema.maxItem
+  decl golden.sema.processItem fun processItem sym=golden.sema.processItem
+  decl golden.sema.BoundedBox class BoundedBox sym=golden.sema.BoundedBox
+  decl golden.sema.useConstraints fun useConstraints sym=golden.sema.useConstraints
+expr e@5:5#2 name(value) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.value
+expr e@5:13#1 name(min) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.min
+expr e@5:5#3 binary(lessThan) lhs=e@5:5#2 rhs=e@5:13#1 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.clamp.$3.T]
+expr e@5:20 name(min) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.min
+expr e@6:5#3 name(value) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.value
+expr e@6:13#1 name(max) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.max
+expr e@6:5#4 binary(greaterThan) lhs=e@6:5#3 rhs=e@6:13#1 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.clamp.$3.T]
+expr e@6:20 name(max) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.max
+expr e@7:13 name(value) type=golden.sema.clamp.$3.T ref=golden.sema.clamp.$3.value
+expr e@4:62 when subject=_ branches=[e@5:5#3->e@5:20,e@6:5#4->e@6:20] else=e@7:13 type=golden.sema.clamp.$3.T
+expr e@11:62#0 name(a) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.a
+expr e@11:66 name(b) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.b
+expr e@11:62#1 binary(greaterThan) lhs=e@11:62#0 rhs=e@11:66 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.maxItem.$4.T]
+expr e@11:69 name(a) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.a
+expr e@11:76 name(b) type=golden.sema.maxItem.$4.T ref=golden.sema.maxItem.$4.b
+expr e@11:58 if cond=e@11:62#1 then=e@11:69 else=e@11:76 type=golden.sema.maxItem.$4.T
+expr e@14:70#0 name(v) type=golden.sema.processItem.$5.T ref=golden.sema.processItem.$5.v
+expr e@14:70#1 memberCall recv=e@14:70#0 callee=toString args=[] type=String
+expr e@18:41#0 name(value) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.value
+expr e@18:49#1 name(other) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.isLessThan.$2.other
+expr e@18:41#1 binary(lessThan) lhs=e@18:41#0 rhs=e@18:49#1 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.BoundedBox.$class0.T]
+expr e@19:44#0 name(value) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.value
+expr e@19:52 name(other) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.isGreaterThan.$1.other
+expr e@19:44#1 binary(greaterThan) lhs=e@19:44#0 rhs=e@19:52 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.BoundedBox.$class0.T]
+expr e@20:30#0 name(value) type=golden.sema.BoundedBox.$class0.T ref=golden.sema.BoundedBox.value
+expr e@20:30#1 memberCall recv=e@20:30#0 callee=toString args=[] type=String
+expr e@24:20#2 int(5) type=Int
+expr e@24:23 int(1) type=Int
+expr e@24:26 int(10) type=Int
+expr e@24:14#1 call callee=e@24:14#0 args=[_:e@24:20#2,_:e@24:23,_:e@24:26] type=Int call=golden.sema.clamp targs=[Int]
+expr e@24:5#3 localDecl c1 mutable=0 type=_ init=e@24:14#1 type=Unit ref=__local_0.c1
+expr e@25:20 string(b) type=String
+expr e@25:25 string(a) type=String
+expr e@25:30 string(c) type=String
+expr e@25:14#1 call callee=e@25:14#0 args=[_:e@25:20,_:e@25:25,_:e@25:30] type=String call=golden.sema.clamp targs=[String]
+expr e@25:5#6 localDecl c2 mutable=0 type=_ init=e@25:14#1 type=Unit ref=__local_1.c2
+expr e@26:22#2 int(3) type=Int
+expr e@26:25 int(7) type=Int
+expr e@26:14#2 call callee=e@26:14#1 args=[_:e@26:22#2,_:e@26:25] type=Int call=golden.sema.maxItem targs=[Int]
+expr e@26:5#6 localDecl m1 mutable=0 type=_ init=e@26:14#2 type=Unit ref=__local_2.m1
+expr e@27:22 string(apple) type=String
+expr e@27:31#1 string(banana) type=String
+expr e@27:14#2 call callee=e@27:14#1 args=[_:e@27:22,_:e@27:31#1] type=String call=golden.sema.maxItem targs=[String]
+expr e@27:5#4 localDecl m2 mutable=0 type=_ init=e@27:14#2 type=Unit ref=__local_3.m2
+expr e@28:26 int(42) type=Int
+expr e@28:14#1 call callee=e@28:14#0 args=[_:e@28:26] type=String call=golden.sema.processItem targs=[Int]
+expr e@28:5#3 localDecl p1 mutable=0 type=_ init=e@28:14#1 type=Unit ref=__local_4.p1
+expr e@29:26 string(hello) type=String
+expr e@29:14#2 call callee=e@29:14#1 args=[_:e@29:26] type=String call=golden.sema.processItem targs=[String]
+expr e@29:5#5 localDecl p2 mutable=0 type=_ init=e@29:14#2 type=Unit ref=__local_5.p2
+expr e@30:26#3 int(5) type=Int
+expr e@30:15#2 call callee=e@30:15#1 args=[_:e@30:26#3] type=golden.sema.BoundedBox<Int> call=golden.sema.BoundedBox.<init> targs=[Int]
+expr e@30:5#7 localDecl box mutable=0 type=_ init=e@30:15#2 type=Unit ref=__local_6.box
+expr e@31:14#2 name(box) type=golden.sema.BoundedBox<Int> ref=__local_6.box
+expr e@31:29 int(10) type=Int
+expr e@31:14#3 memberCall recv=e@31:14#2 callee=isLessThan args=[_:e@31:29] type=Boolean call=golden.sema.BoundedBox.isLessThan targs=[Int]
+expr e@31:5#6 localDecl lt mutable=0 type=_ init=e@31:14#3 type=Unit ref=__local_7.lt
+expr e@32:14#2 name(box) type=golden.sema.BoundedBox<Int> ref=__local_6.box
+expr e@32:32 int(3) type=Int
+expr e@32:14#3 memberCall recv=e@32:14#2 callee=isGreaterThan args=[_:e@32:32] type=Boolean call=golden.sema.BoundedBox.isGreaterThan targs=[Int]
+expr e@32:5#6 localDecl gt mutable=0 type=_ init=e@32:14#3 type=Unit ref=__local_8.gt
+expr e@33:16#1 name(box) type=golden.sema.BoundedBox<Int> ref=__local_6.box
+expr e@33:16#2 memberCall recv=e@33:16#1 callee=describe args=[] type=String call=golden.sema.BoundedBox.describe targs=[Int]
+expr e@33:5#5 localDecl desc mutable=0 type=_ init=e@33:16#2 type=Unit ref=__local_9.desc

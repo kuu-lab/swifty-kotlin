@@ -13,17 +13,17 @@ symbol fq=golden.sema.unbounded kind=function vis=public flags=_ sig=recv=_ para
 symbol fq=golden.sema.unbounded.$2.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.unbounded.$2.x kind=valueParameter vis=private flags=_
 file f13 package=golden.sema
-  decl d0 class Animal sym=golden.sema.Animal
-  decl d1 class Dog sym=golden.sema.Dog
-  decl d2 fun accept sym=golden.sema.accept
-  decl d3 fun callValid sym=golden.sema.callValid
-  decl d4 fun unbounded sym=golden.sema.unbounded
-  decl d5 fun callUnbounded sym=golden.sema.callUnbounded
-  decl d6 fun acceptWhere sym=golden.sema.acceptWhere
-expr e0 name(x) type=golden.sema.accept.$0.T ref=golden.sema.accept.$0.x
-expr e1 call callee=e2 args=[] type=golden.sema.Dog call=golden.sema.Dog.<init>
-expr e3 call callee=e4 args=[_:e1] type=golden.sema.Dog call=golden.sema.accept targs=[golden.sema.Dog]
-expr e5 name(x) type=golden.sema.unbounded.$2.T ref=golden.sema.unbounded.$2.x
-expr e6 int(42) type=Int
-expr e7 call callee=e8 args=[_:e6] type=Int call=golden.sema.unbounded targs=[Int]
-expr e9 name(x) type=golden.sema.acceptWhere.$1.T ref=golden.sema.acceptWhere.$1.x
+  decl golden.sema.Animal class Animal sym=golden.sema.Animal
+  decl golden.sema.Dog class Dog sym=golden.sema.Dog
+  decl golden.sema.accept fun accept sym=golden.sema.accept
+  decl golden.sema.callValid fun callValid sym=golden.sema.callValid
+  decl golden.sema.unbounded fun unbounded sym=golden.sema.unbounded
+  decl golden.sema.callUnbounded fun callUnbounded sym=golden.sema.callUnbounded
+  decl golden.sema.acceptWhere fun acceptWhere sym=golden.sema.acceptWhere
+expr e@6:36 name(x) type=golden.sema.accept.$0.T ref=golden.sema.accept.$0.x
+expr e@7:34#1 call callee=e@7:34#0 args=[] type=golden.sema.Dog call=golden.sema.Dog.<init>
+expr e@7:27#2 call callee=e@7:27#1 args=[_:e@7:34#1] type=golden.sema.Dog call=golden.sema.accept targs=[golden.sema.Dog]
+expr e@8:30 name(x) type=golden.sema.unbounded.$2.T ref=golden.sema.unbounded.$2.x
+expr e@9:38 int(42) type=Int
+expr e@9:28#1 call callee=e@9:28#0 args=[_:e@9:38] type=Int call=golden.sema.unbounded targs=[Int]
+expr e@11:49 name(x) type=golden.sema.acceptWhere.$1.T ref=golden.sema.acceptWhere.$1.x

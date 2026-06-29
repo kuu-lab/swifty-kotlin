@@ -3,5 +3,5 @@ symbol fq=kotlin.reflect.KType kind=interface vis=public flags=synthetic
 symbol fq=kotlinx.cinterop.typeOf kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=kotlin.reflect.KType
 symbol fq=kotlinx.cinterop.typeOf.T kind=typeParameter vis=private flags=synthetic|reifiedTypeParameter
 file f13 package=_
-  decl d0 fun getStringType sym=getStringType
-expr e0 call callee=e1 args=[] type=kotlin.reflect.KType call=kotlinx.cinterop.typeOf targs=[String]
+  decl getStringType fun getStringType sym=getStringType
+expr e@4:30#1 call callee=e@4:30#0 args=[] type=kotlin.reflect.KType call=kotlinx.cinterop.typeOf targs=[String]

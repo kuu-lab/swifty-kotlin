@@ -2,11 +2,11 @@ symbol fq=golden.sema.typeNameOf kind=function vis=public flags=inlineFunction s
 symbol fq=golden.sema.typeNameOf.$0.T kind=typeParameter vis=private flags=reifiedTypeParameter
 symbol fq=golden.sema.useReified kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 file f13 package=golden.sema
-  decl d0 fun typeNameOf inline=1 sym=golden.sema.typeNameOf
-  decl d1 fun useReified sym=golden.sema.useReified
-expr e0 name(T) type=Any ref=golden.sema.typeNameOf.$0.T
-expr e1 callableRef recv=e0 member=class type=KClass<golden.sema.typeNameOf.$0.T>
-expr e2 memberCall recv=e1 callee=simpleName args=[] type=String?
-expr e3 string(unknown) type=String
-expr e4 binary(elvis) lhs=e2 rhs=e3 type=String
-expr e5 call callee=e6 args=[] type=String call=golden.sema.typeNameOf targs=[Int]
+  decl golden.sema.typeNameOf fun typeNameOf inline=1 sym=golden.sema.typeNameOf
+  decl golden.sema.useReified fun useReified sym=golden.sema.useReified
+expr e@3:47#0 name(T) type=Any ref=golden.sema.typeNameOf.$0.T
+expr e@3:47#1 callableRef recv=e@3:47#0 member=class type=KClass<golden.sema.typeNameOf.$0.T>
+expr e@3:47#2 memberCall recv=e@3:47#1 callee=simpleName args=[] type=String?
+expr e@3:70 string(unknown) type=String
+expr e@3:47#3 binary(elvis) lhs=e@3:47#2 rhs=e@3:70 type=String
+expr e@5:28#1 call callee=e@5:28#0 args=[] type=String call=golden.sema.typeNameOf targs=[Int]

@@ -8,6 +8,6 @@ symbol fq=kotlinx.cinterop.toLong.T kind=typeParameter vis=private flags=synthet
 symbol fq=pointerToAddr kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?] ret=Long
 symbol fq=pointerToAddr.$0.p kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun pointerToAddr sym=pointerToAddr
-expr e0 name(p) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>? ref=pointerToAddr.$0.p
-expr e1 memberCall recv=e0 callee=toLong args=[] type=Long call=kotlinx.cinterop.toLong targs=[kotlinx.cinterop.ByteVarOf<Int>]
+  decl pointerToAddr fun pointerToAddr sym=pointerToAddr
+expr e@5:50#0 name(p) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>? ref=pointerToAddr.$0.p
+expr e@5:50#1 memberCall recv=e@5:50#0 callee=toLong args=[] type=Long call=kotlinx.cinterop.toLong targs=[kotlinx.cinterop.ByteVarOf<Int>]

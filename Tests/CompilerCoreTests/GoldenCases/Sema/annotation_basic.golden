@@ -4,8 +4,8 @@ symbol fq=golden.sema.Foo kind=class vis=public flags=_
 symbol fq=golden.sema.Marker kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.MyLabel kind=annotationClass vis=public flags=_
 file f13 package=golden.sema
-  decl d0 class MyLabel sym=golden.sema.MyLabel
-  decl d1 class Foo sym=golden.sema.Foo
-  decl d2 class Bar sym=golden.sema.Bar
-  decl d3 class Marker sym=golden.sema.Marker
-  decl d4 class Baz sym=golden.sema.Baz
+  decl golden.sema.MyLabel class MyLabel sym=golden.sema.MyLabel
+  decl golden.sema.Foo class Foo sym=golden.sema.Foo
+  decl golden.sema.Bar class Bar sym=golden.sema.Bar
+  decl golden.sema.Marker class Marker sym=golden.sema.Marker
+  decl golden.sema.Baz class Baz sym=golden.sema.Baz

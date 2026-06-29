@@ -5,17 +5,17 @@ symbol fq=Multiply kind=class vis=public flags=_
 symbol fq=eval kind=function vis=public flags=_ sig=recv=_ params=[Expr] ret=String
 symbol fq=eval.$0.e kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 interface Expr sym=Expr
-  decl d1 class Literal sym=Literal
-  decl d2 class Add sym=Add
-  decl d3 class Multiply sym=Multiply
-  decl d4 fun eval sym=eval
-expr e0 name(e) type=Expr ref=eval.$0.e
-expr e1 isCheck expr=e0 type=t0 type=Boolean
-expr e2 string(literal) type=String
-expr e3 isCheck expr=e0 type=t1 type=Boolean
-expr e4 string(add) type=String
-expr e5 isCheck expr=e0 type=t2 type=Boolean
-expr e6 string(multiply) type=String
-expr e7 when subject=e0 branches=[e1->e2,e3->e4,e5->e6] else=_ type=String
-expr e8 return value=e7 type=Nothing
+  decl Expr interface Expr sym=Expr
+  decl Literal class Literal sym=Literal
+  decl Add class Add sym=Add
+  decl Multiply class Multiply sym=Multiply
+  decl eval fun eval sym=eval
+expr e@7:18#0 name(e) type=Expr ref=eval.$0.e
+expr e@7:18#1 isCheck expr=e@7:18#0 type=Literal type=Boolean
+expr e@8:23 string(literal) type=String
+expr e@7:18#2 isCheck expr=e@7:18#0 type=Add type=Boolean
+expr e@9:19 string(add) type=String
+expr e@7:18#3 isCheck expr=e@7:18#0 type=Multiply type=Boolean
+expr e@10:24 string(multiply) type=String
+expr e@7:12#3 when subject=e@7:18#0 branches=[e@7:18#1->e@8:23,e@7:18#2->e@9:19,e@7:18#3->e@10:24] else=_ type=String
+expr e@7:5#3 return value=e@7:12#3 type=Nothing

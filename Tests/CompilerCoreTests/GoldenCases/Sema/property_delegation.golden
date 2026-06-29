@@ -5,10 +5,10 @@ symbol fq=golden.sema.LazyHolder kind=class vis=public flags=_
 symbol fq=kotlin.lazy kind=function vis=public flags=synthetic sig=recv=_ params=[() -> Any] ret=kotlin.properties.Lazy
 symbol fq=kotlin.properties.Lazy kind=interface vis=public flags=synthetic
 file f13 package=golden.sema
-  decl d0 class LazyHolder sym=golden.sema.LazyHolder
-  decl d1 class CustomDelegate sym=golden.sema.CustomDelegate
-  decl d2 class Holder sym=golden.sema.Holder
-expr e0 name(lazy) type=kotlin.properties.Lazy ref=kotlin.lazy
-expr e1 string(hello) type=String
-expr e2 call callee=e3 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>
-expr e4 call callee=e5 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>
+  decl golden.sema.LazyHolder class LazyHolder sym=golden.sema.LazyHolder
+  decl golden.sema.CustomDelegate class CustomDelegate sym=golden.sema.CustomDelegate
+  decl golden.sema.Holder class Holder sym=golden.sema.Holder
+expr e@4:19 name(lazy) type=kotlin.properties.Lazy ref=kotlin.lazy
+expr e@8:68 string(hello) type=String
+expr e@13:25#1 call callee=e@13:25#0 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>
+expr e@14:28#1 call callee=e@14:28#0 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>

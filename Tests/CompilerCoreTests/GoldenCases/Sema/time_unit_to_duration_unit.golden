@@ -4,6 +4,6 @@ symbol fq=kotlin.time.toDurationUnit kind=function vis=public flags=synthetic si
 symbol fq=timeUnitToDurationUnit kind=function vis=public flags=_ sig=recv=_ params=[java.util.concurrent.TimeUnit] ret=kotlin.time.DurationUnit
 symbol fq=timeUnitToDurationUnit.$0.u kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun timeUnitToDurationUnit sym=timeUnitToDurationUnit
-expr e0 name(u) type=java.util.concurrent.TimeUnit ref=timeUnitToDurationUnit.$0.u
-expr e1 memberCall recv=e0 callee=toDurationUnit args=[] type=kotlin.time.DurationUnit call=kotlin.time.toDurationUnit
+  decl timeUnitToDurationUnit fun timeUnitToDurationUnit sym=timeUnitToDurationUnit
+expr e@1:90#0 name(u) type=java.util.concurrent.TimeUnit ref=timeUnitToDurationUnit.$0.u
+expr e@1:90#1 memberCall recv=e@1:90#0 callee=toDurationUnit args=[] type=kotlin.time.DurationUnit call=kotlin.time.toDurationUnit

@@ -6,12 +6,12 @@ symbol fq=golden.sema.useSam kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 interface Action sym=golden.sema.Action
-  decl d1 fun execute sym=golden.sema.execute
-  decl d2 fun useSam sym=golden.sema.useSam
-expr e0 name(action) type=golden.sema.Action ref=golden.sema.execute.$0.action
-expr e1 memberCall recv=e0 callee=run args=[] type=Unit call=golden.sema.Action.run
-expr e2 string(hello) type=String
-expr e3 call callee=e4 args=[_:e2] type=Unit call=kotlin.io.println#1
-expr e5 lambda params=[] body=e3 label=execute type=golden.sema.Action
-expr e6 call callee=e7 args=[_:e5] type=Unit call=golden.sema.execute
+  decl golden.sema.Action interface Action sym=golden.sema.Action
+  decl golden.sema.execute fun execute sym=golden.sema.execute
+  decl golden.sema.useSam fun useSam sym=golden.sema.useSam
+expr e@7:31#0 name(action) type=golden.sema.Action ref=golden.sema.execute.$0.action
+expr e@7:31#1 memberCall recv=e@7:31#0 callee=run args=[] type=Unit call=golden.sema.Action.run
+expr e@10:23#1 string(hello) type=String
+expr e@10:15#3 call callee=e@10:15#2 args=[_:e@10:23#1] type=Unit call=kotlin.io.println#1
+expr e@10:13 lambda params=[] body=e@10:15#3 label=execute type=golden.sema.Action
+expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=golden.sema.execute

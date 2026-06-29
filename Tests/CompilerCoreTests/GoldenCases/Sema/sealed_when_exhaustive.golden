@@ -5,17 +5,17 @@ symbol fq=Triangle kind=class vis=public flags=_
 symbol fq=describeShape kind=function vis=public flags=_ sig=recv=_ params=[Shape] ret=String
 symbol fq=describeShape.$0.s kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 class Shape sym=Shape
-  decl d1 class Circle sym=Circle
-  decl d2 class Rectangle sym=Rectangle
-  decl d3 class Triangle sym=Triangle
-  decl d4 fun describeShape sym=describeShape
-expr e0 name(s) type=Shape ref=describeShape.$0.s
-expr e1 isCheck expr=e0 type=t0 type=Boolean
-expr e2 string(circle) type=String
-expr e3 isCheck expr=e0 type=t1 type=Boolean
-expr e4 string(rectangle) type=String
-expr e5 isCheck expr=e0 type=t2 type=Boolean
-expr e6 string(triangle) type=String
-expr e7 when subject=e0 branches=[e1->e2,e3->e4,e5->e6] else=_ type=String
-expr e8 return value=e7 type=Nothing
+  decl Shape class Shape sym=Shape
+  decl Circle class Circle sym=Circle
+  decl Rectangle class Rectangle sym=Rectangle
+  decl Triangle class Triangle sym=Triangle
+  decl describeShape fun describeShape sym=describeShape
+expr e@7:18#0 name(s) type=Shape ref=describeShape.$0.s
+expr e@7:18#1 isCheck expr=e@7:18#0 type=Circle type=Boolean
+expr e@8:22 string(circle) type=String
+expr e@7:18#2 isCheck expr=e@7:18#0 type=Rectangle type=Boolean
+expr e@9:25 string(rectangle) type=String
+expr e@7:18#3 isCheck expr=e@7:18#0 type=Triangle type=Boolean
+expr e@10:24 string(triangle) type=String
+expr e@7:12#3 when subject=e@7:18#0 branches=[e@7:18#1->e@8:22,e@7:18#2->e@9:25,e@7:18#3->e@10:24] else=_ type=String
+expr e@7:5#3 return value=e@7:12#3 type=Nothing

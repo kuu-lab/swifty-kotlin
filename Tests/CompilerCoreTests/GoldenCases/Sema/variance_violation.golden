@@ -9,14 +9,14 @@ symbol fq=golden.sema.Producer.<init> kind=constructor vis=public flags=_ sig=re
 symbol fq=golden.sema.Producer.<init>.$0.item kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.validVariance kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=golden.sema
-  decl d0 class Producer sym=golden.sema.Producer
-  decl d1 class Consumer sym=golden.sema.Consumer
-  decl d2 fun validVariance sym=golden.sema.validVariance
-  decl d3 class BadProducer sym=golden.sema.BadProducer
-  decl d4 class BadConsumer sym=golden.sema.BadConsumer
-expr e0 int(42) type=Int
-expr e1 call callee=e2 args=[_:e0] type=golden.sema.Producer<Any> call=golden.sema.Producer.<init> targs=[Any]
-expr e3 localDecl p mutable=0 type=t0 init=e1 type=Unit ref=__local_0.p
-expr e4 call callee=e5 args=[] type=<error>
-expr e6 localDecl c mutable=0 type=t1 init=e4 type=Unit ref=__local_1.c
-expr e7 name(null) type=Nothing?
+  decl golden.sema.Producer class Producer sym=golden.sema.Producer
+  decl golden.sema.Consumer class Consumer sym=golden.sema.Consumer
+  decl golden.sema.validVariance fun validVariance sym=golden.sema.validVariance
+  decl golden.sema.BadProducer class BadProducer sym=golden.sema.BadProducer
+  decl golden.sema.BadConsumer class BadConsumer sym=golden.sema.BadConsumer
+expr e@11:37 int(42) type=Int
+expr e@11:28#1 call callee=e@11:28#0 args=[_:e@11:37] type=golden.sema.Producer<Any> call=golden.sema.Producer.<init> targs=[Any]
+expr e@11:5#2 localDecl p mutable=0 type=Producer<Any> init=e@11:28#1 type=Unit ref=__local_0.p
+expr e@12:28#3 call callee=e@12:28#2 args=[] type=<error>
+expr e@12:5#4 localDecl c mutable=0 type=Consumer<Int> init=e@12:28#3 type=Unit ref=__local_1.c
+expr e@22:25 name(null) type=Nothing?

@@ -7,14 +7,14 @@ symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=S
 symbol fq=render kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=render.$0.values kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun render sym=render
-expr e0 call callee=e1 args=[] type=kotlin.collections.MutableMap<Int, Int>
-expr e2 localDecl dest mutable=0 type=_ init=e0 type=Unit ref=__local_0.dest
-expr e3 name(values) type=kotlin.collections.List<String> ref=render.$0.values
-expr e4 name(it) type=String ref=s-0
-expr e5 memberCall recv=e4 callee=length args=[] type=Int call=kotlin.text.length
-expr e6 lambda params=[] body=e5 label=groupingBy type=(String) -> Any
-expr e7 memberCall recv=e3 callee=groupingBy args=[_:e6] type=kotlin.collections.Grouping<String, Int>
-expr e8 name(dest) type=kotlin.collections.MutableMap<Int, Int> ref=__local_0.dest
-expr e9 memberCall recv=e7 callee=eachCountTo args=[_:e8] type=<error>
-expr e10 localDecl result mutable=0 type=_ init=e9 type=Unit ref=__local_1.result
+  decl render fun render sym=render
+expr e@2:16#1 call callee=e@2:16#0 args=[] type=kotlin.collections.MutableMap<Int, Int>
+expr e@2:5 localDecl dest mutable=0 type=_ init=e@2:16#1 type=Unit ref=__local_0.dest
+expr e@3:18#0 name(values) type=kotlin.collections.List<String> ref=render.$0.values
+expr e@3:38#2 name(it) type=String ref=s-0
+expr e@3:38#3 memberCall recv=e@3:38#2 callee=length args=[] type=Int call=kotlin.text.length
+expr e@3:36 lambda params=[] body=e@3:38#3 label=groupingBy type=(String) -> Any
+expr e@3:18#1 memberCall recv=e@3:18#0 callee=groupingBy args=[_:e@3:36] type=kotlin.collections.Grouping<String, Int>
+expr e@3:62 name(dest) type=kotlin.collections.MutableMap<Int, Int> ref=__local_0.dest
+expr e@3:18#2 memberCall recv=e@3:18#1 callee=eachCountTo args=[_:e@3:62] type=<error>
+expr e@3:5 localDecl result mutable=0 type=_ init=e@3:18#2 type=Unit ref=__local_1.result

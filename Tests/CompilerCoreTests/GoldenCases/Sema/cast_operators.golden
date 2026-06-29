@@ -5,12 +5,12 @@ symbol fq=golden.sema.safeCastSuccess.$1.v kind=valueParameter vis=private flags
 symbol fq=golden.sema.unsafeCastSuccess kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=golden.sema.unsafeCastSuccess.$2.v kind=valueParameter vis=private flags=_
 file f13 package=golden.sema
-  decl d0 fun unsafeCastSuccess sym=golden.sema.unsafeCastSuccess
-  decl d1 fun safeCastSuccess sym=golden.sema.safeCastSuccess
-  decl d2 fun safeCastNull sym=golden.sema.safeCastNull
-expr e0 name(v) type=Any ref=golden.sema.unsafeCastSuccess.$2.v
-expr e1 asCast expr=e0 type=t0 type=String
-expr e2 name(v) type=Any ref=golden.sema.safeCastSuccess.$1.v
-expr e3 asCast? expr=e2 type=t1 type=String?
-expr e4 name(v) type=Any ref=golden.sema.safeCastNull.$0.v
-expr e5 asCast? expr=e4 type=t2 type=Int?
+  decl golden.sema.unsafeCastSuccess fun unsafeCastSuccess sym=golden.sema.unsafeCastSuccess
+  decl golden.sema.safeCastSuccess fun safeCastSuccess sym=golden.sema.safeCastSuccess
+  decl golden.sema.safeCastNull fun safeCastNull sym=golden.sema.safeCastNull
+expr e@3:41#0 name(v) type=Any ref=golden.sema.unsafeCastSuccess.$2.v
+expr e@3:41#1 asCast expr=e@3:41#0 type=String type=String
+expr e@5:40#0 name(v) type=Any ref=golden.sema.safeCastSuccess.$1.v
+expr e@5:40#1 asCast? expr=e@5:40#0 type=String type=String?
+expr e@7:34#0 name(v) type=Any ref=golden.sema.safeCastNull.$0.v
+expr e@7:34#1 asCast? expr=e@7:34#0 type=Int type=Int?

@@ -3,7 +3,7 @@ symbol fq=test.Container kind=interface vis=public flags=_
 symbol fq=test.IntContainer kind=class vis=public flags=_
 symbol fq=test.StringContainer kind=class vis=public flags=_
 file f13 package=test
-  decl d0 interface Container sym=test.Container
-  decl d1 class IntContainer sym=test.IntContainer
-  decl d2 class StringContainer sym=test.StringContainer
-  decl d3 class BoolContainer sym=test.BoolContainer
+  decl test.Container interface Container sym=test.Container
+  decl test.IntContainer class IntContainer sym=test.IntContainer
+  decl test.StringContainer class StringContainer sym=test.StringContainer
+  decl test.BoolContainer class BoolContainer sym=test.BoolContainer

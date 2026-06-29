@@ -9,68 +9,68 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun main sym=main
-expr e0 int(1) type=Int
-expr e1 int(2) type=Int
-expr e2 call callee=e3 args=[_:e0,_:e1] type=kotlin.collections.List<out Int>
-expr e4 int(3) type=Int
-expr e5 int(4) type=Int
-expr e6 call callee=e7 args=[_:e4,_:e5] type=kotlin.collections.List<out Int>
-expr e8 call callee=e9 args=[_:e2,_:e6] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
-expr e10 memberCall recv=e8 callee=flatten args=[] type=kotlin.collections.List<Int>
-expr e11 call callee=e12 args=[_:e10] type=Unit call=kotlin.io.println#1
-expr e13 call callee=e14 args=[] type=kotlin.collections.List<out kotlin.collections.List<Int>> call=kotlin.collections.emptyList targs=[kotlin.collections.List<Int>]
-expr e15 memberCall recv=e13 callee=flatten args=[] type=kotlin.collections.List<Int>
-expr e16 call callee=e17 args=[_:e15] type=Unit call=kotlin.io.println#1
-expr e18 call callee=e19 args=[] type=kotlin.collections.List<out Int>
-expr e20 call callee=e21 args=[_:e18] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
-expr e22 memberCall recv=e20 callee=flatten args=[] type=kotlin.collections.List<Int>
-expr e23 call callee=e24 args=[_:e22] type=Unit call=kotlin.io.println#1
-expr e25 call callee=e26 args=[] type=kotlin.collections.List<out Int>
-expr e27 call callee=e28 args=[] type=kotlin.collections.List<out Int>
-expr e29 call callee=e30 args=[_:e25,_:e27] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
-expr e31 memberCall recv=e29 callee=flatten args=[] type=kotlin.collections.List<Int>
-expr e32 call callee=e33 args=[_:e31] type=Unit call=kotlin.io.println#1
-expr e34 call callee=e35 args=[] type=kotlin.collections.List<out Int>
-expr e36 int(1) type=Int
-expr e37 call callee=e38 args=[_:e36] type=kotlin.collections.List<out Int>
-expr e39 call callee=e40 args=[] type=kotlin.collections.List<out Int>
-expr e41 call callee=e42 args=[_:e34,_:e37,_:e39] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
-expr e43 memberCall recv=e41 callee=flatten args=[] type=kotlin.collections.List<Int>
-expr e44 call callee=e45 args=[_:e43] type=Unit call=kotlin.io.println#1
-expr e46 int(42) type=Int
-expr e47 call callee=e48 args=[_:e46] type=kotlin.collections.List<out Int>
-expr e49 call callee=e50 args=[_:e47] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
-expr e51 memberCall recv=e49 callee=flatten args=[] type=kotlin.collections.List<Int>
-expr e52 call callee=e53 args=[_:e51] type=Unit call=kotlin.io.println#1
-expr e54 string(a) type=String
-expr e55 string(b) type=String
-expr e56 call callee=e57 args=[_:e54,_:e55] type=kotlin.collections.List<out String>
-expr e58 string(c) type=String
-expr e59 call callee=e60 args=[_:e58] type=kotlin.collections.List<out String>
-expr e61 call callee=e62 args=[_:e56,_:e59] type=kotlin.collections.List<out kotlin.collections.List<out String>>
-expr e63 memberCall recv=e61 callee=flatten args=[] type=kotlin.collections.List<String>
-expr e64 call callee=e65 args=[_:e63] type=Unit call=kotlin.io.println#1
-expr e66 call callee=e67 args=[] type=kotlin.collections.List<out String>
-expr e68 string(x) type=String
-expr e69 call callee=e70 args=[_:e68] type=kotlin.collections.List<out String>
-expr e71 call callee=e72 args=[_:e66,_:e69] type=kotlin.collections.List<out kotlin.collections.List<out String>>
-expr e73 memberCall recv=e71 callee=flatten args=[] type=kotlin.collections.List<String>
-expr e74 call callee=e75 args=[_:e73] type=Unit call=kotlin.io.println#1
-expr e76 int(1) type=Int
-expr e77 int(10) type=Int
-expr e78 binary(rangeTo) lhs=e76 rhs=e77 type=Int
-expr e79 name(it) type=Int ref=s-0
-expr e80 call callee=e81 args=[_:e79] type=kotlin.collections.List<out Int>
-expr e82 lambda params=[] body=e80 label=map type=(Int) -> Any
-expr e83 memberCall recv=e78 callee=map args=[_:e82] type=kotlin.collections.List<out Any>
-expr e84 localDecl large mutable=0 type=_ init=e83 type=Unit ref=__local_0.large
-expr e85 name(large) type=kotlin.collections.List<out Any> ref=__local_0.large
-expr e86 memberCall recv=e85 callee=flatten args=[] type=kotlin.collections.List<Any>
-expr e87 memberCall recv=e86 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e88 call callee=e89 args=[_:e87] type=Unit call=kotlin.io.println#1
-expr e90 name(large) type=kotlin.collections.List<out Any> ref=__local_0.large
-expr e91 memberCall recv=e90 callee=flatten args=[] type=kotlin.collections.List<Any>
-expr e92 int(3) type=Int
-expr e93 memberCall recv=e91 callee=take args=[_:e92] type=Any call=kotlin.collections.List.take
-expr e94 call callee=e95 args=[_:e93] type=Unit call=kotlin.io.println#1
+  decl main fun main sym=main
+expr e@2:27 int(1) type=Int
+expr e@2:30 int(2) type=Int
+expr e@2:20#1 call callee=e@2:20#0 args=[_:e@2:27,_:e@2:30] type=kotlin.collections.List<out Int>
+expr e@2:41 int(3) type=Int
+expr e@2:44 int(4) type=Int
+expr e@2:34#1 call callee=e@2:34#0 args=[_:e@2:41,_:e@2:44] type=kotlin.collections.List<out Int>
+expr e@2:13#1 call callee=e@2:13#0 args=[_:e@2:20#1,_:e@2:34#1] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
+expr e@2:13#2 memberCall recv=e@2:13#1 callee=flatten args=[] type=kotlin.collections.List<Int>
+expr e@2:5#1 call callee=e@2:5#0 args=[_:e@2:13#2] type=Unit call=kotlin.io.println#1
+expr e@4:13#3 call callee=e@4:13#2 args=[] type=kotlin.collections.List<out kotlin.collections.List<Int>> call=kotlin.collections.emptyList targs=[kotlin.collections.List<Int>]
+expr e@4:13#4 memberCall recv=e@4:13#3 callee=flatten args=[] type=kotlin.collections.List<Int>
+expr e@4:5#3 call callee=e@4:5#2 args=[_:e@4:13#4] type=Unit call=kotlin.io.println#1
+expr e@5:20#1 call callee=e@5:20#0 args=[] type=kotlin.collections.List<out Int>
+expr e@5:13#2 call callee=e@5:13#1 args=[_:e@5:20#1] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
+expr e@5:13#3 memberCall recv=e@5:13#2 callee=flatten args=[] type=kotlin.collections.List<Int>
+expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:13#3] type=Unit call=kotlin.io.println#1
+expr e@6:20#1 call callee=e@6:20#0 args=[] type=kotlin.collections.List<out Int>
+expr e@6:35#1 call callee=e@6:35#0 args=[] type=kotlin.collections.List<out Int>
+expr e@6:13#2 call callee=e@6:13#1 args=[_:e@6:20#1,_:e@6:35#1] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
+expr e@6:13#3 memberCall recv=e@6:13#2 callee=flatten args=[] type=kotlin.collections.List<Int>
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#3] type=Unit call=kotlin.io.println#1
+expr e@8:20#1 call callee=e@8:20#0 args=[] type=kotlin.collections.List<out Int>
+expr e@8:42 int(1) type=Int
+expr e@8:35#1 call callee=e@8:35#0 args=[_:e@8:42] type=kotlin.collections.List<out Int>
+expr e@8:46#1 call callee=e@8:46#0 args=[] type=kotlin.collections.List<out Int>
+expr e@8:13#1 call callee=e@8:13#0 args=[_:e@8:20#1,_:e@8:35#1,_:e@8:46#1] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
+expr e@8:13#2 memberCall recv=e@8:13#1 callee=flatten args=[] type=kotlin.collections.List<Int>
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13#2] type=Unit call=kotlin.io.println#1
+expr e@10:27 int(42) type=Int
+expr e@10:20#1 call callee=e@10:20#0 args=[_:e@10:27] type=kotlin.collections.List<out Int>
+expr e@10:13#1 call callee=e@10:13#0 args=[_:e@10:20#1] type=kotlin.collections.List<out kotlin.collections.List<out Int>>
+expr e@10:13#2 memberCall recv=e@10:13#1 callee=flatten args=[] type=kotlin.collections.List<Int>
+expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:13#2] type=Unit call=kotlin.io.println#1
+expr e@12:27 string(a) type=String
+expr e@12:32 string(b) type=String
+expr e@12:20#1 call callee=e@12:20#0 args=[_:e@12:27,_:e@12:32] type=kotlin.collections.List<out String>
+expr e@12:45 string(c) type=String
+expr e@12:38#3 call callee=e@12:38#2 args=[_:e@12:45] type=kotlin.collections.List<out String>
+expr e@12:13#3 call callee=e@12:13#2 args=[_:e@12:20#1,_:e@12:38#3] type=kotlin.collections.List<out kotlin.collections.List<out String>>
+expr e@12:13#4 memberCall recv=e@12:13#3 callee=flatten args=[] type=kotlin.collections.List<String>
+expr e@12:5#5 call callee=e@12:5#4 args=[_:e@12:13#4] type=Unit call=kotlin.io.println#1
+expr e@13:20#3 call callee=e@13:20#2 args=[] type=kotlin.collections.List<out String>
+expr e@13:45 string(x) type=String
+expr e@13:38#1 call callee=e@13:38#0 args=[_:e@13:45] type=kotlin.collections.List<out String>
+expr e@13:13#2 call callee=e@13:13#1 args=[_:e@13:20#3,_:e@13:38#1] type=kotlin.collections.List<out kotlin.collections.List<out String>>
+expr e@13:13#3 memberCall recv=e@13:13#2 callee=flatten args=[] type=kotlin.collections.List<String>
+expr e@13:5#7 call callee=e@13:5#6 args=[_:e@13:13#3] type=Unit call=kotlin.io.println#1
+expr e@15:18#0 int(1) type=Int
+expr e@15:21 int(10) type=Int
+expr e@15:18#1 binary(rangeTo) lhs=e@15:18#0 rhs=e@15:21 type=Int
+expr e@15:38#1 name(it) type=Int ref=s-0
+expr e@15:31#3 call callee=e@15:31#2 args=[_:e@15:38#1] type=kotlin.collections.List<out Int>
+expr e@15:29 lambda params=[] body=e@15:31#3 label=map type=(Int) -> Any
+expr e@15:18#2 memberCall recv=e@15:18#1 callee=map args=[_:e@15:29] type=kotlin.collections.List<out Any>
+expr e@15:5#6 localDecl large mutable=0 type=_ init=e@15:18#2 type=Unit ref=__local_0.large
+expr e@16:13#1 name(large) type=kotlin.collections.List<out Any> ref=__local_0.large
+expr e@16:13#2 memberCall recv=e@16:13#1 callee=flatten args=[] type=kotlin.collections.List<Any>
+expr e@16:13#3 memberCall recv=e@16:13#2 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@16:5#7 call callee=e@16:5#6 args=[_:e@16:13#3] type=Unit call=kotlin.io.println#1
+expr e@17:13#3 name(large) type=kotlin.collections.List<out Any> ref=__local_0.large
+expr e@17:13#4 memberCall recv=e@17:13#3 callee=flatten args=[] type=kotlin.collections.List<Any>
+expr e@17:34 int(3) type=Int
+expr e@17:13#5 memberCall recv=e@17:13#4 callee=take args=[_:e@17:34] type=Any call=kotlin.collections.List.take
+expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#5] type=Unit call=kotlin.io.println#1
