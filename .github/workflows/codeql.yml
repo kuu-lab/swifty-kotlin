@@ -42,11 +42,11 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Install Swift
       if: matrix.language == 'swift'
-      uses: swift-actions/setup-swift@v2
+      uses: swift-actions/setup-swift@v2.4.0
       with:
         swift-version: "6.2"
 
