@@ -101,7 +101,7 @@
 - [x] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
 - [x] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
 - [x] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
-- [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
+- [x] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
 - [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [x] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
 - [x] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
