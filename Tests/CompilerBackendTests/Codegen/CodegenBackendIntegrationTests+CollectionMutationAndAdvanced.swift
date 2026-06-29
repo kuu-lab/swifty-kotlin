@@ -412,7 +412,9 @@ extension CodegenBackendIntegrationTests {
             XCTAssertTrue(callees.contains("kk_list_minOfOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minByOrNull"))
             XCTAssertTrue(callees.contains("kk_list_fold"))
-            XCTAssertTrue(callees.contains("kk_list_foldRight"))
+            // foldRight is now a bundled Kotlin source function (ListAggregateHOF.kt)
+            // and gets inlined; its body uses kk_collection_size and kk_list_get.
+            XCTAssertTrue(callees.contains("kk_collection_size"))
             XCTAssertTrue(callees.contains("kk_list_foldIndexed"))
             XCTAssertTrue(callees.contains("kk_list_foldRightIndexed"))
         }
