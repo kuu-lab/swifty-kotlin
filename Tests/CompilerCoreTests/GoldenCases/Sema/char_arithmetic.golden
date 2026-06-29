@@ -11,42 +11,42 @@ symbol fq=charMinusInt kind=function vis=public flags=_ sig=recv=_ params=[] ret
 symbol fq=charPlusInt kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=_
-  decl d0 fun charPlusInt sym=charPlusInt
-  decl d1 fun charMinusInt sym=charMinusInt
-  decl d2 fun charMinusChar sym=charMinusChar
-  decl d3 fun charComparison sym=charComparison
-expr e0 char(97) type=Char
-expr e1 localDecl c mutable=0 type=t0 init=e0 type=Unit ref=__local_0.c
-expr e2 name(c) type=Char ref=__local_0.c
-expr e3 int(1) type=Int
-expr e4 binary(add) lhs=e2 rhs=e3 type=Char
-expr e5 localDecl next mutable=0 type=_ init=e4 type=Unit ref=__local_1.next
-expr e6 name(next) type=Char ref=__local_1.next
-expr e7 call callee=e8 args=[_:e6] type=Unit call=kotlin.io.println#1
-expr e9 char(122) type=Char
-expr e10 localDecl c mutable=0 type=t1 init=e9 type=Unit ref=__local_2.c
-expr e11 name(c) type=Char ref=__local_2.c
-expr e12 int(1) type=Int
-expr e13 binary(subtract) lhs=e11 rhs=e12 type=Char
-expr e14 localDecl prev mutable=0 type=_ init=e13 type=Unit ref=__local_3.prev
-expr e15 name(prev) type=Char ref=__local_3.prev
-expr e16 call callee=e17 args=[_:e15] type=Unit call=kotlin.io.println#1
-expr e18 char(122) type=Char
-expr e19 char(97) type=Char
-expr e20 binary(subtract) lhs=e18 rhs=e19 type=Int
-expr e21 localDecl diff mutable=0 type=_ init=e20 type=Unit ref=__local_4.diff
-expr e22 name(diff) type=Int ref=__local_4.diff
-expr e23 call callee=e24 args=[_:e22] type=Unit call=kotlin.io.println#1
-expr e25 char(97) type=Char
-expr e26 char(122) type=Char
-expr e27 binary(lessThan) lhs=e25 rhs=e26 type=Boolean
-expr e28 localDecl lt mutable=0 type=_ init=e27 type=Unit ref=__local_5.lt
-expr e29 char(97) type=Char
-expr e30 char(97) type=Char
-expr e31 binary(equal) lhs=e29 rhs=e30 type=Boolean
-expr e32 localDecl eq mutable=0 type=_ init=e31 type=Unit ref=__local_6.eq
-expr e33 name(lt) type=Boolean ref=__local_5.lt
-expr e34 call callee=e35 args=[_:e33] type=Unit call=kotlin.io.println#1
-expr e36 name(eq) type=Boolean ref=__local_6.eq
-expr e37 call callee=e38 args=[_:e36] type=Unit call=kotlin.io.println#1
+file f13 package=_
+  decl charPlusInt fun charPlusInt sym=charPlusInt
+  decl charMinusInt fun charMinusInt sym=charMinusInt
+  decl charMinusChar fun charMinusChar sym=charMinusChar
+  decl charComparison fun charComparison sym=charComparison
+expr e@2:19 char(97) type=Char
+expr e@2:5 localDecl c mutable=0 type=Char init=e@2:19 type=Unit ref=__local_0.c
+expr e@3:16#0 name(c) type=Char ref=__local_0.c
+expr e@3:20 int(1) type=Int
+expr e@3:16#1 binary(add) lhs=e@3:16#0 rhs=e@3:20 type=Char
+expr e@3:5 localDecl next mutable=0 type=_ init=e@3:16#1 type=Unit ref=__local_1.next
+expr e@4:13#2 name(next) type=Char ref=__local_1.next
+expr e@4:5#3 call callee=e@4:5#2 args=[_:e@4:13#2] type=Unit call=kotlin.io.println#1
+expr e@8:19 char(122) type=Char
+expr e@8:5#2 localDecl c mutable=0 type=Char init=e@8:19 type=Unit ref=__local_2.c
+expr e@9:16#0 name(c) type=Char ref=__local_2.c
+expr e@9:20 int(1) type=Int
+expr e@9:16#1 binary(subtract) lhs=e@9:16#0 rhs=e@9:20 type=Char
+expr e@9:5 localDecl prev mutable=0 type=_ init=e@9:16#1 type=Unit ref=__local_3.prev
+expr e@10:13 name(prev) type=Char ref=__local_3.prev
+expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println#1
+expr e@14:16#1 char(122) type=Char
+expr e@14:22#1 char(97) type=Char
+expr e@14:16#2 binary(subtract) lhs=e@14:16#1 rhs=e@14:22#1 type=Int
+expr e@14:5#7 localDecl diff mutable=0 type=_ init=e@14:16#2 type=Unit ref=__local_4.diff
+expr e@15:13#2 name(diff) type=Int ref=__local_4.diff
+expr e@15:5#7 call callee=e@15:5#6 args=[_:e@15:13#2] type=Unit call=kotlin.io.println#1
+expr e@19:14#2 char(97) type=Char
+expr e@19:20#2 char(122) type=Char
+expr e@19:14#3 binary(lessThan) lhs=e@19:14#2 rhs=e@19:20#2 type=Boolean
+expr e@19:5#6 localDecl lt mutable=0 type=_ init=e@19:14#3 type=Unit ref=__local_5.lt
+expr e@20:14#0 char(97) type=Char
+expr e@20:21 char(97) type=Char
+expr e@20:14#1 binary(equal) lhs=e@20:14#0 rhs=e@20:21 type=Boolean
+expr e@20:5#5 localDecl eq mutable=0 type=_ init=e@20:14#1 type=Unit ref=__local_6.eq
+expr e@21:13 name(lt) type=Boolean ref=__local_5.lt
+expr e@21:5#4 call callee=e@21:5#3 args=[_:e@21:13] type=Unit call=kotlin.io.println#1
+expr e@22:13#2 name(eq) type=Boolean ref=__local_6.eq
+expr e@22:5#5 call callee=e@22:5#4 args=[_:e@22:13#2] type=Unit call=kotlin.io.println#1

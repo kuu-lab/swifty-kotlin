@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-FN-017: Reader.forEachLine { line -> Unit }
 //
@@ -10,11 +11,12 @@ import XCTest
 // `forEachLine` does not close the reader — the lambda parameter is `String` and
 // the call returns `Unit`.
 
-final class ReaderForEachLineFunctionTests: XCTestCase {
+@Suite
+struct ReaderForEachLineFunctionTests {
 
     // MARK: - Direct forEachLine call resolves without errors
 
-    func testBufferedReaderForEachLineResolves() throws {
+    @Test func testBufferedReaderForEachLineResolves() throws {
         let source = """
         import java.io.File
 
@@ -28,16 +30,16 @@ final class ReaderForEachLineFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "BufferedReader.forEachLine should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "BufferedReader.forEachLine should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
             )
         }
     }
 
     // MARK: - Lambda parameter is typed as String
 
-    func testBufferedReaderForEachLineLambdaParameterIsString() throws {
+    @Test func testBufferedReaderForEachLineLambdaParameterIsString() throws {
         let source = """
         import java.io.File
 
@@ -52,16 +54,16 @@ final class ReaderForEachLineFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "forEachLine lambda parameter should be typed as String (line.length should resolve): \(ctx.diagnostics.diagnostics.map(\.message))"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "forEachLine lambda parameter should be typed as String (line.length should resolve): \(ctx.diagnostics.diagnostics.map(\.message))")
             )
         }
     }
 
     // MARK: - Call returns Unit
 
-    func testBufferedReaderForEachLineReturnsUnit() throws {
+    @Test func testBufferedReaderForEachLineReturnsUnit() throws {
         let source = """
         import java.io.File
 
@@ -80,10 +82,11 @@ final class ReaderForEachLineFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "BufferedReader.forEachLine should return Unit: \(ctx.diagnostics.diagnostics.map(\.message))"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "BufferedReader.forEachLine should return Unit: \(ctx.diagnostics.diagnostics.map(\.message))")
             )
         }
     }
 }
+#endif

@@ -10,32 +10,32 @@ symbol fq=kotlin.Any kind=class vis=public flags=synthetic
 symbol fq=kotlin.Any.toString kind=function vis=public flags=synthetic|openType sig=recv=kotlin.Any params=[] ret=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 class MyResource sym=golden.sema.MyResource
-  decl d1 fun useBasic sym=golden.sema.useBasic
-  decl d2 fun useReturnValue sym=golden.sema.useReturnValue
-  decl d3 fun useWithIt sym=golden.sema.useWithIt
-expr e0 string(closed) type=String
-expr e1 call callee=e2 args=[_:e0] type=Unit call=kotlin.io.println#1
-expr e3 call callee=e4 args=[] type=golden.sema.MyResource call=golden.sema.MyResource.<init>
-expr e5 localDecl r mutable=0 type=_ init=e3 type=Unit ref=__local_0.r
-expr e6 name(r) type=golden.sema.MyResource ref=__local_0.r
-expr e7 string(using) type=String
-expr e8 call callee=e9 args=[_:e7] type=Unit call=kotlin.io.println#1
-expr e10 lambda params=[] body=e8 label=use type=(golden.sema.MyResource) -> Any
-expr e11 memberCall recv=e6 callee=use args=[_:e10] type=Unit
-expr e12 call callee=e13 args=[] type=golden.sema.MyResource call=golden.sema.MyResource.<init>
-expr e14 localDecl r mutable=0 type=_ init=e12 type=Unit ref=__local_1.r
-expr e15 name(r) type=golden.sema.MyResource ref=__local_1.r
-expr e16 int(42) type=Int
-expr e17 lambda params=[] body=e16 label=use type=(golden.sema.MyResource) -> Int
-expr e18 memberCall recv=e15 callee=use args=[_:e17] type=Int
-expr e19 return value=e18 type=Nothing
-expr e20 call callee=e21 args=[] type=golden.sema.MyResource call=golden.sema.MyResource.<init>
-expr e22 localDecl r mutable=0 type=_ init=e20 type=Unit ref=__local_2.r
-expr e23 name(r) type=golden.sema.MyResource ref=__local_2.r
-expr e24 name(it) type=golden.sema.MyResource ref=s-0
-expr e25 memberCall recv=e24 callee=toString args=[] type=String call=kotlin.Any.toString
-expr e26 lambda params=[] body=e25 label=use type=(golden.sema.MyResource) -> String
-expr e27 memberCall recv=e23 callee=use args=[_:e26] type=String
-expr e28 return value=e27 type=Nothing
+file f13 package=golden.sema
+  decl golden.sema.MyResource class MyResource sym=golden.sema.MyResource
+  decl golden.sema.useBasic fun useBasic sym=golden.sema.useBasic
+  decl golden.sema.useReturnValue fun useReturnValue sym=golden.sema.useReturnValue
+  decl golden.sema.useWithIt fun useWithIt sym=golden.sema.useWithIt
+expr e@7:17 string(closed) type=String
+expr e@7:9#1 call callee=e@7:9#0 args=[_:e@7:17] type=Unit call=kotlin.io.println#1
+expr e@12:13#3 call callee=e@12:13#2 args=[] type=golden.sema.MyResource call=golden.sema.MyResource.<init>
+expr e@12:5#4 localDecl r mutable=0 type=_ init=e@12:13#3 type=Unit ref=__local_0.r
+expr e@13:5#6 name(r) type=golden.sema.MyResource ref=__local_0.r
+expr e@13:21#2 string(using) type=String
+expr e@13:13#4 call callee=e@13:13#3 args=[_:e@13:21#2] type=Unit call=kotlin.io.println#1
+expr e@13:11 lambda params=[] body=e@13:13#4 label=use type=(golden.sema.MyResource) -> Any
+expr e@13:5#7 memberCall recv=e@13:5#6 callee=use args=[_:e@13:11] type=Unit
+expr e@17:13#4 call callee=e@17:13#3 args=[] type=golden.sema.MyResource call=golden.sema.MyResource.<init>
+expr e@17:5#3 localDecl r mutable=0 type=_ init=e@17:13#4 type=Unit ref=__local_1.r
+expr e@18:12#4 name(r) type=golden.sema.MyResource ref=__local_1.r
+expr e@18:20#2 int(42) type=Int
+expr e@18:18#2 lambda params=[] body=e@18:20#2 label=use type=(golden.sema.MyResource) -> Int
+expr e@18:12#5 memberCall recv=e@18:12#4 callee=use args=[_:e@18:18#2] type=Int
+expr e@18:5#4 return value=e@18:12#5 type=Nothing
+expr e@22:13#3 call callee=e@22:13#2 args=[] type=golden.sema.MyResource call=golden.sema.MyResource.<init>
+expr e@22:5#4 localDecl r mutable=0 type=_ init=e@22:13#3 type=Unit ref=__local_2.r
+expr e@23:12#0 name(r) type=golden.sema.MyResource ref=__local_2.r
+expr e@23:20#2 name(it) type=golden.sema.MyResource ref=s-0
+expr e@23:20#3 memberCall recv=e@23:20#2 callee=toString args=[] type=String call=kotlin.Any.toString
+expr e@23:18 lambda params=[] body=e@23:20#3 label=use type=(golden.sema.MyResource) -> String
+expr e@23:12#1 memberCall recv=e@23:12#0 callee=use args=[_:e@23:18] type=String
+expr e@23:5#4 return value=e@23:12#1 type=Nothing

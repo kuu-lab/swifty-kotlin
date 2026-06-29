@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringABIAndPropertyRegressionTests {
+    @Test
     func testABILoweringBoxesAllPrimitiveTypesForAnyParameter() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -68,10 +70,11 @@ extension LoweringABIAndPropertyRegressionTests {
 
             let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
             let callees = extractCallees(from: lowered.body, interner: interner)
-            XCTAssertTrue(callees.contains(expectedCallee), "Expected \(expectedCallee) for \(kind) -> Any? boxing, got: \(callees)")
+            #expect(callees.contains(expectedCallee), "Expected \(expectedCallee) for \(kind) -> Any? boxing, got: \(callees)")
         }
     }
 
+    @Test
     func testABILoweringBoxesCopyFromNonNullIntToNullableIntSlot() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -105,6 +108,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "copyNullableBox", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_box_int"), "Expected kk_box_int for copy Int -> Int?, got: \(callees)")
+        #expect(callees.contains("kk_box_int"), "Expected kk_box_int for copy Int -> Int?, got: \(callees)")
     }
 }
+#endif

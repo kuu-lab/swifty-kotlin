@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension CompilerCoreTests {
-    func testNoArgLambdaInitializerBuildsLambdaLiteral() throws {
+    @Test func testNoArgLambdaInitializerBuildsLambdaLiteral() throws {
         let source = """
         fun host() {
             val f0: () -> Int = { 42 }
@@ -12,26 +13,26 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let localDeclExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let localDeclExprID = try #require(firstExprID(in: ast) { _, expr in
             guard case .localDecl = expr else { return false }
             return true
         })
-        guard case let .localDecl(_, _, _, initializer, _, _) = try XCTUnwrap(ast.arena.expr(localDeclExprID)),
+        guard case let .localDecl(_, _, _, initializer, _, _) = try #require(ast.arena.expr(localDeclExprID)),
               let initializerExprID = initializer,
               let initializerExpr = ast.arena.expr(initializerExprID)
         else {
-            XCTFail("Expected local declaration initializer.")
+            Issue.record("Expected local declaration initializer.")
             return
         }
 
         guard case .lambdaLiteral = initializerExpr else {
-            XCTFail("Expected zero-argument lambda initializer to parse as .lambdaLiteral.")
+            Issue.record("Expected zero-argument lambda initializer to parse as .lambdaLiteral.")
             return
         }
     }
 
-    func testNoArgLambdaInitializerInfersExplicitFunctionType() throws {
+    @Test func testNoArgLambdaInitializerInfersExplicitFunctionType() throws {
         let source = """
         fun host() {
             val f0: () -> Int = { 42 }
@@ -39,28 +40,28 @@ extension CompilerCoreTests {
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors, got: \(ctx.diagnostics.diagnostics.map { $0.message })"
         )
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let lambdaExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let lambdaExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .lambdaLiteral = expr { return true }
             return false
         })
-        let lambdaType = try XCTUnwrap(sema.bindings.exprTypes[lambdaExprID])
+        let lambdaType = try #require(sema.bindings.exprTypes[lambdaExprID])
         guard case let .functionType(functionType) = sema.types.kind(of: lambdaType) else {
-            XCTFail("Expected lambda to infer a function type.")
+            Issue.record("Expected lambda to infer a function type.")
             return
         }
 
-        XCTAssertTrue(functionType.params.isEmpty)
-        XCTAssertEqual(functionType.returnType, sema.types.intType)
+        #expect(functionType.params.isEmpty)
+        #expect(functionType.returnType == sema.types.intType)
     }
 
-    func testImportAliasBuildASTPreservesAliasField() throws {
+    @Test func testImportAliasBuildASTPreservesAliasField() throws {
         let sources = [
             """
             package lib
@@ -75,18 +76,18 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSources(sources)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let appFile = try XCTUnwrap(ast.files.first(where: { file in
+        let ast = try #require(ctx.ast)
+        let appFile = try #require(ast.files.first(where: { file in
             file.packageFQName.map { ctx.interner.resolve($0) } == ["app"]
         }))
-        let aliasedImport = try XCTUnwrap(appFile.imports.first(where: { importDecl in
+        let aliasedImport = try #require(appFile.imports.first(where: { importDecl in
             importDecl.alias != nil
         }))
-        XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(aliasedImport.alias)), "h")
-        XCTAssertEqual(aliasedImport.path.map { ctx.interner.resolve($0) }, ["lib", "helper"])
+        #expect(try ctx.interner.resolve(#require(aliasedImport.alias)) == "h")
+        #expect(aliasedImport.path.map { ctx.interner.resolve($0) } == ["lib", "helper"])
     }
 
-    func testImportAliasNonAliasedImportHasNilAlias() throws {
+    @Test func testImportAliasNonAliasedImportHasNilAlias() throws {
         let sources = [
             """
             package lib
@@ -101,15 +102,15 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSources(sources)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let appFile = try XCTUnwrap(ast.files.first(where: { file in
+        let ast = try #require(ctx.ast)
+        let appFile = try #require(ast.files.first(where: { file in
             file.packageFQName.map { ctx.interner.resolve($0) } == ["app"]
         }))
-        let regularImport = try XCTUnwrap(appFile.imports.first)
-        XCTAssertNil(regularImport.alias)
+        let regularImport = try #require(appFile.imports.first)
+        #expect(regularImport.alias == nil)
     }
 
-    func testLambdaInferenceCapturesOuterLocalAndResolvesLocalCallableCall() throws {
+    @Test func testLambdaInferenceCapturesOuterLocalAndResolvesLocalCallableCall() throws {
         let source = """
         fun host(seed: Int): Int {
             val offset = seed
@@ -120,13 +121,13 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let lambdaExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let lambdaExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .lambdaLiteral = expr { return true }
             return false
         })
-        let addCallExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let addCallExprID = try #require(firstExprID(in: ast) { _, expr in
             guard case let .call(calleeExprID, _, _, _) = expr,
                   let calleeExpr = ast.arena.expr(calleeExprID),
                   case let .nameRef(calleeName, _) = calleeExpr
@@ -136,23 +137,23 @@ extension CompilerCoreTests {
             return ctx.interner.resolve(calleeName) == "add"
         })
 
-        let lambdaType = try XCTUnwrap(sema.bindings.exprTypes[lambdaExprID])
+        let lambdaType = try #require(sema.bindings.exprTypes[lambdaExprID])
         let intType = sema.types.make(.primitive(.int, .nonNull))
         guard case let .functionType(functionType) = sema.types.kind(of: lambdaType) else {
-            XCTFail("Lambda should infer function type.")
+            Issue.record("Lambda should infer function type.")
             return
         }
-        XCTAssertEqual(functionType.params, [intType])
-        XCTAssertEqual(functionType.returnType, intType)
+        #expect(functionType.params == [intType])
+        #expect(functionType.returnType == intType)
 
-        let offsetSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let offsetSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .local && ctx.interner.resolve(symbol.name) == "offset"
         })?.id)
-        XCTAssertEqual(sema.bindings.captureSymbolsByExpr[lambdaExprID], [offsetSymbol])
-        XCTAssertNotNil(sema.bindings.callableValueCalls[addCallExprID])
+        #expect(sema.bindings.captureSymbolsByExpr[lambdaExprID] == [offsetSymbol])
+        #expect(sema.bindings.callableValueCalls[addCallExprID] != nil)
     }
 
-    func testCallableReferenceInfersFunctionTypeAndBindsTargetSymbol() throws {
+    @Test func testCallableReferenceInfersFunctionTypeAndBindsTargetSymbol() throws {
         let source = """
         fun target(x: Int): Int = x + 1
         fun use(): Int {
@@ -163,13 +164,13 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
-        let refCallExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let refCallExprID = try #require(firstExprID(in: ast) { _, expr in
             guard case let .call(calleeExprID, _, _, _) = expr,
                   let calleeExpr = ast.arena.expr(calleeExprID),
                   case let .nameRef(calleeName, _) = calleeExpr
@@ -178,26 +179,26 @@ extension CompilerCoreTests {
             }
             return ctx.interner.resolve(calleeName) == "ref"
         })
-        let targetSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let targetSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .function && ctx.interner.resolve(symbol.name) == "target"
         })?.id)
 
-        XCTAssertEqual(sema.bindings.identifierSymbols[callableRefExprID], targetSymbol)
-        XCTAssertEqual(sema.bindings.callableTargets[callableRefExprID], .symbol(targetSymbol))
-        XCTAssertEqual(sema.bindings.captureSymbolsByExpr[callableRefExprID], [])
+        #expect(sema.bindings.identifierSymbols[callableRefExprID] == targetSymbol)
+        #expect(sema.bindings.callableTargets[callableRefExprID] == .symbol(targetSymbol))
+        #expect(sema.bindings.captureSymbolsByExpr[callableRefExprID] == [])
 
-        let refType = try XCTUnwrap(sema.bindings.exprTypes[callableRefExprID])
+        let refType = try #require(sema.bindings.exprTypes[callableRefExprID])
         let intType = sema.types.make(.primitive(.int, .nonNull))
         guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
-            XCTFail("Callable reference should infer function type.")
+            Issue.record("Callable reference should infer function type.")
             return
         }
-        XCTAssertEqual(functionType.params, [intType])
-        XCTAssertEqual(functionType.returnType, intType)
-        XCTAssertNotNil(sema.bindings.callableValueCalls[refCallExprID])
+        #expect(functionType.params == [intType])
+        #expect(functionType.returnType == intType)
+        #expect(sema.bindings.callableValueCalls[refCallExprID] != nil)
     }
 
-    func testBoundCallableReferenceCapturesReceiverAndResolvesExtensionTarget() throws {
+    @Test func testBoundCallableReferenceCapturesReceiverAndResolvesExtensionTarget() throws {
         let source = """
         fun Int.incByOne(): Int = this + 1
         fun host(seed: Int): Int {
@@ -208,18 +209,18 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
-        let extensionSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let extensionSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .function && ctx.interner.resolve(symbol.name) == "incByOne"
         })?.id)
-        let capturedSymbols = try XCTUnwrap(sema.bindings.captureSymbolsByExpr[callableRefExprID])
-        XCTAssertEqual(capturedSymbols.count, 1)
-        let seedSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let capturedSymbols = try #require(sema.bindings.captureSymbolsByExpr[callableRefExprID])
+        #expect(capturedSymbols.count == 1)
+        let seedSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             guard symbol.kind == .valueParameter,
                   ctx.interner.resolve(symbol.name) == "seed"
             else {
@@ -228,22 +229,22 @@ extension CompilerCoreTests {
             let fqName = symbol.fqName.map(ctx.interner.resolve)
             return fqName.contains("host")
         })?.id)
-        XCTAssertEqual(capturedSymbols, [seedSymbol])
+        #expect(capturedSymbols == [seedSymbol])
 
-        XCTAssertEqual(sema.bindings.callableTargets[callableRefExprID], .symbol(extensionSymbol))
-        XCTAssertEqual(sema.bindings.captureSymbolsByExpr[callableRefExprID], [seedSymbol])
+        #expect(sema.bindings.callableTargets[callableRefExprID] == .symbol(extensionSymbol))
+        #expect(sema.bindings.captureSymbolsByExpr[callableRefExprID] == [seedSymbol])
 
-        let callableType = try XCTUnwrap(sema.bindings.exprTypes[callableRefExprID])
+        let callableType = try #require(sema.bindings.exprTypes[callableRefExprID])
         let intType = sema.types.make(.primitive(.int, .nonNull))
         guard case let .functionType(functionType) = sema.types.kind(of: callableType) else {
-            XCTFail("Bound callable reference should infer function type.")
+            Issue.record("Bound callable reference should infer function type.")
             return
         }
-        XCTAssertEqual(functionType.params.count, 0)
-        XCTAssertEqual(functionType.returnType, intType)
+        #expect(functionType.params.count == 0)
+        #expect(functionType.returnType == intType)
     }
 
-    func testCallableReferenceOverloadSelectionBindsDeterministicTargetSymbol() throws {
+    @Test func testCallableReferenceOverloadSelectionBindsDeterministicTargetSymbol() throws {
         let source = """
         fun target(x: String): String = x
         fun target(x: Int): Int = x + 1
@@ -258,14 +259,14 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
-        let intOverloadSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let intOverloadSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             guard symbol.kind == .function,
                   ctx.interner.resolve(symbol.name) == "target",
                   let signature = sema.symbols.functionSignature(for: symbol.id),
@@ -277,11 +278,11 @@ extension CompilerCoreTests {
             return true
         })?.id)
 
-        XCTAssertEqual(sema.bindings.identifierSymbols[callableRefExprID], intOverloadSymbol)
-        XCTAssertEqual(sema.bindings.callableTargets[callableRefExprID], .symbol(intOverloadSymbol))
+        #expect(sema.bindings.identifierSymbols[callableRefExprID] == intOverloadSymbol)
+        #expect(sema.bindings.callableTargets[callableRefExprID] == .symbol(intOverloadSymbol))
     }
 
-    func testDirectCallableReferenceCallPropagatesSymbolTargetBinding() throws {
+    @Test func testDirectCallableReferenceCallPropagatesSymbolTargetBinding() throws {
         let source = """
         fun target(x: String): String = x
         fun target(x: Int): Int = x + 1
@@ -294,10 +295,10 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let intOverloadSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let intOverloadSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             guard symbol.kind == .function,
                   ctx.interner.resolve(symbol.name) == "target",
                   let signature = sema.symbols.functionSignature(for: symbol.id),
@@ -308,7 +309,7 @@ extension CompilerCoreTests {
             }
             return true
         })?.id)
-        let callExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let callExprID = try #require(firstExprID(in: ast) { _, expr in
             guard case let .call(calleeExprID, _, _, _) = expr,
                   let calleeExpr = ast.arena.expr(calleeExprID)
             else {
@@ -320,13 +321,13 @@ extension CompilerCoreTests {
             return false
         })
 
-        let callBinding = try XCTUnwrap(sema.bindings.callableValueCalls[callExprID])
-        XCTAssertEqual(callBinding.target, .symbol(intOverloadSymbol))
-        XCTAssertEqual(callBinding.parameterMapping, [0: 0])
-        XCTAssertEqual(sema.bindings.callableTargets[callExprID], .symbol(intOverloadSymbol))
+        let callBinding = try #require(sema.bindings.callableValueCalls[callExprID])
+        #expect(callBinding.target == .symbol(intOverloadSymbol))
+        #expect(callBinding.parameterMapping == [0: 0])
+        #expect(sema.bindings.callableTargets[callExprID] == .symbol(intOverloadSymbol))
     }
 
-    func testFunctionTypeParameterCallUsesCallableValueResolution() throws {
+    @Test func testFunctionTypeParameterCallUsesCallableValueResolution() throws {
         let source = """
         fun apply(f: (Int) -> Int, x: Int): Int = f(x)
         """
@@ -336,9 +337,9 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExprID = try #require(firstExprID(in: ast) { _, expr in
             guard case let .call(calleeExprID, _, _, _) = expr,
                   let calleeExpr = ast.arena.expr(calleeExprID),
                   case let .nameRef(calleeName, _) = calleeExpr
@@ -347,26 +348,26 @@ extension CompilerCoreTests {
             }
             return ctx.interner.resolve(calleeName) == "f"
         })
-        let callableCallBinding = try XCTUnwrap(sema.bindings.callableValueCalls[callExprID])
+        let callableCallBinding = try #require(sema.bindings.callableValueCalls[callExprID])
         guard case let .localValue(fParamSymbol) = callableCallBinding.target else {
-            XCTFail("Callable value call should target the function-typed parameter f.")
+            Issue.record("Callable value call should target the function-typed parameter f.")
             return
         }
-        let fParam = try XCTUnwrap(sema.symbols.symbol(fParamSymbol))
-        XCTAssertEqual(fParam.kind, .valueParameter)
-        XCTAssertEqual(ctx.interner.resolve(fParam.name), "f")
-        XCTAssertEqual(callableCallBinding.parameterMapping, [0: 0])
+        let fParam = try #require(sema.symbols.symbol(fParamSymbol))
+        #expect(fParam.kind == .valueParameter)
+        #expect(ctx.interner.resolve(fParam.name) == "f")
+        #expect(callableCallBinding.parameterMapping == [0: 0])
 
         let intType = sema.types.make(.primitive(.int, .nonNull))
         guard case let .functionType(functionType) = sema.types.kind(of: callableCallBinding.functionType) else {
-            XCTFail("Callable value call binding should store function type.")
+            Issue.record("Callable value call binding should store function type.")
             return
         }
-        XCTAssertEqual(functionType.params, [intType])
-        XCTAssertEqual(functionType.returnType, intType)
+        #expect(functionType.params == [intType])
+        #expect(functionType.returnType == intType)
     }
 
-    func testPropertyCallableReferenceUsesPropertyTypeForFallbackBinding() throws {
+    @Test func testPropertyCallableReferenceUsesPropertyTypeForFallbackBinding() throws {
         let source = """
         val answer: Int = 42
         fun use(): Int {
@@ -377,17 +378,18 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
-        let answerSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let answerSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .property && ctx.interner.resolve(symbol.name) == "answer"
         })?.id)
 
-        XCTAssertEqual(sema.bindings.identifierSymbols[callableRefExprID], answerSymbol)
-        XCTAssertEqual(sema.bindings.exprTypes[callableRefExprID], sema.symbols.propertyType(for: answerSymbol))
+        #expect(sema.bindings.identifierSymbols[callableRefExprID] == answerSymbol)
+        #expect(sema.bindings.exprTypes[callableRefExprID] == sema.symbols.propertyType(for: answerSymbol))
     }
 }
+#endif

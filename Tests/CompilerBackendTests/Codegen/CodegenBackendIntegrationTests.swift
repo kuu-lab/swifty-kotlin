@@ -805,7 +805,12 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_list_flatten"))
+            // flatten is now a bundled Kotlin source function (ListHOF.kt);
+            // it may appear as a direct "flatten" call or be inlined.
+            XCTAssertTrue(
+                callees.contains("kk_list_flatten") || callees.contains("flatten"),
+                "Expected flatten callee (runtime helper or bundled source), got: \(callees.sorted())"
+            )
         }
     }
 

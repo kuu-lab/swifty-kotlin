@@ -1,9 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Foundation
+import Testing
 
-final class CompilationContextTests: XCTestCase {
+@Suite
+struct CompilationContextTests {
     // MARK: - CompilationContext init
 
+    @Test
     func testCompilationContextInitStoresProperties() {
         let options = CompilerOptions(
             moduleName: "TestMod",
@@ -21,81 +25,100 @@ final class CompilationContextTests: XCTestCase {
             diagnostics: diag,
             interner: interner
         )
-        XCTAssertEqual(ctx.options.moduleName, "TestMod")
-        XCTAssertTrue(ctx.tokens.isEmpty)
-        XCTAssertNil(ctx.syntaxTree)
-        XCTAssertNil(ctx.ast)
-        XCTAssertNil(ctx.sema)
-        XCTAssertNil(ctx.kir)
-        XCTAssertNil(ctx.generatedObjectPath)
-        XCTAssertNil(ctx.generatedLLVMIRPath)
-        XCTAssertNil(ctx.incrementalCache)
-        XCTAssertNil(ctx.incrementalRecompileSet)
-        XCTAssertFalse(ctx.incrementalOutputRestored)
-        XCTAssertNil(ctx.phaseTimer)
+        #expect(ctx.options.moduleName == "TestMod")
+        #expect(ctx.tokens.isEmpty)
+        #expect(ctx.syntaxTree == nil)
+        #expect(ctx.ast == nil)
+        #expect(ctx.sema == nil)
+        #expect(ctx.kir == nil)
+        #expect(ctx.generatedObjectPath == nil)
+        #expect(ctx.generatedLLVMIRPath == nil)
+        #expect(ctx.incrementalCache == nil)
+        #expect(ctx.incrementalRecompileSet == nil)
+        #expect(!(ctx.incrementalOutputRestored))
+        #expect(ctx.phaseTimer == nil)
     }
 
     // MARK: - isIncremental
 
+    @Test
     func testIsIncrementalReturnsFalseByDefault() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
-        XCTAssertFalse(ctx.isIncremental)
+        #expect(!(ctx.isIncremental))
     }
 
+    @Test
     func testIsIncrementalReturnsTrueWhenCacheSet() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
         ctx.incrementalCache = IncrementalCompilationCache(
             cachePath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
         )
-        XCTAssertTrue(ctx.isIncremental)
+        #expect(ctx.isIncremental)
     }
 
     // MARK: - needsRecompilation
 
+    @Test
     func testNeedsRecompilationReturnsTrueWhenNoRecompileSet() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
-        XCTAssertTrue(ctx.needsRecompilation(path: "/a.kt"))
-        XCTAssertTrue(ctx.needsRecompilation(path: "/anything.kt"))
+        #expect(ctx.needsRecompilation(path: "/a.kt"))
+        #expect(ctx.needsRecompilation(path: "/anything.kt"))
     }
 
+    @Test
     func testNeedsRecompilationReturnsTrueForFileInRecompileSet() {
         let ctx = makeCompilationContext(inputs: ["/a.kt", "/b.kt"])
         ctx.incrementalRecompileSet = Set(["/a.kt"])
-        XCTAssertTrue(ctx.needsRecompilation(path: "/a.kt"))
+        #expect(ctx.needsRecompilation(path: "/a.kt"))
     }
 
+    @Test
     func testNeedsRecompilationReturnsFalseForFileNotInRecompileSet() {
         let ctx = makeCompilationContext(inputs: ["/a.kt", "/b.kt"])
         ctx.incrementalRecompileSet = Set(["/a.kt"])
-        XCTAssertFalse(ctx.needsRecompilation(path: "/b.kt"))
+        #expect(!(ctx.needsRecompilation(path: "/b.kt")))
     }
 
+    @Test
     func testNeedsRecompilationEmptyRecompileSet() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
         ctx.incrementalRecompileSet = Set()
-        XCTAssertFalse(ctx.needsRecompilation(path: "/a.kt"))
+        #expect(!(ctx.needsRecompilation(path: "/a.kt")))
     }
 
+    @Test
     func testMarkIncrementalOutputRestored() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
-        XCTAssertFalse(ctx.incrementalOutputRestored)
+        #expect(!(ctx.incrementalOutputRestored))
         ctx.markIncrementalOutputRestored()
-        XCTAssertTrue(ctx.incrementalOutputRestored)
+        #expect(ctx.incrementalOutputRestored)
     }
 
     // MARK: - frontendJobs
 
+    @Test
     func testFrontendJobsDefaultIsOne() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
-        XCTAssertEqual(ctx.frontendJobs, 1)
+        #expect(ctx.frontendJobs == 1)
     }
 
+    @Test
     func testFrontendJobsReadsFromOptions() {
         let ctx = makeCompilationContext(
             inputs: ["/a.kt"],
             frontendFlags: ["jobs=4"]
         )
-        XCTAssertEqual(ctx.frontendJobs, 4)
+        #expect(ctx.frontendJobs == 4)
     }
 
+    // MARK: - phaseTimer
+
+    @Test
+    func testPhaseTimerCanBeSet() {
+        let ctx = makeCompilationContext(inputs: ["/a.kt"])
+        #expect(ctx.phaseTimer == nil)
+        ctx.phaseTimer = PhaseTimer()
+        #expect(ctx.phaseTimer != nil)
+    }
 }
+#endif

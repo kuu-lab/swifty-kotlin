@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension CompilerCoreTests {
-    func testTrailingLambdaWithoutParensParsesAsCallExpression() throws {
+    @Test func testTrailingLambdaWithoutParensParsesAsCallExpression() throws {
         let source = """
         fun apply(block: () -> Int): Int = block()
         fun main(): Int = apply { 42 }
@@ -11,34 +12,34 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let function = try XCTUnwrap(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
+        let ast = try #require(ctx.ast)
+        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
         guard case let .expr(exprID, _) = function.body,
               let expr = ast.arena.expr(exprID),
               case let .call(calleeID, _, args, _) = expr
         else {
-            XCTFail("Expected trailing lambda call to parse as call expression.")
+            Issue.record("Expected trailing lambda call to parse as call expression.")
             return
         }
 
-        XCTAssertEqual(args.count, 1)
+        #expect(args.count == 1)
         guard let calleeExpr = ast.arena.expr(calleeID),
               case let .nameRef(calleeName, _) = calleeExpr
         else {
-            XCTFail("Expected call callee to be a name reference.")
+            Issue.record("Expected call callee to be a name reference.")
             return
         }
-        XCTAssertEqual(ctx.interner.resolve(calleeName), "apply")
+        #expect(ctx.interner.resolve(calleeName) == "apply")
 
         guard let lambdaExpr = ast.arena.expr(args[0].expr),
               case .lambdaLiteral = lambdaExpr
         else {
-            XCTFail("Expected trailing lambda argument.")
+            Issue.record("Expected trailing lambda argument.")
             return
         }
     }
 
-    func testTrailingLambdaWithExplicitTypeArgsParsesAsCallExpression() throws {
+    @Test func testTrailingLambdaWithExplicitTypeArgsParsesAsCallExpression() throws {
         let source = """
         fun <T> build(block: () -> T): T = block()
         fun main(): Int = build<Int> { 1 }
@@ -46,21 +47,21 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let function = try XCTUnwrap(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
+        let ast = try #require(ctx.ast)
+        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
         guard case let .expr(exprID, _) = function.body,
               let expr = ast.arena.expr(exprID),
               case let .call(_, typeArgs, args, _) = expr
         else {
-            XCTFail("Expected generic trailing lambda call to parse as call expression.")
+            Issue.record("Expected generic trailing lambda call to parse as call expression.")
             return
         }
 
-        XCTAssertEqual(typeArgs.count, 1)
-        XCTAssertEqual(args.count, 1)
+        #expect(typeArgs.count == 1)
+        #expect(args.count == 1)
     }
 
-    func testTrailingLambdaWithMultipleStatementsParsesAsLambdaBlockBody() throws {
+    @Test func testTrailingLambdaWithMultipleStatementsParsesAsLambdaBlockBody() throws {
         let source = """
         fun main() {
             val s = buildString {
@@ -73,8 +74,8 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let function = try XCTUnwrap(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
+        let ast = try #require(ctx.ast)
+        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
         guard case let .block(statements, _) = function.body,
               let localDeclID = statements.first,
               let localDeclExpr = ast.arena.expr(localDeclID),
@@ -88,24 +89,24 @@ extension CompilerCoreTests {
               let lambdaBody = ast.arena.expr(lambdaBodyID),
               case let .blockExpr(bodyStatements, trailingExpr, _) = lambdaBody
         else {
-            XCTFail("Expected builder trailing lambda body to be parsed as block expression.")
+            Issue.record("Expected builder trailing lambda body to be parsed as block expression.")
             return
         }
 
-        XCTAssertEqual(bodyStatements.count, 1)
-        let firstStmtID = try XCTUnwrap(bodyStatements.first)
-        let trailingID = try XCTUnwrap(trailingExpr)
+        #expect(bodyStatements.count == 1)
+        let firstStmtID = try #require(bodyStatements.first)
+        let trailingID = try #require(trailingExpr)
         guard let firstStmt = ast.arena.expr(firstStmtID), case .call = firstStmt else {
-            XCTFail("Expected first lambda statement to be a call expression.")
+            Issue.record("Expected first lambda statement to be a call expression.")
             return
         }
         guard let trailing = ast.arena.expr(trailingID), case .call = trailing else {
-            XCTFail("Expected trailing lambda expression to be a call expression.")
+            Issue.record("Expected trailing lambda expression to be a call expression.")
             return
         }
     }
 
-    func testMemberTrailingLambdaWithTwoParametersParsesBothParameters() throws {
+    @Test func testMemberTrailingLambdaWithTwoParametersParsesBothParameters() throws {
         let source = """
         fun main() {
             val values = listOf(1, 2, 3)
@@ -116,8 +117,8 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let function = try XCTUnwrap(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
+        let ast = try #require(ctx.ast)
+        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
         guard case let .block(statements, _) = function.body,
               statements.count >= 2,
               let localDeclExpr = ast.arena.expr(statements[1]),
@@ -131,18 +132,18 @@ extension CompilerCoreTests {
               case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr,
               let bodyExpr = ast.arena.expr(bodyExprID)
         else {
-            XCTFail("Expected fold call with trailing lambda argument.")
+            Issue.record("Expected fold call with trailing lambda argument.")
             return
         }
 
-        XCTAssertEqual(params.map(ctx.interner.resolve), ["acc", "value"])
+        #expect(params.map(ctx.interner.resolve) == ["acc", "value"])
         guard case .binary = bodyExpr else {
-            XCTFail("Expected lambda body to parse as a binary expression.")
+            Issue.record("Expected lambda body to parse as a binary expression.")
             return
         }
     }
 
-    func testParenthesizedCallWithTwoLambdaArgumentsParsesBothArguments() throws {
+    @Test func testParenthesizedCallWithTwoLambdaArgumentsParsesBothArguments() throws {
         let source = """
         fun foo(a: () -> Int, b: () -> String): Int = 0
         fun main(): Int = foo({ 42 }, { "x" })
@@ -150,40 +151,41 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let function = try XCTUnwrap(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
+        let ast = try #require(ctx.ast)
+        let function = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
         guard case let .expr(exprID, _) = function.body,
               let expr = ast.arena.expr(exprID),
               case let .call(calleeID, _, args, _) = expr
         else {
-            XCTFail("Expected parenthesized lambda call to parse as a call expression.")
+            Issue.record("Expected parenthesized lambda call to parse as a call expression.")
             return
         }
 
         guard args.count == 2 else {
-            XCTFail("Expected two lambda arguments, got \(args.count).")
+            Issue.record("Expected two lambda arguments, got \(args.count).")
             return
         }
         guard let calleeExpr = ast.arena.expr(calleeID),
               case let .nameRef(calleeName, _) = calleeExpr
         else {
-            XCTFail("Expected call callee to be a name reference.")
+            Issue.record("Expected call callee to be a name reference.")
             return
         }
-        XCTAssertEqual(ctx.interner.resolve(calleeName), "foo")
+        #expect(ctx.interner.resolve(calleeName) == "foo")
 
         guard let firstArgExpr = ast.arena.expr(args[0].expr),
               case .lambdaLiteral = firstArgExpr
         else {
-            XCTFail("Expected first argument to be a lambda literal.")
+            Issue.record("Expected first argument to be a lambda literal.")
             return
         }
 
         guard let secondArgExpr = ast.arena.expr(args[1].expr),
               case .lambdaLiteral = secondArgExpr
         else {
-            XCTFail("Expected second argument to be a lambda literal.")
+            Issue.record("Expected second argument to be a lambda literal.")
             return
         }
     }
 }
+#endif

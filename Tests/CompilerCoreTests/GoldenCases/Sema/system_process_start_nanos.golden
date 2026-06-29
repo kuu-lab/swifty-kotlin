@@ -6,19 +6,19 @@ symbol fq=kotlin.system.System kind=object vis=public flags=synthetic type=kotli
 symbol fq=kotlin.system.System.nanoTime kind=function vis=public flags=synthetic sig=recv=kotlin.system.System params=[] ret=Long
 symbol fq=kotlin.system.System.processStartNanos kind=function vis=public flags=synthetic sig=recv=kotlin.system.System params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun main sym=main
-expr e0 name(System) type=kotlin.system.System ref=kotlin.system.System
-expr e1 memberCall recv=e0 callee=processStartNanos args=[] type=Long call=kotlin.system.System.processStartNanos
-expr e2 localDecl startNanos mutable=0 type=t0 init=e1 type=Unit ref=__local_0.startNanos
-expr e3 name(System) type=kotlin.system.System ref=kotlin.system.System
-expr e4 memberCall recv=e3 callee=nanoTime args=[] type=Long call=kotlin.system.System.nanoTime
-expr e5 localDecl now mutable=0 type=t1 init=e4 type=Unit ref=__local_1.now
-expr e6 name(startNanos) type=Long ref=__local_0.startNanos
-expr e7 int(0) type=Int
-expr e8 binary(greaterThan) lhs=e6 rhs=e7 type=Boolean
-expr e9 call callee=e10 args=[_:e8] type=Unit call=kotlin.io.println#1
-expr e11 name(now) type=Long ref=__local_1.now
-expr e12 name(startNanos) type=Long ref=__local_0.startNanos
-expr e13 binary(greaterOrEqual) lhs=e11 rhs=e12 type=Boolean
-expr e14 call callee=e15 args=[_:e13] type=Unit call=kotlin.io.println#1
+file f13 package=_
+  decl main fun main sym=main
+expr e@2:28#0 name(System) type=kotlin.system.System ref=kotlin.system.System
+expr e@2:28#1 memberCall recv=e@2:28#0 callee=processStartNanos args=[] type=Long call=kotlin.system.System.processStartNanos
+expr e@2:5 localDecl startNanos mutable=0 type=Long init=e@2:28#1 type=Unit ref=__local_0.startNanos
+expr e@3:21#0 name(System) type=kotlin.system.System ref=kotlin.system.System
+expr e@3:21#1 memberCall recv=e@3:21#0 callee=nanoTime args=[] type=Long call=kotlin.system.System.nanoTime
+expr e@3:5 localDecl now mutable=0 type=Long init=e@3:21#1 type=Unit ref=__local_1.now
+expr e@4:13#2 name(startNanos) type=Long ref=__local_0.startNanos
+expr e@4:26#2 int(0) type=Int
+expr e@4:13#3 binary(greaterThan) lhs=e@4:13#2 rhs=e@4:26#2 type=Boolean
+expr e@4:5#3 call callee=e@4:5#2 args=[_:e@4:13#3] type=Unit call=kotlin.io.println#1
+expr e@5:13#1 name(now) type=Long ref=__local_1.now
+expr e@5:20 name(startNanos) type=Long ref=__local_0.startNanos
+expr e@5:13#2 binary(greaterOrEqual) lhs=e@5:13#1 rhs=e@5:20 type=Boolean
+expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:13#2] type=Unit call=kotlin.io.println#1

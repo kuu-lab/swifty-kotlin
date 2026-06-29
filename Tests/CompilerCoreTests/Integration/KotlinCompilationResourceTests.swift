@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class KotlinCompilationResourceTests: XCTestCase {
-    func testCompile_resourceAccessHelpers() throws {
+@Suite struct KotlinCompilationResourceTests {
+    @Test func testCompile_resourceAccessHelpers() throws {
         try assertKotlinCompilesToKIR("""
         import java.lang.getSystemClassLoader
         import kotlin.io.resourceExists
@@ -20,3 +21,4 @@ final class KotlinCompilationResourceTests: XCTestCase {
         """)
     }
 }
+#endif

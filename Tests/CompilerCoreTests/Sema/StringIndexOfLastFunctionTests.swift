@@ -1,11 +1,12 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-023: Validates that `CharSequence.indexOfLast(predicate)` resolves
 /// through Sema for `String` / `CharSequence` receivers, dispatching to the
 /// runtime link name `kk_string_indexOfLast`, and returns `Int`.
-final class StringIndexOfLastFunctionTests: XCTestCase {
-    func testIndexOfLastWithPredicateResolvesInSource() throws {
+@Suite
+struct StringIndexOfLastFunctionTests {
+    @Test func testIndexOfLastWithPredicateResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun findLastDigit(s: String): Int {
             return s.indexOfLast { it.isDigit() }
@@ -21,13 +22,13 @@ final class StringIndexOfLastFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected indexOfLast(predicate) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testIndexOfLastOnEmptyStringLiteral() throws {
+    @Test func testIndexOfLastOnEmptyStringLiteral() throws {
         let ctx = makeContextFromSource("""
         fun emptyIndexOfLast(): Int {
             return "".indexOfLast { it == 'a' }
@@ -35,13 +36,13 @@ final class StringIndexOfLastFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected indexOfLast on empty literal to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testIndexOfLastResultIsInt() throws {
+    @Test func testIndexOfLastResultIsInt() throws {
         let ctx = makeContextFromSource("""
         fun usesIndexResult(s: String): Boolean {
             val idx: Int = s.indexOfLast { it == 'z' }
@@ -50,13 +51,13 @@ final class StringIndexOfLastFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected indexOfLast result assignable to Int, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testIndexOfLastOnCharSequenceReceiver() throws {
+    @Test func testIndexOfLastOnCharSequenceReceiver() throws {
         let ctx = makeContextFromSource("""
         fun findLastInCharSequence(cs: CharSequence): Int {
             return cs.indexOfLast { it.isLetter() }
@@ -64,7 +65,7 @@ final class StringIndexOfLastFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected indexOfLast on CharSequence to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

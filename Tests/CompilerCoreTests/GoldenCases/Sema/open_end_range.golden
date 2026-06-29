@@ -5,19 +5,19 @@ symbol fq=kotlin.ranges.OpenEndRange.start kind=property vis=public flags=synthe
 symbol fq=useOpenEndRange kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>,Int] ret=Boolean
 symbol fq=useOpenEndRange.$0.range kind=valueParameter vis=private flags=_
 symbol fq=useOpenEndRange.$0.value kind=valueParameter vis=private flags=_
-file f12 package=_
-  decl d0 fun useOpenEndRange sym=useOpenEndRange
-expr e0 name(value) type=Int ref=useOpenEndRange.$0.value
-expr e1 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
-expr e2 inExpr lhs=e0 rhs=e1 type=Boolean
-expr e3 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
-expr e4 memberCall recv=e3 callee=isEmpty args=[] type=Boolean
-expr e5 unary(not) operand=e4 type=Boolean
-expr e6 binary(logicalAnd) lhs=e2 rhs=e5 type=Boolean
-expr e7 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
-expr e8 memberCall recv=e7 callee=start args=[] type=Int ref=kotlin.ranges.OpenEndRange.start
-expr e9 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
-expr e10 memberCall recv=e9 callee=endExclusive args=[] type=Int ref=kotlin.ranges.OpenEndRange.endExclusive
-expr e11 binary(lessThan) lhs=e8 rhs=e10 type=Boolean
-expr e12 binary(logicalAnd) lhs=e6 rhs=e11 type=Boolean
-expr e13 return value=e12 type=Nothing
+file f13 package=_
+  decl useOpenEndRange fun useOpenEndRange sym=useOpenEndRange
+expr e@4:12#0 name(value) type=Int ref=useOpenEndRange.$0.value
+expr e@4:21 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
+expr e@4:12#1 inExpr lhs=e@4:12#0 rhs=e@4:21 type=Boolean
+expr e@4:31#0 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
+expr e@4:31#1 memberCall recv=e@4:31#0 callee=isEmpty args=[] type=Boolean
+expr e@4:30 unary(not) operand=e@4:31#1 type=Boolean
+expr e@4:12#2 binary(logicalAnd) lhs=e@4:12#1 rhs=e@4:30 type=Boolean
+expr e@4:50#0 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
+expr e@4:50#1 memberCall recv=e@4:50#0 callee=start args=[] type=Int ref=kotlin.ranges.OpenEndRange.start
+expr e@4:64#0 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range
+expr e@4:64#1 memberCall recv=e@4:64#0 callee=endExclusive args=[] type=Int ref=kotlin.ranges.OpenEndRange.endExclusive
+expr e@4:50#2 binary(lessThan) lhs=e@4:50#1 rhs=e@4:64#1 type=Boolean
+expr e@4:12#3 binary(logicalAnd) lhs=e@4:12#2 rhs=e@4:50#2 type=Boolean
+expr e@4:5#2 return value=e@4:12#3 type=Nothing

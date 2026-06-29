@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension OverloadResolverTests {
-    func testResolveCallRejectsGenericWithViolatedUpperBoundFromSymbolTable() {
+    @Test func testResolveCallRejectsGenericWithViolatedUpperBoundFromSymbolTable() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -45,11 +46,11 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-BOUND")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-BOUND")
     }
 
-    func testResolveCallHandlesOversizedFlagsArrays() {
+    @Test func testResolveCallHandlesOversizedFlagsArrays() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -72,11 +73,11 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
     }
 
-    func testResolveCallHandlesUndersizedFlagsArrays() {
+    @Test func testResolveCallHandlesUndersizedFlagsArrays() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -99,10 +100,10 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
+        #expect(resolved.chosenCallee == fn)
     }
 
-    func testResolveCallRejectsDuplicateNamedArgument() {
+    @Test func testResolveCallRejectsDuplicateNamedArgument() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -122,10 +123,10 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
-    func testResolveCallRejectsNamedSpreadOnNonVararg() {
+    @Test func testResolveCallRejectsNamedSpreadOnNonVararg() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -142,10 +143,10 @@ extension OverloadResolverTests {
             args: [CallArg(label: interner.intern("x"), isSpread: true, type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
-    func testResolveCallRejectsArgsForZeroParamFunction() {
+    @Test func testResolveCallRejectsArgsForZeroParamFunction() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -161,10 +162,10 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
-    func testResolveCallAcceptsNamedVarargArgument() {
+    @Test func testResolveCallAcceptsNamedVarargArgument() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -189,11 +190,11 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 0])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.parameterMapping == [0: 0, 1: 0])
     }
 
-    func testResolveCallHandlesMissingParameterSymbols() {
+    @Test func testResolveCallHandlesMissingParameterSymbols() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -214,11 +215,11 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 1])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.parameterMapping == [0: 0, 1: 1])
     }
 
-    func testResolveCallRejectsUnknownNamedLabel() {
+    @Test func testResolveCallRejectsUnknownNamedLabel() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -235,10 +236,10 @@ extension OverloadResolverTests {
             args: [CallArg(label: interner.intern("z"), type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
-    func testResolveCallRejectsTooManyPositionalArgs() {
+    @Test func testResolveCallRejectsTooManyPositionalArgs() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -255,10 +256,10 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
-    func testResolveCallSkipsNamedBoundParamForPositionalArg() {
+    @Test func testResolveCallSkipsNamedBoundParamForPositionalArg() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -289,10 +290,10 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
+        #expect(resolved.chosenCallee == fn)
     }
 
-    func testResolveCallSkipsTypeParamWithoutSubstitution() {
+    @Test func testResolveCallSkipsTypeParamWithoutSubstitution() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -319,10 +320,10 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
+        #expect(resolved.chosenCallee == fn)
     }
 
-    func testResolveCallForwardsConstraintFailureDiagnostic() {
+    @Test func testResolveCallForwardsConstraintFailureDiagnostic() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -347,11 +348,11 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-BOUND")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-BOUND")
     }
 
-    func testResolveCallNoTypeVarsButUnsatisfiedConstraint() {
+    @Test func testResolveCallNoTypeVarsButUnsatisfiedConstraint() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -370,10 +371,10 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
-    func testResolveCallWithMultipleTypeParametersInConstraints() {
+    @Test func testResolveCallWithMultipleTypeParametersInConstraints() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -406,13 +407,13 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: boolType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
+        #expect(resolved.chosenCallee == fn)
     }
 
     // MARK: - Advanced Named Arguments Tests
 
     /// Named arguments with 3 parameters reordered out of order.
-    func testResolveCallNamedArgsThreeParamsReordered() {
+    @Test func testResolveCallNamedArgsThreeParamsReordered() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -442,8 +443,9 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 2, 1: 0, 2: 1])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 2, 1: 0, 2: 1])
     }
 }
+#endif

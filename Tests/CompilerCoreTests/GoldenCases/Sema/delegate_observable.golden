@@ -5,15 +5,15 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic type=kotlin.properties.Delegates
 symbol fq=kotlin.properties.Delegates.observable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
 symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=synthetic
-file f12 package=golden.sema
-  decl d0 property name var=1 sym=golden.sema.name
-  decl d1 fun main sym=golden.sema.main
-expr e0 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
-expr e1 string(initial) type=String
-expr e2 memberCall recv=e0 callee=observable args=[_:e1] type=kotlin.properties.ReadWriteProperty call=kotlin.properties.Delegates.observable
-expr e3 name(name) type=String ref=golden.sema.name
-expr e4 call callee=e5 args=[_:e3] type=Unit call=kotlin.io.println#1
-expr e6 string(updated) type=String
-expr e7 localAssign name value=e6 type=Unit ref=golden.sema.name
-expr e8 name(name) type=String ref=golden.sema.name
-expr e9 call callee=e10 args=[_:e8] type=Unit call=kotlin.io.println#1
+file f13 package=golden.sema
+  decl golden.sema.name property name var=1 sym=golden.sema.name
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@5:21#0 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
+expr e@5:42 string(initial) type=String
+expr e@5:21#1 memberCall recv=e@5:21#0 callee=observable args=[_:e@5:42] type=kotlin.properties.ReadWriteProperty call=kotlin.properties.Delegates.observable
+expr e@10:13 name(name) type=String ref=golden.sema.name
+expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println#1
+expr e@11:12 string(updated) type=String
+expr e@11:5#3 localAssign name value=e@11:12 type=Unit ref=golden.sema.name
+expr e@12:13#2 name(name) type=String ref=golden.sema.name
+expr e@12:5#5 call callee=e@12:5#4 args=[_:e@12:13#2] type=Unit call=kotlin.io.println#1

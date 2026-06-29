@@ -2,10 +2,10 @@ symbol fq=golden.sema.suppressedCast kind=function vis=public flags=_ sig=recv=_
 symbol fq=golden.sema.suppressedCast.$0.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.unsuppressedCast kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=golden.sema.unsuppressedCast.$1.x kind=valueParameter vis=private flags=_
-file f12 package=golden.sema
-  decl d0 fun suppressedCast sym=golden.sema.suppressedCast
-  decl d1 fun unsuppressedCast sym=golden.sema.unsuppressedCast
-expr e0 name(x) type=Any ref=golden.sema.suppressedCast.$0.x
-expr e1 asCast expr=e0 type=t0 type=String
-expr e2 name(x) type=Any ref=golden.sema.unsuppressedCast.$1.x
-expr e3 asCast expr=e2 type=t1 type=String
+file f13 package=golden.sema
+  decl golden.sema.suppressedCast fun suppressedCast sym=golden.sema.suppressedCast
+  decl golden.sema.unsuppressedCast fun unsuppressedCast sym=golden.sema.unsuppressedCast
+expr e@4:38#0 name(x) type=Any ref=golden.sema.suppressedCast.$0.x
+expr e@4:38#1 asCast expr=e@4:38#0 type=String type=String
+expr e@6:40#0 name(x) type=Any ref=golden.sema.unsuppressedCast.$1.x
+expr e@6:40#1 asCast expr=e@6:40#0 type=String type=String

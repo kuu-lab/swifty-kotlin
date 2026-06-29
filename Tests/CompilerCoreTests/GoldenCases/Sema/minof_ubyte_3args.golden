@@ -6,9 +6,9 @@ symbol fq=kotlin.comparisons.minOf#13 kind=function vis=public flags=inlineFunct
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun threeArgMinUByte sym=golden.sema.threeArgMinUByte
-expr e0 name(a) type=UByte ref=golden.sema.threeArgMinUByte.$0.a
-expr e1 name(b) type=UByte ref=golden.sema.threeArgMinUByte.$0.b
-expr e2 name(c) type=UByte ref=golden.sema.threeArgMinUByte.$0.c
-expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=UByte call=kotlin.comparisons.minOf#13
+file f13 package=golden.sema
+  decl golden.sema.threeArgMinUByte fun threeArgMinUByte sym=golden.sema.threeArgMinUByte
+expr e@3:67 name(a) type=UByte ref=golden.sema.threeArgMinUByte.$0.a
+expr e@3:70 name(b) type=UByte ref=golden.sema.threeArgMinUByte.$0.b
+expr e@3:73 name(c) type=UByte ref=golden.sema.threeArgMinUByte.$0.c
+expr e@3:61#1 call callee=e@3:61#0 args=[_:e@3:67,_:e@3:70,_:e@3:73] type=UByte call=kotlin.comparisons.minOf#13

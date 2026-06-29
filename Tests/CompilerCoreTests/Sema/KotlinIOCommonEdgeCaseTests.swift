@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - kotlin.io Common Edge Case Tests (STDLIB-030)
 //
@@ -18,10 +19,12 @@ import XCTest
 //   AutoCloseable alias resolves to same Closeable symbol,
 //   nested class implementing Closeable accepted by use.
 
-final class KotlinIOCommonEdgeCaseTests: XCTestCase {
+@Suite
+struct KotlinIOCommonEdgeCaseTests {
 
     // MARK: - Closeable.use – basic resolution
 
+    @Test
     func testCloseableUseResolvesWithoutErrors() throws {
         let source = """
         import java.io.Closeable
@@ -39,8 +42,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Closeable.use { } should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -48,6 +51,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - Closeable.use – returns block result
 
+    @Test
     func testCloseableUseReturnTypeIsBlockResult() throws {
         let source = """
         import java.io.Closeable
@@ -68,8 +72,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 ".use { } return type should be inferred as Int: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -77,6 +81,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - Closeable.use – lambda this-type is receiver
 
+    @Test
     func testCloseableUseLambdaReceiverTypedAsCloseable() throws {
         let source = """
         import java.io.Closeable
@@ -95,8 +100,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Lambda parameter inside .use { } should be typed as the concrete Closeable receiver: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -104,6 +109,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - Closeable.use – close called on exception path
 
+    @Test
     func testCloseableUseWithBodyExceptionClosesResource() throws {
         let source = """
         import java.io.Closeable
@@ -127,8 +133,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 ".use { } with throwing body should still compile: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -136,6 +142,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - Closeable.use – null receiver short-circuits
 
+    @Test
     func testNullableCloseableUseShortCircuitsOnNull() throws {
         let source = """
         import java.io.Closeable
@@ -153,13 +160,14 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "?.use on null receiver should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testNullableAutoCloseableDirectUseResolvesWithoutSafeCall() throws {
         let source = """
         fun main() {
@@ -173,13 +181,14 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Nullable AutoCloseable.use should resolve without requiring ?.use: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testRootAutoCloseableUseSymbolIsRegisteredInSymbolTable() throws {
         let source = """
         fun main() {
@@ -189,36 +198,36 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
             let kotlinFQN: [InternedString] = [interner.intern("kotlin")]
             let rootUseFQN = kotlinFQN + [interner.intern("use")]
-            let useSymbol = try XCTUnwrap(
+            let useSymbol = try #require(
                 sema.symbols.lookup(fqName: rootUseFQN),
                 "kotlin.use should expose the common AutoCloseable?.use extension"
             )
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: useSymbol))
-            let receiverType = try XCTUnwrap(signature.receiverType)
-            XCTAssertEqual(signature.parameterTypes.count, 1)
-            XCTAssertEqual(signature.typeParameterSymbols.count, 2)
+            let signature = try #require(sema.symbols.functionSignature(for: useSymbol))
+            let receiverType = try #require(signature.receiverType)
+            #expect(signature.parameterTypes.count == 1)
+            #expect(signature.typeParameterSymbols.count == 2)
 
             guard case let .functionType(blockType) = sema.types.kind(of: signature.parameterTypes[0]) else {
-                return XCTFail("kotlin.use block parameter should be a function type")
+                Issue.record("kotlin.use block parameter should be a function type"); return
             }
-            XCTAssertEqual(blockType.params, [receiverType])
-            XCTAssertEqual(blockType.returnType, signature.returnType)
+            #expect(blockType.params == [receiverType])
+            #expect(blockType.returnType == signature.returnType)
 
-            XCTAssertEqual(signature.typeParameterUpperBoundsList.count, 2)
-            let tUpperBound = try XCTUnwrap(signature.typeParameterUpperBoundsList.first?.first)
-            XCTAssertEqual(sema.types.nullability(of: tUpperBound), .nullable)
+            #expect(signature.typeParameterUpperBoundsList.count == 2)
+            let tUpperBound = try #require(signature.typeParameterUpperBoundsList.first?.first)
+            #expect(sema.types.nullability(of: tUpperBound) == .nullable)
             let nonNullBound = sema.types.makeNonNullable(tUpperBound)
             let closeableFQN = kotlinFQN + [interner.intern("io"), interner.intern("Closeable")]
-            let closeableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: closeableFQN))
+            let closeableSymbol = try #require(sema.symbols.lookup(fqName: closeableFQN))
             guard case let .classType(boundClass) = sema.types.kind(of: nonNullBound) else {
-                return XCTFail("kotlin.use T upper bound should resolve to kotlin.io.Closeable?")
+                Issue.record("kotlin.use T upper bound should resolve to kotlin.io.Closeable?"); return
             }
-            XCTAssertEqual(boundClass.classSymbol, closeableSymbol)
+            #expect(boundClass.classSymbol == closeableSymbol)
         }
     }
 
@@ -230,6 +239,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
     // The test below validates the symbol-table registration path only; the bound+use scenario
     // is covered by testAutoCloseableSymbolIsRegisteredInSymbolTable.
 
+    @Test
     func testAutoCloseableAliasDirectUseViaConcreateCloseableResolves() throws {
         // Using kotlin.io.Closeable directly (not AutoCloseable bound) works fine.
         let source = """
@@ -246,8 +256,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Closeable implementor should be accepted by .use without error: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -255,6 +265,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - AutoCloseable type alias visible in sema symbol table
 
+    @Test
     func testAutoCloseableSymbolIsRegisteredInSymbolTable() throws {
         let source = """
         fun main() {
@@ -264,16 +275,17 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
             let kotlinFQN: [InternedString] = [interner.intern("kotlin")]
             let autoCloseableFQN = kotlinFQN + [interner.intern("AutoCloseable")]
             let symbol = sema.symbols.lookup(fqName: autoCloseableFQN)
-            XCTAssertNotNil(symbol, "kotlin.AutoCloseable should be registered as a synthetic type alias symbol")
+            #expect(symbol != nil, "kotlin.AutoCloseable should be registered as a synthetic type alias symbol")
         }
     }
 
+    @Test
     func testAutoCloseableFactoryResolvesWithoutErrors() throws {
         let source = """
         fun main() {
@@ -286,13 +298,14 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "AutoCloseable { } factory should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testAutoCloseableFactorySymbolIsRegisteredInSymbolTable() throws {
         let source = """
         fun main() {
@@ -302,7 +315,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
             let kotlinFQN: [InternedString] = [interner.intern("kotlin")]
@@ -310,13 +323,14 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
             let functionSymbol = sema.symbols.lookupAll(fqName: autoCloseableFQN).first { symbolID in
                 sema.symbols.symbol(symbolID)?.kind == .function
             }
-            let symbol = try XCTUnwrap(functionSymbol, "kotlin.AutoCloseable factory should be registered alongside the type alias")
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_auto_closeable_create")
+            let symbol = try #require(functionSymbol, "kotlin.AutoCloseable factory should be registered alongside the type alias")
+            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_auto_closeable_create")
         }
     }
 
     // MARK: - Closeable symbol registered in symbol table
 
+    @Test
     func testCloseableSymbolIsRegisteredInSymbolTable() throws {
         let source = """
         fun main() {
@@ -326,18 +340,19 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
             let kotlinIOFQN: [InternedString] = [interner.intern("kotlin"), interner.intern("io")]
             let closeableFQN = kotlinIOFQN + [interner.intern("Closeable")]
             let symbol = sema.symbols.lookup(fqName: closeableFQN)
-            XCTAssertNotNil(symbol, "kotlin.io.Closeable should be registered as a synthetic interface symbol")
+            #expect(symbol != nil, "kotlin.io.Closeable should be registered as a synthetic interface symbol")
         }
     }
 
     // MARK: - Nested class implementing Closeable
 
+    @Test
     func testNestedClassImplementingCloseableAcceptedByUse() throws {
         let source = """
         import java.io.Closeable
@@ -356,8 +371,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Nested class implementing Closeable should be accepted by .use: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -365,6 +380,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - println stubs
 
+    @Test
     func testPrintlnNoArgStubResolves() throws {
         let source = """
         fun main() {
@@ -374,13 +390,14 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "println() no-arg should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testPrintlnAnyArgStubResolves() throws {
         let source = """
         fun main() {
@@ -392,13 +409,14 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "println(Any?) should resolve for String, Int, and null: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testPrintNoArgStubResolves() throws {
         let source = """
         fun main() {
@@ -409,8 +427,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "print() no-arg and print(Any?) should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -418,6 +436,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - DEFAULT_BUFFER_SIZE property
 
+    @Test
     func testDefaultBufferSizePropertyIsRegistered() throws {
         let source = """
         fun main() {
@@ -427,24 +446,25 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
             let kotlinIOFQN: [InternedString] = [interner.intern("kotlin"), interner.intern("io")]
             let propertyFQN = kotlinIOFQN + [interner.intern("DEFAULT_BUFFER_SIZE")]
-            let propertySymbol = try XCTUnwrap(
+            let propertySymbol = try #require(
                 sema.symbols.lookupAll(fqName: propertyFQN).first { symbolID in
                     sema.symbols.symbol(symbolID)?.kind == .property
                 },
                 "kotlin.io.DEFAULT_BUFFER_SIZE should be registered as a synthetic top-level property"
             )
-            XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), sema.types.intType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: propertySymbol), "kk_io_default_buffer_size")
-            XCTAssertTrue(sema.symbols.symbol(propertySymbol)?.flags.contains(.constValue) == true)
-            XCTAssertEqual(sema.symbols.constValueExprKind(for: propertySymbol), .intLiteral(8192))
+            #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.intType)
+            #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_io_default_buffer_size")
+            #expect(sema.symbols.symbol(propertySymbol)?.flags.contains(.constValue) == true)
+            #expect(sema.symbols.constValueExprKind(for: propertySymbol) == .intLiteral(8192))
         }
     }
 
+    @Test
     func testDefaultBufferSizePropertyResolvesAsInt() throws {
         let source = """
         import kotlin.io.DEFAULT_BUFFER_SIZE
@@ -457,8 +477,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "DEFAULT_BUFFER_SIZE should resolve as Int: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -466,6 +486,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - readLine stub
 
+    @Test
     func testReadLineStubResolvesToNullableString() throws {
         let source = """
         fun main() {
@@ -476,8 +497,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "readLine() should resolve to String? without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -485,6 +506,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - readln / readlnOrNull stubs
 
+    @Test
     func testReadlnStubResolvesToNonNullString() throws {
         let source = """
         fun main() {
@@ -495,13 +517,14 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "readln() should resolve to String (non-null): \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
+    @Test
     func testReadlnOrNullStubResolvesToNullableString() throws {
         let source = """
         fun main() {
@@ -512,8 +535,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "readlnOrNull() should resolve to String? without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -521,6 +544,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - StringBuilder.appendLine
 
+    @Test
     func testStringBuilderAppendLineWithArgResolves() throws {
         let source = """
         fun main() {
@@ -533,8 +557,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "StringBuilder.appendLine() and appendLine(String) should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -542,6 +566,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - String.lineSequence
 
+    @Test
     func testStringLineSequenceResolves() throws {
         let source = """
         fun main() {
@@ -554,8 +579,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "String.lineSequence() should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -563,6 +588,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - File.useLines (line iteration helper)
 
+    @Test
     func testFileUseLinesResolves() throws {
         let source = """
         import java.io.File
@@ -577,8 +603,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "File.useLines { } should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -586,6 +612,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - File.forEachLine
 
+    @Test
     func testFileForEachLineResolves() throws {
         let source = """
         import java.io.File
@@ -598,8 +625,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "File.forEachLine { } should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -607,6 +634,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - File.bufferedReader
 
+    @Test
     func testFileBufferedReaderResolves() throws {
         let source = """
         import java.io.File
@@ -621,8 +649,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "File.bufferedReader() and BufferedReader.readLine() / close() should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -630,6 +658,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - File read / append helpers
 
+    @Test
     func testFileReadAppendAndByteHelpersResolve() throws {
         let source = """
         import java.io.File
@@ -645,8 +674,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "File.readText(), appendText(), and readBytes() should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -654,6 +683,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - File stream helpers
 
+    @Test
     func testFileInputAndOutputStreamResolve() throws {
         let source = """
         import java.io.File
@@ -669,8 +699,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "File.inputStream() and outputStream() should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -678,6 +708,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - File.nameWithoutExtension (STDLIB-IO-PROP-005)
 
+    @Test
     func testFileNameWithoutExtensionResolvesAsString() throws {
         let source = """
         import java.io.File
@@ -695,8 +726,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "File.nameWithoutExtension extension property should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -704,6 +735,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - java.io.Closeable maps to kotlin.io.Closeable
 
+    @Test
     func testJavaIOCloseableIsAcceptedByUseExtension() throws {
         let source = """
         import java.io.Closeable
@@ -719,8 +751,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "java.io.Closeable implementor should be accepted by .use: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -728,6 +760,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - use result is non-Unit when block returns value
 
+    @Test
     func testUseResultCanBeAssignedToTypedVariable() throws {
         let source = """
         import java.io.Closeable
@@ -745,8 +778,8 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 ".use { } result should be assignable to typed variable: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -754,6 +787,7 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
 
     // MARK: - println return type is Unit
 
+    @Test
     func testPrintlnReturnTypeIsUnit() throws {
         let source = """
         fun main() {
@@ -763,10 +797,11 @@ final class KotlinIOCommonEdgeCaseTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "println() return type should be Unit: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 }
+#endif

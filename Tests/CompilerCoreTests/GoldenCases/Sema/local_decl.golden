@@ -10,31 +10,31 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=mutableTyped kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=typedLocal kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=useBeforeInit kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun typedLocal sym=typedLocal
-  decl d1 fun inferredLocal sym=inferredLocal
-  decl d2 fun mutableTyped sym=mutableTyped
-  decl d3 fun deferredValInit sym=deferredValInit
-  decl d4 fun useBeforeInit sym=useBeforeInit
-expr e0 int(10) type=Int
-expr e1 localDecl x mutable=0 type=t0 init=e0 type=Unit ref=__local_0.x
-expr e2 name(x) type=Int ref=__local_0.x
-expr e3 call callee=e4 args=[_:e2] type=Unit call=kotlin.io.println#1
-expr e5 int(20) type=Int
-expr e6 localDecl y mutable=0 type=_ init=e5 type=Unit ref=__local_1.y
-expr e7 name(y) type=Int ref=__local_1.y
-expr e8 call callee=e9 args=[_:e7] type=Unit call=kotlin.io.println#1
-expr e10 int(30) type=Int
-expr e11 localDecl z mutable=1 type=t1 init=e10 type=Unit ref=__local_2.z
-expr e12 int(40) type=Int
-expr e13 localAssign z value=e12 type=Unit ref=__local_2.z
-expr e14 name(z) type=Int ref=__local_2.z
-expr e15 call callee=e16 args=[_:e14] type=Unit call=kotlin.io.println#1
-expr e17 localDecl a mutable=0 type=t2 init=_ type=Unit ref=__local_3.a
-expr e18 int(5) type=Int
-expr e19 localAssign a value=e18 type=Unit ref=__local_3.a
-expr e20 name(a) type=Int ref=__local_3.a
-expr e21 call callee=e22 args=[_:e20] type=Unit call=kotlin.io.println#1
-expr e23 localDecl b mutable=1 type=t3 init=_ type=Unit ref=__local_4.b
-expr e24 name(b) type=Int ref=__local_4.b
-expr e25 call callee=e26 args=[_:e24] type=Unit call=kotlin.io.println#1
+file f13 package=_
+  decl typedLocal fun typedLocal sym=typedLocal
+  decl inferredLocal fun inferredLocal sym=inferredLocal
+  decl mutableTyped fun mutableTyped sym=mutableTyped
+  decl deferredValInit fun deferredValInit sym=deferredValInit
+  decl useBeforeInit fun useBeforeInit sym=useBeforeInit
+expr e@2:18 int(10) type=Int
+expr e@2:5 localDecl x mutable=0 type=Int init=e@2:18 type=Unit ref=__local_0.x
+expr e@3:13 name(x) type=Int ref=__local_0.x
+expr e@3:5#1 call callee=e@3:5#0 args=[_:e@3:13] type=Unit call=kotlin.io.println#1
+expr e@7:13 int(20) type=Int
+expr e@7:5#3 localDecl y mutable=0 type=_ init=e@7:13 type=Unit ref=__local_1.y
+expr e@8:13 name(y) type=Int ref=__local_1.y
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13] type=Unit call=kotlin.io.println#1
+expr e@12:18#4 int(30) type=Int
+expr e@12:5#4 localDecl z mutable=1 type=Int init=e@12:18#4 type=Unit ref=__local_2.z
+expr e@13:9#4 int(40) type=Int
+expr e@13:5#7 localAssign z value=e@13:9#4 type=Unit ref=__local_2.z
+expr e@14:13#2 name(z) type=Int ref=__local_2.z
+expr e@14:5#8 call callee=e@14:5#7 args=[_:e@14:13#2] type=Unit call=kotlin.io.println#1
+expr e@18:5#4 localDecl a mutable=0 type=Int init=_ type=Unit ref=__local_3.a
+expr e@19:9#4 int(5) type=Int
+expr e@19:5#7 localAssign a value=e@19:9#4 type=Unit ref=__local_3.a
+expr e@20:13#1 name(a) type=Int ref=__local_3.a
+expr e@20:5#6 call callee=e@20:5#5 args=[_:e@20:13#1] type=Unit call=kotlin.io.println#1
+expr e@24:5#3 localDecl b mutable=1 type=Int init=_ type=Unit ref=__local_4.b
+expr e@25:13 name(b) type=Int ref=__local_4.b
+expr e@25:5#7 call callee=e@25:5#6 args=[_:e@25:13] type=Unit call=kotlin.io.println#1

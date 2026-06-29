@@ -1,12 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-PROP-017: Validates that `Char.isUnicodeIdentifierPart` resolves
 /// through Sema for plain Char receivers and literal contexts. The runtime link
 /// involved is `kk_char_isUnicodeIdentifierPart`
 /// (see `Sources/Runtime/RuntimeChar.swift`).
-final class CharIsUnicodeIdentifierPartFunctionTests: XCTestCase {
-    func testCharIsUnicodeIdentifierPartResolvesInSource() throws {
+@Suite
+struct CharIsUnicodeIdentifierPartFunctionTests {
+    @Test func testCharIsUnicodeIdentifierPartResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun identifierPartCheck(ch: Char): Boolean {
             return ch.isUnicodeIdentifierPart()
@@ -22,20 +24,20 @@ final class CharIsUnicodeIdentifierPartFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected Char.isUnicodeIdentifierPart() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testCharIsUnicodeIdentifierPartResolvesToRuntimeLink() throws {
+    @Test func testCharIsUnicodeIdentifierPartResolvesToRuntimeLink() throws {
         var resolvedLink: String?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "isUnicodeIdentifierPart"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -43,12 +45,9 @@ final class CharIsUnicodeIdentifierPartFunctionTests: XCTestCase {
                     && signature.parameterTypes.isEmpty
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
-            XCTAssertEqual(
-                sema.symbols.functionSignature(for: symbol)?.returnType,
-                sema.types.booleanType,
-                "Char.isUnicodeIdentifierPart() should return Boolean"
-            )
+            #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isUnicodeIdentifierPart() should return Boolean")
         }
-        XCTAssertEqual(resolvedLink, "kk_char_isUnicodeIdentifierPart")
+        #expect(resolvedLink == "kk_char_isUnicodeIdentifierPart")
     }
 }
+#endif

@@ -16,20 +16,20 @@ symbol fq=stringZip.$1.s kind=valueParameter vis=private flags=_
 symbol fq=stringZipTransform kind=function vis=public flags=_ sig=recv=_ params=[String,kotlin.CharSequence] ret=kotlin.collections.List<String>
 symbol fq=stringZipTransform.$2.other kind=valueParameter vis=private flags=_
 symbol fq=stringZipTransform.$2.s kind=valueParameter vis=private flags=_
-file f12 package=_
-  decl d0 fun stringZip sym=stringZip
-  decl d1 fun charSequenceZip sym=charSequenceZip
-  decl d2 fun stringZipTransform sym=stringZipTransform
-expr e0 name(s) type=String ref=stringZip.$1.s
-expr e1 name(other) type=kotlin.CharSequence ref=stringZip.$1.other
-expr e2 memberCall recv=e0 callee=zip args=[_:e1] type=kotlin.collections.List<out kotlin.Pair<out Char, out Char>> call=kotlin.text.zip#0
-expr e3 name(cs) type=kotlin.CharSequence ref=charSequenceZip.$0.cs
-expr e4 name(other) type=kotlin.CharSequence ref=charSequenceZip.$0.other
-expr e5 memberCall recv=e3 callee=zip args=[_:e4] type=kotlin.collections.List<out kotlin.Pair<out Char, out Char>> call=kotlin.text.zip#2
-expr e6 name(s) type=String ref=stringZipTransform.$2.s
-expr e7 name(other) type=kotlin.CharSequence ref=stringZipTransform.$2.other
-expr e8 name(a) type=Char ref=s-0
-expr e9 name(b) type=Char ref=s-1
-expr e10 stringTemplate[expr(e8),expr(e9)] type=String
-expr e11 lambda params=[a,b] body=e10 label=zip type=(Char, Char) -> kotlin.text.zip.R
-expr e12 memberCall recv=e6 callee=zip args=[_:e7,_:e11] type=kotlin.collections.List<out String> call=kotlin.text.zip#1 targs=[String]
+file f13 package=_
+  decl stringZip fun stringZip sym=stringZip
+  decl charSequenceZip fun charSequenceZip sym=charSequenceZip
+  decl stringZipTransform fun stringZipTransform sym=stringZipTransform
+expr e@4:73#0 name(s) type=String ref=stringZip.$1.s
+expr e@4:79 name(other) type=kotlin.CharSequence ref=stringZip.$1.other
+expr e@4:73#1 memberCall recv=e@4:73#0 callee=zip args=[_:e@4:79] type=kotlin.collections.List<out kotlin.Pair<out Char, out Char>> call=kotlin.text.zip#0
+expr e@5:86#0 name(cs) type=kotlin.CharSequence ref=charSequenceZip.$0.cs
+expr e@5:93 name(other) type=kotlin.CharSequence ref=charSequenceZip.$0.other
+expr e@5:86#1 memberCall recv=e@5:86#0 callee=zip args=[_:e@5:93] type=kotlin.collections.List<out kotlin.Pair<out Char, out Char>> call=kotlin.text.zip#2
+expr e@6:72#0 name(s) type=String ref=stringZipTransform.$2.s
+expr e@6:78 name(other) type=kotlin.CharSequence ref=stringZipTransform.$2.other
+expr e@6:97#1 name(a) type=Char ref=s-0
+expr e@6:99#1 name(b) type=Char ref=s-1
+expr e@6:95#1 stringTemplate[expr(e@6:97#1),expr(e@6:99#1)] type=String
+expr e@6:85 lambda params=[a,b] body=e@6:95#1 label=zip type=(Char, Char) -> kotlin.text.zip.R
+expr e@6:72#1 memberCall recv=e@6:72#0 callee=zip args=[_:e@6:78,_:e@6:85] type=kotlin.collections.List<out String> call=kotlin.text.zip#1 targs=[String]

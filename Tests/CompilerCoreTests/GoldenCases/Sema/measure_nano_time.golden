@@ -1,11 +1,11 @@
 symbol fq=__local_0.x kind=local vis=private flags=_ type=Int
 symbol fq=useMeasureNanoTime kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
-file f12 package=_
-  decl d0 fun useMeasureNanoTime sym=useMeasureNanoTime
-expr e0 int(1) type=Int
-expr e1 int(2) type=Int
-expr e2 binary(add) lhs=e0 rhs=e1 type=Int
-expr e3 localDecl x mutable=0 type=_ init=e2 type=Unit ref=__local_0.x
-expr e4 blockExpr stmts=[e3] trailing=_ type=Unit
-expr e5 lambda params=[] body=e4 label=measureNanoTime type=() -> Unit
-expr e6 call callee=e7 args=[_:e5] type=Long
+file f13 package=_
+  decl useMeasureNanoTime fun useMeasureNanoTime sym=useMeasureNanoTime
+expr e@4:13#2 int(1) type=Int
+expr e@4:17#2 int(2) type=Int
+expr e@4:13#3 binary(add) lhs=e@4:13#2 rhs=e@4:17#2 type=Int
+expr e@4:5#2 localDecl x mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.x
+expr e@4:5#3 blockExpr stmts=[e@4:5#2] trailing=_ type=Unit
+expr e@3:50 lambda params=[] body=e@4:5#3 label=measureNanoTime type=() -> Unit
+expr e@3:34#1 call callee=e@3:34#0 args=[_:e@3:50] type=Long

@@ -1,21 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCStructVarSurfaceTests: XCTestCase {
+@Suite
+struct NativeCInteropCStructVarSurfaceTests {
+    @Test
     func testCStructVarClassSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CStructVar surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected CStructVar surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -35,42 +35,43 @@ final class NativeCInteropCStructVarSurfaceTests: XCTestCase {
         let nativePtrType = try cinteropType("NativePtr")
         let cStructVarType = try cinteropType("CStructVar")
         let cStructVarTypeClassType = try cinteropType("CStructVar", "Type")
-        let fqName = try XCTUnwrap(sema.symbols.symbol(cStructVarSymbol)?.fqName)
-        let typeFQName = try XCTUnwrap(sema.symbols.symbol(cStructVarTypeSymbol)?.fqName)
-        let flags = try XCTUnwrap(sema.symbols.symbol(cStructVarSymbol)?.flags)
-        let typeFlags = try XCTUnwrap(sema.symbols.symbol(cStructVarTypeSymbol)?.flags)
+        let fqName = try #require(sema.symbols.symbol(cStructVarSymbol)?.fqName)
+        let typeFQName = try #require(sema.symbols.symbol(cStructVarTypeSymbol)?.fqName)
+        let flags = try #require(sema.symbols.symbol(cStructVarSymbol)?.flags)
+        let typeFlags = try #require(sema.symbols.symbol(cStructVarTypeSymbol)?.flags)
 
-        XCTAssertEqual(sema.symbols.symbol(cStructVarSymbol)?.kind, .class)
-        XCTAssertTrue(flags.contains(.abstractType))
-        XCTAssertTrue(flags.contains(.openType))
-        XCTAssertEqual(sema.symbols.propertyType(for: cStructVarSymbol), cStructVarType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: cStructVarSymbol), [cVariableSymbol])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: cStructVarSymbol), [cVariableSymbol])
+        #expect(sema.symbols.symbol(cStructVarSymbol)?.kind == .class)
+        #expect(flags.contains(.abstractType))
+        #expect(flags.contains(.openType))
+        #expect(sema.symbols.propertyType(for: cStructVarSymbol) == cStructVarType)
+        #expect(sema.symbols.directSupertypes(for: cStructVarSymbol) == [cVariableSymbol])
+        #expect(sema.types.directNominalSupertypes(for: cStructVarSymbol) == [cVariableSymbol])
 
         let constructors = sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(constructors.compactMap {
+        let constructorSignature = try #require(constructors.compactMap {
             sema.symbols.functionSignature(for: $0)
         }.first {
             $0.parameterTypes == [nativePtrType] && $0.returnType == cStructVarType
         })
-        XCTAssertEqual(constructorSignature.valueParameterHasDefaultValues, [false])
+        #expect(constructorSignature.valueParameterHasDefaultValues == [false])
 
-        XCTAssertEqual(sema.symbols.symbol(cStructVarTypeSymbol)?.kind, .class)
-        XCTAssertTrue(typeFlags.contains(.openType))
-        XCTAssertEqual(sema.symbols.propertyType(for: cStructVarTypeSymbol), cStructVarTypeClassType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: cStructVarTypeSymbol), [cVariableTypeSymbol])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: cStructVarTypeSymbol), [cVariableTypeSymbol])
+        #expect(sema.symbols.symbol(cStructVarTypeSymbol)?.kind == .class)
+        #expect(typeFlags.contains(.openType))
+        #expect(sema.symbols.propertyType(for: cStructVarTypeSymbol) == cStructVarTypeClassType)
+        #expect(sema.symbols.directSupertypes(for: cStructVarTypeSymbol) == [cVariableTypeSymbol])
+        #expect(sema.types.directNominalSupertypes(for: cStructVarTypeSymbol) == [cVariableTypeSymbol])
 
         let typeConstructors = sema.symbols.lookupAll(fqName: typeFQName + [interner.intern("<init>")])
-        let typeConstructorSignature = try XCTUnwrap(typeConstructors.compactMap {
+        let typeConstructorSignature = try #require(typeConstructors.compactMap {
             sema.symbols.functionSignature(for: $0)
         }.first {
             $0.parameterTypes == [sema.types.longType, sema.types.intType]
                 && $0.returnType == cStructVarTypeClassType
         })
-        XCTAssertEqual(typeConstructorSignature.valueParameterHasDefaultValues, [false, false])
+        #expect(typeConstructorSignature.valueParameterHasDefaultValues == [false, false])
     }
 
+    @Test
     func testCStructVarResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CStructVar
@@ -81,9 +82,9 @@ final class NativeCInteropCStructVarSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CStructVar to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected CStructVar to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

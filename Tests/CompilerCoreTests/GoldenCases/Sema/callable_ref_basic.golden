@@ -4,14 +4,14 @@ symbol fq=golden.sema.greet.$0.name kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun greet sym=golden.sema.greet
-  decl d1 fun main sym=golden.sema.main
-expr e0 name(name) type=String ref=golden.sema.greet.$0.name
-expr e1 stringTemplate[lit(Hello, ),expr(e0)] type=String
-expr e2 callableRef recv=_ member=greet type=(String) -> String ref=golden.sema.greet
-expr e3 localDecl ref mutable=0 type=_ init=e2 type=Unit ref=__local_0.ref
-expr e4 name(ref) type=(String) -> String ref=__local_0.ref
-expr e5 string(World) type=String
-expr e6 call callee=e4 args=[_:e5] type=String
-expr e7 call callee=e8 args=[_:e6] type=Unit call=kotlin.io.println#1
+file f13 package=golden.sema
+  decl golden.sema.greet fun greet sym=golden.sema.greet
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@3:44 name(name) type=String ref=golden.sema.greet.$0.name
+expr e@3:35 stringTemplate[lit(Hello, ),expr(e@3:44)] type=String
+expr e@6:15 callableRef recv=_ member=greet type=(String) -> String ref=golden.sema.greet
+expr e@6:5#3 localDecl ref mutable=0 type=_ init=e@6:15 type=Unit ref=__local_0.ref
+expr e@7:13#0 name(ref) type=(String) -> String ref=__local_0.ref
+expr e@7:17 string(World) type=String
+expr e@7:13#1 call callee=e@7:13#0 args=[_:e@7:17] type=String
+expr e@7:5#4 call callee=e@7:5#3 args=[_:e@7:13#1] type=Unit call=kotlin.io.println#1

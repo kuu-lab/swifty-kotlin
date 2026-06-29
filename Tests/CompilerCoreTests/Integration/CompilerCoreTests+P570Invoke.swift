@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension CompilerCoreTests {
-    func testInvokeOperatorResolvesForTopLevelPropertyCallee() throws {
+    @Test func testInvokeOperatorResolvesForTopLevelPropertyCallee() throws {
         let source = """
         class Adder {
             operator fun invoke(x: Int): Int = x + 1
@@ -18,7 +19,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testInvokeOperatorResolvesForObjectSingletonCallee() throws {
+    @Test func testInvokeOperatorResolvesForObjectSingletonCallee() throws {
         let source = """
         object Incrementer {
             operator fun invoke(x: Int): Int = x + 1
@@ -32,7 +33,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testInvokeOperatorResolvesForExpressionResultCallee() throws {
+    @Test func testInvokeOperatorResolvesForExpressionResultCallee() throws {
         let source = """
         class Adder {
             operator fun invoke(x: Int): Int = x + 1
@@ -47,7 +48,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testNonOperatorInvokeDoesNotResolveCallSyntax() throws {
+    @Test func testNonOperatorInvokeDoesNotResolveCallSyntax() throws {
         let source = """
         class Adder {
             fun invoke(x: Int): Int = x + 1
@@ -63,3 +64,4 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 }
+#endif

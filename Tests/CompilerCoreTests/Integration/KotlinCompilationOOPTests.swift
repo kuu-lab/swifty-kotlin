@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class KotlinCompilationOOPTests: XCTestCase {
-    func testCompile_class_basic() throws {
+@Suite struct KotlinCompilationOOPTests {
+    @Test func testCompile_class_basic() throws {
         try assertKotlinCompilesToKIR("""
         class Person(val name: String, val age: Int)
         fun main() {
@@ -12,7 +13,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_withMethods() throws {
+    @Test func testCompile_class_withMethods() throws {
         try assertKotlinCompilesToKIR("""
         class Counter(var count: Int) {
             fun increment() {
@@ -28,7 +29,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_inheritance() throws {
+    @Test func testCompile_class_inheritance() throws {
         try assertKotlinCompilesToKIR("""
         open class Animal(val name: String) {
             open fun sound(): String = "..."
@@ -43,7 +44,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_abstractClass() throws {
+    @Test func testCompile_class_abstractClass() throws {
         try assertKotlinCompilesToKIR("""
         abstract class Shape {
             abstract fun area(): Double
@@ -60,7 +61,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_abstractProperty() throws {
+    @Test func testCompile_class_abstractProperty() throws {
         try assertKotlinCompilesToKIR("""
         abstract class Container {
             abstract var items: List<String>
@@ -75,7 +76,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_sealedImplicitlyAbstract() throws {
+    @Test func testCompile_class_sealedImplicitlyAbstract() throws {
         try assertKotlinCompilesToKIR("""
         sealed class Result {
             abstract fun getValue(): String
@@ -93,7 +94,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_abstractInheritanceChain() throws {
+    @Test func testCompile_class_abstractInheritanceChain() throws {
         try assertKotlinCompilesToKIR("""
         abstract class Animal {
             abstract fun speak(): String
@@ -118,7 +119,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_secondaryConstructor() throws {
+    @Test func testCompile_class_secondaryConstructor() throws {
         try assertKotlinCompilesToKIR("""
         class Point(val x: Int, val y: Int) {
             constructor(v: Int) : this(v, v)
@@ -129,7 +130,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_class_initBlock() throws {
+    @Test func testCompile_class_initBlock() throws {
         try assertKotlinCompilesToKIR("""
         class Greeter(val name: String) {
             val greeting: String
@@ -143,7 +144,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_dataClass_basic() throws {
+    @Test func testCompile_dataClass_basic() throws {
         try assertKotlinCompilesToKIR("""
         data class Point(val x: Int, val y: Int)
         fun main() {
@@ -153,7 +154,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_dataClass_copy() throws {
+    @Test func testCompile_dataClass_copy() throws {
         try assertKotlinCompilesToKIR("""
         data class User(val name: String, val age: Int)
         fun main() {
@@ -163,7 +164,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_enum_basic() throws {
+    @Test func testCompile_enum_basic() throws {
         try assertKotlinCompilesToKIR("""
         enum class Direction {
             NORTH, SOUTH, EAST, WEST
@@ -174,7 +175,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_enum_withProperties() throws {
+    @Test func testCompile_enum_withProperties() throws {
         try assertKotlinCompilesToKIR("""
         enum class Color(val rgb: Int) {
             RED(0xFF0000),
@@ -187,7 +188,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_sealed_class() throws {
+    @Test func testCompile_sealed_class() throws {
         try assertKotlinCompilesToKIR("""
         sealed class Result {
             class Success(val value: Int) : Result()
@@ -205,7 +206,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_sealed_interface() throws {
+    @Test func testCompile_sealed_interface() throws {
         try assertKotlinCompilesToKIR("""
         sealed interface Expr
         data class Num(val value: Int) : Expr
@@ -221,7 +222,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_object_singleton() throws {
+    @Test func testCompile_object_singleton() throws {
         try assertKotlinCompilesToKIR("""
         object Logger {
             fun log(msg: String) { }
@@ -233,7 +234,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
     }
 
     /// Verify companion object with factory method compiles.
-    func testCompile_companionObject() throws {
+    @Test func testCompile_companionObject() throws {
         try assertKotlinCompilesToKIR("""
         class MyClass {
             companion object {
@@ -247,7 +248,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_interface_basic() throws {
+    @Test func testCompile_interface_basic() throws {
         try assertKotlinCompilesToKIR("""
         interface Drawable {
             fun draw(): String
@@ -262,7 +263,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_interface_defaultMethod() throws {
+    @Test func testCompile_interface_defaultMethod() throws {
         try assertKotlinCompilesToKIR("""
         interface Greeter {
             fun greet(name: String): String {
@@ -281,7 +282,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_interface_multipleInheritance() throws {
+    @Test func testCompile_interface_multipleInheritance() throws {
         try assertKotlinCompilesToKIR("""
         interface A {
             fun hello(): String = "A"
@@ -299,7 +300,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_generics_function() throws {
+    @Test func testCompile_generics_function() throws {
         try assertKotlinCompilesToKIR("""
         fun <T> identity(x: T): T = x
         fun main() {
@@ -309,7 +310,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_generics_class() throws {
+    @Test func testCompile_generics_class() throws {
         try assertKotlinCompilesToKIR("""
         class Box<T>(val value: T) {
             fun get(): T = value
@@ -321,7 +322,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_generics_interface() throws {
+    @Test func testCompile_generics_interface() throws {
         try assertKotlinCompilesToKIR("""
         interface Box<T> {
             val value: T
@@ -337,7 +338,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_generics_upperBound() throws {
+    @Test func testCompile_generics_upperBound() throws {
         try assertKotlinCompilesToKIR("""
         fun <T : Comparable<T>> maxOf(a: T, b: T): T {
             return if (a > b) a else b
@@ -346,7 +347,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_nullable_declaration() throws {
+    @Test func testCompile_nullable_declaration() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val x: Int? = null
@@ -355,7 +356,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_nullable_safeCall() throws {
+    @Test func testCompile_nullable_safeCall() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s: String? = "hello"
@@ -364,7 +365,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_nullable_elvisOperator() throws {
+    @Test func testCompile_nullable_elvisOperator() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s: String? = null
@@ -373,7 +374,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_nullable_notNullAssertion() throws {
+    @Test func testCompile_nullable_notNullAssertion() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s: String? = "hello"
@@ -382,7 +383,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_typeCheck_is() throws {
+    @Test func testCompile_typeCheck_is() throws {
         try assertKotlinCompilesToKIR("""
         fun check(x: Any): String {
             return if (x is String) "string" else "other"
@@ -391,7 +392,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_typeCast_as() throws {
+    @Test func testCompile_typeCast_as() throws {
         try assertKotlinCompilesToKIR("""
         fun castToString(x: Any): String {
             return x as String
@@ -400,7 +401,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 
-    func testCompile_typeCast_safeAs() throws {
+    @Test func testCompile_typeCast_safeAs() throws {
         let code = """
         fun tryCast(x: Any): String? {
             return x as? String
@@ -410,7 +411,7 @@ final class KotlinCompilationOOPTests: XCTestCase {
         try assertKotlinCompilesToKIR(code)
     }
 
-    func testCompile_smartCast() throws {
+    @Test func testCompile_smartCast() throws {
         try assertKotlinCompilesToKIR("""
         fun length(x: Any): Int {
             if (x is String) {
@@ -422,3 +423,4 @@ final class KotlinCompilationOOPTests: XCTestCase {
         """)
     }
 }
+#endif

@@ -6,14 +6,14 @@ symbol fq=kotlin.random.nextFloat#2 kind=function vis=public flags=synthetic sig
 symbol fq=kotlin.random.nextFloat.from kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.random.nextFloat.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandomFloatRanges kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun useRandomFloatRanges sym=useRandomFloatRanges
-expr e0 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
-expr e1 float(10.0) type=Float
-expr e2 memberCall recv=e0 callee=nextFloat args=[_:e1] type=Float call=kotlin.random.nextFloat#1
-expr e3 localDecl a mutable=0 type=_ init=e2 type=Unit ref=__local_0.a
-expr e4 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
-expr e5 float(1.0) type=Float
-expr e6 float(10.0) type=Float
-expr e7 memberCall recv=e4 callee=nextFloat args=[_:e5,_:e6] type=Float call=kotlin.random.nextFloat#2
-expr e8 localDecl b mutable=0 type=_ init=e7 type=Unit ref=__local_1.b
+file f13 package=_
+  decl useRandomFloatRanges fun useRandomFloatRanges sym=useRandomFloatRanges
+expr e@4:13#2 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
+expr e@4:30 float(10.0) type=Float
+expr e@4:13#3 memberCall recv=e@4:13#2 callee=nextFloat args=[_:e@4:30] type=Float call=kotlin.random.nextFloat#1
+expr e@4:5#2 localDecl a mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.a
+expr e@5:13#1 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
+expr e@5:30 float(1.0) type=Float
+expr e@5:36 float(10.0) type=Float
+expr e@5:13#2 memberCall recv=e@5:13#1 callee=nextFloat args=[_:e@5:30,_:e@5:36] type=Float call=kotlin.random.nextFloat#2
+expr e@5:5#2 localDecl b mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_1.b

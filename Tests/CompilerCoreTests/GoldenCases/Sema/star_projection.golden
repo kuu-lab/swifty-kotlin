@@ -10,15 +10,15 @@ symbol fq=golden.sema.readContainer kind=function vis=public flags=_ sig=recv=_ 
 symbol fq=golden.sema.readContainer.$2.c kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-file f12 package=golden.sema
-  decl d0 class Container sym=golden.sema.Container
-  decl d1 fun readContainer sym=golden.sema.readContainer
-  decl d2 fun eraseType sym=golden.sema.eraseType
-  decl d3 fun acceptAny sym=golden.sema.acceptAny
-expr e0 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c
-expr e1 memberCall recv=e0 callee=item args=[] type=Any? ref=golden.sema.Container.item
-expr e2 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list
-expr e3 memberCall recv=e2 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e4 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c
-expr e5 memberCall recv=e4 callee=item args=[] type=Any? ref=golden.sema.Container.item
-expr e6 localDecl v mutable=0 type=_ init=e5 type=Unit ref=__local_0.v
+file f13 package=golden.sema
+  decl golden.sema.Container class Container sym=golden.sema.Container
+  decl golden.sema.readContainer fun readContainer sym=golden.sema.readContainer
+  decl golden.sema.eraseType fun eraseType sym=golden.sema.eraseType
+  decl golden.sema.acceptAny fun acceptAny sym=golden.sema.acceptAny
+expr e@6:44#0 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c
+expr e@6:44#1 memberCall recv=e@6:44#0 callee=item args=[] type=Any? ref=golden.sema.Container.item
+expr e@9:37#0 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list
+expr e@9:37#1 memberCall recv=e@9:37#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@13:13#1 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c
+expr e@13:13#2 memberCall recv=e@13:13#1 callee=item args=[] type=Any? ref=golden.sema.Container.item
+expr e@13:5#6 localDecl v mutable=0 type=_ init=e@13:13#2 type=Unit ref=__local_0.v

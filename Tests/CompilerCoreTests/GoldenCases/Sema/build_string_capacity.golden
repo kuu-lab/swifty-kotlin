@@ -1,18 +1,18 @@
 symbol fq=golden.sema.useBuildStringWithCapacity kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useBuildStringWithCapacityPositional kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-file f12 package=golden.sema
-  decl d0 fun useBuildStringWithCapacity sym=golden.sema.useBuildStringWithCapacity
-  decl d1 fun useBuildStringWithCapacityPositional sym=golden.sema.useBuildStringWithCapacityPositional
-expr e0 int(16) type=Int
-expr e1 string(hello) type=String
-expr e2 call callee=e3 args=[_:e1] type=Unit
-expr e4 string( world) type=String
-expr e5 call callee=e6 args=[_:e4] type=Unit
-expr e7 blockExpr stmts=[e2] trailing=e5 type=Unit
-expr e8 lambda params=[] body=e7 label=buildString type=() -> Unit
-expr e9 call callee=e10 args=[capacity:e0,_:e8] type=String
-expr e11 int(32) type=Int
-expr e12 string(foo) type=String
-expr e13 call callee=e14 args=[_:e12] type=Unit
-expr e15 lambda params=[] body=e13 label=buildString type=() -> Unit
-expr e16 call callee=e17 args=[_:e11,_:e15] type=String
+file f13 package=golden.sema
+  decl golden.sema.useBuildStringWithCapacity fun useBuildStringWithCapacity sym=golden.sema.useBuildStringWithCapacity
+  decl golden.sema.useBuildStringWithCapacityPositional fun useBuildStringWithCapacityPositional sym=golden.sema.useBuildStringWithCapacityPositional
+expr e@3:67 int(16) type=Int
+expr e@4:12 string(hello) type=String
+expr e@4:5#3 call callee=e@4:5#2 args=[_:e@4:12] type=Unit
+expr e@5:12 string( world) type=String
+expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:12] type=Unit
+expr e@4:5#4 blockExpr stmts=[e@4:5#3] trailing=e@5:5#3 type=Unit
+expr e@3:71 lambda params=[] body=e@4:5#4 label=buildString type=() -> Unit
+expr e@3:44#1 call callee=e@3:44#0 args=[capacity:e@3:67,_:e@3:71] type=String
+expr e@8:66 int(32) type=Int
+expr e@9:12#1 string(foo) type=String
+expr e@9:5#3 call callee=e@9:5#2 args=[_:e@9:12#1] type=Unit
+expr e@8:70 lambda params=[] body=e@9:5#3 label=buildString type=() -> Unit
+expr e@8:54#1 call callee=e@8:54#0 args=[_:e@8:66,_:e@8:70] type=String

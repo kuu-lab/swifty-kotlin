@@ -6,7 +6,7 @@ symbol fq=kotlinx.cinterop.ByteVarOf.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.CValues kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CValues<kotlinx.cinterop.CValues.T>
 symbol fq=kotlinx.cinterop.CValues.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.toCValues#1 kind=function vis=public flags=synthetic sig=recv=kotlin.ByteArray params=[] ret=kotlinx.cinterop.CValues<kotlinx.cinterop.ByteVarOf<Int>>
-file f12 package=golden.sema
-  decl d0 fun convertToNative sym=golden.sema.convertToNative
-expr e0 name(bytes) type=kotlin.ByteArray ref=golden.sema.convertToNative.$0.bytes
-expr e1 memberCall recv=e0 callee=toCValues args=[] type=kotlinx.cinterop.CValues<kotlinx.cinterop.ByteVarOf<Int>> call=kotlinx.cinterop.toCValues#1
+file f13 package=golden.sema
+  decl golden.sema.convertToNative fun convertToNative sym=golden.sema.convertToNative
+expr e@9:59#0 name(bytes) type=kotlin.ByteArray ref=golden.sema.convertToNative.$0.bytes
+expr e@9:59#1 memberCall recv=e@9:59#0 callee=toCValues args=[] type=kotlinx.cinterop.CValues<kotlinx.cinterop.ByteVarOf<Int>> call=kotlinx.cinterop.toCValues#1

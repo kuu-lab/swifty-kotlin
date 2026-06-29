@@ -24,43 +24,43 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=testCopyBasic kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=testCopySingleProperty kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=testCopyWithOverride kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 class Point sym=Point
-  decl d1 class Name sym=Name
-  decl d2 fun testCopyBasic sym=testCopyBasic
-  decl d3 fun testCopyWithOverride sym=testCopyWithOverride
-  decl d4 fun testCopySingleProperty sym=testCopySingleProperty
-expr e0 int(1) type=Int
-expr e1 int(2) type=Int
-expr e2 call callee=e3 args=[_:e0,_:e1] type=Point call=Point.<init>
-expr e4 localDecl p mutable=0 type=_ init=e2 type=Unit ref=__local_0.p
-expr e5 name(p) type=Point ref=__local_0.p
-expr e6 memberCall recv=e5 callee=copy args=[] type=Point call=Point.copy
-expr e7 localDecl p2 mutable=0 type=_ init=e6 type=Unit ref=__local_1.p2
-expr e8 name(p2) type=Point ref=__local_1.p2
-expr e9 memberCall recv=e8 callee=x args=[] type=Int ref=Point.x
-expr e10 call callee=e11 args=[_:e9] type=Unit call=kotlin.io.println#1
-expr e12 name(p2) type=Point ref=__local_1.p2
-expr e13 memberCall recv=e12 callee=y args=[] type=Int ref=Point.y
-expr e14 call callee=e15 args=[_:e13] type=Unit call=kotlin.io.println#1
-expr e16 int(1) type=Int
-expr e17 int(2) type=Int
-expr e18 call callee=e19 args=[_:e16,_:e17] type=Point call=Point.<init>
-expr e20 localDecl p mutable=0 type=_ init=e18 type=Unit ref=__local_2.p
-expr e21 name(p) type=Point ref=__local_2.p
-expr e22 int(10) type=Int
-expr e23 memberCall recv=e21 callee=copy args=[x:e22] type=Point call=Point.copy
-expr e24 localDecl p3 mutable=0 type=_ init=e23 type=Unit ref=__local_3.p3
-expr e25 name(p3) type=Point ref=__local_3.p3
-expr e26 memberCall recv=e25 callee=x args=[] type=Int ref=Point.x
-expr e27 call callee=e28 args=[_:e26] type=Unit call=kotlin.io.println#1
-expr e29 string(hello) type=String
-expr e30 call callee=e31 args=[_:e29] type=Name call=Name.<init>
-expr e32 localDecl n mutable=0 type=_ init=e30 type=Unit ref=__local_4.n
-expr e33 name(n) type=Name ref=__local_4.n
-expr e34 string(world) type=String
-expr e35 memberCall recv=e33 callee=copy args=[value:e34] type=Name call=Name.copy
-expr e36 localDecl n2 mutable=0 type=_ init=e35 type=Unit ref=__local_5.n2
-expr e37 name(n2) type=Name ref=__local_5.n2
-expr e38 memberCall recv=e37 callee=value args=[] type=String ref=Name.value
-expr e39 call callee=e40 args=[_:e38] type=Unit call=kotlin.io.println#1
+file f13 package=_
+  decl Point class Point sym=Point
+  decl Name class Name sym=Name
+  decl testCopyBasic fun testCopyBasic sym=testCopyBasic
+  decl testCopyWithOverride fun testCopyWithOverride sym=testCopyWithOverride
+  decl testCopySingleProperty fun testCopySingleProperty sym=testCopySingleProperty
+expr e@6:19 int(1) type=Int
+expr e@6:22#1 int(2) type=Int
+expr e@6:13#2 call callee=e@6:13#1 args=[_:e@6:19,_:e@6:22#1] type=Point call=Point.<init>
+expr e@6:5#3 localDecl p mutable=0 type=_ init=e@6:13#2 type=Unit ref=__local_0.p
+expr e@7:14#0 name(p) type=Point ref=__local_0.p
+expr e@7:14#1 memberCall recv=e@7:14#0 callee=copy args=[] type=Point call=Point.copy
+expr e@7:5#3 localDecl p2 mutable=0 type=_ init=e@7:14#1 type=Unit ref=__local_1.p2
+expr e@8:13#0 name(p2) type=Point ref=__local_1.p2
+expr e@8:13#1 memberCall recv=e@8:13#0 callee=x args=[] type=Int ref=Point.x
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13#1] type=Unit call=kotlin.io.println#1
+expr e@9:13#0 name(p2) type=Point ref=__local_1.p2
+expr e@9:13#1 memberCall recv=e@9:13#0 callee=y args=[] type=Int ref=Point.y
+expr e@9:5#1 call callee=e@9:5#0 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
+expr e@13:19 int(1) type=Int
+expr e@13:22 int(2) type=Int
+expr e@13:13#2 call callee=e@13:13#1 args=[_:e@13:19,_:e@13:22] type=Point call=Point.<init>
+expr e@13:5#6 localDecl p mutable=0 type=_ init=e@13:13#2 type=Unit ref=__local_2.p
+expr e@14:14#2 name(p) type=Point ref=__local_2.p
+expr e@14:25 int(10) type=Int
+expr e@14:14#3 memberCall recv=e@14:14#2 callee=copy args=[x:e@14:25] type=Point call=Point.copy
+expr e@14:5#7 localDecl p3 mutable=0 type=_ init=e@14:14#3 type=Unit ref=__local_3.p3
+expr e@15:13#2 name(p3) type=Point ref=__local_3.p3
+expr e@15:13#3 memberCall recv=e@15:13#2 callee=x args=[] type=Int ref=Point.x
+expr e@15:5#7 call callee=e@15:5#6 args=[_:e@15:13#3] type=Unit call=kotlin.io.println#1
+expr e@19:18#2 string(hello) type=String
+expr e@19:13#1 call callee=e@19:13#0 args=[_:e@19:18#2] type=Name call=Name.<init>
+expr e@19:5#6 localDecl n mutable=0 type=_ init=e@19:13#1 type=Unit ref=__local_4.n
+expr e@20:14#0 name(n) type=Name ref=__local_4.n
+expr e@20:29 string(world) type=String
+expr e@20:14#1 memberCall recv=e@20:14#0 callee=copy args=[value:e@20:29] type=Name call=Name.copy
+expr e@20:5#5 localDecl n2 mutable=0 type=_ init=e@20:14#1 type=Unit ref=__local_5.n2
+expr e@21:13#0 name(n2) type=Name ref=__local_5.n2
+expr e@21:13#1 memberCall recv=e@21:13#0 callee=value args=[] type=String ref=Name.value
+expr e@21:5#4 call callee=e@21:5#3 args=[_:e@21:13#1] type=Unit call=kotlin.io.println#1

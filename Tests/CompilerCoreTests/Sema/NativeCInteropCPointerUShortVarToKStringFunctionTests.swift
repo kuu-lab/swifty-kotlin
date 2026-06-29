@@ -1,27 +1,29 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCPointerUShortVarToKStringFunctionTests: XCTestCase {
-    func testCPointerUShortVarToKStringFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropCPointerUShortVarToKStringFunctionTests {
+    @Test func testCPointerUShortVarToKStringFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "compile clean: \(ctx.diagnostics.diagnostics)")
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "compile clean: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
-        let cPointerSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("CPointer")]))
-        let uShortVarSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]))
+        let cPointerSymbol = try #require(sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("CPointer")]))
+        let uShortVarSymbol = try #require(sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]))
         let uShortVarType = sema.types.make(.classType(ClassType(classSymbol: uShortVarSymbol, args: [], nullability: .nonNull)))
         let expectedReceiverType = sema.types.make(.classType(ClassType(classSymbol: cPointerSymbol, args: [.invariant(uShortVarType)], nullability: .nonNull)))
         let candidates = sema.symbols.lookupAll(fqName: cinteropPkg + [interner.intern("toKString")])
-        let fn = try XCTUnwrap(candidates.first { symbolID in
+        let fn = try #require(candidates.first { symbolID in
             guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
             return sig.receiverType == expectedReceiverType && sig.parameterTypes.isEmpty && sig.returnType == sema.types.stringType
         })
-        XCTAssertTrue(try XCTUnwrap(sema.symbols.symbol(fn)?.flags).contains(.synthetic))
+        #expect(try #require(sema.symbols.symbol(fn)?.flags).contains(.synthetic))
     }
 
-    func testCPointerUShortVarToKStringFunctionResolvesInSource() throws {
+    @Test func testCPointerUShortVarToKStringFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointer
         import kotlinx.cinterop.UShortVar
@@ -32,6 +34,7 @@ final class NativeCInteropCPointerUShortVarToKStringFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

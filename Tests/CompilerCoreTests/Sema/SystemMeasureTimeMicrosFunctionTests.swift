@@ -1,7 +1,9 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class SystemMeasureTimeMicrosFunctionTests: XCTestCase {
+@Suite
+struct SystemMeasureTimeMicrosFunctionTests {
+    @Test
     func testMeasureTimeMicrosFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.system.measureTimeMicros
@@ -16,6 +18,6 @@ final class SystemMeasureTimeMicrosFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }

@@ -4,10 +4,10 @@ symbol fq=golden.sema.measure kind=function vis=public flags=_ sig=recv=_ params
 symbol fq=golden.sema.measure.$0.m kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.toAny kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Meter] ret=Any
 symbol fq=golden.sema.toAny.$1.m kind=valueParameter vis=private flags=_
-file f12 package=golden.sema
-  decl d0 class Meter sym=golden.sema.Meter
-  decl d1 fun measure sym=golden.sema.measure
-  decl d2 fun toAny sym=golden.sema.toAny
-expr e0 name(m) type=golden.sema.Meter ref=golden.sema.measure.$0.m
-expr e1 memberCall recv=e0 callee=amount args=[] type=Int ref=golden.sema.Meter.amount
-expr e2 name(m) type=golden.sema.Meter ref=golden.sema.toAny.$1.m
+file f13 package=golden.sema
+  decl golden.sema.Meter class Meter sym=golden.sema.Meter
+  decl golden.sema.measure fun measure sym=golden.sema.measure
+  decl golden.sema.toAny fun toAny sym=golden.sema.toAny
+expr e@5:30#0 name(m) type=golden.sema.Meter ref=golden.sema.measure.$0.m
+expr e@5:30#1 memberCall recv=e@5:30#0 callee=amount args=[] type=Int ref=golden.sema.Meter.amount
+expr e@7:28 name(m) type=golden.sema.Meter ref=golden.sema.toAny.$1.m

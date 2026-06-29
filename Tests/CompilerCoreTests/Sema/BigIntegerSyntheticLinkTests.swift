@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class BigIntegerSyntheticLinkTests: XCTestCase {
+@Suite
+struct BigIntegerSyntheticLinkTests {
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
         ast.arena.exprs.indices.compactMap { index in
             let exprID = ExprID(rawValue: Int32(index))
@@ -46,37 +48,28 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let calls = userExprIDs(in: ast, sourceManager: ctx.sourceManager) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == callName
             }
 
-            XCTAssertEqual(calls.count, expectedCount,
-                "Expected \(expectedCount) BigInteger.\(callName) calls",
-                file: file, line: line)
+            #expect(calls.count == expectedCount, "Expected \(expectedCount) BigInteger.\(callName) calls")
 
             for callExpr in calls {
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected BigInteger.\(callName) to resolve",
-                    file: file, line: line
-                )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLinkName,
-                    file: file, line: line
-                )
-                let symbol = try XCTUnwrap(sema.symbols.symbol(chosenCallee))
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedLinkName)
+                let symbol = try #require(sema.symbols.symbol(chosenCallee))
                 let fqName = symbol.fqName.map { ctx.interner.resolve($0) }
-                XCTAssertEqual(fqName, expectedFQName, file: file, line: line)
+                #expect(fqName == expectedFQName)
             }
         }
     }
 
     // MARK: - and (existing, baseline)
 
+    @Test
     func testBigIntegerAndResolvesToSyntheticKotlinExtension() throws {
         let source = """
         import java.math.BigInteger
@@ -93,34 +86,29 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let andCalls = userExprIDs(in: ast, sourceManager: ctx.sourceManager) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "and"
             }
 
-            XCTAssertEqual(andCalls.count, 2, "Expected both infix and dotted BigInteger.and calls")
+            #expect(andCalls.count == 2, "Expected both infix and dotted BigInteger.and calls")
 
             for callExpr in andCalls {
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected BigInteger.and to resolve"
-                )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_biginteger_and"
-                )
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_biginteger_and")
 
-                let symbol = try XCTUnwrap(sema.symbols.symbol(chosenCallee))
+                let symbol = try #require(sema.symbols.symbol(chosenCallee))
                 let fqName = symbol.fqName.map { ctx.interner.resolve($0) }
-                XCTAssertEqual(fqName, ["kotlin", "and"])
+                #expect(fqName == ["kotlin", "and"])
             }
         }
     }
 
     // MARK: - Bitwise and shift extension functions (STDLIB-GAP-PH1)
 
+    @Test
     func testBigIntegerOrResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "or",
@@ -138,6 +126,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         )
     }
 
+    @Test
     func testBigIntegerXorResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "xor",
@@ -155,6 +144,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         )
     }
 
+    @Test
     func testBigIntegerInvResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "inv",
@@ -171,6 +161,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         )
     }
 
+    @Test
     func testBigIntegerShlResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "shl",
@@ -188,6 +179,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         )
     }
 
+    @Test
     func testBigIntegerShrResolvesToSyntheticKotlinExtension() throws {
         try assertBigIntegerExtensionCalls(
             callName: "shr",
@@ -207,6 +199,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
 
     // MARK: - Instance methods (STDLIB-GAP-PH1)
 
+    @Test
     func testBigIntegerToByteArrayResolvesToSyntheticInstanceMethod() throws {
         try assertBigIntegerExtensionCalls(
             callName: "toByteArray",
@@ -223,6 +216,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         )
     }
 
+    @Test
     func testBigIntegerModInverseResolvesToSyntheticInstanceMethod() throws {
         try assertBigIntegerExtensionCalls(
             callName: "modInverse",
@@ -239,6 +233,7 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         )
     }
 
+    @Test
     func testBigIntegerModPowResolvesToSyntheticInstanceMethod() throws {
         try assertBigIntegerExtensionCalls(
             callName: "modPow",
@@ -257,3 +252,4 @@ final class BigIntegerSyntheticLinkTests: XCTestCase {
         )
     }
 }
+#endif

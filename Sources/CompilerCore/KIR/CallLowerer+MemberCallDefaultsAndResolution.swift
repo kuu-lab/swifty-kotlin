@@ -322,6 +322,10 @@ extension CallLowerer {
                 }
                 return interner.intern(externalLinkName)
             }
+            if sema.symbols.symbol(chosenCallee)?.declSite != nil {
+                // Source-backed stdlib migrations lower through the chosen symbol's internal function.
+                return fallback
+            }
             if let unresolvedSynthetic = unresolvedSyntheticMemberCallee(
                 memberName: fallbackName,
                 receiverExpr: receiverExpr,

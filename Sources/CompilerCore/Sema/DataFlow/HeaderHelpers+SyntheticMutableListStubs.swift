@@ -398,7 +398,12 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("add")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        // Use signature-aware guard: a kklib import may have created a no-signature ghost symbol
+        // with the same FQ name. Only skip if a properly-configured add(E) overload already exists.
+        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+            return sig.parameterTypes == [mlTypeParamType] && sig.returnType == types.booleanType
+        }) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],

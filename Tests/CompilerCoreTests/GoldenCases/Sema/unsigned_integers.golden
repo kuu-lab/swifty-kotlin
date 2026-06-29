@@ -31,149 +31,149 @@ symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[]
 symbol fq=kotlin.ULongArray kind=class vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun main sym=golden.sema.main
-expr e0 uint(42) type=UInt
-expr e1 localDecl x mutable=0 type=t0 init=e0 type=Unit ref=__local_0.x
-expr e2 ulong(42) type=ULong
-expr e3 localDecl y mutable=0 type=t1 init=e2 type=Unit ref=__local_1.y
-expr e4 name(x) type=UInt ref=__local_0.x
-expr e5 memberCall recv=e4 callee=toInt args=[] type=Int
-expr e6 localDecl a mutable=0 type=_ init=e5 type=Unit ref=__local_2.a
-expr e7 name(x) type=UInt ref=__local_0.x
-expr e8 memberCall recv=e7 callee=toUInt args=[] type=UInt
-expr e9 localDecl b mutable=0 type=_ init=e8 type=Unit ref=__local_3.b
-expr e10 name(x) type=UInt ref=__local_0.x
-expr e11 memberCall recv=e10 callee=toLong args=[] type=Long
-expr e12 localDecl c mutable=0 type=_ init=e11 type=Unit ref=__local_4.c
-expr e13 name(x) type=UInt ref=__local_0.x
-expr e14 memberCall recv=e13 callee=toULong args=[] type=ULong
-expr e15 localDecl d mutable=0 type=_ init=e14 type=Unit ref=__local_5.d
-expr e16 name(y) type=ULong ref=__local_1.y
-expr e17 memberCall recv=e16 callee=toInt args=[] type=Int
-expr e18 localDecl e mutable=0 type=_ init=e17 type=Unit ref=__local_6.e
-expr e19 ulong(1) type=ULong
-expr e20 ulong(7) type=ULong
-expr e21 binary(rangeTo) lhs=e19 rhs=e20 type=ULong
-expr e22 memberCall recv=e21 callee=toULongArray args=[] type=kotlin.ULongArray
-expr e23 localDecl h mutable=0 type=_ init=e22 type=Unit ref=__local_7.h
-expr e24 uint(100) type=UInt
-expr e25 uint(3) type=UInt
-expr e26 binary(divide) lhs=e24 rhs=e25 type=UInt
-expr e27 localDecl f mutable=0 type=_ init=e26 type=Unit ref=__local_8.f
-expr e28 uint(100) type=UInt
-expr e29 uint(3) type=UInt
-expr e30 binary(modulo) lhs=e28 rhs=e29 type=UInt
-expr e31 localDecl g mutable=0 type=_ init=e30 type=Unit ref=__local_9.g
-expr e32 uint(255) type=UInt
-expr e33 uint(15) type=UInt
-expr e34 memberCall recv=e32 callee=and args=[_:e33] type=UInt
-expr e35 localDecl i mutable=0 type=_ init=e34 type=Unit ref=__local_10.i
-expr e36 uint(240) type=UInt
-expr e37 uint(15) type=UInt
-expr e38 memberCall recv=e36 callee=or args=[_:e37] type=UInt
-expr e39 localDecl j mutable=0 type=_ init=e38 type=Unit ref=__local_11.j
-expr e40 uint(255) type=UInt
-expr e41 uint(15) type=UInt
-expr e42 memberCall recv=e40 callee=xor args=[_:e41] type=UInt
-expr e43 localDecl k mutable=0 type=_ init=e42 type=Unit ref=__local_12.k
-expr e44 uint(255) type=UInt
-expr e45 int(2) type=Int
-expr e46 memberCall recv=e44 callee=shl args=[_:e45] type=UInt
-expr e47 localDecl l mutable=0 type=_ init=e46 type=Unit ref=__local_13.l
-expr e48 uint(240) type=UInt
-expr e49 int(2) type=Int
-expr e50 memberCall recv=e48 callee=shr args=[_:e49] type=UInt
-expr e51 localDecl m mutable=0 type=_ init=e50 type=Unit ref=__local_14.m
-expr e52 name(x) type=UInt ref=__local_0.x
-expr e53 memberCall recv=e52 callee=toFloat args=[] type=Float
-expr e54 localDecl nf mutable=0 type=_ init=e53 type=Unit ref=__local_15.nf
-expr e55 name(x) type=UInt ref=__local_0.x
-expr e56 memberCall recv=e55 callee=toDouble args=[] type=Double
-expr e57 localDecl nd mutable=0 type=_ init=e56 type=Unit ref=__local_16.nd
-expr e58 name(y) type=ULong ref=__local_1.y
-expr e59 memberCall recv=e58 callee=toFloat args=[] type=Float
-expr e60 localDecl pf mutable=0 type=_ init=e59 type=Unit ref=__local_17.pf
-expr e61 name(y) type=ULong ref=__local_1.y
-expr e62 memberCall recv=e61 callee=toDouble args=[] type=Double
-expr e63 localDecl pd mutable=0 type=_ init=e62 type=Unit ref=__local_18.pd
-expr e64 uint(200) type=UInt
-expr e65 memberCall recv=e64 callee=toUByte args=[] type=UByte
-expr e66 localDecl ub mutable=0 type=_ init=e65 type=Unit ref=__local_19.ub
-expr e67 uint(1000) type=UInt
-expr e68 memberCall recv=e67 callee=toUShort args=[] type=UShort
-expr e69 localDecl us mutable=0 type=_ init=e68 type=Unit ref=__local_20.us
-expr e70 name(ub) type=UByte ref=__local_19.ub
-expr e71 memberCall recv=e70 callee=toFloat args=[] type=Float
-expr e72 localDecl ubf mutable=0 type=_ init=e71 type=Unit ref=__local_21.ubf
-expr e73 name(ub) type=UByte ref=__local_19.ub
-expr e74 memberCall recv=e73 callee=toDouble args=[] type=Double
-expr e75 localDecl ubd mutable=0 type=_ init=e74 type=Unit ref=__local_22.ubd
-expr e76 name(us) type=UShort ref=__local_20.us
-expr e77 memberCall recv=e76 callee=toFloat args=[] type=Float
-expr e78 localDecl usf mutable=0 type=_ init=e77 type=Unit ref=__local_23.usf
-expr e79 name(us) type=UShort ref=__local_20.us
-expr e80 memberCall recv=e79 callee=toDouble args=[] type=Double
-expr e81 localDecl usd mutable=0 type=_ init=e80 type=Unit ref=__local_24.usd
-expr e82 name(ub) type=UByte ref=__local_19.ub
-expr e83 memberCall recv=e82 callee=toUShort args=[] type=UShort
-expr e84 localDecl ubToUs mutable=0 type=_ init=e83 type=Unit ref=__local_25.ubToUs
-expr e85 name(us) type=UShort ref=__local_20.us
-expr e86 memberCall recv=e85 callee=toUByte args=[] type=UByte
-expr e87 localDecl usToBub mutable=0 type=_ init=e86 type=Unit ref=__local_26.usToBub
-expr e88 name(ub) type=UByte ref=__local_19.ub
-expr e89 memberCall recv=e88 callee=toUByte args=[] type=UByte
-expr e90 localDecl ubId mutable=0 type=_ init=e89 type=Unit ref=__local_27.ubId
-expr e91 name(us) type=UShort ref=__local_20.us
-expr e92 memberCall recv=e91 callee=toUShort args=[] type=UShort
-expr e93 localDecl usId mutable=0 type=_ init=e92 type=Unit ref=__local_28.usId
-expr e94 name(a) type=Int ref=__local_2.a
-expr e95 call callee=e96 args=[_:e94] type=Unit call=kotlin.io.println#1
-expr e97 name(b) type=UInt ref=__local_3.b
-expr e98 call callee=e99 args=[_:e97] type=Unit call=kotlin.io.println#1
-expr e100 name(c) type=Long ref=__local_4.c
-expr e101 call callee=e102 args=[_:e100] type=Unit call=kotlin.io.println#1
-expr e103 name(d) type=ULong ref=__local_5.d
-expr e104 call callee=e105 args=[_:e103] type=Unit call=kotlin.io.println#1
-expr e106 name(e) type=Int ref=__local_6.e
-expr e107 call callee=e108 args=[_:e106] type=Unit call=kotlin.io.println#1
-expr e109 name(h) type=kotlin.ULongArray ref=__local_7.h
-expr e110 call callee=e111 args=[_:e109] type=Unit call=kotlin.io.println#1
-expr e112 name(f) type=UInt ref=__local_8.f
-expr e113 call callee=e114 args=[_:e112] type=Unit call=kotlin.io.println#1
-expr e115 name(g) type=UInt ref=__local_9.g
-expr e116 call callee=e117 args=[_:e115] type=Unit call=kotlin.io.println#1
-expr e118 name(i) type=UInt ref=__local_10.i
-expr e119 call callee=e120 args=[_:e118] type=Unit call=kotlin.io.println#1
-expr e121 name(j) type=UInt ref=__local_11.j
-expr e122 call callee=e123 args=[_:e121] type=Unit call=kotlin.io.println#1
-expr e124 name(k) type=UInt ref=__local_12.k
-expr e125 call callee=e126 args=[_:e124] type=Unit call=kotlin.io.println#1
-expr e127 name(l) type=UInt ref=__local_13.l
-expr e128 call callee=e129 args=[_:e127] type=Unit call=kotlin.io.println#1
-expr e130 name(m) type=UInt ref=__local_14.m
-expr e131 call callee=e132 args=[_:e130] type=Unit call=kotlin.io.println#1
-expr e133 name(nf) type=Float ref=__local_15.nf
-expr e134 call callee=e135 args=[_:e133] type=Unit call=kotlin.io.println#1
-expr e136 name(nd) type=Double ref=__local_16.nd
-expr e137 call callee=e138 args=[_:e136] type=Unit call=kotlin.io.println#1
-expr e139 name(pf) type=Float ref=__local_17.pf
-expr e140 call callee=e141 args=[_:e139] type=Unit call=kotlin.io.println#1
-expr e142 name(pd) type=Double ref=__local_18.pd
-expr e143 call callee=e144 args=[_:e142] type=Unit call=kotlin.io.println#1
-expr e145 name(ubf) type=Float ref=__local_21.ubf
-expr e146 call callee=e147 args=[_:e145] type=Unit call=kotlin.io.println#1
-expr e148 name(ubd) type=Double ref=__local_22.ubd
-expr e149 call callee=e150 args=[_:e148] type=Unit call=kotlin.io.println#1
-expr e151 name(usf) type=Float ref=__local_23.usf
-expr e152 call callee=e153 args=[_:e151] type=Unit call=kotlin.io.println#1
-expr e154 name(usd) type=Double ref=__local_24.usd
-expr e155 call callee=e156 args=[_:e154] type=Unit call=kotlin.io.println#1
-expr e157 name(ubToUs) type=UShort ref=__local_25.ubToUs
-expr e158 call callee=e159 args=[_:e157] type=Unit call=kotlin.io.println#1
-expr e160 name(usToBub) type=UByte ref=__local_26.usToBub
-expr e161 call callee=e162 args=[_:e160] type=Unit call=kotlin.io.println#1
-expr e163 name(ubId) type=UByte ref=__local_27.ubId
-expr e164 call callee=e165 args=[_:e163] type=Unit call=kotlin.io.println#1
-expr e166 name(usId) type=UShort ref=__local_28.usId
-expr e167 call callee=e168 args=[_:e166] type=Unit call=kotlin.io.println#1
+file f13 package=golden.sema
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@4:19 uint(42) type=UInt
+expr e@4:5#2 localDecl x mutable=0 type=UInt init=e@4:19 type=Unit ref=__local_0.x
+expr e@5:20 ulong(42) type=ULong
+expr e@5:5#2 localDecl y mutable=0 type=ULong init=e@5:20 type=Unit ref=__local_1.y
+expr e@6:13#1 name(x) type=UInt ref=__local_0.x
+expr e@6:13#2 memberCall recv=e@6:13#1 callee=toInt args=[] type=Int
+expr e@6:5#3 localDecl a mutable=0 type=_ init=e@6:13#2 type=Unit ref=__local_2.a
+expr e@7:13#0 name(x) type=UInt ref=__local_0.x
+expr e@7:13#1 memberCall recv=e@7:13#0 callee=toUInt args=[] type=UInt
+expr e@7:5#3 localDecl b mutable=0 type=_ init=e@7:13#1 type=Unit ref=__local_3.b
+expr e@8:13#0 name(x) type=UInt ref=__local_0.x
+expr e@8:13#1 memberCall recv=e@8:13#0 callee=toLong args=[] type=Long
+expr e@8:5#2 localDecl c mutable=0 type=_ init=e@8:13#1 type=Unit ref=__local_4.c
+expr e@9:13#0 name(x) type=UInt ref=__local_0.x
+expr e@9:13#1 memberCall recv=e@9:13#0 callee=toULong args=[] type=ULong
+expr e@9:5 localDecl d mutable=0 type=_ init=e@9:13#1 type=Unit ref=__local_5.d
+expr e@10:13#0 name(y) type=ULong ref=__local_1.y
+expr e@10:13#1 memberCall recv=e@10:13#0 callee=toInt args=[] type=Int
+expr e@10:5#1 localDecl e mutable=0 type=_ init=e@10:13#1 type=Unit ref=__local_6.e
+expr e@11:14#0 ulong(1) type=ULong
+expr e@11:19 ulong(7) type=ULong
+expr e@11:14#1 binary(rangeTo) lhs=e@11:14#0 rhs=e@11:19 type=ULong
+expr e@11:14#2 memberCall recv=e@11:14#1 callee=toULongArray args=[] type=kotlin.ULongArray
+expr e@11:5#2 localDecl h mutable=0 type=_ init=e@11:14#2 type=Unit ref=__local_7.h
+expr e@12:13#2 uint(100) type=UInt
+expr e@12:20 uint(3) type=UInt
+expr e@12:13#3 binary(divide) lhs=e@12:13#2 rhs=e@12:20 type=UInt
+expr e@12:5#4 localDecl f mutable=0 type=_ init=e@12:13#3 type=Unit ref=__local_8.f
+expr e@13:13#1 uint(100) type=UInt
+expr e@13:20#2 uint(3) type=UInt
+expr e@13:13#2 binary(modulo) lhs=e@13:13#1 rhs=e@13:20#2 type=UInt
+expr e@13:5#6 localDecl g mutable=0 type=_ init=e@13:13#2 type=Unit ref=__local_9.g
+expr e@14:13#2 uint(255) type=UInt
+expr e@14:22#1 uint(15) type=UInt
+expr e@14:13#3 memberCall recv=e@14:13#2 callee=and args=[_:e@14:22#1] type=UInt
+expr e@14:5#7 localDecl i mutable=0 type=_ init=e@14:13#3 type=Unit ref=__local_10.i
+expr e@15:13#2 uint(240) type=UInt
+expr e@15:21 uint(15) type=UInt
+expr e@15:13#3 memberCall recv=e@15:13#2 callee=or args=[_:e@15:21] type=UInt
+expr e@15:5#6 localDecl j mutable=0 type=_ init=e@15:13#3 type=Unit ref=__local_11.j
+expr e@16:13#1 uint(255) type=UInt
+expr e@16:22 uint(15) type=UInt
+expr e@16:13#2 memberCall recv=e@16:13#1 callee=xor args=[_:e@16:22] type=UInt
+expr e@16:5#6 localDecl k mutable=0 type=_ init=e@16:13#2 type=Unit ref=__local_12.k
+expr e@17:13#3 uint(255) type=UInt
+expr e@17:22#1 int(2) type=Int
+expr e@17:13#4 memberCall recv=e@17:13#3 callee=shl args=[_:e@17:22#1] type=UInt
+expr e@17:5#3 localDecl l mutable=0 type=_ init=e@17:13#4 type=Unit ref=__local_13.l
+expr e@18:13#1 uint(240) type=UInt
+expr e@18:22#1 int(2) type=Int
+expr e@18:13#2 memberCall recv=e@18:13#1 callee=shr args=[_:e@18:22#1] type=UInt
+expr e@18:5#4 localDecl m mutable=0 type=_ init=e@18:13#2 type=Unit ref=__local_14.m
+expr e@20:14#0 name(x) type=UInt ref=__local_0.x
+expr e@20:14#1 memberCall recv=e@20:14#0 callee=toFloat args=[] type=Float
+expr e@20:5#5 localDecl nf mutable=0 type=_ init=e@20:14#1 type=Unit ref=__local_15.nf
+expr e@21:14#0 name(x) type=UInt ref=__local_0.x
+expr e@21:14#1 memberCall recv=e@21:14#0 callee=toDouble args=[] type=Double
+expr e@21:5#3 localDecl nd mutable=0 type=_ init=e@21:14#1 type=Unit ref=__local_16.nd
+expr e@22:14#2 name(y) type=ULong ref=__local_1.y
+expr e@22:14#3 memberCall recv=e@22:14#2 callee=toFloat args=[] type=Float
+expr e@22:5#4 localDecl pf mutable=0 type=_ init=e@22:14#3 type=Unit ref=__local_17.pf
+expr e@23:14#0 name(y) type=ULong ref=__local_1.y
+expr e@23:14#1 memberCall recv=e@23:14#0 callee=toDouble args=[] type=Double
+expr e@23:5#4 localDecl pd mutable=0 type=_ init=e@23:14#1 type=Unit ref=__local_18.pd
+expr e@25:14#0 uint(200) type=UInt
+expr e@25:14#1 memberCall recv=e@25:14#0 callee=toUByte args=[] type=UByte
+expr e@25:5#6 localDecl ub mutable=0 type=_ init=e@25:14#1 type=Unit ref=__local_19.ub
+expr e@26:14#1 uint(1000) type=UInt
+expr e@26:14#2 memberCall recv=e@26:14#1 callee=toUShort args=[] type=UShort
+expr e@26:5#6 localDecl us mutable=0 type=_ init=e@26:14#2 type=Unit ref=__local_20.us
+expr e@27:15#2 name(ub) type=UByte ref=__local_19.ub
+expr e@27:15#3 memberCall recv=e@27:15#2 callee=toFloat args=[] type=Float
+expr e@27:5#4 localDecl ubf mutable=0 type=_ init=e@27:15#3 type=Unit ref=__local_21.ubf
+expr e@28:15#2 name(ub) type=UByte ref=__local_19.ub
+expr e@28:15#3 memberCall recv=e@28:15#2 callee=toDouble args=[] type=Double
+expr e@28:5#3 localDecl ubd mutable=0 type=_ init=e@28:15#3 type=Unit ref=__local_22.ubd
+expr e@29:15#1 name(us) type=UShort ref=__local_20.us
+expr e@29:15#2 memberCall recv=e@29:15#1 callee=toFloat args=[] type=Float
+expr e@29:5#5 localDecl usf mutable=0 type=_ init=e@29:15#2 type=Unit ref=__local_23.usf
+expr e@30:15#1 name(us) type=UShort ref=__local_20.us
+expr e@30:15#2 memberCall recv=e@30:15#1 callee=toDouble args=[] type=Double
+expr e@30:5#7 localDecl usd mutable=0 type=_ init=e@30:15#2 type=Unit ref=__local_24.usd
+expr e@31:18#0 name(ub) type=UByte ref=__local_19.ub
+expr e@31:18#1 memberCall recv=e@31:18#0 callee=toUShort args=[] type=UShort
+expr e@31:5#6 localDecl ubToUs mutable=0 type=_ init=e@31:18#1 type=Unit ref=__local_25.ubToUs
+expr e@32:19#0 name(us) type=UShort ref=__local_20.us
+expr e@32:19#1 memberCall recv=e@32:19#0 callee=toUByte args=[] type=UByte
+expr e@32:5#6 localDecl usToBub mutable=0 type=_ init=e@32:19#1 type=Unit ref=__local_26.usToBub
+expr e@33:16#1 name(ub) type=UByte ref=__local_19.ub
+expr e@33:16#2 memberCall recv=e@33:16#1 callee=toUByte args=[] type=UByte
+expr e@33:5#5 localDecl ubId mutable=0 type=_ init=e@33:16#2 type=Unit ref=__local_27.ubId
+expr e@34:16#0 name(us) type=UShort ref=__local_20.us
+expr e@34:16#1 memberCall recv=e@34:16#0 callee=toUShort args=[] type=UShort
+expr e@34:5#7 localDecl usId mutable=0 type=_ init=e@34:16#1 type=Unit ref=__local_28.usId
+expr e@35:13 name(a) type=Int ref=__local_2.a
+expr e@35:5#9 call callee=e@35:5#8 args=[_:e@35:13] type=Unit call=kotlin.io.println#1
+expr e@36:13 name(b) type=UInt ref=__local_3.b
+expr e@36:5#8 call callee=e@36:5#7 args=[_:e@36:13] type=Unit call=kotlin.io.println#1
+expr e@37:13#3 name(c) type=Long ref=__local_4.c
+expr e@37:5#7 call callee=e@37:5#6 args=[_:e@37:13#3] type=Unit call=kotlin.io.println#1
+expr e@38:13#2 name(d) type=ULong ref=__local_5.d
+expr e@38:5#4 call callee=e@38:5#3 args=[_:e@38:13#2] type=Unit call=kotlin.io.println#1
+expr e@39:13#1 name(e) type=Int ref=__local_6.e
+expr e@39:5#4 call callee=e@39:5#3 args=[_:e@39:13#1] type=Unit call=kotlin.io.println#1
+expr e@40:13 name(h) type=kotlin.ULongArray ref=__local_7.h
+expr e@40:5#6 call callee=e@40:5#5 args=[_:e@40:13] type=Unit call=kotlin.io.println#1
+expr e@41:13 name(f) type=UInt ref=__local_8.f
+expr e@41:5#6 call callee=e@41:5#5 args=[_:e@41:13] type=Unit call=kotlin.io.println#1
+expr e@42:13 name(g) type=UInt ref=__local_9.g
+expr e@42:5#4 call callee=e@42:5#3 args=[_:e@42:13] type=Unit call=kotlin.io.println#1
+expr e@43:13#3 name(i) type=UInt ref=__local_10.i
+expr e@43:5#2 call callee=e@43:5#1 args=[_:e@43:13#3] type=Unit call=kotlin.io.println#1
+expr e@44:13 name(j) type=UInt ref=__local_11.j
+expr e@44:5#5 call callee=e@44:5#4 args=[_:e@44:13] type=Unit call=kotlin.io.println#1
+expr e@45:13#1 name(k) type=UInt ref=__local_12.k
+expr e@45:5#4 call callee=e@45:5#3 args=[_:e@45:13#1] type=Unit call=kotlin.io.println#1
+expr e@46:13#1 name(l) type=UInt ref=__local_13.l
+expr e@46:5#8 call callee=e@46:5#7 args=[_:e@46:13#1] type=Unit call=kotlin.io.println#1
+expr e@47:13 name(m) type=UInt ref=__local_14.m
+expr e@47:5#9 call callee=e@47:5#8 args=[_:e@47:13] type=Unit call=kotlin.io.println#1
+expr e@48:13#3 name(nf) type=Float ref=__local_15.nf
+expr e@48:5#4 call callee=e@48:5#3 args=[_:e@48:13#3] type=Unit call=kotlin.io.println#1
+expr e@49:13#7 name(nd) type=Double ref=__local_16.nd
+expr e@49:5#3 call callee=e@49:5#2 args=[_:e@49:13#7] type=Unit call=kotlin.io.println#1
+expr e@50:13#1 name(pf) type=Float ref=__local_17.pf
+expr e@50:5#3 call callee=e@50:5#2 args=[_:e@50:13#1] type=Unit call=kotlin.io.println#1
+expr e@51:13#1 name(pd) type=Double ref=__local_18.pd
+expr e@51:5#3 call callee=e@51:5#2 args=[_:e@51:13#1] type=Unit call=kotlin.io.println#1
+expr e@52:13#1 name(ubf) type=Float ref=__local_21.ubf
+expr e@52:5#4 call callee=e@52:5#3 args=[_:e@52:13#1] type=Unit call=kotlin.io.println#1
+expr e@53:13#1 name(ubd) type=Double ref=__local_22.ubd
+expr e@53:5#5 call callee=e@53:5#4 args=[_:e@53:13#1] type=Unit call=kotlin.io.println#1
+expr e@54:13 name(usf) type=Float ref=__local_23.usf
+expr e@54:5#5 call callee=e@54:5#4 args=[_:e@54:13] type=Unit call=kotlin.io.println#1
+expr e@55:13#3 name(usd) type=Double ref=__local_24.usd
+expr e@55:5#2 call callee=e@55:5#1 args=[_:e@55:13#3] type=Unit call=kotlin.io.println#1
+expr e@56:13 name(ubToUs) type=UShort ref=__local_25.ubToUs
+expr e@56:5#3 call callee=e@56:5#2 args=[_:e@56:13] type=Unit call=kotlin.io.println#1
+expr e@57:13#2 name(usToBub) type=UByte ref=__local_26.usToBub
+expr e@57:5#7 call callee=e@57:5#6 args=[_:e@57:13#2] type=Unit call=kotlin.io.println#1
+expr e@58:13#4 name(ubId) type=UByte ref=__local_27.ubId
+expr e@58:5#2 call callee=e@58:5#1 args=[_:e@58:13#4] type=Unit call=kotlin.io.println#1
+expr e@59:13#1 name(usId) type=UShort ref=__local_28.usId
+expr e@59:5#4 call callee=e@59:5#3 args=[_:e@59:13#1] type=Unit call=kotlin.io.println#1

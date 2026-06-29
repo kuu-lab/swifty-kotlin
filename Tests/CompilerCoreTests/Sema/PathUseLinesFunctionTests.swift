@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-PATH-FN-038: Path.useLines { block }
 //
@@ -9,11 +10,12 @@ import XCTest
 // `path.useLines { lines -> ... }` (with or without a charset argument)
 // compiles and type-checks correctly.
 
-final class PathUseLinesFunctionTests: XCTestCase {
+@Suite
+struct PathUseLinesFunctionTests {
 
     // MARK: - Default-charset variant resolves
 
-    func testPathUseLinesDefaultResolvesAndInfersBlockReturnType() throws {
+    @Test func testPathUseLinesDefaultResolvesAndInfersBlockReturnType() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.useLines
@@ -29,8 +31,8 @@ final class PathUseLinesFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Path.useLines { } should resolve and infer block return type: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -38,7 +40,7 @@ final class PathUseLinesFunctionTests: XCTestCase {
 
     // MARK: - Charset variant resolves
 
-    func testPathUseLinesCharsetVariantResolves() throws {
+    @Test func testPathUseLinesCharsetVariantResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.useLines
@@ -57,8 +59,8 @@ final class PathUseLinesFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Path.useLines(charset) { } should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -66,7 +68,7 @@ final class PathUseLinesFunctionTests: XCTestCase {
 
     // MARK: - Block return type propagates to call site
 
-    func testPathUseLinesBlockReturnTypePropagates() throws {
+    @Test func testPathUseLinesBlockReturnTypePropagates() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.useLines
@@ -85,10 +87,11 @@ final class PathUseLinesFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Path.useLines block return type should propagate to call site: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 }
+#endif

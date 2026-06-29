@@ -7,25 +7,25 @@ symbol fq=kotlin.text.removeRange#1 kind=function vis=public flags=synthetic sig
 symbol fq=kotlin.text.removeRange.endIndex kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.removeRange.range kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.removeRange.startIndex kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun useRemoveRangeIndices sym=golden.sema.useRemoveRangeIndices
-  decl d1 fun useRemoveRangeStart sym=golden.sema.useRemoveRangeStart
-  decl d2 fun useRemoveRangeEmpty sym=golden.sema.useRemoveRangeEmpty
-  decl d3 fun useRemoveRangeIntRange sym=golden.sema.useRemoveRangeIntRange
-expr e0 string(hello world) type=String
-expr e1 int(5) type=Int
-expr e2 int(11) type=Int
-expr e3 memberCall recv=e0 callee=removeRange args=[_:e1,_:e2] type=String call=kotlin.text.removeRange#1
-expr e4 string(hello world) type=String
-expr e5 int(0) type=Int
-expr e6 int(6) type=Int
-expr e7 memberCall recv=e4 callee=removeRange args=[_:e5,_:e6] type=String call=kotlin.text.removeRange#1
-expr e8 string(hello) type=String
-expr e9 int(2) type=Int
-expr e10 int(2) type=Int
-expr e11 memberCall recv=e8 callee=removeRange args=[_:e9,_:e10] type=String call=kotlin.text.removeRange#1
-expr e12 string(hello world) type=String
-expr e13 int(5) type=Int
-expr e14 int(10) type=Int
-expr e15 binary(rangeTo) lhs=e13 rhs=e14 type=Int
-expr e16 memberCall recv=e12 callee=removeRange args=[_:e15] type=String call=kotlin.text.removeRange#0
+file f13 package=golden.sema
+  decl golden.sema.useRemoveRangeIndices fun useRemoveRangeIndices sym=golden.sema.useRemoveRangeIndices
+  decl golden.sema.useRemoveRangeStart fun useRemoveRangeStart sym=golden.sema.useRemoveRangeStart
+  decl golden.sema.useRemoveRangeEmpty fun useRemoveRangeEmpty sym=golden.sema.useRemoveRangeEmpty
+  decl golden.sema.useRemoveRangeIntRange fun useRemoveRangeIntRange sym=golden.sema.useRemoveRangeIntRange
+expr e@3:39#0 string(hello world) type=String
+expr e@3:65 int(5) type=Int
+expr e@3:68 int(11) type=Int
+expr e@3:39#1 memberCall recv=e@3:39#0 callee=removeRange args=[_:e@3:65,_:e@3:68] type=String call=kotlin.text.removeRange#1
+expr e@5:37#0 string(hello world) type=String
+expr e@5:63 int(0) type=Int
+expr e@5:66 int(6) type=Int
+expr e@5:37#1 memberCall recv=e@5:37#0 callee=removeRange args=[_:e@5:63,_:e@5:66] type=String call=kotlin.text.removeRange#1
+expr e@7:37#0 string(hello) type=String
+expr e@7:57 int(2) type=Int
+expr e@7:60 int(2) type=Int
+expr e@7:37#1 memberCall recv=e@7:37#0 callee=removeRange args=[_:e@7:57,_:e@7:60] type=String call=kotlin.text.removeRange#1
+expr e@9:40#0 string(hello world) type=String
+expr e@9:66#0 int(5) type=Int
+expr e@9:69 int(10) type=Int
+expr e@9:66#1 binary(rangeTo) lhs=e@9:66#0 rhs=e@9:69 type=Int
+expr e@9:40#1 memberCall recv=e@9:40#0 callee=removeRange args=[_:e@9:66#1] type=String call=kotlin.text.removeRange#0

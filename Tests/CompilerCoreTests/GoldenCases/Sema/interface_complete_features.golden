@@ -7,28 +7,28 @@ symbol fq=golden.sema.RightSuper kind=interface vis=public flags=_
 symbol fq=golden.sema.RightSuper.greet kind=function vis=public flags=overrideMember sig=recv=golden.sema.RightSuper params=[] ret=String
 symbol fq=golden.sema.WithCompanion kind=interface vis=public flags=_
 symbol fq=golden.sema.WithSuperCall kind=class vis=public flags=_
-file f12 package=golden.sema
-  decl d0 interface InterfaceProperties sym=golden.sema.InterfaceProperties
-  decl d1 interface InterfaceSuperCalls sym=golden.sema.InterfaceSuperCalls
-  decl d2 interface LeftSuper sym=golden.sema.LeftSuper
-  decl d3 interface RightSuper sym=golden.sema.RightSuper
-  decl d4 class WithSuperCall sym=golden.sema.WithSuperCall
-  decl d5 interface WithCompanion sym=golden.sema.WithCompanion
-  decl d6 class CompanionImpl sym=golden.sema.CompanionImpl
-expr e0 string(default) type=String
-expr e1 int(42) type=Int
-expr e2 string(computed) type=String
-expr e3 string(get) type=String
-expr e4 string(Hello) type=String
-expr e5 string(Left) type=String
-expr e6 string(Right) type=String
-expr e7 super<LeftSuper> type=golden.sema.LeftSuper
-expr e8 memberCall recv=e7 callee=greet args=[] type=String call=golden.sema.LeftSuper.greet
-expr e9 string( and ) type=String
-expr e10 binary(add) lhs=e8 rhs=e9 type=String
-expr e11 super<RightSuper> type=golden.sema.RightSuper
-expr e12 memberCall recv=e11 callee=greet args=[] type=String call=golden.sema.RightSuper.greet
-expr e13 binary(add) lhs=e10 rhs=e12 type=String
-expr e14 string(test) type=String
-expr e15 string(helper) type=String
-expr e16 string(done) type=String
+file f13 package=golden.sema
+  decl golden.sema.InterfaceProperties interface InterfaceProperties sym=golden.sema.InterfaceProperties
+  decl golden.sema.InterfaceSuperCalls interface InterfaceSuperCalls sym=golden.sema.InterfaceSuperCalls
+  decl golden.sema.LeftSuper interface LeftSuper sym=golden.sema.LeftSuper
+  decl golden.sema.RightSuper interface RightSuper sym=golden.sema.RightSuper
+  decl golden.sema.WithSuperCall class WithSuperCall sym=golden.sema.WithSuperCall
+  decl golden.sema.WithCompanion interface WithCompanion sym=golden.sema.WithCompanion
+  decl golden.sema.CompanionImpl class CompanionImpl sym=golden.sema.CompanionImpl
+expr e@7:31 string(default) type=String
+expr e@8:28 int(42) type=Int
+expr e@11:17 string(computed) type=String
+expr e@14:17#1 string(get) type=String
+expr e@19:27#2 string(Hello) type=String
+expr e@23:36 string(Left) type=String
+expr e@27:36 string(Right) type=String
+expr e@31:36#0 super<LeftSuper> type=golden.sema.LeftSuper
+expr e@31:36#1 memberCall recv=e@31:36#0 callee=greet args=[] type=String call=golden.sema.LeftSuper.greet
+expr e@31:63#1 string( and ) type=String
+expr e@31:36#2 binary(add) lhs=e@31:36#1 rhs=e@31:63#1 type=String
+expr e@31:73#0 super<RightSuper> type=golden.sema.RightSuper
+expr e@31:73#1 memberCall recv=e@31:73#0 callee=greet args=[] type=String call=golden.sema.RightSuper.greet
+expr e@31:36#3 binary(add) lhs=e@31:36#2 rhs=e@31:73#1 type=String
+expr e@36:24 string(test) type=String
+expr e@37:32 string(helper) type=String
+expr e@44:42 string(done) type=String

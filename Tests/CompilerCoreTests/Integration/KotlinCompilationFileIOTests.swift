@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class KotlinCompilationFileIOTests: XCTestCase {
-    func testCompile_file_inputOutputStreams() throws {
+@Suite struct KotlinCompilationFileIOTests {
+    @Test func testCompile_file_inputOutputStreams() throws {
         try assertKotlinCompilesToKIR("""
         import java.io.File
 
@@ -28,7 +29,7 @@ final class KotlinCompilationFileIOTests: XCTestCase {
     // through the synthetic stub registered in HeaderHelpers+SyntheticFileIOStubs.
     // The property is exposed as a member so that callers can use it on any
     // `java.io.File` instance produced by either `File(path)` constructor.
-    func testCompile_file_extensionPropertyResolves() throws {
+    @Test func testCompile_file_extensionPropertyResolves() throws {
         try assertKotlinCompilesToKIR("""
         import java.io.File
 
@@ -52,7 +53,7 @@ final class KotlinCompilationFileIOTests: XCTestCase {
     // STDLIB-IO-PROP-004: `File.isRooted` compiles end-to-end through Sema to KIR.
     // The property is registered in the `kotlin.io` package with `java.io.File` as
     // the receiver and is backed by the runtime helper `kk_file_isRooted`.
-    func testCompile_file_isRootedPropertyResolves() throws {
+    @Test func testCompile_file_isRootedPropertyResolves() throws {
         try assertKotlinCompilesToKIR("""
         import java.io.File
 
@@ -69,7 +70,7 @@ final class KotlinCompilationFileIOTests: XCTestCase {
 
     // STDLIB-IO-PROP-003: `File.invariantSeparatorsPath` compiles through
     // Sema → KIR with explicit kotlin.io import.
-    func testCompile_file_invariantSeparatorsPathPropertyResolves() throws {
+    @Test func testCompile_file_invariantSeparatorsPathPropertyResolves() throws {
         try assertKotlinCompilesToKIR("""
         import java.io.File
         import kotlin.io.invariantSeparatorsPath
@@ -80,3 +81,4 @@ final class KotlinCompilationFileIOTests: XCTestCase {
         """)
     }
 }
+#endif

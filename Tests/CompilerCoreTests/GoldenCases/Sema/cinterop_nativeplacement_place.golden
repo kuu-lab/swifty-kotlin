@@ -11,9 +11,9 @@ symbol fq=kotlinx.cinterop.NativePlacement kind=interface vis=public flags=synth
 symbol fq=kotlinx.cinterop.place kind=function vis=public flags=inlineFunction|synthetic sig=recv=kotlinx.cinterop.NativePlacement params=[kotlinx.cinterop.CValues<kotlinx.cinterop.place.T>] ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.place.T> bounds=[kotlinx.cinterop.CVariable]
 symbol fq=kotlinx.cinterop.place.$tp0.value kind=valueParameter vis=private flags=synthetic type=kotlinx.cinterop.CValues<kotlinx.cinterop.place.T>
 symbol fq=kotlinx.cinterop.place.T kind=typeParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun copyValue sym=golden.sema.copyValue
-expr e0 name(placement) type=kotlinx.cinterop.NativePlacement ref=golden.sema.copyValue.$0.placement
-expr e1 name(value) type=kotlinx.cinterop.CValues<golden.sema.copyValue.$0.T> ref=golden.sema.copyValue.$0.value
-expr e2 memberCall recv=e0 callee=place args=[_:e1] type=kotlinx.cinterop.CPointer<golden.sema.copyValue.$0.T> call=kotlinx.cinterop.place targs=[golden.sema.copyValue.$0.T]
-expr e3 return value=e2 type=Nothing
+file f13 package=golden.sema
+  decl golden.sema.copyValue fun copyValue sym=golden.sema.copyValue
+expr e@12:12#2 name(placement) type=kotlinx.cinterop.NativePlacement ref=golden.sema.copyValue.$0.placement
+expr e@12:28#2 name(value) type=kotlinx.cinterop.CValues<golden.sema.copyValue.$0.T> ref=golden.sema.copyValue.$0.value
+expr e@12:12#3 memberCall recv=e@12:12#2 callee=place args=[_:e@12:28#2] type=kotlinx.cinterop.CPointer<golden.sema.copyValue.$0.T> call=kotlinx.cinterop.place targs=[golden.sema.copyValue.$0.T]
+expr e@12:5#4 return value=e@12:12#3 type=Nothing

@@ -4,9 +4,9 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.lazy kind=function vis=public flags=synthetic sig=recv=_ params=[() -> Any] ret=kotlin.properties.Lazy
 symbol fq=kotlin.properties.Lazy kind=interface vis=public flags=synthetic
-file f12 package=golden.sema
-  decl d0 property message var=0 sym=golden.sema.message
-  decl d1 fun main sym=golden.sema.main
-expr e0 name(lazy) type=kotlin.properties.Lazy ref=kotlin.lazy
-expr e1 name(message) type=String ref=golden.sema.message
-expr e2 call callee=e3 args=[_:e1] type=Unit call=kotlin.io.println#1
+file f13 package=golden.sema
+  decl golden.sema.message property message var=0 sym=golden.sema.message
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@3:24 name(lazy) type=kotlin.properties.Lazy ref=kotlin.lazy
+expr e@8:13 name(message) type=String ref=golden.sema.message
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13] type=Unit call=kotlin.io.println#1

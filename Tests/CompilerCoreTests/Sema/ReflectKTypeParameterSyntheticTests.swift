@@ -1,32 +1,48 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectKTypeParameterSyntheticTests: XCTestCase {
-    func testKTypeParameterSurfaceIsRegistered() throws {
+@Suite
+struct ReflectKTypeParameterSyntheticTests {
+    private func makeSema(
+        source: String = "fun noop() {}"
+    ) throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KTypeParameter surface to resolve cleanly, got: \(diagnostics)"))
+            result = try (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test func testKTypeParameterSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
         let collectionsPackage = ["kotlin", "collections"].map { interner.intern($0) }
 
-        let kClassifierSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kClassifierSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KClassifier")]
         ))
-        let kTypeSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kTypeSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KType")]
         ))
-        let kTypeParameterSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kTypeParameterSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KTypeParameter")]
         ))
-        let kVarianceSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kVarianceSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KVariance")]
         ))
-        let listSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let listSymbol = try #require(sema.symbols.lookup(
             fqName: collectionsPackage + [interner.intern("List")]
         ))
 
-        let kTypeParameterInfo = try XCTUnwrap(sema.symbols.symbol(kTypeParameterSymbol))
-        XCTAssertEqual(kTypeParameterInfo.kind, .interface)
-        XCTAssertTrue(kTypeParameterInfo.flags.contains(.synthetic))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: kTypeParameterSymbol).contains(kClassifierSymbol))
+        let kTypeParameterInfo = try #require(sema.symbols.symbol(kTypeParameterSymbol))
+        #expect(kTypeParameterInfo.kind == .interface)
+        #expect(kTypeParameterInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.directSupertypes(for: kTypeParameterSymbol).contains(kClassifierSymbol))
 
         let kVarianceType = sema.types.make(.classType(ClassType(
             classSymbol: kVarianceSymbol,
@@ -51,15 +67,15 @@ final class ReflectKTypeParameterSyntheticTests: XCTestCase {
             ("upperBounds", listOfKType),
         ]
         for expectation in propertyExpectations {
-            let propertySymbol = try XCTUnwrap(sema.symbols.lookup(
+            let propertySymbol = try #require(sema.symbols.lookup(
                 fqName: reflectPackage + [interner.intern("KTypeParameter"), interner.intern(expectation.name)]
             ))
-            XCTAssertEqual(sema.symbols.parentSymbol(for: propertySymbol), kTypeParameterSymbol)
-            XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), expectation.type)
+            #expect(sema.symbols.parentSymbol(for: propertySymbol) == kTypeParameterSymbol)
+            #expect(sema.symbols.propertyType(for: propertySymbol) == expectation.type)
         }
     }
 
-    func testKTypeParameterPropertiesResolveInSource() throws {
+    @Test func testKTypeParameterPropertiesResolveInSource() throws {
         let source = """
         import kotlin.reflect.KClassifier
         import kotlin.reflect.KType
@@ -79,3 +95,4 @@ final class ReflectKTypeParameterSyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// Type token symbols use this negative offset to avoid collision with real symbol IDs.
 let typeTokenSymbolOffset: Int = -20000
@@ -18,7 +19,7 @@ func findKIRFunction(
         guard case let .function(function) = decl else { return nil }
         return interner.resolve(function.name) == name ? function : nil
     }.first
-    return try XCTUnwrap(function, "KIR function '\(name)' not found in module", file: file, line: line)
+    return try #require(function, "KIR function '\(name)' not found in module")
 }
 
 func findKIRFunctionBody(
@@ -75,3 +76,4 @@ func lastExprID(
     }
     return nil
 }
+#endif

@@ -5,48 +5,48 @@ symbol fq=__local_3.f kind=local vis=private flags=_ type=Float
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun main sym=main
-expr e0 int(42) type=Int
-expr e1 localDecl i mutable=0 type=t0 init=e0 type=Unit ref=__local_0.i
-expr e2 name(i) type=Int ref=__local_0.i
-expr e3 memberCall recv=e2 callee=toLong args=[] type=Long
-expr e4 localDecl l mutable=0 type=t1 init=e3 type=Unit ref=__local_1.l
-expr e5 name(i) type=Int ref=__local_0.i
-expr e6 memberCall recv=e5 callee=toDouble args=[] type=Double
-expr e7 localDecl d mutable=0 type=t2 init=e6 type=Unit ref=__local_2.d
-expr e8 name(i) type=Int ref=__local_0.i
-expr e9 memberCall recv=e8 callee=toFloat args=[] type=Float
-expr e10 localDecl f mutable=0 type=t3 init=e9 type=Unit ref=__local_3.f
-expr e11 name(l) type=Long ref=__local_1.l
-expr e12 call callee=e13 args=[_:e11] type=Unit call=kotlin.io.println#1
-expr e14 name(d) type=Double ref=__local_2.d
-expr e15 call callee=e16 args=[_:e14] type=Unit call=kotlin.io.println#1
-expr e17 name(f) type=Float ref=__local_3.f
-expr e18 call callee=e19 args=[_:e17] type=Unit call=kotlin.io.println#1
-expr e20 name(l) type=Long ref=__local_1.l
-expr e21 memberCall recv=e20 callee=toInt args=[] type=Int
-expr e22 call callee=e23 args=[_:e21] type=Unit call=kotlin.io.println#1
-expr e24 name(d) type=Double ref=__local_2.d
-expr e25 memberCall recv=e24 callee=toInt args=[] type=Int
-expr e26 call callee=e27 args=[_:e25] type=Unit call=kotlin.io.println#1
-expr e28 name(d) type=Double ref=__local_2.d
-expr e29 memberCall recv=e28 callee=toLong args=[] type=Long
-expr e30 call callee=e31 args=[_:e29] type=Unit call=kotlin.io.println#1
-expr e32 name(f) type=Float ref=__local_3.f
-expr e33 memberCall recv=e32 callee=toInt args=[] type=Int
-expr e34 call callee=e35 args=[_:e33] type=Unit call=kotlin.io.println#1
-expr e36 name(f) type=Float ref=__local_3.f
-expr e37 memberCall recv=e36 callee=toLong args=[] type=Long
-expr e38 call callee=e39 args=[_:e37] type=Unit call=kotlin.io.println#1
-expr e40 name(f) type=Float ref=__local_3.f
-expr e41 memberCall recv=e40 callee=toDouble args=[] type=Double
-expr e42 call callee=e43 args=[_:e41] type=Unit call=kotlin.io.println#1
-expr e44 memberCall recv=e45 callee=MAX_VALUE args=[] type=Long
-expr e46 call callee=e47 args=[_:e44] type=Unit call=kotlin.io.println#1
-expr e48 memberCall recv=e49 callee=MIN_VALUE args=[] type=Long
-expr e50 call callee=e51 args=[_:e48] type=Unit call=kotlin.io.println#1
-expr e52 memberCall recv=e53 callee=MAX_VALUE args=[] type=Double
-expr e54 call callee=e55 args=[_:e52] type=Unit call=kotlin.io.println#1
-expr e56 memberCall recv=e57 callee=MAX_VALUE args=[] type=Float
-expr e58 call callee=e59 args=[_:e56] type=Unit call=kotlin.io.println#1
+file f13 package=_
+  decl main fun main sym=main
+expr e@2:18 int(42) type=Int
+expr e@2:5 localDecl i mutable=0 type=Int init=e@2:18 type=Unit ref=__local_0.i
+expr e@3:19#0 name(i) type=Int ref=__local_0.i
+expr e@3:19#1 memberCall recv=e@3:19#0 callee=toLong args=[] type=Long
+expr e@3:5 localDecl l mutable=0 type=Long init=e@3:19#1 type=Unit ref=__local_1.l
+expr e@4:21#0 name(i) type=Int ref=__local_0.i
+expr e@4:21#1 memberCall recv=e@4:21#0 callee=toDouble args=[] type=Double
+expr e@4:5#2 localDecl d mutable=0 type=Double init=e@4:21#1 type=Unit ref=__local_2.d
+expr e@5:20#0 name(i) type=Int ref=__local_0.i
+expr e@5:20#1 memberCall recv=e@5:20#0 callee=toFloat args=[] type=Float
+expr e@5:5#2 localDecl f mutable=0 type=Float init=e@5:20#1 type=Unit ref=__local_3.f
+expr e@6:13#1 name(l) type=Long ref=__local_1.l
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1
+expr e@7:13 name(d) type=Double ref=__local_2.d
+expr e@7:5#4 call callee=e@7:5#3 args=[_:e@7:13] type=Unit call=kotlin.io.println#1
+expr e@8:13 name(f) type=Float ref=__local_3.f
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13] type=Unit call=kotlin.io.println#1
+expr e@9:13#0 name(l) type=Long ref=__local_1.l
+expr e@9:13#1 memberCall recv=e@9:13#0 callee=toInt args=[] type=Int
+expr e@9:5#1 call callee=e@9:5#0 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
+expr e@10:13#0 name(d) type=Double ref=__local_2.d
+expr e@10:13#1 memberCall recv=e@10:13#0 callee=toInt args=[] type=Int
+expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
+expr e@11:13#1 name(d) type=Double ref=__local_2.d
+expr e@11:13#2 memberCall recv=e@11:13#1 callee=toLong args=[] type=Long
+expr e@11:5#3 call callee=e@11:5#2 args=[_:e@11:13#2] type=Unit call=kotlin.io.println#1
+expr e@12:13#2 name(f) type=Float ref=__local_3.f
+expr e@12:13#3 memberCall recv=e@12:13#2 callee=toInt args=[] type=Int
+expr e@12:5#5 call callee=e@12:5#4 args=[_:e@12:13#3] type=Unit call=kotlin.io.println#1
+expr e@13:13#1 name(f) type=Float ref=__local_3.f
+expr e@13:13#2 memberCall recv=e@13:13#1 callee=toLong args=[] type=Long
+expr e@13:5#7 call callee=e@13:5#6 args=[_:e@13:13#2] type=Unit call=kotlin.io.println#1
+expr e@14:13#2 name(f) type=Float ref=__local_3.f
+expr e@14:13#3 memberCall recv=e@14:13#2 callee=toDouble args=[] type=Double
+expr e@14:5#8 call callee=e@14:5#7 args=[_:e@14:13#3] type=Unit call=kotlin.io.println#1
+expr e@15:13#3 memberCall recv=e@15:13#2 callee=MAX_VALUE args=[] type=Long
+expr e@15:5#7 call callee=e@15:5#6 args=[_:e@15:13#3] type=Unit call=kotlin.io.println#1
+expr e@16:13#2 memberCall recv=e@16:13#1 callee=MIN_VALUE args=[] type=Long
+expr e@16:5#7 call callee=e@16:5#6 args=[_:e@16:13#2] type=Unit call=kotlin.io.println#1
+expr e@17:13#4 memberCall recv=e@17:13#3 callee=MAX_VALUE args=[] type=Double
+expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#4] type=Unit call=kotlin.io.println#1
+expr e@18:13#2 memberCall recv=e@18:13#1 callee=MAX_VALUE args=[] type=Float
+expr e@18:5#5 call callee=e@18:5#4 args=[_:e@18:13#2] type=Unit call=kotlin.io.println#1

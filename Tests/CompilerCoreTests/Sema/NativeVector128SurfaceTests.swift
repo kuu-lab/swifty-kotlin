@@ -1,8 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
-final class NativeVector128SurfaceTests: XCTestCase {
+private struct TestAbortError: Error {}
+
+@Suite
+struct NativeVector128SurfaceTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
         do {
@@ -16,26 +29,18 @@ final class NativeVector128SurfaceTests: XCTestCase {
     private func symbol(
         _ fqPath: [String],
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> SymbolID {
-        try XCTUnwrap(
-            sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) }),
-            "\(fqPath.joined(separator: ".")) must be registered",
-            file: file,
-            line: line
-        )
+            let found = sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) })
+        return try #require(found, "\(fqPath.joined(separator: ".")) must be registered")
     }
 
     private func classType(
         _ fqPath: [String],
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> TypeID {
-        let classSymbol = try symbol(fqPath, sema: sema, interner: interner, file: file, line: line)
+        let classSymbol = try symbol(fqPath, sema: sema, interner: interner)
         return sema.types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: [],
@@ -45,11 +50,9 @@ final class NativeVector128SurfaceTests: XCTestCase {
 
     private func cinteropVector128Type(
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> TypeID {
-        try classType(["kotlinx", "cinterop", "Vector128"], sema: sema, interner: interner, file: file, line: line)
+        try classType(["kotlinx", "cinterop", "Vector128"], sema: sema, interner: interner)
     }
 
     private func memberSignature(
@@ -57,13 +60,11 @@ final class NativeVector128SurfaceTests: XCTestCase {
         parameters: [TypeID],
         returnType: TypeID,
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> (SymbolID, FunctionSignature) {
-        let ownerSymbol = try symbol(["kotlinx", "cinterop", "Vector128"], sema: sema, interner: interner, file: file, line: line)
-        let ownerFQName = try XCTUnwrap(sema.symbols.symbol(ownerSymbol)?.fqName, file: file, line: line)
-        let receiver = try cinteropVector128Type(sema: sema, interner: interner, file: file, line: line)
+        let ownerSymbol = try symbol(["kotlinx", "cinterop", "Vector128"], sema: sema, interner: interner)
+        let ownerFQName = try #require(sema.symbols.symbol(ownerSymbol)?.fqName)
+        let receiver = try cinteropVector128Type(sema: sema, interner: interner)
         let candidates = sema.symbols.lookupAll(fqName: ownerFQName + [interner.intern(name)])
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
@@ -77,8 +78,8 @@ final class NativeVector128SurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected Vector128.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected Vector128.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw TestAbortError()
     }
 
     private func topLevelSignature(
@@ -87,9 +88,7 @@ final class NativeVector128SurfaceTests: XCTestCase {
         parameters: [TypeID],
         returnType: TypeID,
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> (SymbolID, FunctionSignature) {
         let fqName = (packagePath + [name]).map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fqName)
@@ -105,17 +104,18 @@ final class NativeVector128SurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected \(packagePath.joined(separator: ".")).\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected \(packagePath.joined(separator: ".")).\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw TestAbortError()
     }
 
+    @Test
     func testCInteropVector128ClassAndMembersAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let vectorSymbol = try symbol(["kotlinx", "cinterop", "Vector128"], sema: sema, interner: interner)
         let annotations = sema.symbols.annotations(for: vectorSymbol)
 
-        XCTAssertEqual(sema.symbols.symbol(vectorSymbol)?.kind, .class)
-        XCTAssertTrue(
+        #expect(sema.symbols.symbol(vectorSymbol)?.kind == .class)
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlinx.cinterop.ExperimentalForeignApi" },
             "kotlinx.cinterop.Vector128 must require ExperimentalForeignApi"
         )
@@ -148,33 +148,35 @@ final class NativeVector128SurfaceTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(sema.symbols.symbol(equalsSymbol)?.flags.contains(.operatorFunction) == true)
+        #expect(sema.symbols.symbol(equalsSymbol)?.flags.contains(.operatorFunction) == true)
         _ = try memberSignature(named: "hashCode", parameters: [], returnType: sema.types.intType, sema: sema, interner: interner)
         _ = try memberSignature(named: "toString", parameters: [], returnType: sema.types.stringType, sema: sema, interner: interner)
     }
 
+    @Test
     func testNativeVector128TypeAliasIsRegisteredWithDeprecationMetadata() throws {
         let (sema, interner) = try makeSema()
         let aliasSymbol = try symbol(["kotlin", "native", "Vector128"], sema: sema, interner: interner)
         let underlyingType = try cinteropVector128Type(sema: sema, interner: interner)
         let annotations = sema.symbols.annotations(for: aliasSymbol)
 
-        XCTAssertEqual(sema.symbols.symbol(aliasSymbol)?.kind, .typeAlias)
-        XCTAssertEqual(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol), underlyingType)
-        XCTAssertTrue(
+        #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
+        #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == underlyingType)
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlin.Deprecated" },
             "kotlin.native.Vector128 must carry @Deprecated metadata"
         )
-        XCTAssertTrue(
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlin.DeprecatedSinceKotlin" },
             "kotlin.native.Vector128 must carry @DeprecatedSinceKotlin metadata"
         )
-        XCTAssertTrue(
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlinx.cinterop.ExperimentalForeignApi" },
             "kotlin.native.Vector128 must require ExperimentalForeignApi"
         )
     }
 
+    @Test
     func testVectorOfFactoriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let vectorType = try cinteropVector128Type(sema: sema, interner: interner)
@@ -198,15 +200,16 @@ final class NativeVector128SurfaceTests: XCTestCase {
             )
             let floatAnnotations = sema.symbols.annotations(for: floatFactory)
             let intAnnotations = sema.symbols.annotations(for: intFactory)
-            XCTAssertTrue(floatAnnotations.contains { $0.annotationFQName == "kotlinx.cinterop.ExperimentalForeignApi" })
-            XCTAssertTrue(intAnnotations.contains { $0.annotationFQName == "kotlinx.cinterop.ExperimentalForeignApi" })
+            #expect(floatAnnotations.contains { $0.annotationFQName == "kotlinx.cinterop.ExperimentalForeignApi" })
+            #expect(intAnnotations.contains { $0.annotationFQName == "kotlinx.cinterop.ExperimentalForeignApi" })
             if packagePath == ["kotlin", "native"] {
-                XCTAssertTrue(floatAnnotations.contains { $0.annotationFQName == "kotlin.Deprecated" })
-                XCTAssertTrue(intAnnotations.contains { $0.annotationFQName == "kotlin.DeprecatedSinceKotlin" })
+                #expect(floatAnnotations.contains { $0.annotationFQName == "kotlin.Deprecated" })
+                #expect(intAnnotations.contains { $0.annotationFQName == "kotlin.DeprecatedSinceKotlin" })
             }
         }
     }
 
+    @Test
     func testVector128SurfaceResolvesInSource() {
         let source = """
         @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
@@ -222,6 +225,7 @@ final class NativeVector128SurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(errors.isEmpty, "Expected Vector128 source to resolve without errors, got \(errors)")
+        #expect(errors.isEmpty, "Expected Vector128 source to resolve without errors, got \(errors)")
     }
 }
+#endif

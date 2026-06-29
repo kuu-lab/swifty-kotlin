@@ -10,17 +10,17 @@ symbol fq=__local_0.p kind=local vis=private flags=_ type=Point
 symbol fq=__local_1.n kind=local vis=private flags=_ type=Named
 symbol fq=__local_2.d kind=local vis=private flags=_ type=Named
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 class Point sym=Point
-  decl d1 class Named sym=Named
-  decl d2 fun main sym=main
-expr e0 string(default) type=String
-expr e1 int(1) type=Int
-expr e2 int(2) type=Int
-expr e3 call callee=e4 args=[_:e1,_:e2] type=Point call=Point.<init>
-expr e5 localDecl p mutable=0 type=_ init=e3 type=Unit ref=__local_0.p
-expr e6 string(hello) type=String
-expr e7 call callee=e8 args=[_:e6] type=Named call=Named.<init>#1
-expr e9 localDecl n mutable=0 type=_ init=e7 type=Unit ref=__local_1.n
-expr e10 call callee=e11 args=[] type=Named call=Named.<init>#0
-expr e12 localDecl d mutable=0 type=_ init=e10 type=Unit ref=__local_2.d
+file f13 package=_
+  decl Point class Point sym=Point
+  decl Named class Named sym=Named
+  decl main fun main sym=main
+expr e@4:26#2 string(default) type=String
+expr e@8:19 int(1) type=Int
+expr e@8:22 int(2) type=Int
+expr e@8:13#1 call callee=e@8:13#0 args=[_:e@8:19,_:e@8:22] type=Point call=Point.<init>
+expr e@8:5#2 localDecl p mutable=0 type=_ init=e@8:13#1 type=Unit ref=__local_0.p
+expr e@9:19 string(hello) type=String
+expr e@9:13#1 call callee=e@9:13#0 args=[_:e@9:19] type=Named call=Named.<init>#1
+expr e@9:5 localDecl n mutable=0 type=_ init=e@9:13#1 type=Unit ref=__local_1.n
+expr e@10:13#1 call callee=e@10:13#0 args=[] type=Named call=Named.<init>#0
+expr e@10:5#1 localDecl d mutable=0 type=_ init=e@10:13#1 type=Unit ref=__local_2.d

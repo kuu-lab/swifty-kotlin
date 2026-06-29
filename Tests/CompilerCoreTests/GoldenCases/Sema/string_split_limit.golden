@@ -13,40 +13,40 @@ symbol fq=kotlin.text.split#3 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.text.split.delimiters kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.split.ignoreCase kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.split.limit kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun useSplitLimitOnly sym=golden.sema.useSplitLimitOnly
-  decl d1 fun useSplitLimitOnlyThree sym=golden.sema.useSplitLimitOnlyThree
-  decl d2 fun useSplitDefaultSplit sym=golden.sema.useSplitDefaultSplit
-  decl d3 fun useSplitMultiCharLimit sym=golden.sema.useSplitMultiCharLimit
-  decl d4 fun useSplitIgnoreCase sym=golden.sema.useSplitIgnoreCase
-  decl d5 fun useSplitIgnoreCaseLimit sym=golden.sema.useSplitIgnoreCaseLimit
-  decl d6 fun useSplitLimit sym=golden.sema.useSplitLimit
-expr e0 string(a,b,c,d) type=String
-expr e1 string(,) type=String
-expr e2 int(2) type=Int
-expr e3 memberCall recv=e0 callee=split args=[_:e1,limit:e2] type=kotlin.collections.List<out String> call=kotlin.text.split#3
-expr e4 string(a,b,c,d) type=String
-expr e5 string(,) type=String
-expr e6 int(3) type=Int
-expr e7 memberCall recv=e4 callee=split args=[_:e5,limit:e6] type=kotlin.collections.List<out String> call=kotlin.text.split#3
-expr e8 string(a,b,c,d) type=String
-expr e9 string(,) type=String
-expr e10 memberCall recv=e8 callee=split args=[_:e9] type=kotlin.collections.List<out String> call=kotlin.text.split#0
-expr e11 string(one::two::three) type=String
-expr e12 string(::) type=String
-expr e13 int(2) type=Int
-expr e14 memberCall recv=e11 callee=split args=[_:e12,limit:e13] type=kotlin.collections.List<out String> call=kotlin.text.split#3
-expr e15 string(aXbXc) type=String
-expr e16 string(x) type=String
-expr e17 bool(true) type=Boolean
-expr e18 memberCall recv=e15 callee=split args=[_:e16,ignoreCase:e17] type=kotlin.collections.List<out String> call=kotlin.text.split#1
-expr e19 string(aXbXcXd) type=String
-expr e20 string(x) type=String
-expr e21 bool(true) type=Boolean
-expr e22 int(2) type=Int
-expr e23 memberCall recv=e19 callee=split args=[_:e20,ignoreCase:e21,limit:e22] type=kotlin.collections.List<out String> call=kotlin.text.split#2
-expr e24 string(a,b,c,d) type=String
-expr e25 string(,) type=String
-expr e26 bool(false) type=Boolean
-expr e27 int(3) type=Int
-expr e28 memberCall recv=e24 callee=split args=[_:e25,ignoreCase:e26,limit:e27] type=kotlin.collections.List<out String> call=kotlin.text.split#2
+file f13 package=golden.sema
+  decl golden.sema.useSplitLimitOnly fun useSplitLimitOnly sym=golden.sema.useSplitLimitOnly
+  decl golden.sema.useSplitLimitOnlyThree fun useSplitLimitOnlyThree sym=golden.sema.useSplitLimitOnlyThree
+  decl golden.sema.useSplitDefaultSplit fun useSplitDefaultSplit sym=golden.sema.useSplitDefaultSplit
+  decl golden.sema.useSplitMultiCharLimit fun useSplitMultiCharLimit sym=golden.sema.useSplitMultiCharLimit
+  decl golden.sema.useSplitIgnoreCase fun useSplitIgnoreCase sym=golden.sema.useSplitIgnoreCase
+  decl golden.sema.useSplitIgnoreCaseLimit fun useSplitIgnoreCaseLimit sym=golden.sema.useSplitIgnoreCaseLimit
+  decl golden.sema.useSplitLimit fun useSplitLimit sym=golden.sema.useSplitLimit
+expr e@5:41#0 string(a,b,c,d) type=String
+expr e@5:57 string(,) type=String
+expr e@5:70 int(2) type=Int
+expr e@5:41#1 memberCall recv=e@5:41#0 callee=split args=[_:e@5:57,limit:e@5:70] type=kotlin.collections.List<out String> call=kotlin.text.split#3
+expr e@7:46#0 string(a,b,c,d) type=String
+expr e@7:62 string(,) type=String
+expr e@7:75 int(3) type=Int
+expr e@7:46#1 memberCall recv=e@7:46#0 callee=split args=[_:e@7:62,limit:e@7:75] type=kotlin.collections.List<out String> call=kotlin.text.split#3
+expr e@9:44#0 string(a,b,c,d) type=String
+expr e@9:60 string(,) type=String
+expr e@9:44#1 memberCall recv=e@9:44#0 callee=split args=[_:e@9:60] type=kotlin.collections.List<out String> call=kotlin.text.split#0
+expr e@11:46#0 string(one::two::three) type=String
+expr e@11:70 string(::) type=String
+expr e@11:84 int(2) type=Int
+expr e@11:46#1 memberCall recv=e@11:46#0 callee=split args=[_:e@11:70,limit:e@11:84] type=kotlin.collections.List<out String> call=kotlin.text.split#3
+expr e@13:42#0 string(aXbXc) type=String
+expr e@13:56 string(x) type=String
+expr e@13:74 bool(true) type=Boolean
+expr e@13:42#1 memberCall recv=e@13:42#0 callee=split args=[_:e@13:56,ignoreCase:e@13:74] type=kotlin.collections.List<out String> call=kotlin.text.split#1
+expr e@15:47#1 string(aXbXcXd) type=String
+expr e@15:63 string(x) type=String
+expr e@15:81 bool(true) type=Boolean
+expr e@15:95 int(2) type=Int
+expr e@15:47#2 memberCall recv=e@15:47#1 callee=split args=[_:e@15:63,ignoreCase:e@15:81,limit:e@15:95] type=kotlin.collections.List<out String> call=kotlin.text.split#2
+expr e@17:37#0 string(a,b,c,d) type=String
+expr e@17:53 string(,) type=String
+expr e@17:71 bool(false) type=Boolean
+expr e@17:86 int(3) type=Int
+expr e@17:37#1 memberCall recv=e@17:37#0 callee=split args=[_:e@17:53,ignoreCase:e@17:71,limit:e@17:86] type=kotlin.collections.List<out String> call=kotlin.text.split#2

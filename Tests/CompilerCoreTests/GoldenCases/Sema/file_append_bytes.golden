@@ -8,16 +8,16 @@ symbol fq=java.io.File.appendBytes.array kind=valueParameter vis=private flags=s
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
 symbol fq=kotlin.byteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ByteArray vararg=[1]
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun main sym=main
-expr e0 string(test.bin) type=String
-expr e1 call callee=e2 args=[_:e0] type=java.io.File call=java.io.File.<init>#0
-expr e3 localDecl f mutable=0 type=_ init=e1 type=Unit ref=__local_0.f
-expr e4 int(1) type=Int
-expr e5 int(2) type=Int
-expr e6 int(3) type=Int
-expr e7 call callee=e8 args=[_:e4,_:e5,_:e6] type=kotlin.ByteArray call=kotlin.byteArrayOf
-expr e9 localDecl bytes mutable=0 type=_ init=e7 type=Unit ref=__local_1.bytes
-expr e10 name(f) type=java.io.File ref=__local_0.f
-expr e11 name(bytes) type=kotlin.ByteArray ref=__local_1.bytes
-expr e12 memberCall recv=e10 callee=appendBytes args=[_:e11] type=Unit call=java.io.File.appendBytes#0
+file f13 package=_
+  decl main fun main sym=main
+expr e@4:18 string(test.bin) type=String
+expr e@4:13#3 call callee=e@4:13#2 args=[_:e@4:18] type=java.io.File call=java.io.File.<init>#0
+expr e@4:5#2 localDecl f mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.f
+expr e@5:29 int(1) type=Int
+expr e@5:32 int(2) type=Int
+expr e@5:35 int(3) type=Int
+expr e@5:17#1 call callee=e@5:17#0 args=[_:e@5:29,_:e@5:32,_:e@5:35] type=kotlin.ByteArray call=kotlin.byteArrayOf
+expr e@5:5#2 localDecl bytes mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_1.bytes
+expr e@6:5#3 name(f) type=java.io.File ref=__local_0.f
+expr e@6:19 name(bytes) type=kotlin.ByteArray ref=__local_1.bytes
+expr e@6:5#4 memberCall recv=e@6:5#3 callee=appendBytes args=[_:e@6:19] type=Unit call=java.io.File.appendBytes#0

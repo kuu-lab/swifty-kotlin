@@ -6,14 +6,14 @@ symbol fq=kotlin.random.Random.Default kind=property vis=public flags=synthetic 
 symbol fq=kotlin.random.nextInt#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Int
 symbol fq=kotlin.random.nextLong#0 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[] ret=Long
 symbol fq=useRandomDefault kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun useRandomDefault sym=useRandomDefault
-expr e0 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
-expr e1 memberCall recv=e0 callee=Default args=[] type=kotlin.random.Random ref=kotlin.random.Random.Default
-expr e2 localDecl rng mutable=0 type=_ init=e1 type=Unit ref=__local_0.rng
-expr e3 name(rng) type=kotlin.random.Random ref=__local_0.rng
-expr e4 memberCall recv=e3 callee=nextInt args=[] type=Int call=kotlin.random.nextInt#0
-expr e5 localDecl a mutable=0 type=_ init=e4 type=Unit ref=__local_1.a
-expr e6 name(rng) type=kotlin.random.Random ref=__local_0.rng
-expr e7 memberCall recv=e6 callee=nextLong args=[] type=Long call=kotlin.random.nextLong#0
-expr e8 localDecl b mutable=0 type=_ init=e7 type=Unit ref=__local_2.b
+file f13 package=_
+  decl useRandomDefault fun useRandomDefault sym=useRandomDefault
+expr e@4:15#0 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
+expr e@4:15#1 memberCall recv=e@4:15#0 callee=Default args=[] type=kotlin.random.Random ref=kotlin.random.Random.Default
+expr e@4:5#2 localDecl rng mutable=0 type=_ init=e@4:15#1 type=Unit ref=__local_0.rng
+expr e@5:13#1 name(rng) type=kotlin.random.Random ref=__local_0.rng
+expr e@5:13#2 memberCall recv=e@5:13#1 callee=nextInt args=[] type=Int call=kotlin.random.nextInt#0
+expr e@5:5#2 localDecl a mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_1.a
+expr e@6:13#1 name(rng) type=kotlin.random.Random ref=__local_0.rng
+expr e@6:13#2 memberCall recv=e@6:13#1 callee=nextLong args=[] type=Long call=kotlin.random.nextLong#0
+expr e@6:5#3 localDecl b mutable=0 type=_ init=e@6:13#2 type=Unit ref=__local_2.b

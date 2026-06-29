@@ -6,9 +6,9 @@ symbol fq=kotlin.comparisons.maxOf#6 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun threeArgMaxByte sym=golden.sema.threeArgMaxByte
-expr e0 name(a) type=Int ref=golden.sema.threeArgMaxByte.$0.a
-expr e1 name(b) type=Int ref=golden.sema.threeArgMaxByte.$0.b
-expr e2 name(c) type=Int ref=golden.sema.threeArgMaxByte.$0.c
-expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=Int call=kotlin.comparisons.maxOf#6
+file f13 package=golden.sema
+  decl golden.sema.threeArgMaxByte fun threeArgMaxByte sym=golden.sema.threeArgMaxByte
+expr e@3:62 name(a) type=Int ref=golden.sema.threeArgMaxByte.$0.a
+expr e@3:65 name(b) type=Int ref=golden.sema.threeArgMaxByte.$0.b
+expr e@3:68 name(c) type=Int ref=golden.sema.threeArgMaxByte.$0.c
+expr e@3:56#1 call callee=e@3:56#0 args=[_:e@3:62,_:e@3:65,_:e@3:68] type=Int call=kotlin.comparisons.maxOf#6

@@ -6,31 +6,31 @@ symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List.slice#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List<out kotlin.collections.List.E>
 symbol fq=kotlin.collections.List.slice#1 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[kotlin.collections.List<out Int>] ret=kotlin.collections.List<out kotlin.collections.List.E>
-file f12 package=golden.sema
-  decl d0 fun useListSliceEmptyExplicitType sym=golden.sema.useListSliceEmptyExplicitType
-  decl d1 fun useListSliceListOf sym=golden.sema.useListSliceListOf
-  decl d2 fun useListSliceRange sym=golden.sema.useListSliceRange
-  decl d3 fun useListOfExplicitTypeArg sym=golden.sema.useListOfExplicitTypeArg
-expr e0 int(1) type=Int
-expr e1 int(2) type=Int
-expr e2 int(3) type=Int
-expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=kotlin.collections.List<out Int>
-expr e5 call callee=e6 args=[] type=kotlin.collections.List<out Int>
-expr e7 memberCall recv=e3 callee=slice args=[_:e5] type=kotlin.collections.List<Int> call=kotlin.collections.List.slice#1
-expr e8 int(10) type=Int
-expr e9 int(20) type=Int
-expr e10 int(30) type=Int
-expr e11 call callee=e12 args=[_:e8,_:e9,_:e10] type=kotlin.collections.List<out Int>
-expr e13 int(2) type=Int
-expr e14 int(0) type=Int
-expr e15 call callee=e16 args=[_:e13,_:e14] type=kotlin.collections.List<out Int>
-expr e17 memberCall recv=e11 callee=slice args=[_:e15] type=kotlin.collections.List<Int> call=kotlin.collections.List.slice#1
-expr e18 int(10) type=Int
-expr e19 int(20) type=Int
-expr e20 int(30) type=Int
-expr e21 call callee=e22 args=[_:e18,_:e19,_:e20] type=kotlin.collections.List<out Int>
-expr e23 int(1) type=Int
-expr e24 int(2) type=Int
-expr e25 binary(rangeTo) lhs=e23 rhs=e24 type=Int
-expr e26 memberCall recv=e21 callee=slice args=[_:e25] type=kotlin.collections.List<Int> call=kotlin.collections.List.slice#0
-expr e27 call callee=e28 args=[] type=kotlin.collections.List<Int>
+file f13 package=golden.sema
+  decl golden.sema.useListSliceEmptyExplicitType fun useListSliceEmptyExplicitType sym=golden.sema.useListSliceEmptyExplicitType
+  decl golden.sema.useListSliceListOf fun useListSliceListOf sym=golden.sema.useListSliceListOf
+  decl golden.sema.useListSliceRange fun useListSliceRange sym=golden.sema.useListSliceRange
+  decl golden.sema.useListOfExplicitTypeArg fun useListOfExplicitTypeArg sym=golden.sema.useListOfExplicitTypeArg
+expr e@5:57 int(1) type=Int
+expr e@5:60 int(2) type=Int
+expr e@5:63 int(3) type=Int
+expr e@5:50#1 call callee=e@5:50#0 args=[_:e@5:57,_:e@5:60,_:e@5:63] type=kotlin.collections.List<out Int>
+expr e@5:72#1 call callee=e@5:72#0 args=[] type=kotlin.collections.List<out Int>
+expr e@5:50#2 memberCall recv=e@5:50#1 callee=slice args=[_:e@5:72#1] type=kotlin.collections.List<Int> call=kotlin.collections.List.slice#1
+expr e@7:46 int(10) type=Int
+expr e@7:50 int(20) type=Int
+expr e@7:54 int(30) type=Int
+expr e@7:39#1 call callee=e@7:39#0 args=[_:e@7:46,_:e@7:50,_:e@7:54] type=kotlin.collections.List<out Int>
+expr e@7:71 int(2) type=Int
+expr e@7:74 int(0) type=Int
+expr e@7:64#1 call callee=e@7:64#0 args=[_:e@7:71,_:e@7:74] type=kotlin.collections.List<out Int>
+expr e@7:39#2 memberCall recv=e@7:39#1 callee=slice args=[_:e@7:64#1] type=kotlin.collections.List<Int> call=kotlin.collections.List.slice#1
+expr e@9:45 int(10) type=Int
+expr e@9:49 int(20) type=Int
+expr e@9:53 int(30) type=Int
+expr e@9:38#1 call callee=e@9:38#0 args=[_:e@9:45,_:e@9:49,_:e@9:53] type=kotlin.collections.List<out Int>
+expr e@9:63#0 int(1) type=Int
+expr e@9:66 int(2) type=Int
+expr e@9:63#1 binary(rangeTo) lhs=e@9:63#0 rhs=e@9:66 type=Int
+expr e@9:38#2 memberCall recv=e@9:38#1 callee=slice args=[_:e@9:63#1] type=kotlin.collections.List<Int> call=kotlin.collections.List.slice#0
+expr e@11:45#1 call callee=e@11:45#0 args=[] type=kotlin.collections.List<Int>

@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension ASTModelsTests {
+    @Test
     func testExprWhenExpr() {
         let r = makeRange(start: 0, end: 10)
         let arena = ASTArena()
@@ -12,12 +14,13 @@ extension ASTModelsTests {
         let branch = WhenBranch(conditions: [condID], body: bodyID, range: r)
         let expr = Expr.whenExpr(subject: subjectID, branches: [branch], elseExpr: elseID, range: r)
         if case let .whenExpr(s, bs, e, _) = expr {
-            XCTAssertEqual(s, subjectID)
-            XCTAssertEqual(bs.count, 1)
-            XCTAssertEqual(e, elseID)
-        } else { XCTFail("Expected .whenExpr") }
+            #expect(s == subjectID)
+            #expect(bs.count == 1)
+            #expect(e == elseID)
+        } else { Issue.record("Expected .whenExpr") }
     }
 
+    @Test
     func testExprReturnAndThrow() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
@@ -25,20 +28,21 @@ extension ASTModelsTests {
 
         let returnWithValue = Expr.returnExpr(value: valID, range: r)
         if case let .returnExpr(v, _, _) = returnWithValue {
-            XCTAssertEqual(v, valID)
-        } else { XCTFail("Expected .returnExpr") }
+            #expect(v == valID)
+        } else { Issue.record("Expected .returnExpr") }
 
         let returnVoid = Expr.returnExpr(value: nil, range: r)
         if case let .returnExpr(v, _, _) = returnVoid {
-            XCTAssertNil(v)
-        } else { XCTFail("Expected .returnExpr") }
+            #expect(v == nil)
+        } else { Issue.record("Expected .returnExpr") }
 
         let throwExpr = Expr.throwExpr(value: valID, range: r)
         if case let .throwExpr(v, _) = throwExpr {
-            XCTAssertEqual(v, valID)
-        } else { XCTFail("Expected .throwExpr") }
+            #expect(v == valID)
+        } else { Issue.record("Expected .throwExpr") }
     }
 
+    @Test
     func testExprIfExpr() {
         let r = makeRange(start: 0, end: 10)
         let arena = ASTArena()
@@ -48,17 +52,18 @@ extension ASTModelsTests {
 
         let withElse = Expr.ifExpr(condition: condID, thenExpr: thenID, elseExpr: elseID, range: r)
         if case let .ifExpr(c, t, e, _) = withElse {
-            XCTAssertEqual(c, condID)
-            XCTAssertEqual(t, thenID)
-            XCTAssertEqual(e, elseID)
-        } else { XCTFail("Expected .ifExpr") }
+            #expect(c == condID)
+            #expect(t == thenID)
+            #expect(e == elseID)
+        } else { Issue.record("Expected .ifExpr") }
 
         let withoutElse = Expr.ifExpr(condition: condID, thenExpr: thenID, elseExpr: nil, range: r)
         if case let .ifExpr(_, _, e, _) = withoutElse {
-            XCTAssertNil(e)
-        } else { XCTFail("Expected .ifExpr") }
+            #expect(e == nil)
+        } else { Issue.record("Expected .ifExpr") }
     }
 
+    @Test
     func testExprTryExpr() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 10)
@@ -70,12 +75,13 @@ extension ASTModelsTests {
 
         let tryExpr = Expr.tryExpr(body: bodyID, catchClauses: [catchClause], finallyExpr: finallyID, range: r)
         if case let .tryExpr(b, cc, f, _) = tryExpr {
-            XCTAssertEqual(b, bodyID)
-            XCTAssertEqual(cc.count, 1)
-            XCTAssertEqual(f, finallyID)
-        } else { XCTFail("Expected .tryExpr") }
+            #expect(b == bodyID)
+            #expect(cc.count == 1)
+            #expect(f == finallyID)
+        } else { Issue.record("Expected .tryExpr") }
     }
 
+    @Test
     func testExprIsCheckAndAsCast() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
@@ -84,35 +90,37 @@ extension ASTModelsTests {
 
         let isCheck = Expr.isCheck(expr: exprID, type: typeRefID, negated: false, range: r)
         if case let .isCheck(_, _, neg, _) = isCheck {
-            XCTAssertFalse(neg)
-        } else { XCTFail("Expected .isCheck") }
+            #expect(!(neg))
+        } else { Issue.record("Expected .isCheck") }
 
         let isNotCheck = Expr.isCheck(expr: exprID, type: typeRefID, negated: true, range: r)
         if case let .isCheck(_, _, neg, _) = isNotCheck {
-            XCTAssertTrue(neg)
-        } else { XCTFail("Expected .isCheck negated") }
+            #expect(neg)
+        } else { Issue.record("Expected .isCheck negated") }
 
         let safeCast = Expr.asCast(expr: exprID, type: typeRefID, isSafe: true, range: r)
         if case let .asCast(_, _, safe, _) = safeCast {
-            XCTAssertTrue(safe)
-        } else { XCTFail("Expected .asCast safe") }
+            #expect(safe)
+        } else { Issue.record("Expected .asCast safe") }
 
         let unsafeCast = Expr.asCast(expr: exprID, type: typeRefID, isSafe: false, range: r)
         if case let .asCast(_, _, safe, _) = unsafeCast {
-            XCTAssertFalse(safe)
-        } else { XCTFail("Expected .asCast unsafe") }
+            #expect(!(safe))
+        } else { Issue.record("Expected .asCast unsafe") }
     }
 
+    @Test
     func testExprNullAssert() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
         let exprID = arena.appendExpr(.intLiteral(1, r))
         let nullAssert = Expr.nullAssert(expr: exprID, range: r)
         if case let .nullAssert(e, _) = nullAssert {
-            XCTAssertEqual(e, exprID)
-        } else { XCTFail("Expected .nullAssert") }
+            #expect(e == exprID)
+        } else { Issue.record("Expected .nullAssert") }
     }
 
+    @Test
     func testExprLambdaLiteral() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 10)
@@ -121,22 +129,24 @@ extension ASTModelsTests {
         let params = [interner.intern("x"), interner.intern("y")]
         let lambda = Expr.lambdaLiteral(params: params, body: bodyID, range: r)
         if case let .lambdaLiteral(p, b, _, _) = lambda {
-            XCTAssertEqual(p.count, 2)
-            XCTAssertEqual(b, bodyID)
-        } else { XCTFail("Expected .lambdaLiteral") }
+            #expect(p.count == 2)
+            #expect(b == bodyID)
+        } else { Issue.record("Expected .lambdaLiteral") }
     }
 
+    @Test
     func testExprObjectLiteral() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
         let typeRefID = arena.appendTypeRef(.named(path: [], args: [], nullable: false))
         let obj = Expr.objectLiteral(superTypes: [typeRefID], decl: nil, range: r)
         if case let .objectLiteral(st, decl, _) = obj {
-            XCTAssertEqual(st.count, 1)
-            XCTAssertNil(decl)
-        } else { XCTFail("Expected .objectLiteral") }
+            #expect(st.count == 1)
+            #expect(decl == nil)
+        } else { Issue.record("Expected .objectLiteral") }
     }
 
+    @Test
     func testExprCallableRef() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 5)
@@ -144,16 +154,17 @@ extension ASTModelsTests {
         let receiverID = arena.appendExpr(.nameRef(interner.intern("MyClass"), r))
         let ref = Expr.callableRef(receiver: receiverID, member: interner.intern("method"), range: r)
         if case let .callableRef(recv, member, _) = ref {
-            XCTAssertEqual(recv, receiverID)
-            XCTAssertEqual(member, interner.intern("method"))
-        } else { XCTFail("Expected .callableRef") }
+            #expect(recv == receiverID)
+            #expect(member == interner.intern("method"))
+        } else { Issue.record("Expected .callableRef") }
 
         let refNoReceiver = Expr.callableRef(receiver: nil, member: interner.intern("topFun"), range: r)
         if case let .callableRef(recv, _, _) = refNoReceiver {
-            XCTAssertNil(recv)
-        } else { XCTFail("Expected .callableRef without receiver") }
+            #expect(recv == nil)
+        } else { Issue.record("Expected .callableRef without receiver") }
     }
 
+    @Test
     func testExprLocalFunDecl() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 10)
@@ -163,16 +174,17 @@ extension ASTModelsTests {
         let typeRefID = arena.appendTypeRef(.named(path: [interner.intern("Int")], args: [], nullable: false))
         let localFun = Expr.localFunDecl(name: interner.intern("helper"), valueParams: [param], returnType: typeRefID, body: .expr(bodyID, r), isSuspend: true, range: r)
         if case let .localFunDecl(name, params, ret, body, isSuspend, _) = localFun {
-            XCTAssertEqual(name, interner.intern("helper"))
-            XCTAssertEqual(params.count, 1)
-            XCTAssertEqual(ret, typeRefID)
-            XCTAssertTrue(isSuspend)
+            #expect(name == interner.intern("helper"))
+            #expect(params.count == 1)
+            #expect(ret == typeRefID)
+            #expect(isSuspend)
             if case let .expr(e, _) = body {
-                XCTAssertEqual(e, bodyID)
-            } else { XCTFail("Expected .expr body") }
-        } else { XCTFail("Expected .localFunDecl") }
+                #expect(e == bodyID)
+            } else { Issue.record("Expected .expr body") }
+        } else { Issue.record("Expected .localFunDecl") }
     }
 
+    @Test
     func testExprBlockExpr() {
         let r = makeRange(start: 0, end: 10)
         let arena = ASTArena()
@@ -181,44 +193,46 @@ extension ASTModelsTests {
         let trailing = arena.appendExpr(.intLiteral(3, r))
         let block = Expr.blockExpr(statements: [stmt1, stmt2], trailingExpr: trailing, range: r)
         if case let .blockExpr(stmts, trail, _) = block {
-            XCTAssertEqual(stmts.count, 2)
-            XCTAssertEqual(trail, trailing)
-        } else { XCTFail("Expected .blockExpr") }
+            #expect(stmts.count == 2)
+            #expect(trail == trailing)
+        } else { Issue.record("Expected .blockExpr") }
 
         let blockNoTrail = Expr.blockExpr(statements: [stmt1], trailingExpr: nil, range: r)
         if case let .blockExpr(_, trail, _) = blockNoTrail {
-            XCTAssertNil(trail)
-        } else { XCTFail("Expected .blockExpr without trailing") }
+            #expect(trail == nil)
+        } else { Issue.record("Expected .blockExpr without trailing") }
     }
 
+    @Test
     func testExprSuperRefAndThisRef() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 5)
         let superRef = Expr.superRef(interfaceQualifier: nil, r)
         if case let .superRef(qualifier, range) = superRef {
-            XCTAssertNil(qualifier)
-            XCTAssertEqual(range, r)
-        } else { XCTFail("Expected .superRef") }
+            #expect(qualifier == nil)
+            #expect(range == r)
+        } else { Issue.record("Expected .superRef") }
 
         let qualifiedSuperRef = Expr.superRef(interfaceQualifier: interner.intern("MyInterface"), r)
         if case let .superRef(qualifier, range) = qualifiedSuperRef {
-            XCTAssertEqual(qualifier, interner.intern("MyInterface"))
-            XCTAssertEqual(range, r)
-        } else { XCTFail("Expected .superRef with qualifier") }
+            #expect(qualifier == interner.intern("MyInterface"))
+            #expect(range == r)
+        } else { Issue.record("Expected .superRef with qualifier") }
 
         let thisRef = Expr.thisRef(label: nil, r)
         if case let .thisRef(label, _) = thisRef {
-            XCTAssertNil(label)
-        } else { XCTFail("Expected .thisRef") }
+            #expect(label == nil)
+        } else { Issue.record("Expected .thisRef") }
 
         let thisRefLabeled = Expr.thisRef(label: interner.intern("Outer"), r)
         if case let .thisRef(label, _) = thisRefLabeled {
-            XCTAssertEqual(label, interner.intern("Outer"))
-        } else { XCTFail("Expected .thisRef with label") }
+            #expect(label == interner.intern("Outer"))
+        } else { Issue.record("Expected .thisRef with label") }
     }
 
     // MARK: - ASTArena expr() method
 
+    @Test
     func testASTArenaExprLookup() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
@@ -226,36 +240,39 @@ extension ASTModelsTests {
         let id1 = arena.appendExpr(.boolLiteral(true, r))
 
         if case let .intLiteral(val, _) = arena.expr(id0) {
-            XCTAssertEqual(val, 42)
+            #expect(val == 42)
         } else {
-            XCTFail("Expected .intLiteral from arena.expr()")
+            Issue.record("Expected .intLiteral from arena.expr()")
         }
 
         if case let .boolLiteral(val, _) = arena.expr(id1) {
-            XCTAssertTrue(val)
+            #expect(val)
         } else {
-            XCTFail("Expected .boolLiteral from arena.expr()")
+            Issue.record("Expected .boolLiteral from arena.expr()")
         }
     }
 
+    @Test
     func testASTArenaExprReturnsNilForInvalidID() {
         let arena = ASTArena()
-        XCTAssertNil(arena.expr(ExprID(rawValue: -1)))
-        XCTAssertNil(arena.expr(ExprID(rawValue: 0)))
-        XCTAssertNil(arena.expr(ExprID(rawValue: 999)))
+        #expect(arena.expr(ExprID(rawValue: -1)) == nil)
+        #expect(arena.expr(ExprID(rawValue: 0)) == nil)
+        #expect(arena.expr(ExprID(rawValue: 999)) == nil)
     }
 
+    @Test
     func testASTArenaExprSequentialIDs() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
         let id0 = arena.appendExpr(.intLiteral(1, r))
         let id1 = arena.appendExpr(.intLiteral(2, r))
         let id2 = arena.appendExpr(.intLiteral(3, r))
-        XCTAssertEqual(id0.rawValue, 0)
-        XCTAssertEqual(id1.rawValue, 1)
-        XCTAssertEqual(id2.rawValue, 2)
+        #expect(id0.rawValue == 0)
+        #expect(id1.rawValue == 1)
+        #expect(id2.rawValue == 2)
     }
 
+    @Test
     func testASTArenaExprWithMultipleTypes() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 10)
@@ -265,9 +282,10 @@ extension ASTModelsTests {
         let strID = arena.appendExpr(.stringLiteral(interner.intern("test"), r))
         let breakID = arena.appendExpr(.breakExpr(range: r))
 
-        if case .intLiteral = arena.expr(intID) {} else { XCTFail("Expected .intLiteral") }
-        if case .boolLiteral = arena.expr(boolID) {} else { XCTFail("Expected .boolLiteral") }
-        if case .stringLiteral = arena.expr(strID) {} else { XCTFail("Expected .stringLiteral") }
-        if case .breakExpr = arena.expr(breakID) {} else { XCTFail("Expected .breakExpr") }
+        if case .intLiteral = arena.expr(intID) {} else { Issue.record("Expected .intLiteral") }
+        if case .boolLiteral = arena.expr(boolID) {} else { Issue.record("Expected .boolLiteral") }
+        if case .stringLiteral = arena.expr(strID) {} else { Issue.record("Expected .stringLiteral") }
+        if case .breakExpr = arena.expr(breakID) {} else { Issue.record("Expected .breakExpr") }
     }
 }
+#endif

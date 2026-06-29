@@ -8,24 +8,24 @@ symbol fq=printChar kind=function vis=public flags=_ sig=recv=_ params=[] ret=Un
 symbol fq=printDouble kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=printFloat kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=printLong kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun printLong sym=printLong
-  decl d1 fun printFloat sym=printFloat
-  decl d2 fun printDouble sym=printDouble
-  decl d3 fun printChar sym=printChar
-expr e0 long(42) type=Long
-expr e1 localDecl x mutable=0 type=t0 init=e0 type=Unit ref=__local_0.x
-expr e2 name(x) type=Long ref=__local_0.x
-expr e3 call callee=e4 args=[_:e2] type=Unit call=kotlin.io.println#1
-expr e5 float(3.14) type=Float
-expr e6 localDecl y mutable=0 type=t1 init=e5 type=Unit ref=__local_1.y
-expr e7 name(y) type=Float ref=__local_1.y
-expr e8 call callee=e9 args=[_:e7] type=Unit call=kotlin.io.println#1
-expr e10 double(2.718) type=Double
-expr e11 localDecl z mutable=0 type=t2 init=e10 type=Unit ref=__local_2.z
-expr e12 name(z) type=Double ref=__local_2.z
-expr e13 call callee=e14 args=[_:e12] type=Unit call=kotlin.io.println#1
-expr e15 char(65) type=Char
-expr e16 localDecl c mutable=0 type=t3 init=e15 type=Unit ref=__local_3.c
-expr e17 name(c) type=Char ref=__local_3.c
-expr e18 call callee=e19 args=[_:e17] type=Unit call=kotlin.io.println#1
+file f13 package=_
+  decl printLong fun printLong sym=printLong
+  decl printFloat fun printFloat sym=printFloat
+  decl printDouble fun printDouble sym=printDouble
+  decl printChar fun printChar sym=printChar
+expr e@2:19 long(42) type=Long
+expr e@2:5 localDecl x mutable=0 type=Long init=e@2:19 type=Unit ref=__local_0.x
+expr e@3:13 name(x) type=Long ref=__local_0.x
+expr e@3:5#1 call callee=e@3:5#0 args=[_:e@3:13] type=Unit call=kotlin.io.println#1
+expr e@7:20 float(3.14) type=Float
+expr e@7:5#3 localDecl y mutable=0 type=Float init=e@7:20 type=Unit ref=__local_1.y
+expr e@8:13 name(y) type=Float ref=__local_1.y
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13] type=Unit call=kotlin.io.println#1
+expr e@12:21 double(2.718) type=Double
+expr e@12:5#4 localDecl z mutable=0 type=Double init=e@12:21 type=Unit ref=__local_2.z
+expr e@13:13#1 name(z) type=Double ref=__local_2.z
+expr e@13:5#7 call callee=e@13:5#6 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
+expr e@17:19#3 char(65) type=Char
+expr e@17:5#3 localDecl c mutable=0 type=Char init=e@17:19#3 type=Unit ref=__local_3.c
+expr e@18:13#1 name(c) type=Char ref=__local_3.c
+expr e@18:5#5 call callee=e@18:5#4 args=[_:e@18:13#1] type=Unit call=kotlin.io.println#1

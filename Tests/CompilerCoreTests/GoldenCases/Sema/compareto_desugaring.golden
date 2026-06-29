@@ -22,38 +22,38 @@ symbol fq=stringCompareLe.$6.b kind=valueParameter vis=private flags=_
 symbol fq=stringCompareLt kind=function vis=public flags=_ sig=recv=_ params=[String,String] ret=Boolean
 symbol fq=stringCompareLt.$7.a kind=valueParameter vis=private flags=_
 symbol fq=stringCompareLt.$7.b kind=valueParameter vis=private flags=_
-file f12 package=_
-  decl d0 class Temperature sym=Temperature
-  decl d1 fun stringCompareLt sym=stringCompareLt
-  decl d2 fun stringCompareGe sym=stringCompareGe
-  decl d3 fun stringCompareLe sym=stringCompareLe
-  decl d4 fun stringCompareGt sym=stringCompareGt
-  decl d5 fun customCompareLt sym=customCompareLt
-  decl d6 fun customCompareGe sym=customCompareGe
-  decl d7 fun primitiveCompare sym=primitiveCompare
-expr e0 this type=Temperature
-expr e1 memberCall recv=e0 callee=degrees args=[] type=Int ref=Temperature.degrees
-expr e2 name(other) type=Temperature ref=Temperature.compareTo.$0.other
-expr e3 memberCall recv=e2 callee=degrees args=[] type=Int ref=Temperature.degrees
-expr e4 binary(subtract) lhs=e1 rhs=e3 type=Int
-expr e5 name(a) type=String ref=stringCompareLt.$7.a
-expr e6 name(b) type=String ref=stringCompareLt.$7.b
-expr e7 binary(lessThan) lhs=e5 rhs=e6 type=Boolean
-expr e8 name(a) type=String ref=stringCompareGe.$4.a
-expr e9 name(b) type=String ref=stringCompareGe.$4.b
-expr e10 binary(greaterOrEqual) lhs=e8 rhs=e9 type=Boolean
-expr e11 name(a) type=String ref=stringCompareLe.$6.a
-expr e12 name(b) type=String ref=stringCompareLe.$6.b
-expr e13 binary(lessOrEqual) lhs=e11 rhs=e12 type=Boolean
-expr e14 name(a) type=String ref=stringCompareGt.$5.a
-expr e15 name(b) type=String ref=stringCompareGt.$5.b
-expr e16 binary(greaterThan) lhs=e14 rhs=e15 type=Boolean
-expr e17 name(a) type=Temperature ref=customCompareLt.$2.a
-expr e18 name(b) type=Temperature ref=customCompareLt.$2.b
-expr e19 binary(lessThan) lhs=e17 rhs=e18 type=<error>
-expr e20 name(a) type=Temperature ref=customCompareGe.$1.a
-expr e21 name(b) type=Temperature ref=customCompareGe.$1.b
-expr e22 binary(greaterOrEqual) lhs=e20 rhs=e21 type=<error>
-expr e23 name(a) type=Int ref=primitiveCompare.$3.a
-expr e24 name(b) type=Int ref=primitiveCompare.$3.b
-expr e25 binary(lessThan) lhs=e23 rhs=e24 type=Boolean
+file f13 package=_
+  decl Temperature class Temperature sym=Temperature
+  decl stringCompareLt fun stringCompareLt sym=stringCompareLt
+  decl stringCompareGe fun stringCompareGe sym=stringCompareGe
+  decl stringCompareLe fun stringCompareLe sym=stringCompareLe
+  decl stringCompareGt fun stringCompareGt sym=stringCompareGt
+  decl customCompareLt fun customCompareLt sym=customCompareLt
+  decl customCompareGe fun customCompareGe sym=customCompareGe
+  decl primitiveCompare fun primitiveCompare sym=primitiveCompare
+expr e@2:55#0 this type=Temperature
+expr e@2:55#1 memberCall recv=e@2:55#0 callee=degrees args=[] type=Int ref=Temperature.degrees
+expr e@2:70#0 name(other) type=Temperature ref=Temperature.compareTo.$0.other
+expr e@2:70#1 memberCall recv=e@2:70#0 callee=degrees args=[] type=Int ref=Temperature.degrees
+expr e@2:55#2 binary(subtract) lhs=e@2:55#1 rhs=e@2:70#1 type=Int
+expr e@5:54#0 name(a) type=String ref=stringCompareLt.$7.a
+expr e@5:58 name(b) type=String ref=stringCompareLt.$7.b
+expr e@5:54#1 binary(lessThan) lhs=e@5:54#0 rhs=e@5:58 type=Boolean
+expr e@7:54#0 name(a) type=String ref=stringCompareGe.$4.a
+expr e@7:59 name(b) type=String ref=stringCompareGe.$4.b
+expr e@7:54#1 binary(greaterOrEqual) lhs=e@7:54#0 rhs=e@7:59 type=Boolean
+expr e@9:54#0 name(a) type=String ref=stringCompareLe.$6.a
+expr e@9:59 name(b) type=String ref=stringCompareLe.$6.b
+expr e@9:54#1 binary(lessOrEqual) lhs=e@9:54#0 rhs=e@9:59 type=Boolean
+expr e@11:54#0 name(a) type=String ref=stringCompareGt.$5.a
+expr e@11:58 name(b) type=String ref=stringCompareGt.$5.b
+expr e@11:54#1 binary(greaterThan) lhs=e@11:54#0 rhs=e@11:58 type=Boolean
+expr e@13:64#0 name(a) type=Temperature ref=customCompareLt.$2.a
+expr e@13:68 name(b) type=Temperature ref=customCompareLt.$2.b
+expr e@13:64#1 binary(lessThan) lhs=e@13:64#0 rhs=e@13:68 type=<error>
+expr e@15:64#0 name(a) type=Temperature ref=customCompareGe.$1.a
+expr e@15:69#1 name(b) type=Temperature ref=customCompareGe.$1.b
+expr e@15:64#1 binary(greaterOrEqual) lhs=e@15:64#0 rhs=e@15:69#1 type=<error>
+expr e@17:49#0 name(a) type=Int ref=primitiveCompare.$3.a
+expr e@17:53 name(b) type=Int ref=primitiveCompare.$3.b
+expr e@17:49#1 binary(lessThan) lhs=e@17:49#0 rhs=e@17:53 type=Boolean

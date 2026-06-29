@@ -1,8 +1,10 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class VisibilityAccessControlTests: XCTestCase {
+@Suite
+struct VisibilityAccessControlTests {
+    @Test
     func testPublicFunctionAccessibleWithinSameFile() throws {
         let source = """
         package test
@@ -17,6 +19,7 @@ final class VisibilityAccessControlTests: XCTestCase {
         }
     }
 
+    @Test
     func testInternalFunctionAccessibleWithinSameFile() throws {
         let source = """
         package test
@@ -30,6 +33,7 @@ final class VisibilityAccessControlTests: XCTestCase {
         }
     }
 
+    @Test
     func testPrivateFunctionAccessibleWithinSameFile() throws {
         let source = """
         package test
@@ -43,6 +47,7 @@ final class VisibilityAccessControlTests: XCTestCase {
         }
     }
 
+    @Test
     func testPrivatePropertyAccessibleWithinSameFile() throws {
         let source = """
         package test
@@ -75,58 +80,65 @@ final class VisibilityAccessControlTests: XCTestCase {
         )
     }
 
+    @Test
     func testVisibilityCheckerPublicAlwaysAccessible() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
         let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "pubFn", visibility: .public)
-        let symbol = try XCTUnwrap(symbols.symbol(sym))
-        XCTAssertTrue(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+        let symbol = try #require(symbols.symbol(sym))
+        #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
     }
 
+    @Test
     func testVisibilityCheckerInternalAlwaysAccessible() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
         let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "intFn", visibility: .internal)
-        let symbol = try XCTUnwrap(symbols.symbol(sym))
-        XCTAssertTrue(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+        let symbol = try #require(symbols.symbol(sym))
+        #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
     }
 
+    @Test
     func testVisibilityCheckerPrivateSameFile() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
         let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn", visibility: .private, file: FileID(rawValue: 0))
-        let symbol = try XCTUnwrap(symbols.symbol(sym))
-        XCTAssertTrue(checker.isAccessible(symbol, fromFile: FileID(rawValue: 0), enclosingClass: nil))
+        let symbol = try #require(symbols.symbol(sym))
+        #expect(checker.isAccessible(symbol, fromFile: FileID(rawValue: 0), enclosingClass: nil))
     }
 
+    @Test
     func testVisibilityCheckerPrivateDifferentFile() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
         let sym = defineSymbol(symbols, interner: interner, kind: .function, name: "privFn2", visibility: .private, file: FileID(rawValue: 0))
-        let symbol = try XCTUnwrap(symbols.symbol(sym))
-        XCTAssertFalse(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+        let symbol = try #require(symbols.symbol(sym))
+        #expect(!(checker.isAccessible(symbol, fromFile: FileID(rawValue: 1), enclosingClass: nil)))
     }
 
+    @Test
     func testVisibilityCheckerProtectedInSameClass() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
         let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass", visibility: .public)
         let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod", visibility: .protected)
         symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try XCTUnwrap(symbols.symbol(memberSym))
-        XCTAssertTrue(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
+        let member = try #require(symbols.symbol(memberSym))
+        #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
     }
 
+    @Test
     func testVisibilityCheckerProtectedOutsideClass() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
         let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "MyClass2", visibility: .public)
         let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "protMethod2", visibility: .protected)
         symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try XCTUnwrap(symbols.symbol(memberSym))
-        XCTAssertFalse(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: nil))
+        let member = try #require(symbols.symbol(memberSym))
+        #expect(!(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: nil)))
     }
 
+    @Test
     func testVisibilityCheckerProtectedInSubclass() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
@@ -135,20 +147,22 @@ final class VisibilityAccessControlTests: XCTestCase {
         symbols.setParentSymbol(baseSym, for: memberSym)
         let childSym = defineSymbol(symbols, interner: interner, kind: .class, name: "Child", visibility: .public)
         symbols.setDirectSupertypes([baseSym], for: childSym)
-        let member = try XCTUnwrap(symbols.symbol(memberSym))
-        XCTAssertTrue(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: childSym))
+        let member = try #require(symbols.symbol(memberSym))
+        #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: childSym))
     }
 
+    @Test
     func testVisibilityCheckerPrivateMemberInSameClass() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
         let classSym = defineSymbol(symbols, interner: interner, kind: .class, name: "PrivClass", visibility: .public)
         let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod", visibility: .private)
         symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try XCTUnwrap(symbols.symbol(memberSym))
-        XCTAssertTrue(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
+        let member = try #require(symbols.symbol(memberSym))
+        #expect(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: classSym))
     }
 
+    @Test
     func testVisibilityCheckerPrivateMemberOutsideClass() throws {
         let (_, symbols, _, interner) = makeSemaModule()
         let checker = VisibilityChecker(symbols: symbols)
@@ -156,7 +170,7 @@ final class VisibilityAccessControlTests: XCTestCase {
         let otherClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OtherClass", visibility: .public)
         let memberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privMethod2", visibility: .private)
         symbols.setParentSymbol(classSym, for: memberSym)
-        let member = try XCTUnwrap(symbols.symbol(memberSym))
-        XCTAssertFalse(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: otherClassSym))
+        let member = try #require(symbols.symbol(memberSym))
+        #expect(!(checker.isAccessible(member, fromFile: FileID(rawValue: 0), enclosingClass: otherClassSym)))
     }
 }

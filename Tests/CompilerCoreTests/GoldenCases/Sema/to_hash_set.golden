@@ -10,21 +10,21 @@ symbol fq=kotlin.collections.MutableSet.remove kind=function vis=public flags=sy
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
-  decl d0 fun main sym=main
-expr e0 string(a) type=String
-expr e1 string(b) type=String
-expr e2 string(c) type=String
-expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=kotlin.collections.List<out String>
-expr e5 localDecl items mutable=0 type=_ init=e3 type=Unit ref=__local_0.items
-expr e6 name(items) type=kotlin.collections.List<out String> ref=__local_0.items
-expr e7 memberCall recv=e6 callee=toHashSet args=[] type=kotlin.collections.MutableSet<String> call=kotlin.collections.List.toHashSet targs=[String]
-expr e8 localDecl hs mutable=0 type=t0 init=e7 type=Unit ref=__local_1.hs
-expr e9 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
-expr e10 string(d) type=String
-expr e11 memberCall recv=e9 callee=add args=[_:e10] type=Boolean call=kotlin.collections.MutableSet.add
-expr e12 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
-expr e13 string(a) type=String
-expr e14 memberCall recv=e12 callee=remove args=[_:e13] type=Boolean call=kotlin.collections.MutableSet.remove
-expr e15 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
-expr e16 call callee=e17 args=[_:e15] type=Unit call=kotlin.io.println#1
+file f13 package=_
+  decl main fun main sym=main
+expr e@2:24 string(a) type=String
+expr e@2:29 string(b) type=String
+expr e@2:34 string(c) type=String
+expr e@2:17#1 call callee=e@2:17#0 args=[_:e@2:24,_:e@2:29,_:e@2:34] type=kotlin.collections.List<out String>
+expr e@2:5 localDecl items mutable=0 type=_ init=e@2:17#1 type=Unit ref=__local_0.items
+expr e@3:34#0 name(items) type=kotlin.collections.List<out String> ref=__local_0.items
+expr e@3:34#1 memberCall recv=e@3:34#0 callee=toHashSet args=[] type=kotlin.collections.MutableSet<String> call=kotlin.collections.List.toHashSet targs=[String]
+expr e@3:5 localDecl hs mutable=0 type=MutableSet<String> init=e@3:34#1 type=Unit ref=__local_1.hs
+expr e@4:5#2 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
+expr e@4:12 string(d) type=String
+expr e@4:5#3 memberCall recv=e@4:5#2 callee=add args=[_:e@4:12] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@5:5#2 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
+expr e@5:15 string(a) type=String
+expr e@5:5#3 memberCall recv=e@5:5#2 callee=remove args=[_:e@5:15] type=Boolean call=kotlin.collections.MutableSet.remove
+expr e@6:13#1 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1

@@ -1,11 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LibraryMetadataCacheBehaviorTests: XCTestCase {
+@Suite
+struct LibraryMetadataCacheBehaviorTests {
     // MARK: - P5-62: Library metadata cache tests
 
-    func testLibraryMetadataCacheReusesManifestAndMetadataOnSecondLoad() throws {
+    @Test func testLibraryMetadataCacheReusesManifestAndMetadataOnSecondLoad() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -55,14 +57,14 @@ final class LibraryMetadataCacheBehaviorTests: XCTestCase {
                 cache: cache
             )
 
-            XCTAssertEqual(cache.manifestCacheCount, 1, "Manifest should be cached after first load")
-            XCTAssertEqual(cache.metadataCacheCount, 1, "Metadata should be cached after first load")
-            XCTAssertGreaterThan(cache.signatureCacheCount, 0, "Signatures should be cached after first load")
+            #expect(cache.manifestCacheCount == 1, "Manifest should be cached after first load")
+            #expect(cache.metadataCacheCount == 1, "Metadata should be cached after first load")
+            #expect(cache.signatureCacheCount > 0, "Signatures should be cached after first load")
 
             let addSymbol = symbols1.allSymbols().first { symbol in
                 sharedInterner.resolve(symbol.name) == "add" && symbol.kind == .function
             }
-            XCTAssertNotNil(addSymbol, "Function 'add' should be imported")
+            #expect(addSymbol != nil, "Function 'add' should be imported")
         }
 
         let manifestCountAfterFirst = cache.manifestCacheCount
@@ -96,18 +98,18 @@ final class LibraryMetadataCacheBehaviorTests: XCTestCase {
             // Manifest and metadata cache counts should remain the same (reused on second load).
             // The signature cache is cleared when using a different TypeSystem/SymbolTable, but its
             // entry count should return to the same value after being repopulated.
-            XCTAssertEqual(cache.manifestCacheCount, manifestCountAfterFirst, "Manifest cache should be reused on second load")
-            XCTAssertEqual(cache.metadataCacheCount, metadataCountAfterFirst, "Metadata cache should be reused on second load")
-            XCTAssertEqual(cache.signatureCacheCount, signatureCountAfterFirst, "Signature cache should have the same number of entries after second load")
+            #expect(cache.manifestCacheCount == manifestCountAfterFirst, "Manifest cache should be reused on second load")
+            #expect(cache.metadataCacheCount == metadataCountAfterFirst, "Metadata cache should be reused on second load")
+            #expect(cache.signatureCacheCount == signatureCountAfterFirst, "Signature cache should have the same number of entries after second load")
 
             let addSymbol = symbols2.allSymbols().first { symbol in
                 sharedInterner.resolve(symbol.name) == "add" && symbol.kind == .function
             }
-            XCTAssertNotNil(addSymbol, "Function 'add' should be imported from cache")
+            #expect(addSymbol != nil, "Function 'add' should be imported from cache")
         }
     }
 
-    func testSignatureMemoizationDeduplicatesIdenticalTypeSignatures() throws {
+    @Test func testSignatureMemoizationDeduplicatesIdenticalTypeSignatures() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -160,24 +162,24 @@ final class LibraryMetadataCacheBehaviorTests: XCTestCase {
             )
 
             // All 5 functions share signature "F1<I,I>", so cache should have exactly 1 entry
-            XCTAssertEqual(cache.signatureCacheCount, 1, "Identical signatures should be deduplicated in cache")
+            #expect(cache.signatureCacheCount == 1, "Identical signatures should be deduplicated in cache")
 
             // All 5 symbols should still be imported correctly
             let importedFunctions = symbols.allSymbols().filter { symbol in
                 symbol.kind == .function && symbol.flags.contains(.synthetic)
             }
-            XCTAssertEqual(importedFunctions.count, 5, "All 5 functions should be imported")
+            #expect(importedFunctions.count == 5, "All 5 functions should be imported")
 
             // Each should have a valid function signature with 1 param
             for fn in importedFunctions {
                 let sig = symbols.functionSignature(for: fn.id)
-                XCTAssertNotNil(sig, "Function \(fn.id) should have a signature")
-                XCTAssertEqual(sig?.parameterTypes.count, 1)
+                #expect(sig != nil, "Function \(fn.id) should have a signature")
+                #expect(sig?.parameterTypes.count == 1)
             }
         }
     }
 
-    func testMultiKklibCompileBenchmarkMeasuresSemaTime() throws {
+    @Test func testMultiKklibCompileBenchmarkMeasuresSemaTime() throws {
         let fm = FileManager.default
         let libraryCount = 5
         let symbolsPerLibrary = 20
@@ -244,8 +246,8 @@ final class LibraryMetadataCacheBehaviorTests: XCTestCase {
 
                     // Verify correctness
                     let importedCount = symbols.allSymbols().filter { $0.flags.contains(.synthetic) && $0.kind == .function }.count
-                    XCTAssertEqual(importedCount, libraryCount * symbolsPerLibrary,
-                                   "All \(libraryCount * symbolsPerLibrary) functions should be imported without cache")
+                    #expect(importedCount == libraryCount * symbolsPerLibrary,
+                            "All \(libraryCount * symbolsPerLibrary) functions should be imported without cache")
                 }
             }
             return total / Double(iterations)
@@ -288,17 +290,17 @@ final class LibraryMetadataCacheBehaviorTests: XCTestCase {
 
                     // Verify correctness
                     let importedCount = symbols.allSymbols().filter { $0.flags.contains(.synthetic) && $0.kind == .function }.count
-                    XCTAssertEqual(importedCount, libraryCount * symbolsPerLibrary,
-                                   "All \(libraryCount * symbolsPerLibrary) functions should be imported with cache")
+                    #expect(importedCount == libraryCount * symbolsPerLibrary,
+                            "All \(libraryCount * symbolsPerLibrary) functions should be imported with cache")
                 }
             }
             return total / Double(iterations)
         }()
 
         // Verify cache was populated
-        XCTAssertEqual(cache.manifestCacheCount, libraryCount, "Should have cached all \(libraryCount) manifests")
-        XCTAssertEqual(cache.metadataCacheCount, libraryCount, "Should have cached all \(libraryCount) metadata files")
-        XCTAssertGreaterThan(cache.signatureCacheCount, 0, "Should have cached type signatures")
+        #expect(cache.manifestCacheCount == libraryCount, "Should have cached all \(libraryCount) manifests")
+        #expect(cache.metadataCacheCount == libraryCount, "Should have cached all \(libraryCount) metadata files")
+        #expect(cache.signatureCacheCount > 0, "Should have cached type signatures")
 
         // Log timing results only when P5_62_BENCH_LOG env var is set,
         // keeping normal CI runs quiet and deterministic.
@@ -313,3 +315,4 @@ final class LibraryMetadataCacheBehaviorTests: XCTestCase {
         }
     }
 }
+#endif

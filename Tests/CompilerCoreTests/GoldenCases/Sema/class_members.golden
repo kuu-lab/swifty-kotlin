@@ -2,16 +2,16 @@ symbol fq=golden.sema.Counter kind=class vis=public flags=_
 symbol fq=golden.sema.Counter.count kind=property vis=public flags=mutable type=Int
 symbol fq=golden.sema.Counter.initial kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.Singleton kind=object vis=public flags=_
-file f12 package=golden.sema
-  decl d0 class Counter sym=golden.sema.Counter
-  decl d1 object Singleton sym=golden.sema.Singleton
-expr e0 name(initial0) type=<error>
-expr e1 name(initial) type=Int ref=golden.sema.Counter.initial
-expr e2 string(counter) type=String
-expr e3 name(count) type=Int ref=golden.sema.Counter.count
-expr e4 int(1) type=Int
-expr e5 binary(add) lhs=e3 rhs=e4 type=Int
-expr e6 localAssign count value=e5 type=Unit ref=golden.sema.Counter.count
-expr e7 name(count) type=Int ref=golden.sema.Counter.count
-expr e8 string(singleton) type=String
-expr e9 string(hello) type=String
+file f13 package=golden.sema
+  decl golden.sema.Counter class Counter sym=golden.sema.Counter
+  decl golden.sema.Singleton object Singleton sym=golden.sema.Singleton
+expr e@4:24 name(initial0) type=<error>
+expr e@5:22 name(initial) type=Int ref=golden.sema.Counter.initial
+expr e@6:25 string(counter) type=String
+expr e@9:17#0 name(count) type=Int ref=golden.sema.Counter.count
+expr e@9:25 int(1) type=Int
+expr e@9:17#1 binary(add) lhs=e@9:17#0 rhs=e@9:25 type=Int
+expr e@9:9#1 localAssign count value=e@9:17#1 type=Unit ref=golden.sema.Counter.count
+expr e@12:22#1 name(count) type=Int ref=golden.sema.Counter.count
+expr e@16:24#2 string(singleton) type=String
+expr e@17:27 string(hello) type=String

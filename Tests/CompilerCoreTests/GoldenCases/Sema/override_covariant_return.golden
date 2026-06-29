@@ -12,28 +12,28 @@ symbol fq=golden.sema.NumberContainer kind=class vis=public flags=openType
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 class NumberContainer sym=golden.sema.NumberContainer
-  decl d1 class IntContainer sym=golden.sema.IntContainer
-  decl d2 class Animal sym=golden.sema.Animal
-  decl d3 class Dog sym=golden.sema.Dog
-  decl d4 fun main sym=golden.sema.main
-expr e0 int(42) type=Int
-expr e1 string(base) type=String
-expr e2 int(123) type=Int
-expr e3 string(derived) type=String
-expr e4 string(animal sound) type=String
-expr e5 string(woof) type=String
-expr e6 call callee=e7 args=[] type=golden.sema.IntContainer call=golden.sema.IntContainer.<init>
-expr e8 localDecl c mutable=0 type=_ init=e6 type=Unit ref=__local_0.c
-expr e9 name(c) type=golden.sema.IntContainer ref=__local_0.c
-expr e10 memberCall recv=e9 callee=getValue args=[] type=Int call=golden.sema.IntContainer.getValue
-expr e11 call callee=e12 args=[_:e10] type=Unit call=kotlin.io.println#1
-expr e13 name(c) type=golden.sema.IntContainer ref=__local_0.c
-expr e14 memberCall recv=e13 callee=getInternal args=[] type=String call=golden.sema.IntContainer.getInternal
-expr e15 call callee=e16 args=[_:e14] type=Unit call=kotlin.io.println#1
-expr e17 call callee=e18 args=[] type=golden.sema.Dog call=golden.sema.Dog.<init>
-expr e19 localDecl dog mutable=0 type=_ init=e17 type=Unit ref=__local_1.dog
-expr e20 name(dog) type=golden.sema.Dog ref=__local_1.dog
-expr e21 memberCall recv=e20 callee=makeSound args=[] type=String call=golden.sema.Dog.makeSound
-expr e22 call callee=e23 args=[_:e21] type=Unit call=kotlin.io.println#1
+file f13 package=golden.sema
+  decl golden.sema.NumberContainer class NumberContainer sym=golden.sema.NumberContainer
+  decl golden.sema.IntContainer class IntContainer sym=golden.sema.IntContainer
+  decl golden.sema.Animal class Animal sym=golden.sema.Animal
+  decl golden.sema.Dog class Dog sym=golden.sema.Dog
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@4:35 int(42) type=Int
+expr e@5:48 string(base) type=String
+expr e@10:36 int(123) type=Int
+expr e@12:49 string(derived) type=String
+expr e@16:36 string(animal sound) type=String
+expr e@20:40 string(woof) type=String
+expr e@24:13#1 call callee=e@24:13#0 args=[] type=golden.sema.IntContainer call=golden.sema.IntContainer.<init>
+expr e@24:5#3 localDecl c mutable=0 type=_ init=e@24:13#1 type=Unit ref=__local_0.c
+expr e@25:13#0 name(c) type=golden.sema.IntContainer ref=__local_0.c
+expr e@25:13#1 memberCall recv=e@25:13#0 callee=getValue args=[] type=Int call=golden.sema.IntContainer.getValue
+expr e@25:5#7 call callee=e@25:5#6 args=[_:e@25:13#1] type=Unit call=kotlin.io.println#1
+expr e@26:13#3 name(c) type=golden.sema.IntContainer ref=__local_0.c
+expr e@26:13#4 memberCall recv=e@26:13#3 callee=getInternal args=[] type=String call=golden.sema.IntContainer.getInternal
+expr e@26:5#7 call callee=e@26:5#6 args=[_:e@26:13#4] type=Unit call=kotlin.io.println#1
+expr e@27:15#3 call callee=e@27:15#2 args=[] type=golden.sema.Dog call=golden.sema.Dog.<init>
+expr e@27:5#4 localDecl dog mutable=0 type=_ init=e@27:15#3 type=Unit ref=__local_1.dog
+expr e@28:13#0 name(dog) type=golden.sema.Dog ref=__local_1.dog
+expr e@28:13#1 memberCall recv=e@28:13#0 callee=makeSound args=[] type=String call=golden.sema.Dog.makeSound
+expr e@28:5#4 call callee=e@28:5#3 args=[_:e@28:13#1] type=Unit call=kotlin.io.println#1

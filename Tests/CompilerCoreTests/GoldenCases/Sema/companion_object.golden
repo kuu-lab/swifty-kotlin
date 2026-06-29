@@ -7,15 +7,15 @@ symbol fq=golden.sema.Foo.Companion kind=object vis=public flags=_
 symbol fq=golden.sema.Foo.Companion.MAX_COUNT kind=property vis=public flags=constValue type=Int
 symbol fq=golden.sema.Foo.Companion.create kind=function vis=public flags=_ sig=recv=golden.sema.Foo.Companion params=[] ret=golden.sema.Foo
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=golden.sema
-  decl d0 class Foo sym=golden.sema.Foo
-  decl d1 fun main sym=golden.sema.main
-expr e0 int(100) type=Int
-expr e1 int(0) type=Int
-expr e2 call callee=e3 args=[_:e1] type=golden.sema.Foo call=golden.sema.Foo.<init>
-expr e4 name(Foo) type=golden.sema.Foo.Companion ref=golden.sema.Foo
-expr e5 memberCall recv=e4 callee=create args=[] type=golden.sema.Foo call=golden.sema.Foo.Companion.create
-expr e6 localDecl f mutable=0 type=t0 init=e5 type=Unit ref=__local_0.f
-expr e7 name(Foo) type=golden.sema.Foo.Companion ref=golden.sema.Foo
-expr e8 memberCall recv=e7 callee=MAX_COUNT args=[] type=Int ref=golden.sema.Foo.Companion.MAX_COUNT
-expr e9 localDecl m mutable=0 type=t1 init=e8 type=Unit ref=__local_1.m
+file f13 package=golden.sema
+  decl golden.sema.Foo class Foo sym=golden.sema.Foo
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@5:36 int(100) type=Int
+expr e@6:33 int(0) type=Int
+expr e@6:29#1 call callee=e@6:29#0 args=[_:e@6:33] type=golden.sema.Foo call=golden.sema.Foo.<init>
+expr e@11:18#0 name(Foo) type=golden.sema.Foo.Companion ref=golden.sema.Foo
+expr e@11:18#1 memberCall recv=e@11:18#0 callee=create args=[] type=golden.sema.Foo call=golden.sema.Foo.Companion.create
+expr e@11:5#2 localDecl f mutable=0 type=Foo init=e@11:18#1 type=Unit ref=__local_0.f
+expr e@12:18#4 name(Foo) type=golden.sema.Foo.Companion ref=golden.sema.Foo
+expr e@12:18#5 memberCall recv=e@12:18#4 callee=MAX_COUNT args=[] type=Int ref=golden.sema.Foo.Companion.MAX_COUNT
+expr e@12:5#4 localDecl m mutable=0 type=Int init=e@12:18#5 type=Unit ref=__local_1.m

@@ -11,34 +11,34 @@ symbol fq=golden.sema.Right kind=interface vis=public flags=_
 symbol fq=golden.sema.Right.method kind=function vis=public flags=overrideMember sig=recv=golden.sema.Right params=[] ret=String
 symbol fq=golden.sema.WithOverride kind=class vis=public flags=_
 symbol fq=golden.sema.WithSuperCall kind=class vis=public flags=_
-file f12 package=golden.sema
-  decl d0 interface Base sym=golden.sema.Base
-  decl d1 interface Left sym=golden.sema.Left
-  decl d2 interface Right sym=golden.sema.Right
-  decl d3 class WithOverride sym=golden.sema.WithOverride
-  decl d4 class WithSuperCall sym=golden.sema.WithSuperCall
-  decl d5 interface A sym=golden.sema.A
-  decl d6 interface B sym=golden.sema.B
-  decl d7 interface C sym=golden.sema.C
-  decl d8 class D sym=golden.sema.D
-expr e0 string(Base) type=String
-expr e1 string(Left) type=String
-expr e2 string(Right) type=String
-expr e3 string(Override) type=String
-expr e4 super<Left> type=golden.sema.Left
-expr e5 memberCall recv=e4 callee=method args=[] type=String call=golden.sema.Left.method
-expr e6 string(+) type=String
-expr e7 binary(add) lhs=e5 rhs=e6 type=String
-expr e8 super<Right> type=golden.sema.Right
-expr e9 memberCall recv=e8 callee=method args=[] type=String call=golden.sema.Right.method
-expr e10 binary(add) lhs=e7 rhs=e9 type=String
-expr e11 string(A) type=String
-expr e12 string(B) type=String
-expr e13 string(BOnly) type=String
-expr e14 string(C) type=String
-expr e15 string(COnly) type=String
-expr e16 super<B> type=golden.sema.B
-expr e17 memberCall recv=e16 callee=greet args=[] type=String call=golden.sema.B.greet
-expr e18 super<C> type=golden.sema.C
-expr e19 memberCall recv=e18 callee=greet args=[] type=String call=golden.sema.C.greet
-expr e20 binary(add) lhs=e17 rhs=e19 type=String
+file f13 package=golden.sema
+  decl golden.sema.Base interface Base sym=golden.sema.Base
+  decl golden.sema.Left interface Left sym=golden.sema.Left
+  decl golden.sema.Right interface Right sym=golden.sema.Right
+  decl golden.sema.WithOverride class WithOverride sym=golden.sema.WithOverride
+  decl golden.sema.WithSuperCall class WithSuperCall sym=golden.sema.WithSuperCall
+  decl golden.sema.A interface A sym=golden.sema.A
+  decl golden.sema.B interface B sym=golden.sema.B
+  decl golden.sema.C interface C sym=golden.sema.C
+  decl golden.sema.D class D sym=golden.sema.D
+expr e@6:28#4 string(Base) type=String
+expr e@10:37 string(Left) type=String
+expr e@14:37 string(Right) type=String
+expr e@19:37 string(Override) type=String
+expr e@24:37#1 super<Left> type=golden.sema.Left
+expr e@24:37#2 memberCall recv=e@24:37#1 callee=method args=[] type=String call=golden.sema.Left.method
+expr e@24:60 string(+) type=String
+expr e@24:37#3 binary(add) lhs=e@24:37#2 rhs=e@24:60 type=String
+expr e@24:66#0 super<Right> type=golden.sema.Right
+expr e@24:66#1 memberCall recv=e@24:66#0 callee=method args=[] type=String call=golden.sema.Right.method
+expr e@24:37#4 binary(add) lhs=e@24:37#3 rhs=e@24:66#1 type=String
+expr e@29:27#1 string(A) type=String
+expr e@33:36 string(B) type=String
+expr e@34:27 string(BOnly) type=String
+expr e@38:36 string(C) type=String
+expr e@39:27 string(COnly) type=String
+expr e@44:36#0 super<B> type=golden.sema.B
+expr e@44:36#1 memberCall recv=e@44:36#0 callee=greet args=[] type=String call=golden.sema.B.greet
+expr e@44:55#0 super<C> type=golden.sema.C
+expr e@44:55#1 memberCall recv=e@44:55#0 callee=greet args=[] type=String call=golden.sema.C.greet
+expr e@44:36#2 binary(add) lhs=e@44:36#1 rhs=e@44:55#1 type=String

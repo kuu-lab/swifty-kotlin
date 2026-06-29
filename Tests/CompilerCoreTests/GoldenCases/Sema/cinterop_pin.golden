@@ -8,15 +8,15 @@ symbol fq=kotlinx.cinterop.Pinned.get kind=function vis=public flags=synthetic s
 symbol fq=kotlinx.cinterop.Pinned.unpin kind=function vis=public flags=synthetic sig=recv=kotlinx.cinterop.Pinned<kotlinx.cinterop.Pinned.T> params=[] ret=Unit bounds=[Any]
 symbol fq=kotlinx.cinterop.pin kind=function vis=public flags=inlineFunction|synthetic sig=recv=kotlinx.cinterop.pin.T params=[] ret=kotlinx.cinterop.Pinned<kotlinx.cinterop.pin.T> bounds=[Any]
 symbol fq=kotlinx.cinterop.pin.T kind=typeParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun testPin sym=golden.sema.testPin
-expr e0 name(obj) type=Any ref=golden.sema.testPin.$0.obj
-expr e1 memberCall recv=e0 callee=pin args=[] type=kotlinx.cinterop.Pinned<Any> call=kotlinx.cinterop.pin targs=[Any]
-expr e2 localDecl pinned mutable=0 type=t0 init=e1 type=Unit ref=__local_0.pinned
-expr e3 name(pinned) type=kotlinx.cinterop.Pinned<Any> ref=__local_0.pinned
-expr e4 memberCall recv=e3 callee=get args=[] type=Any call=kotlinx.cinterop.Pinned.get targs=[Any]
-expr e5 localDecl retrieved mutable=0 type=t1 init=e4 type=Unit ref=__local_1.retrieved
-expr e6 name(pinned) type=kotlinx.cinterop.Pinned<Any> ref=__local_0.pinned
-expr e7 memberCall recv=e6 callee=unpin args=[] type=Unit call=kotlinx.cinterop.Pinned.unpin targs=[Any]
-expr e8 name(retrieved) type=Any ref=__local_1.retrieved
-expr e9 return value=e8 type=Nothing
+file f13 package=golden.sema
+  decl golden.sema.testPin fun testPin sym=golden.sema.testPin
+expr e@9:31#0 name(obj) type=Any ref=golden.sema.testPin.$0.obj
+expr e@9:31#1 memberCall recv=e@9:31#0 callee=pin args=[] type=kotlinx.cinterop.Pinned<Any> call=kotlinx.cinterop.pin targs=[Any]
+expr e@9:5 localDecl pinned mutable=0 type=Pinned<Any> init=e@9:31#1 type=Unit ref=__local_0.pinned
+expr e@10:26#0 name(pinned) type=kotlinx.cinterop.Pinned<Any> ref=__local_0.pinned
+expr e@10:26#1 memberCall recv=e@10:26#0 callee=get args=[] type=Any call=kotlinx.cinterop.Pinned.get targs=[Any]
+expr e@10:5#1 localDecl retrieved mutable=0 type=Any init=e@10:26#1 type=Unit ref=__local_1.retrieved
+expr e@11:5#2 name(pinned) type=kotlinx.cinterop.Pinned<Any> ref=__local_0.pinned
+expr e@11:5#3 memberCall recv=e@11:5#2 callee=unpin args=[] type=Unit call=kotlinx.cinterop.Pinned.unpin targs=[Any]
+expr e@12:12#2 name(retrieved) type=Any ref=__local_1.retrieved
+expr e@12:5#4 return value=e@12:12#2 type=Nothing

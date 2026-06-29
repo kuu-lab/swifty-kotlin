@@ -1,7 +1,7 @@
 symbol fq=charIsTitleCase kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Boolean
 symbol fq=charIsTitleCase.$0.c kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.isTitleCase kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
-file f12 package=_
-  decl d0 fun charIsTitleCase sym=charIsTitleCase
-expr e0 name(c) type=Char ref=charIsTitleCase.$0.c
-expr e1 memberCall recv=e0 callee=isTitleCase args=[] type=Boolean call=kotlin.text.isTitleCase
+file f13 package=_
+  decl charIsTitleCase fun charIsTitleCase sym=charIsTitleCase
+expr e@1:41#0 name(c) type=Char ref=charIsTitleCase.$0.c
+expr e@1:41#1 memberCall recv=e@1:41#0 callee=isTitleCase args=[] type=Boolean call=kotlin.text.isTitleCase

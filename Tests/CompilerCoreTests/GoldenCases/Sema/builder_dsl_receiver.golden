@@ -7,22 +7,22 @@ symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=sy
 symbol fq=kotlin.text.StringBuilder kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.StringBuilder.append#7 kind=function vis=public flags=synthetic sig=recv=kotlin.text.StringBuilder params=[String?] ret=kotlin.text.StringBuilder
 symbol fq=kotlin.text.StringBuilder.append.value kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
-  decl d0 fun useBuildStringReceiverThis sym=golden.sema.useBuildStringReceiverThis
-  decl d1 fun useBuildListReceiverThis sym=golden.sema.useBuildListReceiverThis
-expr e0 this type=kotlin.text.StringBuilder
-expr e1 string(a) type=String
-expr e2 memberCall recv=e0 callee=append args=[_:e1] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
-expr e3 string(b) type=String
-expr e4 call callee=e5 args=[_:e3] type=Unit
-expr e6 blockExpr stmts=[e2] trailing=e4 type=Unit
-expr e7 lambda params=[] body=e6 label=buildString type=() -> Unit
-expr e8 call callee=e9 args=[_:e7] type=String
-expr e10 this type=kotlin.collections.MutableList<Int>
-expr e11 int(1) type=Int
-expr e12 memberCall recv=e10 callee=add args=[_:e11] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e13 int(2) type=Int
-expr e14 call callee=e15 args=[_:e13] type=Unit
-expr e16 blockExpr stmts=[e12] trailing=e14 type=Unit
-expr e17 lambda params=[] body=e16 label=buildList type=() -> Unit
-expr e18 call callee=e19 args=[_:e17] type=kotlin.collections.List<out Int>
+file f13 package=golden.sema
+  decl golden.sema.useBuildStringReceiverThis fun useBuildStringReceiverThis sym=golden.sema.useBuildStringReceiverThis
+  decl golden.sema.useBuildListReceiverThis fun useBuildListReceiverThis sym=golden.sema.useBuildListReceiverThis
+expr e@4:5#2 this type=kotlin.text.StringBuilder
+expr e@4:17#2 string(a) type=String
+expr e@4:5#3 memberCall recv=e@4:5#2 callee=append args=[_:e@4:17#2] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
+expr e@5:12 string(b) type=String
+expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:12] type=Unit
+expr e@4:5#4 blockExpr stmts=[e@4:5#3] trailing=e@5:5#3 type=Unit
+expr e@3:56 lambda params=[] body=e@4:5#4 label=buildString type=() -> Unit
+expr e@3:44#1 call callee=e@3:44#0 args=[_:e@3:56] type=String
+expr e@9:5#0 this type=kotlin.collections.MutableList<Int>
+expr e@9:14 int(1) type=Int
+expr e@9:5#1 memberCall recv=e@9:5#0 callee=add args=[_:e@9:14] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@10:9 int(2) type=Int
+expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:9] type=Unit
+expr e@9:5#2 blockExpr stmts=[e@9:5#1] trailing=e@10:5#2 type=Unit
+expr e@8:49 lambda params=[] body=e@9:5#2 label=buildList type=() -> Unit
+expr e@8:39#1 call callee=e@8:39#0 args=[_:e@8:49] type=kotlin.collections.List<out Int>

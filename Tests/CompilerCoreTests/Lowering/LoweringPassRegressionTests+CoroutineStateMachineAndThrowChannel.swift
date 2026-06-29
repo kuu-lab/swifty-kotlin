@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringPassRegressionTests {
+    @Test
     func testCoroutineLoweringSpillsAndReloadsLiveValuesAcrossSuspension() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -50,24 +52,25 @@ extension LoweringPassRegressionTests {
         let loweredSuspend = try findKIRFunction(named: "kk_suspend_suspendTarget", in: module, interner: interner)
 
         let loweredCalls = extractCallees(from: loweredSuspend.body, interner: interner)
-        XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_set_spill"))
-        XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_get_spill"))
-        XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_set_completion"))
-        XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_get_completion"))
+        #expect(loweredCalls.contains("kk_coroutine_state_set_spill"))
+        #expect(loweredCalls.contains("kk_coroutine_state_get_spill"))
+        #expect(loweredCalls.contains("kk_coroutine_state_set_completion"))
+        #expect(loweredCalls.contains("kk_coroutine_state_get_completion"))
 
         let setSpillCount = loweredCalls.filter { $0 == "kk_coroutine_state_set_spill" }.count
         let getSpillCount = loweredCalls.filter { $0 == "kk_coroutine_state_get_spill" }.count
-        XCTAssertEqual(setSpillCount, 1)
-        XCTAssertEqual(getSpillCount, 1)
+        #expect(setSpillCount == 1)
+        #expect(getSpillCount == 1)
 
         let throwFlags = extractThrowFlags(from: loweredSuspend.body, interner: interner)
-        XCTAssertEqual(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_state_set_spill"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_state_get_spill"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(throwFlags["kk_coroutine_state_get_completion"]?.allSatisfy { $0 == false }, true)
+        #expect(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true } == true)
+        #expect(throwFlags["kk_coroutine_state_set_spill"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags["kk_coroutine_state_get_spill"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags["kk_coroutine_state_get_completion"]?.allSatisfy { $0 == false } == true)
     }
 
+    @Test
     func testCoroutineLoweringRewritesSuspendCoroutineIntrinsicToFunctionInvoke() throws {
         let source = """
         import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
@@ -87,20 +90,21 @@ extension LoweringPassRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let loweredProbe = try findKIRFunction(named: "kk_suspend_probe", in: module, interner: ctx.interner)
 
             let loweredCalls = extractCallees(from: loweredProbe.body, interner: ctx.interner)
-            XCTAssertFalse(loweredCalls.contains("suspendCoroutineUninterceptedOrReturn"))
-            XCTAssertTrue(loweredCalls.contains("kk_coroutine_suspended"), "Callees: \(loweredCalls)")
-            XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_enter"), "Callees: \(loweredCalls)")
-            XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_exit"), "Callees: \(loweredCalls)")
+            #expect(!loweredCalls.contains("suspendCoroutineUninterceptedOrReturn"))
+            #expect(loweredCalls.contains("kk_coroutine_suspended"), "Callees: \(loweredCalls)")
+            #expect(loweredCalls.contains("kk_coroutine_state_enter"), "Callees: \(loweredCalls)")
+            #expect(loweredCalls.contains("kk_coroutine_state_exit"), "Callees: \(loweredCalls)")
 
             let throwFlags = extractThrowFlags(from: loweredProbe.body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_coroutine_suspended"]?.allSatisfy { $0 == false }, true)
+            #expect(throwFlags["kk_coroutine_suspended"]?.allSatisfy { $0 == false } == true)
         }
     }
 
+    @Test
     func testCoroutineLoweringSynthesizesContinuationNominalTypeLayoutAndSignature() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -191,8 +195,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let continuationTypeSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let sema = try #require(ctx.sema)
+        let continuationTypeSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .class &&
                 symbol.flags.contains(.synthetic) &&
                 interner.resolve(symbol.name).contains("kk_suspend_suspendTarget$Cont")
@@ -204,31 +208,31 @@ extension LoweringPassRegressionTests {
                 zip(continuationTypeSymbol.fqName, symbol.fqName).allSatisfy { $0 == $1 }
         }
         let fieldNames = Set(continuationFields.map { interner.resolve($0.name) })
-        XCTAssertTrue(fieldNames.contains("$label"))
-        XCTAssertTrue(fieldNames.contains("$completion"))
-        XCTAssertTrue(fieldNames.contains("$spill0"))
+        #expect(fieldNames.contains("$label"))
+        #expect(fieldNames.contains("$completion"))
+        #expect(fieldNames.contains("$spill0"))
 
-        let layout = try XCTUnwrap(sema.symbols.nominalLayout(for: continuationTypeSymbol.id))
-        XCTAssertGreaterThanOrEqual(layout.instanceFieldCount, 3)
-        let labelField = try XCTUnwrap(continuationFields.first(where: { interner.resolve($0.name) == "$label" }))
-        let completionField = try XCTUnwrap(continuationFields.first(where: { interner.resolve($0.name) == "$completion" }))
-        let spillField = try XCTUnwrap(continuationFields.first(where: { interner.resolve($0.name) == "$spill0" }))
-        let labelOffset = try XCTUnwrap(layout.fieldOffsets[labelField.id])
-        let completionOffset = try XCTUnwrap(layout.fieldOffsets[completionField.id])
-        let spillOffset = try XCTUnwrap(layout.fieldOffsets[spillField.id])
-        XCTAssertLessThan(labelOffset, completionOffset)
-        XCTAssertLessThan(completionOffset, spillOffset)
+        let layout = try #require(sema.symbols.nominalLayout(for: continuationTypeSymbol.id))
+        #expect(layout.instanceFieldCount >= 3)
+        let labelField = try #require(continuationFields.first(where: { interner.resolve($0.name) == "$label" }))
+        let completionField = try #require(continuationFields.first(where: { interner.resolve($0.name) == "$completion" }))
+        let spillField = try #require(continuationFields.first(where: { interner.resolve($0.name) == "$spill0" }))
+        let labelOffset = try #require(layout.fieldOffsets[labelField.id])
+        let completionOffset = try #require(layout.fieldOffsets[completionField.id])
+        let spillOffset = try #require(layout.fieldOffsets[spillField.id])
+        #expect(labelOffset < completionOffset)
+        #expect(completionOffset < spillOffset)
 
-        let loweredSuspendSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let loweredSuspendSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .function && interner.resolve(symbol.name).hasPrefix("kk_suspend_suspendTarget")
         }))
-        let loweredSignature = try XCTUnwrap(sema.symbols.functionSignature(for: loweredSuspendSymbol.id))
-        let continuationParameterType = try XCTUnwrap(loweredSignature.parameterTypes.last)
+        let loweredSignature = try #require(sema.symbols.functionSignature(for: loweredSuspendSymbol.id))
+        let continuationParameterType = try #require(loweredSignature.parameterTypes.last)
         guard case let .classType(classType) = types.kind(of: continuationParameterType) else {
-            XCTFail("Expected lowered continuation parameter type to be class type.")
+            Issue.record("Expected lowered continuation parameter type to be class type.")
             return
         }
-        XCTAssertEqual(classType.classSymbol, continuationTypeSymbol.id)
+        #expect(classType.classSymbol == continuationTypeSymbol.id)
 
         let nominalSymbols = module.arena.declarations.compactMap { decl -> SymbolID? in
             guard case let .nominalType(nominal) = decl else {
@@ -236,9 +240,10 @@ extension LoweringPassRegressionTests {
             }
             return nominal.symbol
         }
-        XCTAssertTrue(nominalSymbols.contains(continuationTypeSymbol.id))
+        #expect(nominalSymbols.contains(continuationTypeSymbol.id))
     }
 
+    @Test
     func testSuspendExceptionPropagationKeepsThrowingChannelAcrossSuspendChain() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -315,17 +320,18 @@ extension LoweringPassRegressionTests {
         let loweredLeaf = try findKIRFunction(named: "kk_suspend_leaf", in: module, interner: interner)
 
         let mainThrowFlags = extractThrowFlags(from: loweredMain.body, interner: interner)
-        XCTAssertEqual(mainThrowFlags["kk_suspend_top"]?.allSatisfy { $0 == true }, true)
+        #expect(mainThrowFlags["kk_suspend_top"]?.allSatisfy { $0 == true } == true)
 
         let topThrowFlags = extractThrowFlags(from: loweredTop.body, interner: interner)
-        XCTAssertEqual(topThrowFlags["kk_suspend_leaf"]?.allSatisfy { $0 == true }, true)
-        XCTAssertEqual(topThrowFlags["kk_coroutine_state_set_label"]?.allSatisfy { $0 == false }, true)
-        XCTAssertEqual(topThrowFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false }, true)
+        #expect(topThrowFlags["kk_suspend_leaf"]?.allSatisfy { $0 == true } == true)
+        #expect(topThrowFlags["kk_coroutine_state_set_label"]?.allSatisfy { $0 == false } == true)
+        #expect(topThrowFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
 
         let leafThrowFlags = extractThrowFlags(from: loweredLeaf.body, interner: interner)
-        XCTAssertEqual(leafThrowFlags["external_throwing"]?.allSatisfy { $0 == true }, true)
+        #expect(leafThrowFlags["external_throwing"]?.allSatisfy { $0 == true } == true)
     }
 
+    @Test
     func testSuspendCoroutineLoweringEmitsRuntimeSuspendHelper() throws {
         let source = """
         import kotlin.coroutines.*
@@ -344,8 +350,8 @@ extension LoweringPassRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
-            let loweredSuspend = try XCTUnwrap(module.arena.declarations.compactMap { decl -> KIRFunction? in
+            let module = try #require(ctx.kir)
+            let loweredSuspend = try #require(module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else {
                     return nil
                 }
@@ -354,9 +360,10 @@ extension LoweringPassRegressionTests {
             }.first)
 
             let loweredCallees = extractCallees(from: loweredSuspend.body, interner: ctx.interner)
-            XCTAssertTrue(loweredCallees.contains("kk_suspend_coroutine"))
-            XCTAssertTrue(loweredCallees.contains("kk_coroutine_state_enter"))
-            XCTAssertTrue(loweredCallees.contains("kk_coroutine_state_exit"))
+            #expect(loweredCallees.contains("kk_suspend_coroutine"))
+            #expect(loweredCallees.contains("kk_coroutine_state_enter"))
+            #expect(loweredCallees.contains("kk_coroutine_state_exit"))
         }
     }
 }
+#endif

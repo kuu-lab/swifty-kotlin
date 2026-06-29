@@ -1,7 +1,8 @@
 @testable import CompilerCore
 
 enum GoldenHarnessExprFormat {
-    static func renderExpr(_ expr: Expr, interner: StringInterner) -> String {
+    static func renderExpr(_ expr: Expr, id: ExprID, ctx: StableRenderContext) -> String {
+        let interner = ctx.interner
         switch expr {
         // Literals
         case let .intLiteral(value, _):
@@ -27,108 +28,110 @@ enum GoldenHarnessExprFormat {
 
         // Control flow
         case let .forExpr(loopVariable, iterable, body, label, _):
-            return renderLoopExpr("for", loopVariable, iterable, body, label, interner,
+            return renderLoopExpr("for", loopVariable, iterable, body, label, ctx,
                 variableKey: "var", iterableKey: "iterable", bodyKey: "body")
         case let .whileExpr(condition, body, label, _):
-            return renderWhileLoop(condition, body, label, interner)
+            return renderWhileLoop(condition, body, label, ctx)
         case let .doWhileExpr(body, condition, label, _):
-            return renderDoWhileLoop(body, condition, label, interner)
+            return renderDoWhileLoop(body, condition, label, ctx)
         case let .breakExpr(label, _):
-            return renderJumpExpr("break", label, interner)
+            return renderJumpExpr("break", label, ctx)
         case let .continueExpr(label, _):
-            return renderJumpExpr("continue", label, interner)
+            return renderJumpExpr("continue", label, ctx)
 
         // Declarations and assignments
         case let .localDecl(name, isMutable, typeAnnotation, initializer, isDelegated, _):
-            return renderLocalDecl(name, isMutable, typeAnnotation.map { TypeID(rawValue: $0.rawValue) }, initializer, isDelegated, interner)
+            return renderLocalDecl(name, isMutable, typeAnnotation, initializer, isDelegated, ctx)
         case let .localAssign(name, value, _):
-            return "localAssign \(interner.resolve(name)) value=e\(value.rawValue)"
+            return "localAssign \(interner.resolve(name)) value=\(ctx.exprKey(value))"
         case let .indexedAssign(receiver, indices, value, _):
-            let idxStr = indices.map { "e\($0.rawValue)" }.joined(separator: ",")
-            return "indexedAssign receiver=e\(receiver.rawValue) indices=[\(idxStr)] value=e\(value.rawValue)"
+            let idxStr = indices.map { ctx.exprKey($0) }.joined(separator: ",")
+            return "indexedAssign receiver=\(ctx.exprKey(receiver)) indices=[\(idxStr)] value=\(ctx.exprKey(value))"
 
         // Calls and member access
         case let .call(callee, _, args, _):
-            return renderCall("call", callee: callee, args: args, interner: interner)
+            return renderCall("call", callee: callee, args: args, ctx: ctx)
         case let .memberCall(receiver, callee, _, args, _):
-            return renderMemberCall("memberCall", receiver: receiver, callee: callee, args: args, interner: interner)
+            return renderMemberCall("memberCall", receiver: receiver, callee: callee, args: args, ctx: ctx)
         case let .safeMemberCall(receiver, callee, _, args, _):
-            return renderMemberCall("safeMemberCall", receiver: receiver, callee: callee, args: args, interner: interner)
+            return renderMemberCall("safeMemberCall", receiver: receiver, callee: callee, args: args, ctx: ctx)
         case let .indexedAccess(receiver, indices, _):
-            let idxStr = indices.map { "e\($0.rawValue)" }.joined(separator: ",")
-            return "indexedAccess receiver=e\(receiver.rawValue) indices=[\(idxStr)]"
+            let idxStr = indices.map { ctx.exprKey($0) }.joined(separator: ",")
+            return "indexedAccess receiver=\(ctx.exprKey(receiver)) indices=[\(idxStr)]"
 
         // Binary and unary operations
         case let .binary(oper, lhs, rhs, _):
-            return "binary(\(oper)) lhs=e\(lhs.rawValue) rhs=e\(rhs.rawValue)"
+            return "binary(\(oper)) lhs=\(ctx.exprKey(lhs)) rhs=\(ctx.exprKey(rhs))"
         case let .unaryExpr(oper, operand, _):
-            return "unary(\(oper)) operand=e\(operand.rawValue)"
+            return "unary(\(oper)) operand=\(ctx.exprKey(operand))"
 
         // Type operations
         case let .isCheck(expr, type, negated, _):
-            return "isCheck\(negated ? "!" : "") expr=e\(expr.rawValue) type=t\(type.rawValue)"
+            let typeStr = ctx.sema.bindings.isCheckTargetTypes[id].map { ctx.renderType($0) } ?? ctx.renderTypeRef(type)
+            return "isCheck\(negated ? "!" : "") expr=\(ctx.exprKey(expr)) type=\(typeStr)"
         case let .asCast(expr, type, isSafe, _):
-            return "asCast\(isSafe ? "?" : "") expr=e\(expr.rawValue) type=t\(type.rawValue)"
+            let typeStr = ctx.sema.bindings.castTargetTypes[id].map { ctx.renderType($0) } ?? ctx.renderTypeRef(type)
+            return "asCast\(isSafe ? "?" : "") expr=\(ctx.exprKey(expr)) type=\(typeStr)"
         case let .nullAssert(expr, _):
-            return "nullAssert expr=e\(expr.rawValue)"
+            return "nullAssert expr=\(ctx.exprKey(expr))"
 
         // Control expressions
         case let .whenExpr(subject, branches, elseExpr, _):
-            return renderWhenExpr(subject: subject, branches: branches, elseExpr: elseExpr, interner: interner)
+            return renderWhenExpr(subject: subject, branches: branches, elseExpr: elseExpr, ctx: ctx)
         case let .returnExpr(value, label, _):
-            let renderedValue = value.map { "e\($0.rawValue)" } ?? "_"
+            let renderedValue = value.map { ctx.exprKey($0) } ?? "_"
             let labelStr = label.map { "@\(interner.resolve($0))" } ?? ""
             return "return\(labelStr) value=\(renderedValue)"
         case let .ifExpr(condition, thenExpr, elseExpr, _):
-            let renderedElse = elseExpr.map { "e\($0.rawValue)" } ?? "_"
-            return "if cond=e\(condition.rawValue) then=e\(thenExpr.rawValue) else=\(renderedElse)"
+            let renderedElse = elseExpr.map { ctx.exprKey($0) } ?? "_"
+            return "if cond=\(ctx.exprKey(condition)) then=\(ctx.exprKey(thenExpr)) else=\(renderedElse)"
         case let .tryExpr(body, catchClauses, finallyExpr, _):
-            let catches = catchClauses.map { "e\($0.body.rawValue)" }.joined(separator: ",")
-            let renderedFinally = finallyExpr.map { "e\($0.rawValue)" } ?? "_"
-            return "try body=e\(body.rawValue) catches=[\(catches)] finally=\(renderedFinally)"
+            let catches = catchClauses.map { ctx.exprKey($0.body) }.joined(separator: ",")
+            let renderedFinally = finallyExpr.map { ctx.exprKey($0) } ?? "_"
+            return "try body=\(ctx.exprKey(body)) catches=[\(catches)] finally=\(renderedFinally)"
         case let .compoundAssign(oper, name, value, _):
-            return "compoundAssign(\(oper)) name=\(interner.resolve(name)) value=e\(value.rawValue)"
+            return "compoundAssign(\(oper)) name=\(interner.resolve(name)) value=\(ctx.exprKey(value))"
         case let .indexedCompoundAssign(oper, receiver, indices, value, _):
-            let idxStr = indices.map { "e\($0.rawValue)" }.joined(separator: ",")
-            let recv = "receiver=e\(receiver.rawValue)"
-            return "indexedCompoundAssign(\(oper)) \(recv) indices=[\(idxStr)] value=e\(value.rawValue)"
+            let idxStr = indices.map { ctx.exprKey($0) }.joined(separator: ",")
+            let recv = "receiver=\(ctx.exprKey(receiver))"
+            return "indexedCompoundAssign(\(oper)) \(recv) indices=[\(idxStr)] value=\(ctx.exprKey(value))"
         case let .stringTemplate(parts, _):
             let rendered = parts.map { part -> String in
                 switch part {
                 case let .literal(text):
                     return "lit(\(interner.resolve(text)))"
                 case let .expression(exprID):
-                    return "expr(e\(exprID.rawValue))"
+                    return "expr(\(ctx.exprKey(exprID)))"
                 }
             }.joined(separator: ",")
             return "stringTemplate[\(rendered)]"
         case let .throwExpr(value, _):
-            return "throw value=e\(value.rawValue)"
+            return "throw value=\(ctx.exprKey(value))"
         case let .lambdaLiteral(params, body, label, _):
             let renderedParams = params.map { interner.resolve($0) }.joined(separator: ",")
             let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
-            return "lambda params=[\(renderedParams)] body=e\(body.rawValue)\(labelStr)"
+            return "lambda params=[\(renderedParams)] body=\(ctx.exprKey(body))\(labelStr)"
         case let .objectLiteral(superTypes, _, _):
-            let renderedSuperTypes = superTypes.map { "t\($0.rawValue)" }.joined(separator: ",")
+            let renderedSuperTypes = superTypes.map { ctx.renderTypeRef($0) }.joined(separator: ",")
             return "objectLiteral supers=[\(renderedSuperTypes)]"
         case let .callableRef(receiver, member, _):
-            let renderedReceiver = receiver.map { "e\($0.rawValue)" } ?? "_"
+            let renderedReceiver = receiver.map { ctx.exprKey($0) } ?? "_"
             return "callableRef recv=\(renderedReceiver) member=\(interner.resolve(member))"
         case let .localFunDecl(name, valueParams, returnType, body, isSuspend, _):
             let params = valueParams.map { interner.resolve($0.name) }.joined(separator: ",")
             let bodyStr = switch body {
             case let .block(exprs, _):
-                "block[\(exprs.map { "e\($0.rawValue)" }.joined(separator: ","))]"
+                "block[\(exprs.map { ctx.exprKey($0) }.joined(separator: ","))]"
             case let .expr(exprID, _):
-                "e\(exprID.rawValue)"
+                ctx.exprKey(exprID)
             case .unit:
                 "unit"
             }
-            let retStr = returnType.map { "t\($0.rawValue)" } ?? "nil"
+            let retStr = returnType.map { ctx.renderTypeRef($0) } ?? "nil"
             return "localFunDecl \(interner.resolve(name))\(isSuspend ? " suspend=1" : "") params=[\(params)] returnType=\(retStr) body=\(bodyStr)"
         case let .blockExpr(statements, trailingExpr, _):
-            let stmts = statements.map { "e\($0.rawValue)" }.joined(separator: ",")
-            let trailing = trailingExpr.map { "e\($0.rawValue)" } ?? "_"
+            let stmts = statements.map { ctx.exprKey($0) }.joined(separator: ",")
+            let trailing = trailingExpr.map { ctx.exprKey($0) } ?? "_"
             return "blockExpr stmts=[\(stmts)] trailing=\(trailing)"
         case let .superRef(qualifier, _):
             if let qualifier {
@@ -141,20 +144,20 @@ enum GoldenHarnessExprFormat {
             }
             return "this"
         case let .inExpr(lhs, rhs, _):
-            return "inExpr lhs=e\(lhs.rawValue) rhs=e\(rhs.rawValue)"
+            return "inExpr lhs=\(ctx.exprKey(lhs)) rhs=\(ctx.exprKey(rhs))"
         case let .notInExpr(lhs, rhs, _):
-            return "notInExpr lhs=e\(lhs.rawValue) rhs=e\(rhs.rawValue)"
+            return "notInExpr lhs=\(ctx.exprKey(lhs)) rhs=\(ctx.exprKey(rhs))"
         case let .destructuringDecl(names, isMutable, initializer, _):
             let renderedNames = names.map { $0.map { interner.resolve($0) } ?? "_" }
                 .joined(separator: ",")
             let mutStr = "mutable=\(isMutable ? 1 : 0)"
-            return "destructuringDecl names=[\(renderedNames)] \(mutStr) init=e\(initializer.rawValue)"
+            return "destructuringDecl names=[\(renderedNames)] \(mutStr) init=\(ctx.exprKey(initializer))"
         case let .forDestructuringExpr(names, iterable, body, _):
             let renderedNames = names.map { $0.map { interner.resolve($0) } ?? "_" }
                 .joined(separator: ",")
-            return "forDestructuring names=[\(renderedNames)] iterable=e\(iterable.rawValue) body=e\(body.rawValue)"
+            return "forDestructuring names=[\(renderedNames)] iterable=\(ctx.exprKey(iterable)) body=\(ctx.exprKey(body))"
         case let .memberAssign(receiver, callee, value, _):
-            return "memberAssign recv=e\(receiver.rawValue) callee=\(interner.resolve(callee)) value=e\(value.rawValue)"
+            return "memberAssign recv=\(ctx.exprKey(receiver)) callee=\(interner.resolve(callee)) value=\(ctx.exprKey(value))"
         }
     }
 
@@ -170,51 +173,51 @@ enum GoldenHarnessExprFormat {
         _ iterable: ExprID,
         _ body: ExprID,
         _ label: InternedString?,
-        _ interner: StringInterner,
+        _ ctx: StableRenderContext,
         variableKey: String,
         iterableKey: String,
         bodyKey: String
     ) -> String {
-        let variable = loopVariable.map { interner.resolve($0) } ?? "_"
-        let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
-        return "\(loopType) \(variableKey)=\(variable) \(iterableKey)=e\(iterable.rawValue) \(bodyKey)=e\(body.rawValue)\(labelStr)"
+        let variable = loopVariable.map { ctx.interner.resolve($0) } ?? "_"
+        let labelStr = label.map { " label=\(ctx.interner.resolve($0))" } ?? ""
+        return "\(loopType) \(variableKey)=\(variable) \(iterableKey)=\(ctx.exprKey(iterable)) \(bodyKey)=\(ctx.exprKey(body))\(labelStr)"
     }
 
-    private static func renderWhileLoop(_ condition: ExprID, _ body: ExprID, _ label: InternedString?, _ interner: StringInterner) -> String {
-        let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
-        return "while cond=e\(condition.rawValue) body=e\(body.rawValue)\(labelStr)"
+    private static func renderWhileLoop(_ condition: ExprID, _ body: ExprID, _ label: InternedString?, _ ctx: StableRenderContext) -> String {
+        let labelStr = label.map { " label=\(ctx.interner.resolve($0))" } ?? ""
+        return "while cond=\(ctx.exprKey(condition)) body=\(ctx.exprKey(body))\(labelStr)"
     }
 
-    private static func renderDoWhileLoop(_ body: ExprID, _ condition: ExprID, _ label: InternedString?, _ interner: StringInterner) -> String {
-        let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
-        return "doWhile body=e\(body.rawValue) cond=e\(condition.rawValue)\(labelStr)"
+    private static func renderDoWhileLoop(_ body: ExprID, _ condition: ExprID, _ label: InternedString?, _ ctx: StableRenderContext) -> String {
+        let labelStr = label.map { " label=\(ctx.interner.resolve($0))" } ?? ""
+        return "doWhile body=\(ctx.exprKey(body)) cond=\(ctx.exprKey(condition))\(labelStr)"
     }
 
-    private static func renderJumpExpr(_ jumpType: String, _ label: InternedString?, _ interner: StringInterner) -> String {
-        let labelStr = label.map { "@\(interner.resolve($0))" } ?? ""
+    private static func renderJumpExpr(_ jumpType: String, _ label: InternedString?, _ ctx: StableRenderContext) -> String {
+        let labelStr = label.map { "@\(ctx.interner.resolve($0))" } ?? ""
         return "\(jumpType)\(labelStr)"
     }
 
     private static func renderLocalDecl(
         _ name: InternedString,
         _ isMutable: Bool,
-        _ typeAnnotation: TypeID?,
+        _ typeAnnotation: TypeRefID?,
         _ initializer: ExprID?,
         _ isDelegated: Bool,
-        _ interner: StringInterner
+        _ ctx: StableRenderContext
     ) -> String {
-        let typeStr = typeAnnotation.map { "t\($0.rawValue)" } ?? "_"
-        let initStr = initializer.map { "e\($0.rawValue)" } ?? "_"
+        let typeStr = typeAnnotation.map { ctx.renderTypeRef($0) } ?? "_"
+        let initStr = initializer.map { ctx.exprKey($0) } ?? "_"
         let delegatedStr = isDelegated ? " delegated=1" : ""
-        return "localDecl \(interner.resolve(name)) mutable=\(isMutable ? 1 : 0) type=\(typeStr) init=\(initStr)\(delegatedStr)"
+        return "localDecl \(ctx.interner.resolve(name)) mutable=\(isMutable ? 1 : 0) type=\(typeStr) init=\(initStr)\(delegatedStr)"
     }
 
-    private static func renderCall(_ callType: String, callee: ExprID, args: [CallArgument], interner: StringInterner) -> String {
+    private static func renderCall(_ callType: String, callee: ExprID, args: [CallArgument], ctx: StableRenderContext) -> String {
         let renderedArgs = args.map { arg in
-            let label = arg.label.map { interner.resolve($0) } ?? "_"
-            return "\(label):e\(arg.expr.rawValue)"
+            let label = arg.label.map { ctx.interner.resolve($0) } ?? "_"
+            return "\(label):\(ctx.exprKey(arg.expr))"
         }.joined(separator: ",")
-        return "\(callType) callee=e\(callee.rawValue) args=[\(renderedArgs)]"
+        return "\(callType) callee=\(ctx.exprKey(callee)) args=[\(renderedArgs)]"
     }
 
     private static func renderMemberCall(
@@ -222,32 +225,32 @@ enum GoldenHarnessExprFormat {
         receiver: ExprID,
         callee: InternedString,
         args: [CallArgument],
-        interner: StringInterner
+        ctx: StableRenderContext
     ) -> String {
         let renderedArgs = args.map { arg in
-            let label = arg.label.map { interner.resolve($0) } ?? "_"
-            return "\(label):e\(arg.expr.rawValue)"
+            let label = arg.label.map { ctx.interner.resolve($0) } ?? "_"
+            return "\(label):\(ctx.exprKey(arg.expr))"
         }.joined(separator: ",")
-        return "\(callType) recv=e\(receiver.rawValue) callee=\(interner.resolve(callee)) args=[\(renderedArgs)]"
+        return "\(callType) recv=\(ctx.exprKey(receiver)) callee=\(ctx.interner.resolve(callee)) args=[\(renderedArgs)]"
     }
 
     private static func renderWhenExpr(
         subject: ExprID?,
         branches: [WhenBranch],
         elseExpr: ExprID?,
-        interner _: StringInterner
+        ctx: StableRenderContext
     ) -> String {
         let renderedBranches = branches.map { branch in
             let conditions: String = if branch.conditions.isEmpty {
                 "else"
             } else {
-                branch.conditions.map { "e\($0.rawValue)" }.joined(separator: ",")
+                branch.conditions.map { ctx.exprKey($0) }.joined(separator: ",")
             }
-            let guardPart = branch.guard_.map { " if e\($0.rawValue)" } ?? ""
-            return "\(conditions)\(guardPart)->e\(branch.body.rawValue)"
+            let guardPart = branch.guard_.map { " if \(ctx.exprKey($0))" } ?? ""
+            return "\(conditions)\(guardPart)->\(ctx.exprKey(branch.body))"
         }.joined(separator: ",")
-        let renderedElse = elseExpr.map { "e\($0.rawValue)" } ?? "_"
-        let renderedSubject = subject.map { "e\($0.rawValue)" } ?? "_"
+        let renderedElse = elseExpr.map { ctx.exprKey($0) } ?? "_"
+        let renderedSubject = subject.map { ctx.exprKey($0) } ?? "_"
         return "when subject=\(renderedSubject) branches=[\(renderedBranches)] else=\(renderedElse)"
     }
 }

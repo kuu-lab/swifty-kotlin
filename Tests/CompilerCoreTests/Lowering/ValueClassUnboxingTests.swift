@@ -1,10 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class ValueClassUnboxingTests: XCTestCase {
+@Suite
+struct ValueClassUnboxingTests {
     // MARK: - Value class flag propagation
 
+    @Test
     func testValueModifierSetsValueTypeFlag() throws {
         let source = """
         value class Meter(val amount: Int)
@@ -12,15 +15,16 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        let meterSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
         }))
-        XCTAssertTrue(meterSymbol.flags.contains(.valueType), "value class should have valueType flag")
+        #expect(meterSymbol.flags.contains(.valueType), "value class should have valueType flag")
     }
 
+    @Test
     func testValueClassRecordsUnderlyingType() throws {
         let source = """
         value class Meter(val amount: Int)
@@ -28,25 +32,26 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        let meterSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let meterSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .class && interner.resolve(symbol.name) == "Meter"
         }))
         let underlyingType = sema.symbols.valueClassUnderlyingType(for: meterSymbol.id)
-        XCTAssertNotNil(underlyingType, "value class should have an underlying type recorded")
+        #expect(underlyingType != nil, "value class should have an underlying type recorded")
 
         if let underlyingType {
             let kind = sema.types.kind(of: underlyingType)
             if case .primitive(.int, .nonNull) = kind {
                 // Expected
             } else {
-                XCTFail("Expected underlying type to be Int, got \(kind)")
+                Issue.record("Expected underlying type to be Int, got \(kind)")
             }
         }
     }
 
+    @Test
     func testJvmInlineValueClassSetsValueTypeFlag() throws {
         let source = """
         @JvmInline
@@ -55,18 +60,19 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        let userIdSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let userIdSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .class && interner.resolve(symbol.name) == "UserId"
         }))
-        XCTAssertTrue(userIdSymbol.flags.contains(.valueType), "@JvmInline value class should have valueType flag")
+        #expect(userIdSymbol.flags.contains(.valueType), "@JvmInline value class should have valueType flag")
 
         let underlyingType = sema.symbols.valueClassUnderlyingType(for: userIdSymbol.id)
-        XCTAssertNotNil(underlyingType, "@JvmInline value class should record an underlying type")
+        #expect(underlyingType != nil, "@JvmInline value class should record an underlying type")
     }
 
+    @Test
     func testInlineClassSetsValueTypeFlag() throws {
         let source = """
         inline class LegacyCount(val raw: Int)
@@ -74,21 +80,22 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
 
-        let legacyCountSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let legacyCountSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .class && interner.resolve(symbol.name) == "LegacyCount"
         }))
-        XCTAssertTrue(legacyCountSymbol.flags.contains(.valueType), "inline class should have valueType flag")
-        XCTAssertFalse(legacyCountSymbol.flags.contains(.inlineFunction), "inline class should not be marked as inline function")
+        #expect(legacyCountSymbol.flags.contains(.valueType), "inline class should have valueType flag")
+        #expect(!legacyCountSymbol.flags.contains(.inlineFunction), "inline class should not be marked as inline function")
 
         let underlyingType = sema.symbols.valueClassUnderlyingType(for: legacyCountSymbol.id)
-        XCTAssertNotNil(underlyingType, "inline class should record an underlying type")
+        #expect(underlyingType != nil, "inline class should record an underlying type")
     }
 
     // MARK: - Value class unboxing lowering
 
+    @Test
     func testValueClassConstructorRewrittenToCopy() throws {
         // The ValueClassUnboxingPass is now enabled and rewrites constructor
         // calls for value classes into .copy instructions.
@@ -103,10 +110,10 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
 
         // The pass name should be recorded.
-        XCTAssertTrue(
+        #expect(
             module.executedLowerings.contains("ValueClassUnboxing"),
             "ValueClassUnboxing pass should have been recorded"
         )
@@ -138,12 +145,13 @@ final class ValueClassUnboxingTests: XCTestCase {
             }
         }
 
-        XCTAssertFalse(
-            hasValueClassConstructorCall,
+        #expect(
+            !hasValueClassConstructorCall,
             "Value class constructor call should be rewritten by ValueClassUnboxingPass"
         )
     }
 
+    @Test
     func testValueClassPropertyAccessRewrittenToCopy() throws {
         // Property access on a value class via kk_array_get_inbounds should be
         // rewritten to a copy instruction after unboxing.
@@ -155,7 +163,7 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
         let interner = ctx.interner
         let kk_array_get_inbounds = interner.intern("kk_array_get_inbounds")
 
@@ -181,12 +189,13 @@ final class ValueClassUnboxingTests: XCTestCase {
             }
         }
 
-        XCTAssertFalse(
-            hasArrayGetOnValueClass,
+        #expect(
+            !hasArrayGetOnValueClass,
             "kk_array_get_inbounds on value class should be rewritten to copy"
         )
     }
 
+    @Test
     func testValueClassNoHeapAllocation() throws {
         // After unboxing, kk_object_new calls for value class instances
         // should be eliminated.
@@ -201,7 +210,7 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
         let interner = ctx.interner
         let kk_object_new = interner.intern("kk_object_new")
 
@@ -223,12 +232,13 @@ final class ValueClassUnboxingTests: XCTestCase {
             }
         }
 
-        XCTAssertFalse(
-            hasValueClassAlloc,
+        #expect(
+            !hasValueClassAlloc,
             "kk_object_new for value class should be eliminated by unboxing"
         )
     }
 
+    @Test
     func testNonValueClassNotAffected() throws {
         // Regular classes should not be affected by the unboxing pass.
         let source = """
@@ -242,7 +252,7 @@ final class ValueClassUnboxingTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
         let interner = ctx.interner
         let kk_object_new = interner.intern("kk_object_new")
 
@@ -259,7 +269,7 @@ final class ValueClassUnboxingTests: XCTestCase {
             }
         }
 
-        XCTAssertTrue(
+        #expect(
             hasObjectNew,
             "Regular class should still use kk_object_new for allocation"
         )
@@ -267,6 +277,7 @@ final class ValueClassUnboxingTests: XCTestCase {
 
     // MARK: - Validation diagnostics
 
+    @Test
     func testValueClassMultipleParamsEmitsDiagnostic() throws {
         let source = """
         value class Bad(val x: Int, val y: Int)
@@ -275,12 +286,13 @@ final class ValueClassUnboxingTests: XCTestCase {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.contains(where: { $0.message.contains("exactly one primary constructor parameter") }),
             "Expected diagnostic about single constructor parameter for value class"
         )
     }
 
+    @Test
     func testValueClassSecondaryConstructorEmitsDiagnostic() throws {
         let source = """
         value class Bad(val x: Int) {
@@ -291,9 +303,10 @@ final class ValueClassUnboxingTests: XCTestCase {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.contains(where: { $0.message.contains("secondary constructors") }),
             "Expected diagnostic about secondary constructors for value class"
         )
     }
 }
+#endif

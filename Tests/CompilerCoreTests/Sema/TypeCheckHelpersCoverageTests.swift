@@ -1,7 +1,8 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class TypeCheckHelpersCoverageTests: XCTestCase {}
+@Suite
+struct TypeCheckHelpersCoverageTests {}
 
 struct HelpersFixture {
     let interner: StringInterner

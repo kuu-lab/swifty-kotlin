@@ -1041,11 +1041,13 @@ public func kk_compareValues(_ a: Int, _ b: Int, _ outThrown: UnsafeMutablePoint
     return kk_box_int(runtimeCompareNullableValues(a, b))
 }
 
+/// Comparable<T>.compareTo(other: T): Int — generic interface dispatch for bundled stdlib bodies.
+/// Emitted when a generic `T : Comparable<T>` receiver calls `.compareTo(other)` and no
+/// concrete primitive or synthetic-stub handler matches (e.g. inside `sorted()`).
 @_cdecl("kk_comparable_compareTo")
 public func kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
-
 
 @inline(__always)
 private func runtimeInvokeCompareValuesSelector(

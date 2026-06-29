@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ExpectActualCompatibilityTests: XCTestCase {
-    func testGenericExpectActualClassLinks() throws {
+@Suite
+struct ExpectActualCompatibilityTests {
+    @Test func testGenericExpectActualClassLinks() throws {
         let sources = [
             """
             package sample.kmp
@@ -23,26 +25,26 @@ final class ExpectActualCompatibilityTests: XCTestCase {
             }
             return false
         }
-        XCTAssertTrue(errors.isEmpty, "Expected no semantic errors, got: \(errors)")
+        #expect(errors.isEmpty, "Expected no semantic errors, got: \(errors)")
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let fqName = [
             ctx.interner.intern("sample"),
             ctx.interner.intern("kmp"),
             ctx.interner.intern("Box")
         ]
         let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
-        let expectSymbol = try XCTUnwrap(symbols.first { symbol in
+        let expectSymbol = try #require(symbols.first { symbol in
             symbol.kind == .class && symbol.flags.contains(.expectDeclaration)
         })
-        let actualSymbol = try XCTUnwrap(symbols.first { symbol in
+        let actualSymbol = try #require(symbols.first { symbol in
             symbol.kind == .class && symbol.flags.contains(.actualDeclaration)
         })
 
-        XCTAssertEqual(sema.symbols.actualSymbol(for: expectSymbol.id), actualSymbol.id)
+        #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
     }
 
-    func testExpectValDoesNotMatchActualVar() throws {
+    @Test func testExpectValDoesNotMatchActualVar() throws {
         let sources = [
             """
             package sample.kmp
@@ -63,13 +65,14 @@ final class ExpectActualCompatibilityTests: XCTestCase {
             }
             return diagnostic.code
         }
-        XCTAssertTrue(
-            errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"),
+        let codesContain = errorCodes.contains("KSWIFTK-MPP-UNRESOLVED")
+        #expect(
+            codesContain,
             "Expected unresolved expect/actual mismatch, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
-    func testExpectClassSupertypeMismatchIsRejected() throws {
+    @Test func testExpectClassSupertypeMismatchIsRejected() throws {
         let sources = [
             """
             package sample.kmp
@@ -94,9 +97,11 @@ final class ExpectActualCompatibilityTests: XCTestCase {
             }
             return diagnostic.code
         }
-        XCTAssertTrue(
-            errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"),
+        let codesContain = errorCodes.contains("KSWIFTK-MPP-UNRESOLVED")
+        #expect(
+            codesContain,
             "Expected unresolved expect/actual mismatch, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 }
+#endif

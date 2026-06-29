@@ -1,24 +1,23 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCArrayPointerTypeAliasTests: XCTestCase {
-    func testCArrayPointerTypeAliasSurface() throws {
+@Suite
+struct NativeCInteropCArrayPointerTypeAliasTests {
+    @Test func testCArrayPointerTypeAliasSurface() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CArrayPointer typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointer typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPackage = ["kotlinx", "cinterop"].map { interner.intern($0) }
-        let aliasSymbol = try XCTUnwrap(
+        let aliasSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPackage + [interner.intern("CArrayPointer")])
         )
-        let cPointerSymbol = try XCTUnwrap(
+        let cPointerSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPackage + [interner.intern("CPointer")])
         )
-        let typeParameter = try XCTUnwrap(sema.symbols.typeAliasTypeParameters(for: aliasSymbol).first)
+        let typeParameter = try #require(sema.symbols.typeAliasTypeParameters(for: aliasSymbol).first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -29,12 +28,12 @@ final class NativeCInteropCArrayPointerTypeAliasTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.symbol(aliasSymbol)?.kind, .typeAlias)
-        XCTAssertEqual(sema.symbols.symbol(typeParameter)?.name, interner.intern("T"))
-        XCTAssertEqual(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol), expectedUnderlying)
+        #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
+        #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
+        #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == expectedUnderlying)
     }
 
-    func testCArrayPointerResolvesInSource() throws {
+    @Test func testCArrayPointerResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CArrayPointer
         import kotlinx.cinterop.CPointed
@@ -45,9 +44,7 @@ final class NativeCInteropCArrayPointerTypeAliasTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CArrayPointer typealias to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected CArrayPointer typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

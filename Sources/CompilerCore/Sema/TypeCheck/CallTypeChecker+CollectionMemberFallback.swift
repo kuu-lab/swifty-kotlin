@@ -167,6 +167,17 @@ extension CallTypeChecker {
 
         // Provide contextual function type for collection HOF lambda inference.
         let receiverElementType = collectionFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
+
+        // flatten() is only valid on List<List<T>>. Reject when the element type
+        // is a KNOWN non-collection (e.g. Int).  If the element type is Any we
+        // cannot be sure — it may be List<Any> wrapping real lists at runtime,
+        // so we let it through to preserve the pre-migration behaviour.
+        if interner.resolve(calleeName) == "flatten", !isSequenceReceiver,
+           receiverElementType != sema.types.anyType,
+           !isCollectionLikeType(receiverElementType, sema: sema, interner: interner) {
+            return nil
+        }
+
         if let expectation = collectionFallbackLambdaExpectation(
             memberName: calleeName,
             argCount: args.count,

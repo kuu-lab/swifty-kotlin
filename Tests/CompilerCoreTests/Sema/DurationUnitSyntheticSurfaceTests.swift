@@ -1,16 +1,32 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class DurationUnitSyntheticSurfaceTests: XCTestCase {
-    func testDurationUnitEnumEntriesAreRegistered() throws {
+@Suite
+struct DurationUnitSyntheticSurfaceTests {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected DurationUnit surface source to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+            result = (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test func testDurationUnitEnumEntriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
-        let durationUnitSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("time"),
             interner.intern("DurationUnit"),
         ]))
-        XCTAssertEqual(sema.symbols.symbol(durationUnitSymbol)?.kind, .enumClass)
+        #expect(sema.symbols.symbol(durationUnitSymbol)?.kind == .enumClass)
 
         let durationUnitType = sema.types.make(.classType(ClassType(
             classSymbol: durationUnitSymbol,
@@ -27,18 +43,18 @@ final class DurationUnitSyntheticSurfaceTests: XCTestCase {
             "DAYS",
         ]
         for entry in entries {
-            let entrySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let entrySymbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("time"),
                 interner.intern("DurationUnit"),
                 interner.intern(entry),
             ]), "DurationUnit.\(entry) must be registered")
-            XCTAssertEqual(sema.symbols.parentSymbol(for: entrySymbol), durationUnitSymbol)
-            XCTAssertEqual(sema.symbols.propertyType(for: entrySymbol), durationUnitType)
+            #expect(sema.symbols.parentSymbol(for: entrySymbol) == durationUnitSymbol)
+            #expect(sema.symbols.propertyType(for: entrySymbol) == durationUnitType)
         }
     }
 
-    func testDurationUnitEntriesResolveInSource() throws {
+    @Test func testDurationUnitEntriesResolveInSource() throws {
         let source = """
         import kotlin.time.DurationUnit
 
@@ -58,3 +74,4 @@ final class DurationUnitSyntheticSurfaceTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringPassRegressionTests {
+    @Test
     func testInlineLoweringMapsReifiedTypeTokenSymbolRefToHiddenArgument() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -126,7 +128,7 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainDeclID) else {
-            XCTFail("Expected lowered main function.")
+            Issue.record("Expected lowered main function.")
             return
         }
 
@@ -136,7 +138,7 @@ extension LoweringPassRegressionTests {
             }
             return callee
         }
-        XCTAssertFalse(loweredCallees.contains(inlineName))
+        #expect(!loweredCallees.contains(inlineName))
 
         let symbolRefConstants = loweredMain.body.compactMap { instruction -> SymbolID? in
             guard case let .constValue(_, value) = instruction,
@@ -146,19 +148,19 @@ extension LoweringPassRegressionTests {
             }
             return symbol
         }
-        XCTAssertFalse(symbolRefConstants.contains(typeParameterSymbol))
+        #expect(!symbolRefConstants.contains(typeParameterSymbol))
 
-        let returnExpr = try XCTUnwrap(loweredMain.body.compactMap { instruction -> KIRExprID? in
+        let returnExpr = try #require(loweredMain.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(value) = instruction else {
                 return nil
             }
             return value
         }.first)
         guard case let .intLiteral(returnedLiteral)? = module.arena.expr(returnExpr) else {
-            XCTFail("Expected inline result to resolve to hidden token argument value.")
+            Issue.record("Expected inline result to resolve to hidden token argument value.")
             return
         }
-        XCTAssertEqual(returnedLiteral, 321)
+        #expect(returnedLiteral == 321)
     }
 
     // MARK: - Private Helpers
@@ -265,3 +267,4 @@ extension LoweringPassRegressionTests {
         return LoweringRewriteFixture(interner: interner, module: module, mainID: mainID, emptyID: emptyID)
     }
 }
+#endif
