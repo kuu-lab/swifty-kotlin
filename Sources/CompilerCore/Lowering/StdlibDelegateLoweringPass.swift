@@ -15,7 +15,7 @@ enum StdlibDelegateKind: Equatable {
 ///
 /// Must run **after** `PropertyLoweringPass` so that delegate accessor
 /// calls have already been rewritten to direct getter/setter dispatches.
-final class StdlibDelegateLoweringPass: LoweringPass {
+final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "StdlibDelegateLowering"
 
     func run(module: KIRModule, ctx: KIRContext) throws {
@@ -109,7 +109,14 @@ final class StdlibDelegateLoweringPass: LoweringPass {
                         {
                             switch kind {
                             case .lazy:
-                                guard !callArgs.isEmpty else { break }
+                                // 1-arg form: lazy { ... }         → callArgs = [initFnPtr]
+                                // 2-arg form: lazy(mode) { ... }   → callArgs = [modeValue, initFnPtr]
+                                // Always pick the last arg as the initializer fn ptr.
+                                // The explicit mode from the source is not yet honoured at the
+                                // ABI level (ordinal-to-rawValue conversion is deferred to
+                                // RF-STDLIB-004+); the compiler-option rawValue is used instead.
+                                let initArgIndex = callArgs.count >= 2 ? 1 : 0
+                                guard initArgIndex < callArgs.count else { break }
                                 let modeExpr = module.arena.appendExpr(
                                     .intLiteral(lazyThreadSafetyModeValue), type: nil
                                 )
@@ -128,7 +135,7 @@ final class StdlibDelegateLoweringPass: LoweringPass {
                                     .call(
                                         symbol: nil,
                                         callee: lazyCreateName,
-                                        arguments: [callArgs[0], modeExpr],
+                                        arguments: [callArgs[initArgIndex], modeExpr],
                                         result: createResult,
                                         canThrow: false,
                                         thrownResult: nil

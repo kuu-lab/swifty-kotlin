@@ -1,7 +1,9 @@
-import XCTest
+#if canImport(Testing)
+import Foundation
+import Testing
 
-final class KotlinCompilationURLTests: XCTestCase {
-    func testCompile_urlBasicOperations() throws {
+@Suite struct KotlinCompilationURLTests {
+    @Test func testCompile_urlBasicOperations() throws {
         try assertKotlinCompilesToKIR("""
         import java.net.URL
 
@@ -23,3 +25,4 @@ final class KotlinCompilationURLTests: XCTestCase {
         """)
     }
 }
+#endif

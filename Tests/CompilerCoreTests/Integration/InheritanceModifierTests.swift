@@ -1,11 +1,13 @@
-import XCTest
+#if canImport(Testing)
+import Foundation
+import Testing
 @testable import CompilerCore
 
-final class InheritanceModifierTests: XCTestCase {
+@Suite struct InheritanceModifierTests {
 
     // MARK: - Abstract Override Tests
 
-    func testAbstractOverrideInAbstractClass() throws {
+    @Test func testAbstractOverrideInAbstractClass() throws {
         let source = """
         abstract class Shape {
             abstract fun area(): Double
@@ -20,12 +22,11 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - abstract class can re-abstract concrete methods
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testAbstractOverrideInConcreteClass() throws {
+    @Test func testAbstractOverrideInConcreteClass() throws {
         let source = """
         open class Shape {
             open fun describe(): String = "Shape"
@@ -38,11 +39,10 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - concrete class cannot have abstract members
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
     }
 
-    func testAbstractOverrideOfAbstractMember() throws {
+    @Test func testAbstractOverrideOfAbstractMember() throws {
         let source = """
         abstract class Shape {
             abstract fun area(): Double
@@ -57,12 +57,12 @@ final class InheritanceModifierTests: XCTestCase {
 
         // Kotlin allows an abstract class to keep an inherited abstract member abstract.
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
     // MARK: - Final Override Tests
 
-    func testFinalOverrideValid() throws {
+    @Test func testFinalOverrideValid() throws {
         let source = """
         open class Shape {
             open fun describe(): String = "Shape"
@@ -75,12 +75,11 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - final override is allowed
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testFinalOverrideCannotBeFurtherOverridden() throws {
+    @Test func testFinalOverrideCannotBeFurtherOverridden() throws {
         let source = """
         open class Shape {
             open fun describe(): String = "Shape"
@@ -97,13 +96,12 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - cannot override final member
         assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
     }
 
     // MARK: - Modifier Combination Tests
 
-    func testAbstractFinalConflict() throws {
+    @Test func testAbstractFinalConflict() throws {
         let source = """
         abstract class Shape {
             abstract final fun area(): Double
@@ -116,7 +114,7 @@ final class InheritanceModifierTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testInterfaceMemberCannotBeFinal() throws {
+    @Test func testInterfaceMemberCannotBeFinal() throws {
         let source = """
         interface Shape {
             final fun area(): Double
@@ -125,11 +123,10 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - interface members cannot be final
         assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
     }
 
-    func testInterfaceAbstractRedundant() throws {
+    @Test func testInterfaceAbstractRedundant() throws {
         let source = """
         interface Shape {
             abstract fun area(): Double
@@ -138,11 +135,10 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should warn - abstract is redundant in interface
         assertHasDiagnostic("KSWIFTK-SEMA-REDUNDANT-MODIFIER", in: ctx)
     }
 
-    func testDataClassCannotHaveOpenMembers() throws {
+    @Test func testDataClassCannotHaveOpenMembers() throws {
         let source = """
         data class Point(val x: Int, val y: Int) {
             open fun distance(): Double = 0.0
@@ -151,13 +147,12 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - data class cannot have open members
         assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
     }
 
     // MARK: - Visibility Constraint Tests
 
-    func testOverrideWithLessVisibility() throws {
+    @Test func testOverrideWithLessVisibility() throws {
         let source = """
         open class Shape {
             public fun describe(): String = "Shape"
@@ -170,11 +165,10 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should error - cannot override with less visibility
         assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
     }
 
-    func testOverrideWithSameVisibility() throws {
+    @Test func testOverrideWithSameVisibility() throws {
         let source = """
         open class Shape {
             protected open fun describe(): String = "Shape"
@@ -187,12 +181,11 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - same visibility is allowed
         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testOverrideWithMoreVisibility() throws {
+    @Test func testOverrideWithMoreVisibility() throws {
         let source = """
         open class Shape {
             protected open fun describe(): String = "Shape"
@@ -205,12 +198,11 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - more visibility is allowed
         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testInternalOverrideOfPublicInSameModule() throws {
+    @Test func testInternalOverrideOfPublicInSameModule() throws {
         let source = """
         open class Shape {
             open fun describe(): String = "Shape"
@@ -225,10 +217,10 @@ final class InheritanceModifierTests: XCTestCase {
 
         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testInternalOverrideOfPublicFromOtherModule() throws {
+    @Test func testInternalOverrideOfPublicFromOtherModule() throws {
         let source = """
         open class Shape {
             open fun describe(): String = "Shape"
@@ -247,12 +239,12 @@ final class InheritanceModifierTests: XCTestCase {
         types.symbolTable = symbols
         let bindings = BindingTable()
         let fileScopes = phase.buildFileScopes(
-            ast: try XCTUnwrap(ctx.ast),
+            ast: try #require(ctx.ast),
             symbols: symbols,
             interner: ctx.interner
         )
         phase.collectAllHeaders(
-            ast: try XCTUnwrap(ctx.ast),
+            ast: try #require(ctx.ast),
             fileScopes: fileScopes,
             symbols: symbols,
             types: types,
@@ -265,7 +257,7 @@ final class InheritanceModifierTests: XCTestCase {
             interner: ctx.interner
         )
         phase.bindInheritanceEdges(
-            ast: try XCTUnwrap(ctx.ast),
+            ast: try #require(ctx.ast),
             symbols: symbols,
             bindings: bindings,
             types: types,
@@ -275,7 +267,7 @@ final class InheritanceModifierTests: XCTestCase {
         guard let shapeSymbol = symbols.allSymbols().first(where: {
             ctx.interner.resolve($0.name) == "Shape" && $0.kind == .class
         }) else {
-            XCTFail("Shape symbol not found")
+            Issue.record("Shape symbol not found")
             return
         }
         let otherModule = ctx.interner.intern("OtherModule")
@@ -287,7 +279,7 @@ final class InheritanceModifierTests: XCTestCase {
         }
 
         phase.validateOpenFinalOverride(
-            ast: try XCTUnwrap(ctx.ast),
+            ast: try #require(ctx.ast),
             symbols: symbols,
             bindings: bindings,
             types: types,
@@ -299,7 +291,7 @@ final class InheritanceModifierTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: ctx)
     }
 
-    func testImportedLibrarySymbolsReceiveModuleFQN() throws {
+    @Test func testImportedLibrarySymbolsReceiveModuleFQN() throws {
         let fm = FileManager.default
         let libDir = fm.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -344,15 +336,14 @@ final class InheritanceModifierTests: XCTestCase {
             let baseSymbol = symbols.allSymbols().first {
                 ctx.interner.resolve($0.name) == "Base" && $0.kind == .class
             }
-            XCTAssertNotNil(baseSymbol)
-            XCTAssertEqual(
-                ctx.interner.resolve(symbols.moduleFQN(for: baseSymbol!.id)!),
-                "BaseLib"
+            #expect(baseSymbol != nil)
+            #expect(
+                ctx.interner.resolve(symbols.moduleFQN(for: baseSymbol!.id)!) == "BaseLib"
             )
         }
     }
 
-    func testOverrideWithCovariantReturnType() throws {
+    @Test func testOverrideWithCovariantReturnType() throws {
         let source = """
         open class Animal
         class Dog : Animal()
@@ -369,10 +360,10 @@ final class InheritanceModifierTests: XCTestCase {
         try runSema(ctx)
 
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testOverrideWithIncompatibleReturnType() throws {
+    @Test func testOverrideWithIncompatibleReturnType() throws {
         let source = """
         open class Animal
         open class Plant
@@ -393,7 +384,7 @@ final class InheritanceModifierTests: XCTestCase {
 
     // MARK: - Complex Inheritance Scenarios
 
-    func testComplexInheritanceHierarchy() throws {
+    @Test func testComplexInheritanceHierarchy() throws {
         let source = """
         abstract class Animal {
             abstract fun makeSound(): String
@@ -413,13 +404,12 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - complex inheritance with abstract override and final override
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testOverrideChaining() throws {
+    @Test func testOverrideChaining() throws {
         let source = """
         open class Base {
             open fun method(): String = "base"
@@ -436,9 +426,9 @@ final class InheritanceModifierTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        // Should be valid - override chaining with final termination
         assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
 }
+#endif

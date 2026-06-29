@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectKParameterSyntheticTests: XCTestCase {
+@Suite
+struct ReflectKParameterSyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,30 +12,30 @@ final class ReflectKParameterSyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected KParameter surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KParameter surface to resolve cleanly, got: \(diagnostics)"))
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testKParameterSurfaceIsRegistered() throws {
+    @Test func testKParameterSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
-        let kAnnotatedElementSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kAnnotatedElementSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KAnnotatedElement")]
         ))
-        let kTypeSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kTypeSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KType")]
         ))
-        let kParameterSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kParameterSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KParameter")]
         ))
 
-        let kParameterInfo = try XCTUnwrap(sema.symbols.symbol(kParameterSymbol))
-        XCTAssertEqual(kParameterInfo.kind, .interface)
-        XCTAssertTrue(kParameterInfo.flags.contains(.synthetic))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: kParameterSymbol).contains(kAnnotatedElementSymbol))
+        let kParameterInfo = try #require(sema.symbols.symbol(kParameterSymbol))
+        #expect(kParameterInfo.kind == .interface)
+        #expect(kParameterInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.directSupertypes(for: kParameterSymbol).contains(kAnnotatedElementSymbol))
 
         let kTypeType = sema.types.make(.classType(ClassType(
             classSymbol: kTypeSymbol,
@@ -50,16 +52,16 @@ final class ReflectKParameterSyntheticTests: XCTestCase {
         ]
 
         for expectation in propertyExpectations {
-            let propertySymbol = try XCTUnwrap(sema.symbols.lookup(
+            let propertySymbol = try #require(sema.symbols.lookup(
                 fqName: reflectPackage + [interner.intern("KParameter"), interner.intern(expectation.name)]
             ))
-            XCTAssertEqual(sema.symbols.parentSymbol(for: propertySymbol), kParameterSymbol)
-            XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), expectation.type)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: propertySymbol), expectation.externalLinkName)
+            #expect(sema.symbols.parentSymbol(for: propertySymbol) == kParameterSymbol)
+            #expect(sema.symbols.propertyType(for: propertySymbol) == expectation.type)
+            #expect(sema.symbols.externalLinkName(for: propertySymbol) == expectation.externalLinkName)
         }
     }
 
-    func testKParameterPropertiesResolveInSource() throws {
+    @Test func testKParameterPropertiesResolveInSource() throws {
         let source = """
         import kotlin.reflect.KAnnotatedElement
         import kotlin.reflect.KParameter
@@ -79,3 +81,4 @@ final class ReflectKParameterSyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

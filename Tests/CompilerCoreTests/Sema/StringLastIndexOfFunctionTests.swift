@@ -1,13 +1,14 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-034: Validates that `CharSequence.lastIndexOf` resolves through
 /// Sema for the (Char, startIndex, ignoreCase) overload and gets wired to the
 /// runtime entry point `kk_string_lastIndexOf_char_flat`. The previously-existing
 /// String/String overloads remain wired to `kk_string_lastIndexOf_flat` and
 /// `kk_string_lastIndexOf_ignoreCase_flat` respectively.
-final class StringLastIndexOfFunctionTests: XCTestCase {
-    func testLastIndexOfCharResolvesInSource() throws {
+@Suite
+struct StringLastIndexOfFunctionTests {
+    @Test func testLastIndexOfCharResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun findChar(value: CharSequence): Int {
             return value.lastIndexOf('o', 10, false)
@@ -19,13 +20,13 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected CharSequence.lastIndexOf(Char, Int, Boolean) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testLastIndexOfCharLinksToRuntimeEntryPoint() throws {
+    @Test func testLastIndexOfCharLinksToRuntimeEntryPoint() throws {
         let source = """
         fun probe(value: CharSequence): Int {
             return value.lastIndexOf('x', 5, false)
@@ -34,34 +35,34 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
 
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !ctx.diagnostics.hasError,
             "Expected CharSequence.lastIndexOf(Char,...) to resolve cleanly"
         )
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let memberFQName = ["kotlin", "text", "lastIndexOf"]
             .map { ctx.interner.intern($0) }
         let links = Set(
             sema.symbols.lookupAll(fqName: memberFQName)
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
-        XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_char_flat"),
-            "Expected CharSequence.lastIndexOf(Char, Int, Boolean) to link to kk_string_lastIndexOf_char_flat, got: \(links)"
+        #expect(
+            links.contains("kk_string_lastIndexOf_char"),
+            "Expected CharSequence.lastIndexOf(Char, Int, Boolean) to link to kk_string_lastIndexOf_char, got: \(links)"
         )
         // Existing overloads must continue to be registered.
-        XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_flat"),
-            "Expected String.lastIndexOf(String) to remain linked to kk_string_lastIndexOf_flat, got: \(links)"
+        #expect(
+            links.contains("kk_string_lastIndexOf"),
+            "Expected String.lastIndexOf(String) to remain linked to kk_string_lastIndexOf, got: \(links)"
         )
-        XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_ignoreCase_flat"),
-            "Expected String.lastIndexOf(String, Int, Boolean) to remain linked to kk_string_lastIndexOf_ignoreCase_flat, got: \(links)"
+        #expect(
+            links.contains("kk_string_lastIndexOf_ignoreCase"),
+            "Expected String.lastIndexOf(String, Int, Boolean) to remain linked to kk_string_lastIndexOf_ignoreCase, got: \(links)"
         )
     }
 
-    func testLastIndexOfCharResolvesInCallExpressions() throws {
+    @Test func testLastIndexOfCharResolvesInCallExpressions() throws {
         let source = """
         fun lastChar(value: CharSequence): Int {
             return value.lastIndexOf('o', 3, true)
@@ -74,8 +75,8 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         var callExprs: [ExprID] = []
         for index in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(index))
@@ -85,21 +86,20 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
             else { continue }
             callExprs.append(exprID)
         }
-        XCTAssertEqual(callExprs.count, 2)
+        #expect(callExprs.count == 2)
         for callExpr in callExprs {
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected call binding for lastIndexOf"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_lastIndexOf_char_flat",
-                "Expected lastIndexOf(Char, Int, Boolean) to resolve to kk_string_lastIndexOf_char_flat"
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_lastIndexOf_char",
+                "Expected lastIndexOf(Char, Int, Boolean) to resolve to kk_string_lastIndexOf_char"
             )
         }
     }
 
-    func testLastIndexOfCharReturnsInt() throws {
+    @Test func testLastIndexOfCharReturnsInt() throws {
         let source = """
         fun probe(value: CharSequence): Int {
             return value.lastIndexOf('z', 0, false)
@@ -108,17 +108,17 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected CharSequence.lastIndexOf(Char,...) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callExpr = try #require(firstExprID(in: ast) { _, expr in
             guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
             return ctx.interner.resolve(callee) == "lastIndexOf"
         }, "Expected lastIndexOf member call")
-        XCTAssertEqual(sema.bindings.exprType(for: callExpr), sema.types.intType)
+        #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType)
     }
 }

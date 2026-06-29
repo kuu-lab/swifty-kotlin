@@ -1,6 +1,6 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-096: `fun String.toDoubleOrNull(): Double?` in `kotlin.text`.
 ///
@@ -11,7 +11,8 @@ import XCTest
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Double?`.
 /// - Elvis fallback (`?: 0.0`) type-checks correctly with the nullable return.
-final class StringToDoubleOrNullFunctionTests: XCTestCase {
+@Suite
+struct StringToDoubleOrNullFunctionTests {
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
@@ -26,27 +27,26 @@ final class StringToDoubleOrNullFunctionTests: XCTestCase {
         )
     }
 
-    func testToDoubleOrNullStubLinksToRuntimeSymbol() throws {
+    @Test func testToDoubleOrNullStubLinksToRuntimeSymbol() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
-            XCTAssertEqual(
-                externalLink(for: "toDoubleOrNull", sema: sema, interner: ctx.interner),
-                "kk_string_toDoubleOrNull_flat",
-                "String.toDoubleOrNull should link to kk_string_toDoubleOrNull_flat"
+            #expect(
+                externalLink(for: "toDoubleOrNull", sema: sema, interner: ctx.interner) == "kk_string_toDoubleOrNull",
+                "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
             )
 
             let links = externalLinks(for: "toDoubleOrNull", sema: sema, interner: ctx.interner)
-            XCTAssertTrue(
-                links.contains("kk_string_toDoubleOrNull_flat"),
-                "lookupAll for toDoubleOrNull must include kk_string_toDoubleOrNull_flat; got: \(links)"
+            #expect(
+                links.contains("kk_string_toDoubleOrNull"),
+                "lookupAll for toDoubleOrNull must include kk_string_toDoubleOrNull; got: \(links)"
             )
         }
     }
 
-    func testToDoubleOrNullInfersNullableDoubleType() throws {
+    @Test func testToDoubleOrNullInfersNullableDoubleType() throws {
         let source = """
         fun probe(text: String) {
             val result: Double? = text.toDoubleOrNull()
@@ -58,26 +58,25 @@ final class StringToDoubleOrNullFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
                 "Expected String.toDoubleOrNull() to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toDoubleOrNull"
             })
 
-            XCTAssertEqual(
-                sema.bindings.exprType(for: callExpr),
-                sema.types.makeNullable(sema.types.doubleType)
+            #expect(
+                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.doubleType)
             )
         }
     }
 
-    func testToDoubleOrNullOnLiteralAndElvisFallback() throws {
+    @Test func testToDoubleOrNullOnLiteralAndElvisFallback() throws {
         let source = """
         fun probe(): Double {
             val parsed: Double? = "3.14".toDoubleOrNull()
@@ -89,26 +88,25 @@ final class StringToDoubleOrNullFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
                 "Expected String.toDoubleOrNull() with Elvis fallback to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toDoubleOrNull"
             })
 
-            XCTAssertEqual(
-                sema.bindings.exprType(for: callExpr),
-                sema.types.makeNullable(sema.types.doubleType)
+            #expect(
+                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.doubleType)
             )
         }
     }
 
-    func testToDoubleOrNullResolvesOnStringReceiver() throws {
+    @Test func testToDoubleOrNullResolvesOnStringReceiver() throws {
         let source = """
         fun parse(raw: String): Double? {
             return raw.toDoubleOrNull()
@@ -121,8 +119,8 @@ final class StringToDoubleOrNullFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected String.toDoubleOrNull to resolve cleanly, got: \(diagnosticSummary)"
             )
         }

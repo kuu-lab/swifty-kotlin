@@ -171,6 +171,8 @@ extension CallLowerer {
                 return "kk_comparator_nulls_first_trampoline"
             case "kk_comparator_nulls_last":
                 return "kk_comparator_nulls_last_trampoline"
+            case "kk_comparator_nulls_last_natural":
+                return "kk_comparator_nulls_last_natural_trampoline"
             case "kk_comparator_then_by":
                 return "kk_comparator_then_by_trampoline"
             case "kk_comparator_then_by_comparator_selector":

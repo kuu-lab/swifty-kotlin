@@ -10,7 +10,6 @@ extension DataFlowSemaPhase {
         let anyType = types.anyType
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Register kotlin.properties.Lazy<T> interface stub used by the existing delegate lowering.
         let legacyLazyInterfaceSymbol = ensureInterfaceSymbol(
             named: "Lazy", in: kotlinPropertiesPkg, symbols: symbols, interner: interner
         )
@@ -18,7 +17,6 @@ extension DataFlowSemaPhase {
             classSymbol: legacyLazyInterfaceSymbol, args: [], nullability: .nonNull
         )))
 
-        // Register the stdlib root kotlin.Lazy<out T> interface used by lazyOf(value).
         let rootLazyInterfaceSymbol = ensureInterfaceSymbol(
             named: "Lazy", in: kotlinPkg, symbols: symbols, interner: interner
         )
@@ -93,7 +91,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Register kotlin.properties.ReadWriteProperty<T, V> interface stub.
         let rwPropertySymbol = ensureInterfaceSymbol(
             named: "ReadWriteProperty", in: kotlinPropertiesPkg, symbols: symbols, interner: interner
         )
@@ -110,7 +107,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Register kotlin.properties.ReadOnlyProperty<in T, out V> interface stub.
         let readOnlyPropertySymbol = ensureInterfaceSymbol(
             named: "ReadOnlyProperty", in: kotlinPropertiesPkg, symbols: symbols, interner: interner
         )
@@ -226,8 +222,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Also register KProperty0, KProperty1, KMutableProperty, KMutableProperty0, KMutableProperty1
-        // as they are commonly used reflect types.
         let kCallableSymbol = ensureInterfaceSymbol(
             named: "KCallable", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -239,7 +233,6 @@ extension DataFlowSemaPhase {
             [kCallableSymbol], to: kPropertySymbol,
             symbols: symbols, types: types
         )
-        // Register `name` property on KCallable as well.
         if let kCallableInfo = symbols.symbol(kCallableSymbol) {
             let namePropName = interner.intern("name")
             let namePropFQ = kCallableInfo.fqName + [namePropName]
@@ -349,9 +342,7 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types
         )
 
-        // Register KFunction member properties: name, isSuspend, parameters (STDLIB-REFLECT-063).
         if let kFunctionInfo = symbols.symbol(kFunctionSymbol) {
-            // name: String
             let namePropName = interner.intern("name")
             let namePropFQ = kFunctionInfo.fqName + [namePropName]
             if symbols.lookup(fqName: namePropFQ) == nil {
@@ -363,7 +354,6 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(stringType, for: namePropSymbol)
             }
 
-            // isSuspend: Boolean
             let isSuspendName = interner.intern("isSuspend")
             let isSuspendFQ = kFunctionInfo.fqName + [isSuspendName]
             if symbols.lookup(fqName: isSuspendFQ) == nil {
@@ -375,7 +365,7 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(types.booleanType, for: isSuspendSymbol)
             }
 
-            // parameters: Any (patched to List<Any?> later by patchKFunctionParametersType)
+            // Patched to List<Any?> later by patchKFunctionParametersType.
             let paramsName = interner.intern("parameters")
             let paramsFQ = kFunctionInfo.fqName + [paramsName]
             if symbols.lookup(fqName: paramsFQ) == nil {
@@ -388,8 +378,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register `lazy` as a top-level function in the kotlin package.
-        // Kotlin signature: fun <T> lazy(initializer: () -> T): Lazy<T>
         let lazyName = interner.intern("lazy")
         let lazyFQName = kotlinPkg + [lazyName]
         if symbols.lookup(fqName: lazyFQName) == nil {
@@ -406,7 +394,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Kotlin signature: fun <T> lazyOf(value: T): Lazy<T>
         let lazyOfName = interner.intern("lazyOf")
         let lazyOfFQName = kotlinPkg + [lazyOfName]
         if symbols.lookup(fqName: lazyOfFQName) == nil {
@@ -469,8 +456,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Also register `lazy` with explicit thread-safety mode overload.
-        // Kotlin signature: fun <T> lazy(mode: LazyThreadSafetyMode, initializer: () -> T): Lazy<T>
         let lazyModeFQName = kotlinPkg + [lazyName, interner.intern("mode")]
         if symbols.lookup(fqName: lazyModeFQName) == nil {
             let lazyModeSymbol = symbols.define(
@@ -486,7 +471,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Register `Delegates` as an object in kotlin.properties.
         let delegatesName = interner.intern("Delegates")
         let delegatesFQName = kotlinPropertiesPkg + [delegatesName]
         let delegatesSymbol: SymbolID = if let existing = symbols.lookup(fqName: delegatesFQName) {
@@ -521,7 +505,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Register Delegates.notNull<T>(): ReadWriteProperty<Any?, T>
         let notNullName = knownNames.notNull
         let notNullFQName = ownerSym.fqName + [notNullName]
         if symbols.lookup(fqName: notNullFQName) == nil {
@@ -536,6 +519,79 @@ extension DataFlowSemaPhase {
                 ),
                 for: notNullSymbol
             )
+        }
+
+        // MIGRATION-PROP-002: Register kotlin.LazyThreadSafetyMode enum so that
+        // `lazy(LazyThreadSafetyMode.NONE) { }` and other explicit-mode overloads
+        // resolve correctly at the sema level.
+        registerLazyThreadSafetyModeStub(
+            kotlinPkg: kotlinPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    // MARK: - LazyThreadSafetyMode (MIGRATION-PROP-002)
+
+    /// Registers the `kotlin.LazyThreadSafetyMode` enum class and its three entries
+    /// so that Kotlin source referencing `LazyThreadSafetyMode.NONE` etc. resolves.
+    ///
+    /// Entry declaration order matches the Kotlin stdlib definition:
+    ///   ordinal 0 = SYNCHRONIZED, ordinal 1 = PUBLICATION, ordinal 2 = NONE.
+    ///
+    /// Note: the ABI rawValues used by `kk_lazy_create` differ (NONE=0, SYNCHRONIZED=1,
+    /// PUBLICATION=2) and are managed by `LazyThreadSafetyMode` in RuntimeTypes.swift.
+    /// The lowering pass maps the compiler-option enum (Swift rawValue) directly; ordinal-
+    /// to-rawValue conversion for explicit source-level mode is deferred to RF-STDLIB-004+.
+    private func registerLazyThreadSafetyModeStub(
+        kotlinPkg: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let enumName = interner.intern("LazyThreadSafetyMode")
+        let enumFQName = kotlinPkg + [enumName]
+
+        let enumSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: enumFQName) {
+            enumSymbol = existing
+        } else {
+            enumSymbol = symbols.define(
+                kind: .enumClass,
+                name: enumName,
+                fqName: enumFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let pkgSymbol = symbols.lookup(fqName: kotlinPkg) {
+                symbols.setParentSymbol(pkgSymbol, for: enumSymbol)
+            }
+        }
+
+        let enumType = types.make(.classType(ClassType(
+            classSymbol: enumSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(enumType, for: enumSymbol)
+
+        // Register entries in Kotlin stdlib declaration order: SYNCHRONIZED, PUBLICATION, NONE.
+        for entryName in ["SYNCHRONIZED", "PUBLICATION", "NONE"] {
+            let internedEntry = interner.intern(entryName)
+            let entryFQName = enumFQName + [internedEntry]
+            if symbols.lookup(fqName: entryFQName) != nil { continue }
+            let entrySymbol = symbols.define(
+                kind: .field,
+                name: internedEntry,
+                fqName: entryFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
+            symbols.setPropertyType(enumType, for: entrySymbol)
         }
     }
 
@@ -1046,7 +1102,6 @@ extension DataFlowSemaPhase {
         symbols.setSupertypeTypeArgs(kPropertyArgs, for: kMutablePropertySymbol, supertype: kPropertySymbol)
         types.setNominalSupertypeTypeArgs(kPropertyArgs, for: kMutablePropertySymbol, supertype: kPropertySymbol)
 
-        // Register KMutableProperty.Setter<V> nested interface.
         let setterPkg = kMutablePropertyInfo.fqName
         let setterSymbol = ensureInterfaceSymbol(named: "Setter", in: setterPkg, symbols: symbols, interner: interner)
         symbols.setParentSymbol(kMutablePropertySymbol, for: setterSymbol)
@@ -1085,7 +1140,6 @@ extension DataFlowSemaPhase {
             types.setNominalSupertypeTypeArgs(function1Args, for: setterSymbol, supertype: function1Symbol)
         }
 
-        // Register setter: Setter<V> property on KMutableProperty<V>.
         let setterPropName = interner.intern("setter")
         let setterPropFQ = kMutablePropertyInfo.fqName + [setterPropName]
         if symbols.lookup(fqName: setterPropFQ) == nil {
@@ -1871,7 +1925,6 @@ extension DataFlowSemaPhase {
         let anyType = types.anyType
         let boolType = types.make(.primitive(.boolean, .nonNull))
 
-        // Register kotlin.reflect.KType interface stub
         let kTypeSymbol = ensureInterfaceSymbol(
             named: "KType", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -1884,7 +1937,6 @@ extension DataFlowSemaPhase {
         )
 
         if let kTypeInfo = symbols.symbol(kTypeSymbol) {
-            // KType.isMarkedNullable: Boolean
             let isMarkedNullableName = interner.intern("isMarkedNullable")
             let isMarkedNullableFQ = kTypeInfo.fqName + [isMarkedNullableName]
             if symbols.lookup(fqName: isMarkedNullableFQ) == nil {
@@ -1897,7 +1949,6 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName("kk_ktype_isMarkedNullable", for: propSym)
             }
 
-            // KType.classifier: KClassifier? (returns Any? opaque handle)
             let classifierName = interner.intern("classifier")
             let classifierFQ = kTypeInfo.fqName + [classifierName]
             if symbols.lookup(fqName: classifierFQ) == nil {
@@ -1910,7 +1961,6 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName("kk_ktype_classifier", for: propSym)
             }
 
-            // KType.arguments: List<KTypeProjection> (returns Any opaque)
             let argumentsName = interner.intern("arguments")
             let argumentsFQ = kTypeInfo.fqName + [argumentsName]
             if symbols.lookup(fqName: argumentsFQ) == nil {
@@ -1924,7 +1974,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register kotlin.reflect.KTypeProjection class stub
         let kTypeProjectionSymbol = ensureClassSymbol(
             named: "KTypeProjection", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -1944,7 +1993,6 @@ extension DataFlowSemaPhase {
             kotlinReflectPkg: kotlinReflectPkg
         )
 
-        // Register kotlin.reflect.KClassifier interface stub (supertype of KClass)
         let kClassifierSymbol = ensureInterfaceSymbol(
             named: "KClassifier", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -1957,8 +2005,6 @@ extension DataFlowSemaPhase {
             kotlinReflectPkg: kotlinReflectPkg
         )
 
-        // Register typeOf<T>(): KType — inline reified function accessible without import.
-        // Available in the kotlin package as a top-level function.
         let typeOfName = interner.intern("typeOf")
         let typeOfFQName = kotlinPkg + [typeOfName]
         if symbols.lookupAll(fqName: typeOfFQName).isEmpty {
@@ -1990,7 +2036,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Also register typeOf in kotlin.reflect package for `import kotlin.reflect.typeOf` usage.
         let typeOfReflectFQName = kotlinReflectPkg + [typeOfName]
         if symbols.lookupAll(fqName: typeOfReflectFQName).isEmpty {
             let tParamName2 = interner.intern("T")
@@ -2498,7 +2543,6 @@ extension DataFlowSemaPhase {
             for: functionSymbol
         )
 
-        // Also register under kotlin.reflect for top-level reference resolution
         let kotlinReflectFQName = kotlinReflectPkg + [functionName]
         if symbols.lookupAll(fqName: kotlinReflectFQName).isEmpty {
             let reflectFunctionSymbol = symbols.define(
@@ -2597,15 +2641,12 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Updates the `parameters` property type of `KFunction` to `List<Any?>` once the
-    /// collection stubs have been registered.  Called from `registerSyntheticDelegateStubs`
-    /// after `registerSyntheticCollectionStubs` (STDLIB-REFLECT-063).
+    /// Patches KFunction.parameters to `List<Any?>` (STDLIB-REFLECT-063).
     func patchKFunctionParametersType(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // Locate kotlin.collections.List
         let listFQName: [InternedString] = [
             interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
         ]
@@ -2614,7 +2655,6 @@ extension DataFlowSemaPhase {
         else {
             return
         }
-        // Build List<Any?> type for parameters.
         let nullableAny = types.makeNullable(types.anyType)
         let listOfAnyNullable = types.make(.classType(ClassType(
             classSymbol: listSymbol,
@@ -2622,7 +2662,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // Update KFunction.parameters property type.
         guard let kFunctionInfo = symbols.symbol(kFunctionSymbol) else { return }
         let paramsPropFQ = kFunctionInfo.fqName + [interner.intern("parameters")]
         if let paramsPropSymbol = symbols.lookup(fqName: paramsPropFQ) {

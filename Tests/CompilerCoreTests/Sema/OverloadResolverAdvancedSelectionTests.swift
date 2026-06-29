@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension OverloadResolverTests {
-    func testResolveCallNamedArgsSelectCorrectOverload() {
+    @Test func testResolveCallNamedArgsSelectCorrectOverload() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -44,11 +45,11 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn1, fn2], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn1)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn1)
+        #expect(resolved.diagnostic == nil)
     }
 
-    func testResolveCallNamedArgsWithDefaultArgsCombined() {
+    @Test func testResolveCallNamedArgsWithDefaultArgsCombined() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -80,14 +81,14 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 2, 1: 0])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 2, 1: 0])
     }
 
     // MARK: - Advanced Vararg Tests
 
-    func testResolveCallVarargReceivesZeroElements() {
+    @Test func testResolveCallVarargReceivesZeroElements() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -114,12 +115,12 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0])
     }
 
-    func testResolveCallVarargOnlyFunctionMultipleElements() {
+    @Test func testResolveCallVarargOnlyFunctionMultipleElements() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -143,12 +144,12 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: intType), CallArg(type: intType), CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 0, 2: 0, 3: 0])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 0, 2: 0, 3: 0])
     }
 
-    func testResolveCallSpreadArgumentOnVarargParameter() {
+    @Test func testResolveCallSpreadArgumentOnVarargParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -171,11 +172,11 @@ extension OverloadResolverTests {
             args: [CallArg(isSpread: true, type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
     }
 
-    func testResolveCallVarargWithTypeMismatch() {
+    @Test func testResolveCallVarargWithTypeMismatch() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -200,12 +201,12 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
     // MARK: - Advanced Default Arguments Tests
 
-    func testResolveCallAllDefaultsOmitted() {
+    @Test func testResolveCallAllDefaultsOmitted() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -230,12 +231,12 @@ extension OverloadResolverTests {
             args: []
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [:])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [:])
     }
 
-    func testResolveCallDefaultArgMiddleOmittedWithNamedArgs() {
+    @Test func testResolveCallDefaultArgMiddleOmittedWithNamedArgs() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -267,12 +268,12 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 2])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 2])
     }
 
-    func testResolveCallDefaultArgsSelectOverload() {
+    @Test func testResolveCallDefaultArgsSelectOverload() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -310,11 +311,11 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn1, fn2], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn2)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn2)
+        #expect(resolved.diagnostic == nil)
     }
 
-    func testResolveCallRejectsWhenRequiredParamNotProvided() {
+    @Test func testResolveCallRejectsWhenRequiredParamNotProvided() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -339,12 +340,12 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
     // MARK: - Advanced Receiver Type (Extension Function) Tests
 
-    func testResolveCallRejectsExtensionWithReceiverTypeMismatch() {
+    @Test func testResolveCallRejectsExtensionWithReceiverTypeMismatch() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -375,10 +376,10 @@ extension OverloadResolverTests {
             implicitReceiverType: boolType,
             ctx: ctx
         )
-        XCTAssertNil(resolved.chosenCallee)
+        #expect(resolved.chosenCallee == nil)
     }
 
-    func testResolveCallSelectsCorrectExtensionByReceiverType() {
+    @Test func testResolveCallSelectsCorrectExtensionByReceiverType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -420,7 +421,8 @@ extension OverloadResolverTests {
             implicitReceiverType: stringType,
             ctx: ctx
         )
-        XCTAssertEqual(resolved.chosenCallee, extString)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == extString)
+        #expect(resolved.diagnostic == nil)
     }
 }
+#endif

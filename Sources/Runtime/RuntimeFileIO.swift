@@ -383,6 +383,26 @@ public func kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Un
     return 0
 }
 
+// MARK: - MIGRATION-IO-001: File.writeBytes(array: ByteArray)
+
+@_cdecl("kk_file_writeBytes")
+public func kk_file_writeBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_writeBytes received invalid File handle")
+    }
+    guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> array")
+        return 0
+    }
+    do {
+        try Data(bytes).write(to: URL(fileURLWithPath: file.path))
+    } catch {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+    }
+    return 0
+}
+
 // MARK: - STDLIB-321: File properties and existence checks
 
 @_cdecl("kk_file_exists")
@@ -1031,7 +1051,7 @@ private func fileTreeWalkCollect(
     results: inout [Int]
 ) {
     var isDir: ObjCBool = false
-    FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+    _ = FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
     let fileHandle = registerRuntimeObject(RuntimeFileBox(path))
 
     if walk.topDown {
@@ -1395,7 +1415,7 @@ public func kk_file_copyRecursively(
 
     func copyItem(srcPath: String, dstPath: String) -> Bool {
         var srcIsDir: ObjCBool = false
-        fm.fileExists(atPath: srcPath, isDirectory: &srcIsDir)
+        _ = fm.fileExists(atPath: srcPath, isDirectory: &srcIsDir)
 
         if srcIsDir.boolValue {
             // Create target directory if needed.

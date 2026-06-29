@@ -1,0 +1,552 @@
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
+import CompilerCore
+
+final class LLVMCAPIBindings {
+    typealias LLVMContextRef = OpaquePointer
+    typealias LLVMModuleRef = OpaquePointer
+    typealias LLVMTypeRef = OpaquePointer
+    typealias LLVMValueRef = OpaquePointer
+    typealias LLVMBasicBlockRef = OpaquePointer
+    typealias LLVMBuilderRef = OpaquePointer
+    typealias LLVMTargetRef = OpaquePointer
+    typealias LLVMTargetMachineRef = OpaquePointer
+    typealias LLVMTargetDataRef = OpaquePointer
+    typealias LLVMBool = Int32
+    typealias LLVMContextCreateFn = @convention(c) () -> LLVMContextRef?
+    typealias LLVMContextDisposeFn = @convention(c) (LLVMContextRef?) -> Void
+    typealias LLVMModuleCreateWithNameInContextFn = @convention(c) (UnsafePointer<CChar>?, LLVMContextRef?) -> LLVMModuleRef?
+    typealias LLVMDisposeModuleFn = @convention(c) (LLVMModuleRef?) -> Void
+    typealias LLVMLinkModules2Fn = @convention(c) (LLVMModuleRef?, LLVMModuleRef?) -> LLVMBool
+    typealias LLVMPrintModuleToStringFn = @convention(c) (LLVMModuleRef?) -> UnsafeMutablePointer<CChar>?
+    typealias LLVMDisposeMessageFn = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
+    typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
+    typealias LLVMSetDataLayoutFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
+    typealias LLVMSetLinkageFn = @convention(c) (LLVMValueRef?, UInt32) -> Void
+    typealias LLVMInt8TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
+    typealias LLVMInt64TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
+    typealias LLVMStructTypeInContextFn = @convention(c) (
+        LLVMContextRef?,
+        UnsafeMutablePointer<LLVMTypeRef?>?,
+        UInt32,
+        LLVMBool
+    ) -> LLVMTypeRef?
+    typealias LLVMPointerTypeFn = @convention(c) (LLVMTypeRef?, UInt32) -> LLVMTypeRef?
+    typealias LLVMFunctionTypeFn = @convention(c) (LLVMTypeRef?, UnsafeMutablePointer<LLVMTypeRef?>?, UInt32, LLVMBool) -> LLVMTypeRef?
+    typealias LLVMAddFunctionFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?, LLVMTypeRef?) -> LLVMValueRef?
+    typealias LLVMGetNamedFunctionFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMGetParamFn = @convention(c) (LLVMValueRef?, UInt32) -> LLVMValueRef?
+    typealias LLVMGetUndefFn = @convention(c) (LLVMTypeRef?) -> LLVMValueRef?
+    typealias LLVMAppendBasicBlockInContextFn = @convention(c) (LLVMContextRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMBasicBlockRef?
+    typealias LLVMCreateBuilderInContextFn = @convention(c) (LLVMContextRef?) -> LLVMBuilderRef?
+    typealias LLVMDisposeBuilderFn = @convention(c) (LLVMBuilderRef?) -> Void
+    typealias LLVMPositionBuilderAtEndFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> Void
+    typealias LLVMGetBasicBlockTerminatorFn = @convention(c) (LLVMBasicBlockRef?) -> LLVMValueRef?
+    typealias LLVMBuildRetFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?) -> LLVMValueRef?
+    typealias LLVMBuildBrFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
+    typealias LLVMBuildCondBrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMBasicBlockRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
+    typealias LLVMBuildUnreachableFn = @convention(c) (LLVMBuilderRef?) -> LLVMValueRef?
+    typealias LLVMBuildAddFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildSubFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildMulFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildSDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildUDivFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildURemFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    // Bitwise/shift builder function types (P5-103)
+    typealias LLVMBuildAndFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildOrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildXorFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildShlFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildAShrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildLShrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildNotFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildICmpFn = @convention(c) (LLVMBuilderRef?, UInt32, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildZExtFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildTruncFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildAllocaFn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildStoreFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?) -> LLVMValueRef?
+    typealias LLVMBuildLoad2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildLoadFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildSelectFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildExtractValueFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildInsertValueFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildGlobalStringPtrFn = @convention(c) (LLVMBuilderRef?, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildPtrToIntFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildIntToPtrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildCall2Fn = @convention(c) (
+        LLVMBuilderRef?,
+        LLVMTypeRef?,
+        LLVMValueRef?,
+        UnsafeMutablePointer<LLVMValueRef?>?,
+        UInt32,
+        UnsafePointer<CChar>?
+    ) -> LLVMValueRef?
+    typealias LLVMBuildCallFn = @convention(c) (
+        LLVMBuilderRef?,
+        LLVMValueRef?,
+        UnsafeMutablePointer<LLVMValueRef?>?,
+        UInt32,
+        UnsafePointer<CChar>?
+    ) -> LLVMValueRef?
+    typealias LLVMAddGlobalFn = @convention(c) (LLVMModuleRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMSetInitializerFn = @convention(c) (LLVMValueRef?, LLVMValueRef?) -> Void
+    typealias LLVMConstIntFn = @convention(c) (LLVMTypeRef?, UInt64, LLVMBool) -> LLVMValueRef?
+    typealias LLVMConstPointerNullFn = @convention(c) (LLVMTypeRef?) -> LLVMValueRef?
+    typealias LLVMConstStructInContextFn = @convention(c) (
+        LLVMContextRef?,
+        UnsafeMutablePointer<LLVMValueRef?>?,
+        UInt32,
+        LLVMBool
+    ) -> LLVMValueRef?
+    // LLVMConstStringInContext(Context, Str, Length, DontNullTerminate) -> [N x i8] constant
+    typealias LLVMConstStringInContextFn = @convention(c) (LLVMContextRef?, UnsafePointer<CChar>?, UInt32, LLVMBool) -> LLVMValueRef?
+    // LLVMArrayType(ElementType, ElementCount) -> [N x ElementType]
+    typealias LLVMArrayTypeFn = @convention(c) (LLVMTypeRef?, UInt32) -> LLVMTypeRef?
+    // LLVMSetGlobalConstant(GlobalVar, IsConstant)
+    typealias LLVMSetGlobalConstantFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
+    // LLVMSetUnnamedAddr(Global, HasUnnamedAddr)
+    typealias LLVMSetUnnamedAddrFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
+    // LLVMBuildInBoundsGEP2(Builder, Ty, Pointer, Indices, NumIndices, Name) -> GEP value
+    typealias LLVMBuildInBoundsGEP2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafeMutablePointer<LLVMValueRef?>?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMGetDefaultTargetTripleFn = @convention(c) () -> UnsafeMutablePointer<CChar>?
+    typealias LLVMGetTargetFromTripleFn = @convention(c) (
+        UnsafePointer<CChar>?,
+        UnsafeMutablePointer<LLVMTargetRef?>?,
+        UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+    ) -> LLVMBool
+    typealias LLVMCreateTargetMachineFn = @convention(c) (
+        LLVMTargetRef?,
+        UnsafePointer<CChar>?,
+        UnsafePointer<CChar>?,
+        UnsafePointer<CChar>?,
+        UInt32,
+        UInt32,
+        UInt32
+    ) -> LLVMTargetMachineRef?
+    typealias LLVMDisposeTargetMachineFn = @convention(c) (LLVMTargetMachineRef?) -> Void
+    typealias LLVMTargetMachineEmitToFileFn = @convention(c) (
+        LLVMTargetMachineRef?,
+        LLVMModuleRef?,
+        UnsafeMutablePointer<CChar>?,
+        UInt32,
+        UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+    ) -> LLVMBool
+    typealias LLVMCreateTargetDataLayoutFn = @convention(c) (LLVMTargetMachineRef?) -> LLVMTargetDataRef?
+    typealias LLVMCopyStringRepOfTargetDataFn = @convention(c) (LLVMTargetDataRef?) -> UnsafeMutablePointer<CChar>?
+    typealias LLVMDisposeTargetDataFn = @convention(c) (LLVMTargetDataRef?) -> Void
+    typealias LLVMInitializeX86TargetInfoFn = @convention(c) () -> Void
+    typealias LLVMInitializeX86TargetFn = @convention(c) () -> Void
+    typealias LLVMInitializeX86TargetMCFn = @convention(c) () -> Void
+    typealias LLVMInitializeX86AsmPrinterFn = @convention(c) () -> Void
+    typealias LLVMInitializeAArch64TargetInfoFn = @convention(c) () -> Void
+    typealias LLVMInitializeAArch64TargetFn = @convention(c) () -> Void
+    typealias LLVMInitializeAArch64TargetMCFn = @convention(c) () -> Void
+    typealias LLVMInitializeAArch64AsmPrinterFn = @convention(c) () -> Void
+    typealias LLVMDIBuilderRef = OpaquePointer
+    typealias LLVMMetadataRef = OpaquePointer
+    typealias LLVMCreateDIBuilderFn = @convention(c) (LLVMModuleRef?) -> LLVMDIBuilderRef?
+    typealias LLVMDisposeDIBuilderFn = @convention(c) (LLVMDIBuilderRef?) -> Void
+    typealias LLVMDIBuilderFinalizeFn = @convention(c) (LLVMDIBuilderRef?) -> Void
+    typealias LLVMDIBuilderCreateFileFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        UnsafePointer<CChar>?, Int,
+        UnsafePointer<CChar>?, Int
+    ) -> LLVMMetadataRef?
+    typealias LLVMDIBuilderCreateCompileUnitFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        UInt32, LLVMMetadataRef?,
+        UnsafePointer<CChar>?, Int,
+        Int32,
+        UnsafePointer<CChar>?, Int,
+        UInt32,
+        UnsafePointer<CChar>?, Int,
+        UInt32, UInt32, Int32, Int32,
+        UnsafePointer<CChar>?, Int,
+        UnsafePointer<CChar>?, Int
+    ) -> LLVMMetadataRef?
+    typealias LLVMDIBuilderCreateSubroutineTypeFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        LLVMMetadataRef?,
+        UnsafeMutablePointer<LLVMMetadataRef?>?, UInt32,
+        UInt32
+    ) -> LLVMMetadataRef?
+    typealias LLVMDIBuilderCreateFunctionFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        LLVMMetadataRef?,
+        UnsafePointer<CChar>?, Int,
+        UnsafePointer<CChar>?, Int,
+        LLVMMetadataRef?,
+        UInt32, LLVMMetadataRef?,
+        Int32, Int32, UInt32, UInt32, Int32
+    ) -> LLVMMetadataRef?
+    typealias LLVMSetSubprogramFn = @convention(c) (LLVMValueRef?, LLVMMetadataRef?) -> Void
+    typealias LLVMAddModuleFlagFn = @convention(c) (
+        LLVMModuleRef?, UInt32,
+        UnsafePointer<CChar>?, Int,
+        LLVMMetadataRef?
+    ) -> Void
+    typealias LLVMValueAsMetadataFn = @convention(c) (LLVMValueRef?) -> LLVMMetadataRef?
+    typealias LLVMInt32TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
+    typealias LLVMSetCurrentDebugLocation2Fn = @convention(c) (LLVMBuilderRef?, LLVMMetadataRef?) -> Void
+    typealias LLVMDIBuilderCreateDebugLocationFn = @convention(c) (
+        LLVMContextRef?, UInt32, UInt32, LLVMMetadataRef?, LLVMMetadataRef?
+    ) -> LLVMMetadataRef?
+    typealias LLVMDIBuilderCreateBasicTypeFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        UnsafePointer<CChar>?, Int,
+        UInt64, UInt32, UInt32
+    ) -> LLVMMetadataRef?
+    /// LLVMDIBuilderCreateParameterVariable(
+    ///   Builder, Scope, Name, NameLen, ArgNo, File, LineNo, Ty,
+    ///   AlwaysPreserve, Flags)
+    typealias LLVMDIBuilderCreateParameterVariableFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        LLVMMetadataRef?,
+        UnsafePointer<CChar>?, Int,
+        UInt32,
+        LLVMMetadataRef?,
+        UInt32,
+        LLVMMetadataRef?,
+        Int32, UInt32
+    ) -> LLVMMetadataRef?
+    /// LLVMDIBuilderCreateAutoVariable(
+    ///   Builder, Scope, Name, NameLen, File, LineNo, Ty,
+    ///   AlwaysPreserve, Flags, AlignInBits)
+    typealias LLVMDIBuilderCreateAutoVariableFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        LLVMMetadataRef?,
+        UnsafePointer<CChar>?, Int,
+        LLVMMetadataRef?,
+        UInt32,
+        LLVMMetadataRef?,
+        Int32, UInt32, UInt32
+    ) -> LLVMMetadataRef?
+    typealias LLVMDIBuilderInsertDeclareAtEndFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        LLVMValueRef?,
+        LLVMMetadataRef?,
+        LLVMMetadataRef?,
+        LLVMMetadataRef?,
+        LLVMBasicBlockRef?
+    ) -> LLVMValueRef?
+    typealias LLVMDIBuilderCreateExpressionFn = @convention(c) (
+        LLVMDIBuilderRef?,
+        UnsafeMutablePointer<UInt64>?, Int
+    ) -> LLVMMetadataRef?
+    let linkModules2Fn: LLVMLinkModules2Fn?
+    private let handle: UnsafeMutableRawPointer
+    let contextCreateFn: LLVMContextCreateFn
+    let contextDisposeFn: LLVMContextDisposeFn
+    let moduleCreateFn: LLVMModuleCreateWithNameInContextFn
+    let disposeModuleFn: LLVMDisposeModuleFn
+    let printModuleToStringFn: LLVMPrintModuleToStringFn
+    let disposeMessageFn: LLVMDisposeMessageFn
+    let setTargetFn: LLVMSetTargetFn
+    let setDataLayoutFn: LLVMSetDataLayoutFn
+    let setLinkageFn: LLVMSetLinkageFn
+    let int8TypeInContextFn: LLVMInt8TypeInContextFn
+    let int64TypeFn: LLVMInt64TypeInContextFn
+    let structTypeInContextFn: LLVMStructTypeInContextFn?
+    let pointerTypeFn: LLVMPointerTypeFn
+    let functionTypeFn: LLVMFunctionTypeFn
+    let addFunctionFn: LLVMAddFunctionFn
+    let getNamedFunctionFn: LLVMGetNamedFunctionFn
+    let getParamFn: LLVMGetParamFn
+    let getUndefFn: LLVMGetUndefFn
+    let appendBasicBlockFn: LLVMAppendBasicBlockInContextFn
+    let createBuilderFn: LLVMCreateBuilderInContextFn
+    let disposeBuilderFn: LLVMDisposeBuilderFn
+    let positionBuilderFn: LLVMPositionBuilderAtEndFn
+    let getBasicBlockTerminatorFn: LLVMGetBasicBlockTerminatorFn
+    let buildRetFn: LLVMBuildRetFn
+    let buildBrFn: LLVMBuildBrFn
+    let buildCondBrFn: LLVMBuildCondBrFn
+    let buildUnreachableFn: LLVMBuildUnreachableFn
+    let buildAddFn: LLVMBuildAddFn
+    let buildSubFn: LLVMBuildSubFn
+    let buildMulFn: LLVMBuildMulFn
+    let buildSDivFn: LLVMBuildSDivFn
+    let buildUDivFn: LLVMBuildUDivFn
+    let buildURemFn: LLVMBuildURemFn
+    // Bitwise/shift builder stored properties (P5-103)
+    let buildAndFn: LLVMBuildAndFn?
+    let buildOrFn: LLVMBuildOrFn?
+    let buildXorFn: LLVMBuildXorFn?
+    let buildShlFn: LLVMBuildShlFn?
+    let buildAShrFn: LLVMBuildAShrFn?
+    let buildLShrFn: LLVMBuildLShrFn?
+    let buildNotFn: LLVMBuildNotFn?
+    let buildICmpFn: LLVMBuildICmpFn
+    let buildZExtFn: LLVMBuildZExtFn?
+    let buildTruncFn: LLVMBuildTruncFn?
+    let buildAllocaFn: LLVMBuildAllocaFn?
+    let buildStoreFn: LLVMBuildStoreFn?
+    let buildLoad2Fn: LLVMBuildLoad2Fn?
+    let buildLoadFn: LLVMBuildLoadFn?
+    let buildSelectFn: LLVMBuildSelectFn?
+    let buildExtractValueFn: LLVMBuildExtractValueFn?
+    let buildInsertValueFn: LLVMBuildInsertValueFn?
+    let buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?
+    let buildPtrToIntFn: LLVMBuildPtrToIntFn?
+    let buildIntToPtrFn: LLVMBuildIntToPtrFn?
+    let buildCall2Fn: LLVMBuildCall2Fn?
+    let buildCallFn: LLVMBuildCallFn?
+    let constIntFn: LLVMConstIntFn
+    let constPointerNullFn: LLVMConstPointerNullFn?
+    let constStructInContextFn: LLVMConstStructInContextFn?
+    let constStringInContextFn: LLVMConstStringInContextFn?
+    let arrayTypeFn: LLVMArrayTypeFn?
+    let setGlobalConstantFn: LLVMSetGlobalConstantFn?
+    let setUnnamedAddrFn: LLVMSetUnnamedAddrFn?
+    let buildInBoundsGEP2Fn: LLVMBuildInBoundsGEP2Fn?
+    let getDefaultTargetTripleFn: LLVMGetDefaultTargetTripleFn
+    let getTargetFromTripleFn: LLVMGetTargetFromTripleFn
+    let createTargetMachineFn: LLVMCreateTargetMachineFn
+    let disposeTargetMachineFn: LLVMDisposeTargetMachineFn
+    let emitToFileFn: LLVMTargetMachineEmitToFileFn
+    let createTargetDataLayoutFn: LLVMCreateTargetDataLayoutFn
+    let copyStringRepOfTargetDataFn: LLVMCopyStringRepOfTargetDataFn
+    let disposeTargetDataFn: LLVMDisposeTargetDataFn
+    let initializeX86TargetInfoFn: LLVMInitializeX86TargetInfoFn?
+    let initializeX86TargetFn: LLVMInitializeX86TargetFn?
+    let initializeX86TargetMCFn: LLVMInitializeX86TargetMCFn?
+    let initializeX86AsmPrinterFn: LLVMInitializeX86AsmPrinterFn?
+    let initializeAArch64TargetInfoFn: LLVMInitializeAArch64TargetInfoFn?
+    let initializeAArch64TargetFn: LLVMInitializeAArch64TargetFn?
+    let initializeAArch64TargetMCFn: LLVMInitializeAArch64TargetMCFn?
+    let initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?
+    let addGlobalFn: LLVMAddGlobalFn?
+    let setInitializerFn: LLVMSetInitializerFn?
+    let createDIBuilderFn: LLVMCreateDIBuilderFn?
+    let disposeDIBuilderFn: LLVMDisposeDIBuilderFn?
+    let diBuilderFinalizeFn: LLVMDIBuilderFinalizeFn?
+    let diBuilderCreateFileFn: LLVMDIBuilderCreateFileFn?
+    let diBuilderCreateCompileUnitFn: LLVMDIBuilderCreateCompileUnitFn?
+    let diBuilderCreateSubroutineTypeFn: LLVMDIBuilderCreateSubroutineTypeFn?
+    let diBuilderCreateFunctionFn: LLVMDIBuilderCreateFunctionFn?
+    let setSubprogramFn: LLVMSetSubprogramFn?
+    let addModuleFlagFn: LLVMAddModuleFlagFn?
+    let valueAsMetadataFn: LLVMValueAsMetadataFn?
+    let int32TypeFn: LLVMInt32TypeInContextFn?
+    let setCurrentDebugLocation2Fn: LLVMSetCurrentDebugLocation2Fn?
+    let diBuilderCreateDebugLocationFn: LLVMDIBuilderCreateDebugLocationFn?
+    let diBuilderCreateBasicTypeFn: LLVMDIBuilderCreateBasicTypeFn?
+    let diBuilderCreateParameterVariableFn: LLVMDIBuilderCreateParameterVariableFn?
+    let diBuilderCreateAutoVariableFn: LLVMDIBuilderCreateAutoVariableFn?
+    let diBuilderInsertDeclareAtEndFn: LLVMDIBuilderInsertDeclareAtEndFn?
+    let diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn?
+    init(
+        handle: UnsafeMutableRawPointer,
+        contextCreateFn: @escaping LLVMContextCreateFn,
+        contextDisposeFn: @escaping LLVMContextDisposeFn,
+        moduleCreateFn: @escaping LLVMModuleCreateWithNameInContextFn,
+        disposeModuleFn: @escaping LLVMDisposeModuleFn,
+        printModuleToStringFn: @escaping LLVMPrintModuleToStringFn,
+        disposeMessageFn: @escaping LLVMDisposeMessageFn,
+        setTargetFn: @escaping LLVMSetTargetFn,
+        setDataLayoutFn: @escaping LLVMSetDataLayoutFn,
+        setLinkageFn: @escaping LLVMSetLinkageFn,
+        int8TypeInContextFn: @escaping LLVMInt8TypeInContextFn,
+        int64TypeFn: @escaping LLVMInt64TypeInContextFn,
+        structTypeInContextFn: LLVMStructTypeInContextFn? = nil,
+        pointerTypeFn: @escaping LLVMPointerTypeFn,
+        functionTypeFn: @escaping LLVMFunctionTypeFn,
+        addFunctionFn: @escaping LLVMAddFunctionFn,
+        getNamedFunctionFn: @escaping LLVMGetNamedFunctionFn,
+        getParamFn: @escaping LLVMGetParamFn,
+        getUndefFn: @escaping LLVMGetUndefFn,
+        appendBasicBlockFn: @escaping LLVMAppendBasicBlockInContextFn,
+        createBuilderFn: @escaping LLVMCreateBuilderInContextFn,
+        disposeBuilderFn: @escaping LLVMDisposeBuilderFn,
+        positionBuilderFn: @escaping LLVMPositionBuilderAtEndFn,
+        getBasicBlockTerminatorFn: @escaping LLVMGetBasicBlockTerminatorFn,
+        buildRetFn: @escaping LLVMBuildRetFn,
+        buildBrFn: @escaping LLVMBuildBrFn,
+        buildCondBrFn: @escaping LLVMBuildCondBrFn,
+        buildUnreachableFn: @escaping LLVMBuildUnreachableFn,
+        buildAddFn: @escaping LLVMBuildAddFn,
+        buildSubFn: @escaping LLVMBuildSubFn,
+        buildMulFn: @escaping LLVMBuildMulFn,
+        buildSDivFn: @escaping LLVMBuildSDivFn,
+        buildUDivFn: @escaping LLVMBuildUDivFn,
+        buildURemFn: @escaping LLVMBuildURemFn,
+        // Bitwise/shift builder init params (P5-103)
+        buildAndFn: LLVMBuildAndFn?,
+        buildOrFn: LLVMBuildOrFn?,
+        buildXorFn: LLVMBuildXorFn?,
+        buildShlFn: LLVMBuildShlFn?,
+        buildAShrFn: LLVMBuildAShrFn?,
+        buildLShrFn: LLVMBuildLShrFn?,
+        buildNotFn: LLVMBuildNotFn?,
+        buildICmpFn: @escaping LLVMBuildICmpFn,
+        buildZExtFn: LLVMBuildZExtFn?,
+        buildTruncFn: LLVMBuildTruncFn?,
+        buildAllocaFn: LLVMBuildAllocaFn?,
+        buildStoreFn: LLVMBuildStoreFn?,
+        buildLoad2Fn: LLVMBuildLoad2Fn?,
+        buildLoadFn: LLVMBuildLoadFn?,
+        buildSelectFn: LLVMBuildSelectFn?,
+        buildExtractValueFn: LLVMBuildExtractValueFn? = nil,
+        buildInsertValueFn: LLVMBuildInsertValueFn? = nil,
+        buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?,
+        buildPtrToIntFn: LLVMBuildPtrToIntFn?,
+        buildIntToPtrFn: LLVMBuildIntToPtrFn?,
+        buildCall2Fn: LLVMBuildCall2Fn?,
+        buildCallFn: LLVMBuildCallFn?,
+        constIntFn: @escaping LLVMConstIntFn,
+        constPointerNullFn: LLVMConstPointerNullFn?,
+        constStructInContextFn: LLVMConstStructInContextFn? = nil,
+        constStringInContextFn: LLVMConstStringInContextFn? = nil,
+        arrayTypeFn: LLVMArrayTypeFn? = nil,
+        setGlobalConstantFn: LLVMSetGlobalConstantFn? = nil,
+        setUnnamedAddrFn: LLVMSetUnnamedAddrFn? = nil,
+        buildInBoundsGEP2Fn: LLVMBuildInBoundsGEP2Fn? = nil,
+        getDefaultTargetTripleFn: @escaping LLVMGetDefaultTargetTripleFn,
+        getTargetFromTripleFn: @escaping LLVMGetTargetFromTripleFn,
+        createTargetMachineFn: @escaping LLVMCreateTargetMachineFn,
+        disposeTargetMachineFn: @escaping LLVMDisposeTargetMachineFn,
+        emitToFileFn: @escaping LLVMTargetMachineEmitToFileFn,
+        createTargetDataLayoutFn: @escaping LLVMCreateTargetDataLayoutFn,
+        copyStringRepOfTargetDataFn: @escaping LLVMCopyStringRepOfTargetDataFn,
+        disposeTargetDataFn: @escaping LLVMDisposeTargetDataFn,
+        initializeX86TargetInfoFn: LLVMInitializeX86TargetInfoFn?,
+        initializeX86TargetFn: LLVMInitializeX86TargetFn?,
+        initializeX86TargetMCFn: LLVMInitializeX86TargetMCFn?,
+        initializeX86AsmPrinterFn: LLVMInitializeX86AsmPrinterFn?,
+        initializeAArch64TargetInfoFn: LLVMInitializeAArch64TargetInfoFn?,
+        initializeAArch64TargetFn: LLVMInitializeAArch64TargetFn?,
+        initializeAArch64TargetMCFn: LLVMInitializeAArch64TargetMCFn?,
+        initializeAArch64AsmPrinterFn: LLVMInitializeAArch64AsmPrinterFn?,
+        addGlobalFn: LLVMAddGlobalFn? = nil,
+        setInitializerFn: LLVMSetInitializerFn? = nil,
+        createDIBuilderFn: LLVMCreateDIBuilderFn?,
+        disposeDIBuilderFn: LLVMDisposeDIBuilderFn?,
+        diBuilderFinalizeFn: LLVMDIBuilderFinalizeFn?,
+        diBuilderCreateFileFn: LLVMDIBuilderCreateFileFn?,
+        diBuilderCreateCompileUnitFn: LLVMDIBuilderCreateCompileUnitFn?,
+        diBuilderCreateSubroutineTypeFn: LLVMDIBuilderCreateSubroutineTypeFn?,
+        diBuilderCreateFunctionFn: LLVMDIBuilderCreateFunctionFn?,
+        setSubprogramFn: LLVMSetSubprogramFn?,
+        addModuleFlagFn: LLVMAddModuleFlagFn?,
+        valueAsMetadataFn: LLVMValueAsMetadataFn?,
+        int32TypeFn: LLVMInt32TypeInContextFn?,
+        setCurrentDebugLocation2Fn: LLVMSetCurrentDebugLocation2Fn? = nil,
+        diBuilderCreateDebugLocationFn: LLVMDIBuilderCreateDebugLocationFn? = nil,
+        diBuilderCreateBasicTypeFn: LLVMDIBuilderCreateBasicTypeFn? = nil,
+        diBuilderCreateParameterVariableFn: LLVMDIBuilderCreateParameterVariableFn? = nil,
+        diBuilderCreateAutoVariableFn: LLVMDIBuilderCreateAutoVariableFn? = nil,
+        diBuilderInsertDeclareAtEndFn: LLVMDIBuilderInsertDeclareAtEndFn? = nil,
+        diBuilderCreateExpressionFn: LLVMDIBuilderCreateExpressionFn? = nil,
+        linkModules2Fn: LLVMLinkModules2Fn? = nil
+    ) {
+        self.handle = handle
+        self.contextCreateFn = contextCreateFn
+        self.contextDisposeFn = contextDisposeFn
+        self.moduleCreateFn = moduleCreateFn
+        self.disposeModuleFn = disposeModuleFn
+        self.printModuleToStringFn = printModuleToStringFn
+        self.disposeMessageFn = disposeMessageFn
+        self.setTargetFn = setTargetFn
+        self.setDataLayoutFn = setDataLayoutFn
+        self.setLinkageFn = setLinkageFn
+        self.int8TypeInContextFn = int8TypeInContextFn
+        self.int64TypeFn = int64TypeFn
+        self.structTypeInContextFn = structTypeInContextFn
+        self.pointerTypeFn = pointerTypeFn
+        self.functionTypeFn = functionTypeFn
+        self.addFunctionFn = addFunctionFn
+        self.getNamedFunctionFn = getNamedFunctionFn
+        self.getParamFn = getParamFn
+        self.getUndefFn = getUndefFn
+        self.appendBasicBlockFn = appendBasicBlockFn
+        self.createBuilderFn = createBuilderFn
+        self.disposeBuilderFn = disposeBuilderFn
+        self.positionBuilderFn = positionBuilderFn
+        self.getBasicBlockTerminatorFn = getBasicBlockTerminatorFn
+        self.buildRetFn = buildRetFn
+        self.buildBrFn = buildBrFn
+        self.buildCondBrFn = buildCondBrFn
+        self.buildUnreachableFn = buildUnreachableFn
+        self.buildAddFn = buildAddFn
+        self.buildSubFn = buildSubFn
+        self.buildMulFn = buildMulFn
+        self.buildSDivFn = buildSDivFn
+        self.buildUDivFn = buildUDivFn
+        self.buildURemFn = buildURemFn
+        // Bitwise/shift builder assignments (P5-103)
+        self.buildAndFn = buildAndFn
+        self.buildOrFn = buildOrFn
+        self.buildXorFn = buildXorFn
+        self.buildShlFn = buildShlFn
+        self.buildAShrFn = buildAShrFn
+        self.buildLShrFn = buildLShrFn
+        self.buildNotFn = buildNotFn
+        self.buildICmpFn = buildICmpFn
+        self.buildZExtFn = buildZExtFn
+        self.buildTruncFn = buildTruncFn
+        self.buildAllocaFn = buildAllocaFn
+        self.buildStoreFn = buildStoreFn
+        self.buildLoad2Fn = buildLoad2Fn
+        self.buildLoadFn = buildLoadFn
+        self.buildSelectFn = buildSelectFn
+        self.buildExtractValueFn = buildExtractValueFn
+        self.buildInsertValueFn = buildInsertValueFn
+        self.buildGlobalStringPtrFn = buildGlobalStringPtrFn
+        self.buildPtrToIntFn = buildPtrToIntFn
+        self.buildIntToPtrFn = buildIntToPtrFn
+        self.buildCall2Fn = buildCall2Fn
+        self.buildCallFn = buildCallFn
+        self.constIntFn = constIntFn
+        self.constPointerNullFn = constPointerNullFn
+        self.constStructInContextFn = constStructInContextFn
+        self.constStringInContextFn = constStringInContextFn
+        self.arrayTypeFn = arrayTypeFn
+        self.setGlobalConstantFn = setGlobalConstantFn
+        self.setUnnamedAddrFn = setUnnamedAddrFn
+        self.buildInBoundsGEP2Fn = buildInBoundsGEP2Fn
+        self.getDefaultTargetTripleFn = getDefaultTargetTripleFn
+        self.getTargetFromTripleFn = getTargetFromTripleFn
+        self.createTargetMachineFn = createTargetMachineFn
+        self.disposeTargetMachineFn = disposeTargetMachineFn
+        self.emitToFileFn = emitToFileFn
+        self.createTargetDataLayoutFn = createTargetDataLayoutFn
+        self.copyStringRepOfTargetDataFn = copyStringRepOfTargetDataFn
+        self.disposeTargetDataFn = disposeTargetDataFn
+        self.initializeX86TargetInfoFn = initializeX86TargetInfoFn
+        self.initializeX86TargetFn = initializeX86TargetFn
+        self.initializeX86TargetMCFn = initializeX86TargetMCFn
+        self.initializeX86AsmPrinterFn = initializeX86AsmPrinterFn
+        self.initializeAArch64TargetInfoFn = initializeAArch64TargetInfoFn
+        self.initializeAArch64TargetFn = initializeAArch64TargetFn
+        self.initializeAArch64TargetMCFn = initializeAArch64TargetMCFn
+        self.initializeAArch64AsmPrinterFn = initializeAArch64AsmPrinterFn
+        self.addGlobalFn = addGlobalFn
+        self.setInitializerFn = setInitializerFn
+        self.createDIBuilderFn = createDIBuilderFn
+        self.disposeDIBuilderFn = disposeDIBuilderFn
+        self.diBuilderFinalizeFn = diBuilderFinalizeFn
+        self.diBuilderCreateFileFn = diBuilderCreateFileFn
+        self.diBuilderCreateCompileUnitFn = diBuilderCreateCompileUnitFn
+        self.diBuilderCreateSubroutineTypeFn = diBuilderCreateSubroutineTypeFn
+        self.diBuilderCreateFunctionFn = diBuilderCreateFunctionFn
+        self.setSubprogramFn = setSubprogramFn
+        self.addModuleFlagFn = addModuleFlagFn
+        self.valueAsMetadataFn = valueAsMetadataFn
+        self.int32TypeFn = int32TypeFn
+        self.setCurrentDebugLocation2Fn = setCurrentDebugLocation2Fn
+        self.diBuilderCreateDebugLocationFn = diBuilderCreateDebugLocationFn
+        self.diBuilderCreateBasicTypeFn = diBuilderCreateBasicTypeFn
+        self.diBuilderCreateParameterVariableFn = diBuilderCreateParameterVariableFn
+        self.diBuilderCreateAutoVariableFn = diBuilderCreateAutoVariableFn
+        self.diBuilderInsertDeclareAtEndFn = diBuilderInsertDeclareAtEndFn
+        self.diBuilderCreateExpressionFn = diBuilderCreateExpressionFn
+        self.linkModules2Fn = linkModules2Fn
+    }
+
+    deinit {
+        dlclose(handle)
+    }
+}

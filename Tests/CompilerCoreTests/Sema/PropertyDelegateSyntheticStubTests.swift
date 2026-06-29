@@ -1,18 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class PropertyDelegateSyntheticStubTests: XCTestCase {
+@Suite
+struct PropertyDelegateSyntheticStubTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testObservablePropertySurfaceIsRegistered() throws {
+    @Test func testObservablePropertySurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
         let observableFQName = propertiesFQName + [interner.intern("ObservableProperty")]
@@ -20,14 +22,14 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
         let readOnlyFQName = propertiesFQName + [interner.intern("ReadOnlyProperty")]
         let kPropertyFQName = ["kotlin", "reflect", "KProperty"].map { interner.intern($0) }
 
-        let observableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: observableFQName))
-        let readWriteSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: readWriteFQName))
-        let readOnlySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: readOnlyFQName))
-        let kPropertySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: kPropertyFQName))
-        let observableInfo = try XCTUnwrap(sema.symbols.symbol(observableSymbol))
-        XCTAssertEqual(observableInfo.kind, .class)
-        XCTAssertTrue(observableInfo.flags.contains(.abstractType))
-        XCTAssertEqual(sema.symbols.directSupertypes(for: observableSymbol), [readWriteSymbol])
+        let observableSymbol = try #require(sema.symbols.lookup(fqName: observableFQName))
+        let readWriteSymbol = try #require(sema.symbols.lookup(fqName: readWriteFQName))
+        let readOnlySymbol = try #require(sema.symbols.lookup(fqName: readOnlyFQName))
+        let kPropertySymbol = try #require(sema.symbols.lookup(fqName: kPropertyFQName))
+        let observableInfo = try #require(sema.symbols.symbol(observableSymbol))
+        #expect(observableInfo.kind == .class)
+        #expect(observableInfo.flags.contains(.abstractType))
+        #expect(sema.symbols.directSupertypes(for: observableSymbol) == [readWriteSymbol])
         try assertNominalTypeParameters(
             for: readWriteSymbol,
             names: ["T", "V"],
@@ -44,14 +46,13 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
         )
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: observableSymbol)
-        XCTAssertEqual(typeParams.count, 1)
+        #expect(typeParams.count == 1)
         let valueType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParams[0],
             nullability: .nonNull
         )))
-        XCTAssertEqual(
-            sema.symbols.supertypeTypeArgs(for: observableSymbol, supertype: readWriteSymbol),
-            [.in(sema.types.nullableAnyType), .invariant(valueType)]
+        #expect(
+            sema.symbols.supertypeTypeArgs(for: observableSymbol, supertype: readWriteSymbol) == [.in(sema.types.nullableAnyType), .invariant(valueType)]
         )
 
         let observableType = sema.types.make(.classType(ClassType(
@@ -65,12 +66,12 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        let initSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: observableFQName + [interner.intern("<init>")]))
-        let initSignature = try XCTUnwrap(sema.symbols.functionSignature(for: initSymbol))
-        XCTAssertEqual(initSignature.parameterTypes, [valueType])
-        XCTAssertEqual(initSignature.returnType, observableType)
-        XCTAssertEqual(initSignature.typeParameterSymbols, typeParams)
-        XCTAssertEqual(initSignature.classTypeParameterCount, 1)
+        let initSymbol = try #require(sema.symbols.lookup(fqName: observableFQName + [interner.intern("<init>")]))
+        let initSignature = try #require(sema.symbols.functionSignature(for: initSymbol))
+        #expect(initSignature.parameterTypes == [valueType])
+        #expect(initSignature.returnType == observableType)
+        #expect(initSignature.typeParameterSymbols == typeParams)
+        #expect(initSignature.classTypeParameterCount == 1)
 
         try assertMember(
             named: "beforeChange",
@@ -120,13 +121,13 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
         )
     }
 
-    func testDelegatesObservableAndVetoableStayBackedByReadWriteProperty() throws {
+    @Test func testDelegatesObservableAndVetoableStayBackedByReadWriteProperty() throws {
         let (sema, interner) = try makeSema()
         let propertiesFQName = ["kotlin", "properties"].map { interner.intern($0) }
         let delegatesFQName = propertiesFQName + [interner.intern("Delegates")]
         let readWriteFQName = propertiesFQName + [interner.intern("ReadWriteProperty")]
-        let delegatesSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: delegatesFQName))
-        let readWriteSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: readWriteFQName))
+        let delegatesSymbol = try #require(sema.symbols.lookup(fqName: delegatesFQName))
+        let readWriteSymbol = try #require(sema.symbols.lookup(fqName: readWriteFQName))
         let delegatesType = sema.types.make(.classType(ClassType(
             classSymbol: delegatesSymbol,
             args: [],
@@ -139,19 +140,19 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
         )))
 
         for memberName in ["observable", "vetoable"] {
-            let memberSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: delegatesFQName + [interner.intern(memberName)]))
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: memberSymbol))
-            XCTAssertEqual(signature.receiverType, delegatesType)
-            XCTAssertEqual(signature.parameterTypes, [sema.types.anyType])
-            XCTAssertEqual(signature.returnType, readWriteType)
+            let memberSymbol = try #require(sema.symbols.lookup(fqName: delegatesFQName + [interner.intern(memberName)]))
+            let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
+            #expect(signature.receiverType == delegatesType)
+            #expect(signature.parameterTypes == [sema.types.anyType])
+            #expect(signature.returnType == readWriteType)
         }
     }
 
-    func testRootLazyAndLazyOfSurfaceAreRegistered() throws {
+    @Test func testRootLazyAndLazyOfSurfaceAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let kotlinFQName = ["kotlin"].map { interner.intern($0) }
         let lazyFQName = kotlinFQName + [interner.intern("Lazy")]
-        let lazySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: lazyFQName))
+        let lazySymbol = try #require(sema.symbols.lookup(fqName: lazyFQName))
         try assertNominalTypeParameters(
             for: lazySymbol,
             names: ["T"],
@@ -171,37 +172,37 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        let valueSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: lazyFQName + [interner.intern("value")]))
-        XCTAssertEqual(sema.symbols.propertyType(for: valueSymbol), lazyTypeParamType)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: valueSymbol), "kk_lazy_get_value")
+        let valueSymbol = try #require(sema.symbols.lookup(fqName: lazyFQName + [interner.intern("value")]))
+        #expect(sema.symbols.propertyType(for: valueSymbol) == lazyTypeParamType)
+        #expect(sema.symbols.externalLinkName(for: valueSymbol) == "kk_lazy_get_value")
 
-        let isInitializedSymbol = try XCTUnwrap(
+        let isInitializedSymbol = try #require(
             sema.symbols.lookup(fqName: lazyFQName + [interner.intern("isInitialized")])
         )
-        XCTAssertEqual(sema.symbols.externalLinkName(for: isInitializedSymbol), "kk_lazy_is_initialized")
-        let isInitializedSignature = try XCTUnwrap(sema.symbols.functionSignature(for: isInitializedSymbol))
-        XCTAssertEqual(isInitializedSignature.receiverType, lazyType)
-        XCTAssertEqual(isInitializedSignature.parameterTypes, [])
-        XCTAssertEqual(isInitializedSignature.returnType, sema.types.booleanType)
-        XCTAssertEqual(isInitializedSignature.typeParameterSymbols, lazyTypeParams)
-        XCTAssertEqual(isInitializedSignature.classTypeParameterCount, 1)
+        #expect(sema.symbols.externalLinkName(for: isInitializedSymbol) == "kk_lazy_is_initialized")
+        let isInitializedSignature = try #require(sema.symbols.functionSignature(for: isInitializedSymbol))
+        #expect(isInitializedSignature.receiverType == lazyType)
+        #expect(isInitializedSignature.parameterTypes == [])
+        #expect(isInitializedSignature.returnType == sema.types.booleanType)
+        #expect(isInitializedSignature.typeParameterSymbols == lazyTypeParams)
+        #expect(isInitializedSignature.classTypeParameterCount == 1)
 
-        let lazyOfSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("lazyOf")]))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: lazyOfSymbol), "kk_lazy_of")
-        let lazyOfSignature = try XCTUnwrap(sema.symbols.functionSignature(for: lazyOfSymbol))
-        XCTAssertEqual(lazyOfSignature.parameterTypes.count, 1)
-        XCTAssertEqual(lazyOfSignature.valueParameterHasDefaultValues, [false])
-        XCTAssertEqual(lazyOfSignature.valueParameterIsVararg, [false])
-        XCTAssertEqual(lazyOfSignature.typeParameterSymbols.count, 1)
+        let lazyOfSymbol = try #require(sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("lazyOf")]))
+        #expect(sema.symbols.externalLinkName(for: lazyOfSymbol) == "kk_lazy_of")
+        let lazyOfSignature = try #require(sema.symbols.functionSignature(for: lazyOfSymbol))
+        #expect(lazyOfSignature.parameterTypes.count == 1)
+        #expect(lazyOfSignature.valueParameterHasDefaultValues == [false])
+        #expect(lazyOfSignature.valueParameterIsVararg == [false])
+        #expect(lazyOfSignature.typeParameterSymbols.count == 1)
 
         guard case let .classType(returnType) = sema.types.kind(of: lazyOfSignature.returnType),
               returnType.args.count == 1,
               case let .invariant(returnArgument) = returnType.args[0]
         else {
-            return XCTFail("Expected lazyOf to return Lazy<T>")
+            Issue.record("Expected lazyOf to return Lazy<T>"); return
         }
-        XCTAssertEqual(returnType.classSymbol, lazySymbol)
-        XCTAssertEqual(returnArgument, lazyOfSignature.parameterTypes[0])
+        #expect(returnType.classSymbol == lazySymbol)
+        #expect(returnArgument == lazyOfSignature.parameterTypes[0])
     }
 
     private func assertMember(
@@ -218,20 +219,18 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        let symbol = try XCTUnwrap(
-            sema.symbols.lookup(fqName: ownerFQName + [interner.intern(name)]),
-            file: file,
-            line: line
+        let symbol = try #require(
+            sema.symbols.lookup(fqName: ownerFQName + [interner.intern(name)])
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol), file: file, line: line)
-        XCTAssertEqual(info.visibility, visibility, file: file, line: line)
-        XCTAssertTrue(info.flags.isSuperset(of: requiredFlags), file: file, line: line)
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol), file: file, line: line)
-        XCTAssertEqual(signature.receiverType, ownerType, file: file, line: line)
-        XCTAssertEqual(signature.parameterTypes, parameterTypes, file: file, line: line)
-        XCTAssertEqual(signature.returnType, returnType, file: file, line: line)
-        XCTAssertEqual(signature.typeParameterSymbols, typeParams, file: file, line: line)
-        XCTAssertEqual(signature.classTypeParameterCount, 1, file: file, line: line)
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.visibility == visibility)
+        #expect(info.flags.isSuperset(of: requiredFlags))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        #expect(signature.receiverType == ownerType)
+        #expect(signature.parameterTypes == parameterTypes)
+        #expect(signature.returnType == returnType)
+        #expect(signature.typeParameterSymbols == typeParams)
+        #expect(signature.classTypeParameterCount == 1)
     }
 
     private func assertNominalTypeParameters(
@@ -244,11 +243,12 @@ final class PropertyDelegateSyntheticStubTests: XCTestCase {
         line: UInt = #line
     ) throws {
         let typeParameters = sema.types.nominalTypeParameterSymbols(for: symbol)
-        XCTAssertEqual(typeParameters.count, names.count, file: file, line: line)
+        #expect(typeParameters.count == names.count)
         let resolvedNames = try typeParameters.map { parameterSymbol in
-            try interner.resolve(XCTUnwrap(sema.symbols.symbol(parameterSymbol)?.name, file: file, line: line))
+            try interner.resolve(#require(sema.symbols.symbol(parameterSymbol)?.name))
         }
-        XCTAssertEqual(resolvedNames, names, file: file, line: line)
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: symbol), variances, file: file, line: line)
+        #expect(resolvedNames == names)
+        #expect(sema.types.nominalTypeParameterVariances(for: symbol) == variances)
     }
 }
+#endif

@@ -1,30 +1,30 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropPinFunctionTests: XCTestCase {
+@Suite
+struct NativeCInteropPinFunctionTests {
+    @Test
     func testPinFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected pin surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected pin surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
         }
 
         let pinnedSymbol = try cinteropSymbol("Pinned")
-        let pinnedTypeParameter = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: pinnedSymbol).first)
+        let pinnedTypeParameter = try #require(sema.types.nominalTypeParameterSymbols(for: pinnedSymbol).first)
         let pinnedTypeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: pinnedTypeParameter,
             nullability: .nonNull
@@ -35,22 +35,22 @@ final class NativeCInteropPinFunctionTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.symbol(pinnedSymbol)?.kind, .class)
-        XCTAssertEqual(sema.symbols.propertyType(for: pinnedSymbol), pinnedType)
-        XCTAssertEqual(sema.symbols.symbol(pinnedTypeParameter)?.name, interner.intern("T"))
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: pinnedTypeParameter), [sema.types.anyType])
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: pinnedSymbol), [.invariant])
+        #expect(sema.symbols.symbol(pinnedSymbol)?.kind == .class)
+        #expect(sema.symbols.propertyType(for: pinnedSymbol) == pinnedType)
+        #expect(sema.symbols.symbol(pinnedTypeParameter)?.name == interner.intern("T"))
+        #expect(sema.symbols.typeParameterUpperBounds(for: pinnedTypeParameter) == [sema.types.anyType])
+        #expect(sema.types.nominalTypeParameterVariances(for: pinnedSymbol) == [.invariant])
 
         let pinFQName = cinteropPkg + [interner.intern("pin")]
-        let pinSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: pinFQName).first { symbolID in
+        let pinSymbol = try #require(sema.symbols.lookupAll(fqName: pinFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return signature.parameterTypes.isEmpty
                 && signature.typeParameterSymbols.count == 1
         })
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: pinSymbol))
-        let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let signature = try #require(sema.symbols.functionSignature(for: pinSymbol))
+        let typeParameter = try #require(signature.typeParameterSymbols.first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -60,16 +60,17 @@ final class NativeCInteropPinFunctionTests: XCTestCase {
             args: [.invariant(typeParameterType)],
             nullability: .nonNull
         )))
-        let flags = try XCTUnwrap(sema.symbols.symbol(pinSymbol)?.flags)
+        let flags = try #require(sema.symbols.symbol(pinSymbol)?.flags)
 
-        XCTAssertTrue(flags.isSuperset(of: [.synthetic, .inlineFunction]))
-        XCTAssertEqual(signature.receiverType, typeParameterType)
-        XCTAssertEqual(signature.returnType, expectedReturnType)
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[sema.types.anyType]])
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [sema.types.anyType])
-        XCTAssertEqual(sema.symbols.parentSymbol(for: pinSymbol), sema.symbols.lookup(fqName: cinteropPkg))
+        #expect(flags.isSuperset(of: [.synthetic, .inlineFunction]))
+        #expect(signature.receiverType == typeParameterType)
+        #expect(signature.returnType == expectedReturnType)
+        #expect(signature.typeParameterUpperBoundsList == [[sema.types.anyType]])
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [sema.types.anyType])
+        #expect(sema.symbols.parentSymbol(for: pinSymbol) == sema.symbols.lookup(fqName: cinteropPkg))
     }
 
+    @Test
     func testPinFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.Pinned
@@ -81,9 +82,9 @@ final class NativeCInteropPinFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected pin to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected pin to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

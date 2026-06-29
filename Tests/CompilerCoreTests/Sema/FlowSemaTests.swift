@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class FlowSemaTests: XCTestCase {
-    func testFlowBuilderAndChainTypeChecks() throws {
+@Suite
+struct FlowSemaTests {
+    @Test func testFlowBuilderAndChainTypeChecks() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -26,7 +28,7 @@ final class FlowSemaTests: XCTestCase {
         }
     }
 
-    func testRunBlockingLambdaAvoidsTypeConstraintFailure() throws {
+    @Test func testRunBlockingLambdaAvoidsTypeConstraintFailure() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -43,7 +45,7 @@ final class FlowSemaTests: XCTestCase {
         }
     }
 
-    func testFlowMapCallableReferenceDoesNotOverConstrain() throws {
+    @Test func testFlowMapCallableReferenceDoesNotOverConstrain() throws {
         let source = """
         fun twice(x: Int): Int = x * 2
 
@@ -68,7 +70,7 @@ final class FlowSemaTests: XCTestCase {
         }
     }
 
-    func testFlowStoredInLocalVariableKeepsFlowReceiverTyping() throws {
+    @Test func testFlowStoredInLocalVariableKeepsFlowReceiverTyping() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -93,7 +95,7 @@ final class FlowSemaTests: XCTestCase {
         }
     }
 
-    func testFlowFallbackDoesNotApplyToArbitraryAnyReceiver() throws {
+    @Test func testFlowFallbackDoesNotApplyToArbitraryAnyReceiver() throws {
         let source = """
         fun main() {
             val value: Any = 1
@@ -105,14 +107,17 @@ final class FlowSemaTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
-                ctx.diagnostics.diagnostics.contains(where: { ["KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0024"].contains($0.code) }),
+            let hasExpectedDiagnostic = ctx.diagnostics.diagnostics.contains(where: {
+                ["KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0024"].contains($0.code)
+            })
+            #expect(
+                hasExpectedDiagnostic,
                 "Expected unresolved member diagnostic for non-flow Any receiver. Got: \(ctx.diagnostics.diagnostics.map(\.code))"
             )
         }
     }
 
-    func testUserDefinedFlowFunctionShadowsBuiltinFlowFallback() throws {
+    @Test func testUserDefinedFlowFunctionShadowsBuiltinFlowFallback() throws {
         let source = """
         fun flow(block: () -> Int): Int = block()
 
@@ -134,7 +139,7 @@ final class FlowSemaTests: XCTestCase {
 
     // MARK: - TYPE-113: Flow<T> type preservation tests
 
-    func testFlowBuilderExprTypeIsFlowClassType() throws {
+    @Test func testFlowBuilderExprTypeIsFlowClassType() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -147,34 +152,34 @@ final class FlowSemaTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
             // Find the flow expression and verify its type is Flow<...> (a classType),
             // not Any.
             let flowExprs = sema.bindings.flowExprIDs
-            XCTAssertFalse(flowExprs.isEmpty, "Should have at least one flow expression")
+            #expect(!flowExprs.isEmpty, "Should have at least one flow expression")
 
             for flowExpr in flowExprs {
                 guard let exprType = sema.bindings.exprType(for: flowExpr) else { continue }
                 // The expression type should NOT be anyType or nullableAnyType
-                XCTAssertNotEqual(exprType, sema.types.anyType,
+                #expect(exprType != sema.types.anyType,
                     "Flow expression type should not be erased to Any")
-                XCTAssertNotEqual(exprType, sema.types.nullableAnyType,
+                #expect(exprType != sema.types.nullableAnyType,
                     "Flow expression type should not be erased to Any?")
                 // It should be a classType (Flow<...>)
                 if case .classType(let classType) = sema.types.kind(of: exprType) {
                     let symbol = sema.symbols.symbol(classType.classSymbol)
                     let name = symbol.map { ctx.interner.resolve($0.name) }
-                    XCTAssertEqual(name, "Flow", "Flow expression should have Flow class type")
-                    XCTAssertFalse(classType.args.isEmpty, "Flow type should have type arguments")
+                    #expect(name == "Flow", "Flow expression should have Flow class type")
+                    #expect(!classType.args.isEmpty, "Flow type should have type arguments")
                 }
             }
         }
     }
 
-    func testFlowMapResultTypeIsFlowClassType() throws {
+    @Test func testFlowMapResultTypeIsFlowClassType() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -187,24 +192,24 @@ final class FlowSemaTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
             // The map result should also be a flow expression with a non-Any type
             let flowExprs = sema.bindings.flowExprIDs
-            XCTAssertGreaterThanOrEqual(flowExprs.count, 2,
+            #expect(flowExprs.count >= 2,
                 "Should have flow builder + map as flow expressions")
 
             for flowExpr in flowExprs {
                 guard let exprType = sema.bindings.exprType(for: flowExpr) else { continue }
-                XCTAssertNotEqual(exprType, sema.types.anyType,
+                #expect(exprType != sema.types.anyType,
                     "Flow chain result should not be erased to Any")
             }
         }
     }
 
-    func testFlowFilterPreservesElementType() throws {
+    @Test func testFlowFilterPreservesElementType() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -220,18 +225,18 @@ final class FlowSemaTests: XCTestCase {
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let flowExprs = sema.bindings.flowExprIDs
-            XCTAssertGreaterThanOrEqual(flowExprs.count, 2,
+            #expect(flowExprs.count >= 2,
                 "Should have flow builder + filter as flow expressions")
             // At least one flow expression (the filter result) should track element type
             let exprsWithElementType = flowExprs.filter { sema.bindings.flowElementType(forExpr: $0) != nil }
-            XCTAssertFalse(exprsWithElementType.isEmpty,
+            #expect(!exprsWithElementType.isEmpty,
                 "At least one flow expression should track element type after filter")
         }
     }
 
-    func testFlowTakeResultTypeIsFlowClassType() throws {
+    @Test func testFlowTakeResultTypeIsFlowClassType() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -244,20 +249,20 @@ final class FlowSemaTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
             let flowExprs = sema.bindings.flowExprIDs
             for flowExpr in flowExprs {
                 guard let exprType = sema.bindings.exprType(for: flowExpr) else { continue }
-                XCTAssertNotEqual(exprType, sema.types.anyType,
+                #expect(exprType != sema.types.anyType,
                     "Flow.take() result should not be erased to Any")
             }
         }
     }
 
-    func testAdditionalFlowBuildersTypeCheck() throws {
+    @Test func testAdditionalFlowBuildersTypeCheck() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -280,7 +285,7 @@ final class FlowSemaTests: XCTestCase {
         }
     }
 
-    func testFlowErrorHandlingMembersTypeCheck() throws {
+    @Test func testFlowErrorHandlingMembersTypeCheck() throws {
         let source = """
         fun failOnTwo(value: Int): Int {
             if (value == 2) throw RuntimeException("boom")
@@ -327,7 +332,7 @@ final class FlowSemaTests: XCTestCase {
         }
     }
 
-    func testUserDefinedEmitInsideFlowBuilderShadowsBuiltinEmitFallback() throws {
+    @Test func testUserDefinedEmitInsideFlowBuilderShadowsBuiltinEmitFallback() throws {
         let source = """
         fun main() {
             runBlocking {
@@ -350,3 +355,4 @@ final class FlowSemaTests: XCTestCase {
         }
     }
 }
+#endif

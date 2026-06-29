@@ -1,17 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class RangeSyntheticMemberLinkTests: XCTestCase {
+@Suite
+struct RangeSyntheticMemberLinkTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func externalLink(
@@ -43,58 +45,55 @@ final class RangeSyntheticMemberLinkTests: XCTestCase {
         }.flatMap { sema.symbols.externalLinkName(for: $0) }
     }
 
-    func testCharProgressionSyntheticSurface() throws {
+    @Test func testCharProgressionSyntheticSurface() throws {
         let (sema, interner) = try makeSema()
         let charProgressionFQName = ["kotlin", "ranges", "CharProgression"].map { interner.intern($0) }
-        let charProgressionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: charProgressionFQName))
+        let charProgressionSymbol = try #require(sema.symbols.lookup(fqName: charProgressionFQName))
         let charProgressionType = sema.types.make(.classType(ClassType(
             classSymbol: charProgressionSymbol,
             args: [],
             nullability: .nonNull
         )))
-        let companionSymbol = try XCTUnwrap(sema.symbols.companionObjectSymbol(for: charProgressionSymbol))
-        let companionInfo = try XCTUnwrap(sema.symbols.symbol(companionSymbol))
-        let fromClosedRangeSymbol = try XCTUnwrap(
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: charProgressionSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        let fromClosedRangeSymbol = try #require(
             sema.symbols.lookup(fqName: companionInfo.fqName + [interner.intern("fromClosedRange")])
         )
-        let fromClosedRangeSignature = try XCTUnwrap(sema.symbols.functionSignature(for: fromClosedRangeSymbol))
+        let fromClosedRangeSignature = try #require(sema.symbols.functionSignature(for: fromClosedRangeSymbol))
 
-        XCTAssertEqual(sema.symbols.externalLinkName(for: fromClosedRangeSymbol), "kk_char_progression_fromClosedRange")
-        XCTAssertEqual(fromClosedRangeSignature.parameterTypes, [sema.types.charType, sema.types.charType, sema.types.intType])
-        XCTAssertEqual(fromClosedRangeSignature.returnType, charProgressionType)
-        XCTAssertEqual(
+        #expect(sema.symbols.externalLinkName(for: fromClosedRangeSymbol) == "kk_char_progression_fromClosedRange")
+        #expect(fromClosedRangeSignature.parameterTypes == [sema.types.charType, sema.types.charType, sema.types.intType])
+        #expect(fromClosedRangeSignature.returnType == charProgressionType)
+        #expect(
             functionExternalLink(
                 for: "CharProgression",
                 member: "toList",
                 parameterCount: 0,
                 sema: sema,
                 interner: interner
-            ),
-            "kk_char_range_toList"
+            ) == "kk_char_range_toList"
         )
-        XCTAssertEqual(
+        #expect(
             functionExternalLink(
                 for: "CharProgression",
                 member: "isEmpty",
                 parameterCount: 0,
                 sema: sema,
                 interner: interner
-            ),
-            "kk_char_range_isEmpty"
+            ) == "kk_char_range_isEmpty"
         )
-        XCTAssertEqual(
+        #expect(
             functionExternalLink(
                 for: "CharProgression",
                 member: "step",
                 parameterCount: 1,
                 sema: sema,
                 interner: interner
-            ),
-            "kk_char_range_step"
+            ) == "kk_char_range_step"
         )
     }
 
-    func testRangeRandomStubsHaveCorrectExternalLinks() throws {
+    @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [(owner: String, link: String)] = [
@@ -111,15 +110,14 @@ final class RangeSyntheticMemberLinkTests: XCTestCase {
             ("ULongRange", "kk_ulong_range_firstOrNull"),
         ]
         for expectation in orNullExpected {
-            XCTAssertEqual(
+            #expect(
                 externalLink(
                     for: expectation.owner,
                     member: "firstOrNull",
                     sema: sema,
                     interner: interner
-                ),
-                expectation.link,
-                "\(expectation.owner).firstOrNull should link to \(expectation.link)"
+                ) == expectation.link,
+                Comment(rawValue: "\(expectation.owner).firstOrNull should link to \(expectation.link)")
             )
         }
         let lastOrNullExpected: [(owner: String, link: String)] = [
@@ -128,33 +126,31 @@ final class RangeSyntheticMemberLinkTests: XCTestCase {
             ("ULongRange", "kk_ulong_range_lastOrNull"),
         ]
         for expectation in lastOrNullExpected {
-            XCTAssertEqual(
+            #expect(
                 externalLink(
                     for: expectation.owner,
                     member: "lastOrNull",
                     sema: sema,
                     interner: interner
-                ),
-                expectation.link,
-                "\(expectation.owner).lastOrNull should link to \(expectation.link)"
+                ) == expectation.link,
+                Comment(rawValue: "\(expectation.owner).lastOrNull should link to \(expectation.link)")
             )
         }
 
         for expectation in expected {
-            XCTAssertEqual(
+            #expect(
                 externalLink(
                     for: expectation.owner,
                     member: "random",
                     sema: sema,
                     interner: interner
-                ),
-                expectation.link,
-                "\(expectation.owner).random should link to \(expectation.link)"
+                ) == expectation.link,
+                Comment(rawValue: "\(expectation.owner).random should link to \(expectation.link)")
             )
         }
     }
 
-    func testRangeRandomMembersResolveInCallExpressions() throws {
+    @Test func testRangeRandomMembersResolveInCallExpressions() throws {
         try assertRandomCallLink(
             source: """
             import kotlin.ranges.*
@@ -211,16 +207,16 @@ final class RangeSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else {
                     return false
                 }
                 return ctx.interner.resolve(callee) == "random"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), expectedLink)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedLink)
             let expectedType: TypeID
             switch expectedTypeName {
             case "Int":
@@ -234,14 +230,14 @@ final class RangeSyntheticMemberLinkTests: XCTestCase {
             case "ULong":
                 expectedType = sema.types.ulongType
             default:
-                XCTFail("Unexpected expected type name: \(expectedTypeName)")
+                Issue.record(Comment(rawValue: "Unexpected expected type name: \(expectedTypeName)"))
                 return
             }
-            XCTAssertEqual(
-                sema.bindings.exprTypes[callExpr],
-                expectedType,
-                "Expected random() to return \(expectedTypeName)"
+            #expect(
+                sema.bindings.exprTypes[callExpr] == expectedType,
+                Comment(rawValue: "Expected random() to return \(expectedTypeName)")
             )
         }
     }
 }
+#endif

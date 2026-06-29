@@ -1,44 +1,51 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class DataFlowAnalyzerTests: XCTestCase {
+@Suite
+struct DataFlowAnalyzerTests {
     // MARK: - VariableFlowState
 
+    @Test
     func testVariableFlowStateEquality() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
         let state1 = VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)
         let state2 = VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)
         let state3 = VariableFlowState(possibleTypes: [intType], nullability: .nullable, isStable: true)
-        XCTAssertEqual(state1, state2)
-        XCTAssertNotEqual(state1, state3)
+        #expect(state1 == state2)
+        #expect(state1 != state3)
     }
 
+    @Test
     func testVariableFlowStateStableFlag() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
         let stable = VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)
         let unstable = VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: false)
-        XCTAssertNotEqual(stable, unstable)
+        #expect(stable != unstable)
     }
 
     // MARK: - DataFlowState
 
+    @Test
     func testDataFlowStateDefaultIsEmpty() {
         let state = DataFlowState()
-        XCTAssertTrue(state.variables.isEmpty)
+        #expect(state.variables.isEmpty)
     }
 
+    @Test
     func testDataFlowStateWithVariables() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
         let sym = SymbolID(rawValue: 0)
         let flow = VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)
         let state = DataFlowState(variables: [sym: flow])
-        XCTAssertEqual(state.variables.count, 1)
-        XCTAssertEqual(state.variables[sym], flow)
+        #expect(state.variables.count == 1)
+        #expect(state.variables[sym] == flow)
     }
 
+    @Test
     func testDataFlowStateEquality() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
@@ -46,29 +53,33 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let flow = VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)
         let s1 = DataFlowState(variables: [sym: flow])
         let s2 = DataFlowState(variables: [sym: flow])
-        XCTAssertEqual(s1, s2)
+        #expect(s1 == s2)
     }
 
     // MARK: - WhenBranchSummary
 
+    @Test
     func testWhenBranchSummaryDefaults() {
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: false)
-        XCTAssertFalse(summary.hasElse)
-        XCTAssertFalse(summary.hasNullCase)
-        XCTAssertFalse(summary.hasTrueCase)
-        XCTAssertFalse(summary.hasFalseCase)
+        #expect(!summary.hasElse)
+        #expect(!summary.hasNullCase)
+        #expect(!summary.hasTrueCase)
+        #expect(!summary.hasFalseCase)
     }
 
+    @Test
     func testWhenBranchSummaryWithElse() {
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: true)
-        XCTAssertTrue(summary.hasElse)
+        #expect(summary.hasElse)
     }
 
+    @Test
     func testWhenBranchSummaryWithNullCase() {
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: false, hasNullCase: true)
-        XCTAssertTrue(summary.hasNullCase)
+        #expect(summary.hasNullCase)
     }
 
+    @Test
     func testWhenBranchSummaryWithTrueFalse() {
         let summary = WhenBranchSummary(
             coveredSymbols: [],
@@ -76,10 +87,11 @@ final class DataFlowAnalyzerTests: XCTestCase {
             hasTrueCase: true,
             hasFalseCase: true
         )
-        XCTAssertTrue(summary.hasTrueCase)
-        XCTAssertTrue(summary.hasFalseCase)
+        #expect(summary.hasTrueCase)
+        #expect(summary.hasFalseCase)
     }
 
+    @Test
     func testWhenBranchSummaryAutoDetectsTrueFalseFromCoveredSymbols() {
         // WhenBranchSummary.init hardcodes InternedString(rawValue: 1) as "true"
         // and InternedString(rawValue: 2) as "false" (see DataFlowAnalysis.swift:38-39).
@@ -87,8 +99,8 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let trueStr = InternedString(rawValue: 1)
         let falseStr = InternedString(rawValue: 2)
         let summary = WhenBranchSummary(coveredSymbols: [trueStr, falseStr], hasElse: false)
-        XCTAssertTrue(summary.hasTrueCase)
-        XCTAssertTrue(summary.hasFalseCase)
+        #expect(summary.hasTrueCase)
+        #expect(summary.hasFalseCase)
 
         // Verify explicit parameters override auto-detection
         let overridden = WhenBranchSummary(
@@ -97,29 +109,32 @@ final class DataFlowAnalyzerTests: XCTestCase {
             hasTrueCase: false,
             hasFalseCase: false
         )
-        XCTAssertFalse(overridden.hasTrueCase)
-        XCTAssertFalse(overridden.hasFalseCase)
+        #expect(!overridden.hasTrueCase)
+        #expect(!overridden.hasFalseCase)
     }
 
     // MARK: - ConditionBranch
 
+    @Test
     func testConditionBranchEquality() {
         let base = DataFlowState()
         let branch1 = ConditionBranch(trueState: base, falseState: base)
         let branch2 = ConditionBranch(trueState: base, falseState: base)
-        XCTAssertEqual(branch1, branch2)
+        #expect(branch1 == branch2)
     }
 
     // MARK: - Merge
 
+    @Test
     func testMergeEmptyStates() {
         let analyzer = DataFlowAnalyzer()
         let lhs = DataFlowState()
         let rhs = DataFlowState()
         let result = analyzer.merge(lhs, rhs)
-        XCTAssertTrue(result.variables.isEmpty)
+        #expect(result.variables.isEmpty)
     }
 
+    @Test
     func testMergeOnlyKeepsSharedSymbols() {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
@@ -131,11 +146,12 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let lhs = DataFlowState(variables: [sym1: flow, sym2: flow])
         let rhs = DataFlowState(variables: [sym1: flow])
         let result = analyzer.merge(lhs, rhs)
-        XCTAssertEqual(result.variables.count, 1)
-        XCTAssertNotNil(result.variables[sym1])
-        XCTAssertNil(result.variables[sym2])
+        #expect(result.variables.count == 1)
+        #expect(result.variables[sym1] != nil)
+        #expect(result.variables[sym2] == nil)
     }
 
+    @Test
     func testMergeUnionsPossibleTypes() throws {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
@@ -146,11 +162,12 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let lhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)])
         let rhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [stringType], nullability: .nonNull, isStable: true)])
         let result = analyzer.merge(lhs, rhs)
-        XCTAssertEqual(result.variables[sym]?.possibleTypes.count, 2)
-        XCTAssertTrue(try XCTUnwrap(result.variables[sym]?.possibleTypes.contains(intType)))
-        XCTAssertTrue(try XCTUnwrap(result.variables[sym]?.possibleTypes.contains(stringType)))
+        #expect(result.variables[sym]?.possibleTypes.count == 2)
+        #expect(try #require(result.variables[sym]?.possibleTypes.contains(intType)))
+        #expect(try #require(result.variables[sym]?.possibleTypes.contains(stringType)))
     }
 
+    @Test
     func testMergeNullabilityIsNullableIfEitherIsNullable() {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
@@ -160,9 +177,10 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let lhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)])
         let rhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nullable, isStable: true)])
         let result = analyzer.merge(lhs, rhs)
-        XCTAssertEqual(result.variables[sym]?.nullability, .nullable)
+        #expect(result.variables[sym]?.nullability == .nullable)
     }
 
+    @Test
     func testMergeStabilityIsFalseIfEitherUnstable() throws {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
@@ -172,58 +190,64 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let lhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)])
         let rhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: false)])
         let result = analyzer.merge(lhs, rhs)
-        XCTAssertFalse(try XCTUnwrap(result.variables[sym]?.isStable))
+        #expect(!(try #require(result.variables[sym]?.isStable)))
     }
 
     // MARK: - isWhenExhaustive
 
+    @Test
     func testIsWhenExhaustiveWithElseReturnsTrue() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let intType = types.make(.primitive(.int, .nonNull))
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: true)
-        XCTAssertTrue(analyzer.isWhenExhaustive(subjectType: intType, branches: summary, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: intType, branches: summary, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveBooleanNonNull() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let boolType = types.make(.primitive(.boolean, .nonNull))
 
         let incomplete = WhenBranchSummary(coveredSymbols: [], hasElse: false, hasTrueCase: true, hasFalseCase: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: boolType, branches: incomplete, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: boolType, branches: incomplete, sema: sema))
 
         let complete = WhenBranchSummary(coveredSymbols: [], hasElse: false, hasTrueCase: true, hasFalseCase: true)
-        XCTAssertTrue(analyzer.isWhenExhaustive(subjectType: boolType, branches: complete, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: boolType, branches: complete, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveBooleanNullable() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let nullableBool = types.make(.primitive(.boolean, .nullable))
 
         let withoutNull = WhenBranchSummary(coveredSymbols: [], hasElse: false, hasTrueCase: true, hasFalseCase: true)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: nullableBool, branches: withoutNull, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: nullableBool, branches: withoutNull, sema: sema))
 
         let withNull = WhenBranchSummary(coveredSymbols: [], hasElse: false, hasNullCase: true, hasTrueCase: true, hasFalseCase: true)
-        XCTAssertTrue(analyzer.isWhenExhaustive(subjectType: nullableBool, branches: withNull, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: nullableBool, branches: withNull, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveNonBoolNonClassReturnsFalse() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let intType = types.make(.primitive(.int, .nonNull))
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: intType, branches: summary, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: intType, branches: summary, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveNullableAnyReturnsFalse() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: types.nullableAnyType, branches: summary, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: types.nullableAnyType, branches: summary, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveEnumClass() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()
@@ -243,13 +267,14 @@ final class DataFlowAnalyzerTests: XCTestCase {
 
         // Missing BLUE
         let incomplete = WhenBranchSummary(coveredSymbols: [redName, greenName], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: enumType, branches: incomplete, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: enumType, branches: incomplete, sema: sema))
 
         // All entries covered
         let complete = WhenBranchSummary(coveredSymbols: [redName, greenName, blueName], hasElse: false)
-        XCTAssertTrue(analyzer.isWhenExhaustive(subjectType: enumType, branches: complete, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: enumType, branches: complete, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveNullableEnumClass() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()
@@ -263,13 +288,14 @@ final class DataFlowAnalyzerTests: XCTestCase {
 
         // All entries but no null case
         let withoutNull = WhenBranchSummary(coveredSymbols: [okName], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: nullableEnumType, branches: withoutNull, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: nullableEnumType, branches: withoutNull, sema: sema))
 
         // All entries and null case
         let withNull = WhenBranchSummary(coveredSymbols: [okName], hasElse: false, hasNullCase: true)
-        XCTAssertTrue(analyzer.isWhenExhaustive(subjectType: nullableEnumType, branches: withNull, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: nullableEnumType, branches: withNull, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveSealedClass() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()
@@ -291,13 +317,14 @@ final class DataFlowAnalyzerTests: XCTestCase {
 
         // Missing Failure
         let incomplete = WhenBranchSummary(coveredSymbols: [successName], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: sealedType, branches: incomplete, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: sealedType, branches: incomplete, sema: sema))
 
         // All subtypes
         let complete = WhenBranchSummary(coveredSymbols: [successName, failureName], hasElse: false)
-        XCTAssertTrue(analyzer.isWhenExhaustive(subjectType: sealedType, branches: complete, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: sealedType, branches: complete, sema: sema))
     }
 
+    @Test
     func testIsWhenExhaustiveNullableSealedClass() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()
@@ -314,9 +341,10 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let nullableSealedType = types.make(.classType(ClassType(classSymbol: sealedSym, nullability: .nullable)))
 
         let withoutNull = WhenBranchSummary(coveredSymbols: [subName], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: nullableSealedType, branches: withoutNull, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: nullableSealedType, branches: withoutNull, sema: sema))
 
         let withNull = WhenBranchSummary(coveredSymbols: [subName], hasElse: false, hasNullCase: true)
-        XCTAssertTrue(analyzer.isWhenExhaustive(subjectType: nullableSealedType, branches: withNull, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: nullableSealedType, branches: withNull, sema: sema))
     }
 }
+#endif

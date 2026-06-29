@@ -134,16 +134,14 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return _diagnostics.contains(where: { $0.severity == .error })
     }
 
-    /// Returns the current number of recorded diagnostics.  Used as a snapshot
-    /// index so callers can roll back speculatively emitted diagnostics.
+    /// Snapshot index for rolling back speculatively emitted diagnostics.
     public var count: Int {
         lock.lock()
         defer { lock.unlock() }
         return _diagnostics.count
     }
 
-    /// Removes all diagnostics added after the given snapshot count.
-    /// Used by speculative type-inference passes to discard probe errors.
+    /// Rolls back diagnostics emitted after the snapshot at `snapshotCount`.
     public func truncate(to count: Int) {
         lock.lock()
         defer { lock.unlock() }

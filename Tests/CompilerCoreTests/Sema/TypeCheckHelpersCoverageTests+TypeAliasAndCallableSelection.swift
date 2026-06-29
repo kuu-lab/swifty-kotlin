@@ -1,7 +1,8 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension TypeCheckHelpersCoverageTests {
+    @Test
     func testTypeAliasExpansionAndSubstitutionPaths() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
@@ -32,7 +33,7 @@ extension TypeCheckHelpersCoverageTests {
             depth: 0,
             diagnostics: fixture.diagnostics
         )
-        XCTAssertEqual(expanded, fixture.types.intType)
+        #expect(expanded == fixture.types.intType)
 
         let aliasRef = fixture.astArena.appendTypeRef(
             .named(
@@ -48,7 +49,7 @@ extension TypeCheckHelpersCoverageTests {
             interner: fixture.interner,
             diagnostics: fixture.diagnostics
         )
-        XCTAssertEqual(resolvedAlias, fixture.types.intType)
+        #expect(resolvedAlias == fixture.types.intType)
 
         let aliasA = fixture.symbols.define(
             kind: .typeAlias,
@@ -81,8 +82,8 @@ extension TypeCheckHelpersCoverageTests {
             depth: 0,
             diagnostics: fixture.diagnostics
         )
-        XCTAssertNil(cyclic)
-        XCTAssertTrue(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ALIAS-CYCLE" })
+        #expect(cyclic == nil)
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ALIAS-CYCLE" })
 
         let overDepth = helpers.expandTypeAlias(
             aliasA,
@@ -92,8 +93,8 @@ extension TypeCheckHelpersCoverageTests {
             depth: 32,
             diagnostics: fixture.diagnostics
         )
-        XCTAssertNil(overDepth)
-        XCTAssertTrue(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ALIAS-DEPTH" })
+        #expect(overDepth == nil)
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ALIAS-DEPTH" })
 
         _ = helpers.expandTypeAlias(
             aliasSymbol,
@@ -103,16 +104,17 @@ extension TypeCheckHelpersCoverageTests {
             depth: 0,
             diagnostics: fixture.diagnostics
         )
-        XCTAssertTrue(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0062" })
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0062" })
 
         let substituted = helpers.applyAliasSubstitution(
             typeParamType,
             argSubstitution: [tParam: .invariant(fixture.types.stringType)],
             sema: fixture.sema
         )
-        XCTAssertEqual(substituted, fixture.types.stringType)
+        #expect(substituted == fixture.types.stringType)
     }
 
+    @Test
     func testSubstituteAliasArgAndNullabilityHelpers() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
@@ -133,9 +135,9 @@ extension TypeCheckHelpersCoverageTests {
             sema: fixture.sema
         )
         if case let .invariant(inner) = substitutedInvariant {
-            XCTAssertEqual(fixture.types.kind(of: inner), .primitive(.int, .nullable))
+            #expect(fixture.types.kind(of: inner) == .primitive(.int, .nullable))
         } else {
-            XCTFail("Expected invariant")
+            Issue.record("Expected invariant")
         }
 
         let substitutedOut = helpers.substituteAliasArg(
@@ -143,7 +145,7 @@ extension TypeCheckHelpersCoverageTests {
             argSubstitution: [tp: .star],
             sema: fixture.sema
         )
-        XCTAssertEqual(substitutedOut, .star)
+        #expect(substitutedOut == .star)
 
         let substitutedIn = helpers.substituteAliasArg(
             .in(tpType),
@@ -151,51 +153,52 @@ extension TypeCheckHelpersCoverageTests {
             sema: fixture.sema
         )
         if case let .in(inner) = substitutedIn {
-            XCTAssertEqual(fixture.types.kind(of: inner), .stringStruct(.nullable))
+            #expect(fixture.types.kind(of: inner) == .stringStruct(.nullable))
         } else {
-            XCTFail("Expected in")
+            Issue.record("Expected in")
         }
 
-        XCTAssertEqual(
-            helpers.applyNullabilityForTypeCheck(fixture.types.intType, types: fixture.types),
+        #expect(
+            helpers.applyNullabilityForTypeCheck(fixture.types.intType, types: fixture.types) ==
             fixture.types.make(.primitive(.int, .nullable))
         )
-        XCTAssertEqual(
-            helpers.applyNullabilityForTypeCheck(fixture.types.errorType, types: fixture.types),
+        #expect(
+            helpers.applyNullabilityForTypeCheck(fixture.types.errorType, types: fixture.types) ==
             fixture.types.nullableAnyType
         )
         let nullableKClass = helpers.applyNullabilityForTypeCheck(
             fixture.types.makeKClassType(argument: fixture.types.intType),
             types: fixture.types
         )
-        XCTAssertEqual(
-            nullableKClass,
+        #expect(
+            nullableKClass ==
             fixture.types.makeKClassType(argument: fixture.types.intType, nullability: .nullable)
         )
 
-        XCTAssertEqual(helpers.typeArgInnerTypeForCheck(.star), TypeID.invalid)
-        XCTAssertEqual(helpers.typeArgInnerTypeForCheck(.out(fixture.types.intType)), fixture.types.intType)
+        #expect(helpers.typeArgInnerTypeForCheck(.star) == TypeID.invalid)
+        #expect(helpers.typeArgInnerTypeForCheck(.out(fixture.types.intType)) == fixture.types.intType)
 
         let explicitTypeArgRef = fixture.astArena.appendTypeRef(
             .named(path: [fixture.interner.intern("Int")], args: [], nullable: false)
         )
-        XCTAssertEqual(
-            helpers.resolveExplicitTypeArgs([], ast: fixture.ast, sema: fixture.sema, interner: fixture.interner),
+        #expect(
+            helpers.resolveExplicitTypeArgs([], ast: fixture.ast, sema: fixture.sema, interner: fixture.interner) ==
             []
         )
-        XCTAssertEqual(
-            helpers.resolveExplicitTypeArgs([explicitTypeArgRef], ast: fixture.ast, sema: fixture.sema, interner: fixture.interner),
+        #expect(
+            helpers.resolveExplicitTypeArgs([explicitTypeArgRef], ast: fixture.ast, sema: fixture.sema, interner: fixture.interner) ==
             [fixture.types.intType]
         )
 
-        XCTAssertTrue(helpers.isTerminatingExpr(.returnExpr(value: nil, range: range)))
-        XCTAssertTrue(helpers.isTerminatingExpr(.throwExpr(value: fixture.astArena.appendExpr(.intLiteral(1, range)), range: range)))
-        XCTAssertFalse(helpers.isTerminatingExpr(.intLiteral(1, range)))
+        #expect(helpers.isTerminatingExpr(.returnExpr(value: nil, range: range)))
+        #expect(helpers.isTerminatingExpr(.throwExpr(value: fixture.astArena.appendExpr(.intLiteral(1, range)), range: range)))
+        #expect(!(helpers.isTerminatingExpr(.intLiteral(1, range))))
 
-        XCTAssertEqual(helpers.compoundAssignToBinaryOp(.plusAssign), .add)
-        XCTAssertEqual(helpers.compoundAssignToBinaryOp(.modAssign), .modulo)
+        #expect(helpers.compoundAssignToBinaryOp(.plusAssign) == .add)
+        #expect(helpers.compoundAssignToBinaryOp(.modAssign) == .modulo)
     }
 
+    @Test
     func testMemberCallableSelection() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
@@ -245,7 +248,7 @@ extension TypeCheckHelpersCoverageTests {
             sema: fixture.sema,
             interner: fixture.interner
         )
-        XCTAssertEqual(candidates, [memberFn])
+        #expect(candidates == [memberFn])
 
         let propertySymbol = fixture.symbols.define(
             kind: .property,
@@ -261,18 +264,19 @@ extension TypeCheckHelpersCoverageTests {
             receiverType: receiverType,
             sema: fixture.sema
         )
-        XCTAssertEqual(propertyLookup?.symbol, propertySymbol)
+        let propertyLookupSymbol = propertyLookup?.symbol
+        #expect(propertyLookupSymbol == propertySymbol)
 
-        XCTAssertTrue(helpers.isNominalSubtype(child, of: base, symbols: fixture.symbols))
-        XCTAssertFalse(helpers.isNominalSubtype(base, of: child, symbols: fixture.symbols))
+        #expect(helpers.isNominalSubtype(child, of: base, symbols: fixture.symbols))
+        #expect(!(helpers.isNominalSubtype(base, of: child, symbols: fixture.symbols)))
 
         let calleeExpr = ExprID(rawValue: 700)
         fixture.bindings.bindCallableTarget(calleeExpr, target: .symbol(memberFn))
-        XCTAssertEqual(helpers.callableTargetForCalleeExpr(calleeExpr, sema: fixture.sema), .symbol(memberFn))
+        #expect(helpers.callableTargetForCalleeExpr(calleeExpr, sema: fixture.sema) == .symbol(memberFn))
 
         let calleeExpr2 = ExprID(rawValue: 701)
         fixture.bindings.bindIdentifier(calleeExpr2, symbol: propertySymbol)
-        XCTAssertEqual(helpers.callableTargetForCalleeExpr(calleeExpr2, sema: fixture.sema), .localValue(propertySymbol))
+        #expect(helpers.callableTargetForCalleeExpr(calleeExpr2, sema: fixture.sema) == .localValue(propertySymbol))
 
         let callableType = helpers.callableFunctionType(
             for: FunctionSignature(receiverType: receiverType, parameterTypes: [fixture.types.intType], returnType: fixture.types.unitType),
@@ -280,9 +284,9 @@ extension TypeCheckHelpersCoverageTests {
             sema: fixture.sema
         )
         if case let .functionType(ft) = fixture.types.kind(of: callableType) {
-            XCTAssertEqual(ft.params.count, 2)
+            #expect(ft.params.count == 2)
         } else {
-            XCTFail("Expected function type")
+            Issue.record("Expected function type")
         }
 
         let chooserA = fixture.symbols.define(
@@ -317,7 +321,7 @@ extension TypeCheckHelpersCoverageTests {
             bindReceiver: true,
             sema: fixture.sema
         )
-        XCTAssertEqual(chosen, chooserB)
+        #expect(chosen == chooserB)
 
         let defaultChosen = helpers.chooseCallableReferenceTarget(
             from: [chooserB, chooserA],
@@ -325,6 +329,6 @@ extension TypeCheckHelpersCoverageTests {
             bindReceiver: true,
             sema: fixture.sema
         )
-        XCTAssertEqual(defaultChosen, [chooserA, chooserB].sorted(by: { $0.rawValue < $1.rawValue }).first)
+        #expect(defaultChosen == [chooserA, chooserB].sorted(by: { $0.rawValue < $1.rawValue }).first)
     }
 }

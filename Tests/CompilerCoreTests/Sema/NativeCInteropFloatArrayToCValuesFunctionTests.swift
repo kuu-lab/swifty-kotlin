@@ -1,20 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropFloatArrayToCValuesFunctionTests: XCTestCase {
-    func testFloatArrayToCValuesFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropFloatArrayToCValuesFunctionTests {
+    @Test func testFloatArrayToCValuesFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected FloatArray.toCValues() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected FloatArray.toCValues() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
         let kotlinPkg = [interner.intern("kotlin")]
 
-        let floatArraySymbol = try XCTUnwrap(
+        let floatArraySymbol = try #require(
             sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("FloatArray")]),
             "kotlin.FloatArray must be registered"
         )
@@ -23,11 +22,11 @@ final class NativeCInteropFloatArrayToCValuesFunctionTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let cValuesSymbol = try XCTUnwrap(
+        let cValuesSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("CValues")]),
             "kotlinx.cinterop.CValues must be registered"
         )
-        let floatVarSymbol = try XCTUnwrap(
+        let floatVarSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("FloatVar")]),
             "kotlinx.cinterop.FloatVar must be registered"
         )
@@ -44,7 +43,7 @@ final class NativeCInteropFloatArrayToCValuesFunctionTests: XCTestCase {
 
         let toCValuesFQName = cinteropPkg + [interner.intern("toCValues")]
         let toCValuesCandidates = sema.symbols.lookupAll(fqName: toCValuesFQName)
-        let toCValues = try XCTUnwrap(toCValuesCandidates.first { symbolID in
+        let toCValues = try #require(toCValuesCandidates.first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
@@ -52,13 +51,13 @@ final class NativeCInteropFloatArrayToCValuesFunctionTests: XCTestCase {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == expectedReturnType
         })
-        let flags = try XCTUnwrap(sema.symbols.symbol(toCValues)?.flags)
+        let flags = try #require(sema.symbols.symbol(toCValues)?.flags)
 
-        XCTAssertTrue(flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: toCValues), sema.symbols.lookup(fqName: cinteropPkg))
+        #expect(flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: toCValues) == sema.symbols.lookup(fqName: cinteropPkg))
     }
 
-    func testFloatArrayToCValuesFunctionResolvesInSource() throws {
+    @Test func testFloatArrayToCValuesFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CValues
         import kotlinx.cinterop.FloatVar
@@ -70,9 +69,7 @@ final class NativeCInteropFloatArrayToCValuesFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected FloatArray.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected FloatArray.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

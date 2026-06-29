@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class MemberRuntimeDispatchTests: XCTestCase {
-    func testRangeRuntimeDispatchUsesTypedReceiverKind() {
+@Suite
+struct MemberRuntimeDispatchTests {
+    @Test func testRangeRuntimeDispatchUsesTypedReceiverKind() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.intRange, "random", 0, "kk_range_random"),
             (.intRange, "random", 1, "kk_range_random_random"),
@@ -26,15 +28,14 @@ final class MemberRuntimeDispatchTests: XCTestCase {
 
         for (receiverKind, memberName, arity, expectedLinkName) in cases {
             let key = MemberDispatchKey(receiverKind: receiverKind, memberName: memberName, arity: arity)
-            XCTAssertEqual(
-                MemberRuntimeDispatch.rangeRuntimeLinkName(for: key),
-                expectedLinkName,
+            #expect(
+                MemberRuntimeDispatch.rangeRuntimeLinkName(for: key) == expectedLinkName,
                 "\(receiverKind.rawValue).\(memberName)/\(arity)"
             )
         }
     }
 
-    func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
+    @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.iterable, "firstNotNullOf", 1, "kk_iterable_firstNotNullOf"),
             (.list, "filterIndexedTo", 2, "kk_list_filterIndexedTo"),
@@ -46,15 +47,14 @@ final class MemberRuntimeDispatchTests: XCTestCase {
 
         for (receiverKind, memberName, arity, expectedLinkName) in cases {
             let key = MemberDispatchKey(receiverKind: receiverKind, memberName: memberName, arity: arity)
-            XCTAssertEqual(
-                MemberRuntimeDispatch.collectionRuntimeLinkName(for: key),
-                expectedLinkName,
+            #expect(
+                MemberRuntimeDispatch.collectionRuntimeLinkName(for: key) == expectedLinkName,
                 "\(receiverKind.rawValue).\(memberName)/\(arity)"
             )
         }
     }
 
-    func testCollectionRuntimeDispatchIgnoresNonSurfaceMembers() {
+    @Test func testCollectionRuntimeDispatchIgnoresNonSurfaceMembers() {
         let cases: [(MemberDispatchReceiverKind, String, Int)] = [
             (.list, "size", 0),
             (.map, "getValue", 1),
@@ -64,10 +64,11 @@ final class MemberRuntimeDispatchTests: XCTestCase {
 
         for (receiverKind, memberName, arity) in cases {
             let key = MemberDispatchKey(receiverKind: receiverKind, memberName: memberName, arity: arity)
-            XCTAssertNil(
-                MemberRuntimeDispatch.collectionRuntimeLinkName(for: key),
+            #expect(
+                MemberRuntimeDispatch.collectionRuntimeLinkName(for: key) == nil,
                 "\(receiverKind.rawValue).\(memberName)/\(arity)"
             )
         }
     }
 }
+#endif

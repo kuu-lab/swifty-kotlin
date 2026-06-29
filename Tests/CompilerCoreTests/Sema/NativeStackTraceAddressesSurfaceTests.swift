@@ -1,16 +1,17 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
-final class NativeStackTraceAddressesSurfaceTests: XCTestCase {
+@Suite
+struct NativeStackTraceAddressesSurfaceTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -23,11 +24,12 @@ final class NativeStackTraceAddressesSurfaceTests: XCTestCase {
         return ctx
     }
 
+    @Test
     func testGetStackTraceAddressesIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let nativeFQName = ["kotlin", "native", "getStackTraceAddresses"].map { interner.intern($0) }
         let listFQName = ["kotlin", "collections", "List"].map { interner.intern($0) }
-        let listSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: listFQName))
+        let listSymbol = try #require(sema.symbols.lookup(fqName: listFQName))
         let listLongType = sema.types.make(.classType(ClassType(
             classSymbol: listSymbol,
             args: [.out(sema.types.longType)],
@@ -42,10 +44,10 @@ final class NativeStackTraceAddressesSurfaceTests: XCTestCase {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == listLongType
         }
-        let symbol = try XCTUnwrap(match, "Expected kotlin.native.getStackTraceAddresses")
+        let symbol = try #require(match, "Expected kotlin.native.getStackTraceAddresses")
 
-        XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_native_getStackTraceAddresses")
-        XCTAssertTrue(
+        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_native_getStackTraceAddresses")
+        #expect(
             sema.symbols.annotations(for: symbol).contains {
                 $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
             },
@@ -53,6 +55,7 @@ final class NativeStackTraceAddressesSurfaceTests: XCTestCase {
         )
     }
 
+    @Test
     func testGetStackTraceAddressesResolvesInSourceWithOptIn() {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -63,6 +66,7 @@ final class NativeStackTraceAddressesSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(errors.isEmpty, "Expected getStackTraceAddresses to resolve without errors, got \(errors)")
+        #expect(errors.isEmpty, "Expected getStackTraceAddresses to resolve without errors, got \(errors)")
     }
 }
+#endif

@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testSuspendCoroutineUninterceptedOrReturnLoweringReturnsOnSuspendedToken() {
+    @Test func testSuspendCoroutineUninterceptedOrReturnLoweringReturnsOnSuspendedToken() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let anyType = fixture.types.anyType
@@ -81,14 +82,15 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        XCTAssertTrue(callees.contains("kk_coroutine_suspended"))
-        XCTAssertTrue(emit.instructions.contains { instruction in
+        #expect(callees.contains("kk_coroutine_suspended"))
+        #expect(emit.instructions.contains { instruction in
             if case .returnValue = instruction { return true }
             return false
         })
-        XCTAssertTrue(emit.instructions.contains { instruction in
+        #expect(emit.instructions.contains { instruction in
             if case .jumpIfEqual = instruction { return true }
             return false
         })
     }
 }
+#endif

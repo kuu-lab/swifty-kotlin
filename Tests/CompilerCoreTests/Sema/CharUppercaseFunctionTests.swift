@@ -1,13 +1,16 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Foundation
+import Testing
 
 /// STDLIB-TEXT-PROP-022: Validates that `Char.uppercase()` resolves through Sema
 /// across its public surface: the no-arg overload returning `String`, the
 /// `Locale`-aware overload, and the related `uppercaseChar()` returning `Char`.
 /// Runtime link names involved: `kk_char_uppercase`, `kk_char_uppercase_locale`,
 /// `kk_char_uppercaseChar`.
-final class CharUppercaseFunctionTests: XCTestCase {
-    func testCharUppercaseResolvesInSource() throws {
+@Suite
+struct CharUppercaseFunctionTests {
+    @Test func testCharUppercaseResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import java.util.Locale
 
@@ -24,9 +27,10 @@ final class CharUppercaseFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected Char.uppercase to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
+#endif

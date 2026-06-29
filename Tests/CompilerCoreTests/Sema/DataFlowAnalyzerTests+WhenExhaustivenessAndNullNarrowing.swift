@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension DataFlowAnalyzerTests {
-    func testIsWhenExhaustiveNonSealedClassReturnsFalse() {
+    @Test func testIsWhenExhaustiveNonSealedClassReturnsFalse() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()
 
@@ -11,10 +12,10 @@ extension DataFlowAnalyzerTests {
         let classType = types.make(.classType(ClassType(classSymbol: classSym)))
 
         let summary = WhenBranchSummary(coveredSymbols: [className], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: classType, branches: summary, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: classType, branches: summary, sema: sema))
     }
 
-    func testIsWhenExhaustiveEmptyEnumReturnsFalse() {
+    @Test func testIsWhenExhaustiveEmptyEnumReturnsFalse() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()
 
@@ -23,10 +24,10 @@ extension DataFlowAnalyzerTests {
         let enumType = types.make(.classType(ClassType(classSymbol: enumSym)))
 
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: enumType, branches: summary, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: enumType, branches: summary, sema: sema))
     }
 
-    func testIsWhenExhaustiveEmptySealedReturnsFalse() {
+    @Test func testIsWhenExhaustiveEmptySealedReturnsFalse() {
         let analyzer = DataFlowAnalyzer()
         let (sema, symbols, types, interner) = makeSemaModule()
 
@@ -38,12 +39,12 @@ extension DataFlowAnalyzerTests {
         let sealedType = types.make(.classType(ClassType(classSymbol: sealedSym)))
 
         let summary = WhenBranchSummary(coveredSymbols: [], hasElse: false)
-        XCTAssertFalse(analyzer.isWhenExhaustive(subjectType: sealedType, branches: summary, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: sealedType, branches: summary, sema: sema))
     }
 
     // MARK: - resolvedTypeFromFlowState
 
-    func testResolvedTypeFromFlowStateReturnsSingleType() {
+    @Test func testResolvedTypeFromFlowStateReturnsSingleType() {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
@@ -51,10 +52,10 @@ extension DataFlowAnalyzerTests {
         let state = DataFlowState(variables: [
             sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true),
         ])
-        XCTAssertEqual(analyzer.resolvedTypeFromFlowState(state, symbol: sym), intType)
+        #expect(analyzer.resolvedTypeFromFlowState(state, symbol: sym) == intType)
     }
 
-    func testResolvedTypeFromFlowStateReturnsNilForMultipleTypes() {
+    @Test func testResolvedTypeFromFlowStateReturnsNilForMultipleTypes() {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
@@ -63,27 +64,27 @@ extension DataFlowAnalyzerTests {
         let state = DataFlowState(variables: [
             sym: VariableFlowState(possibleTypes: [intType, stringType], nullability: .nonNull, isStable: true),
         ])
-        XCTAssertNil(analyzer.resolvedTypeFromFlowState(state, symbol: sym))
+        #expect(analyzer.resolvedTypeFromFlowState(state, symbol: sym) == nil)
     }
 
-    func testResolvedTypeFromFlowStateReturnsNilForUnknownSymbol() {
+    @Test func testResolvedTypeFromFlowStateReturnsNilForUnknownSymbol() {
         let analyzer = DataFlowAnalyzer()
         let state = DataFlowState()
-        XCTAssertNil(analyzer.resolvedTypeFromFlowState(state, symbol: SymbolID(rawValue: 0)))
+        #expect(analyzer.resolvedTypeFromFlowState(state, symbol: SymbolID(rawValue: 0)) == nil)
     }
 
-    func testResolvedTypeFromFlowStateReturnsNilForEmptyTypes() {
+    @Test func testResolvedTypeFromFlowStateReturnsNilForEmptyTypes() {
         let analyzer = DataFlowAnalyzer()
         let sym = SymbolID(rawValue: 0)
         let state = DataFlowState(variables: [
             sym: VariableFlowState(possibleTypes: [], nullability: .nonNull, isStable: true),
         ])
-        XCTAssertNil(analyzer.resolvedTypeFromFlowState(state, symbol: sym))
+        #expect(analyzer.resolvedTypeFromFlowState(state, symbol: sym) == nil)
     }
 
     // MARK: - whenElseState
 
-    func testWhenElseStateWithNoExplicitNullBranchReturnsBase() {
+    @Test func testWhenElseStateWithNoExplicitNullBranchReturnsBase() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -97,10 +98,10 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result, base)
+        #expect(result == base)
     }
 
-    func testWhenElseStateWithExplicitNullBranchNarrowsToNonNull() {
+    @Test func testWhenElseStateWithExplicitNullBranchNarrowsToNonNull() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -115,13 +116,13 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [nonNullInt])
-        XCTAssertEqual(result.variables[sym]?.nullability, .nonNull)
+        #expect(result.variables[sym]?.possibleTypes == [nonNullInt])
+        #expect(result.variables[sym]?.nullability == .nonNull)
     }
 
     // MARK: - whenNonNullBranchState
 
-    func testWhenNonNullBranchStateNarrowsToNonNull() {
+    @Test func testWhenNonNullBranchStateNarrowsToNonNull() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -135,11 +136,11 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [nonNullString])
-        XCTAssertEqual(result.variables[sym]?.nullability, .nonNull)
+        #expect(result.variables[sym]?.possibleTypes == [nonNullString])
+        #expect(result.variables[sym]?.nullability == .nonNull)
     }
 
-    func testWhenNonNullBranchStateAlreadyNonNull() {
+    @Test func testWhenNonNullBranchStateAlreadyNonNull() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -152,12 +153,12 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [nonNullInt])
+        #expect(result.variables[sym]?.possibleTypes == [nonNullInt])
     }
 
     // MARK: - makeTypeNonNullable coverage through whenNonNullBranchState
 
-    func testMakeTypeNonNullableForNullableAny() {
+    @Test func testMakeTypeNonNullableForNullableAny() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -169,10 +170,10 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [types.anyType])
+        #expect(result.variables[sym]?.possibleTypes == [types.anyType])
     }
 
-    func testMakeTypeNonNullableForNullableClass() {
+    @Test func testMakeTypeNonNullableForNullableClass() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -187,10 +188,10 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [nonNullClass])
+        #expect(result.variables[sym]?.possibleTypes == [nonNullClass])
     }
 
-    func testMakeTypeNonNullableForNullableTypeParam() {
+    @Test func testMakeTypeNonNullableForNullableTypeParam() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -205,10 +206,10 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [nonNullTP])
+        #expect(result.variables[sym]?.possibleTypes == [nonNullTP])
     }
 
-    func testMakeTypeNonNullableForNullableFunctionType() {
+    @Test func testMakeTypeNonNullableForNullableFunctionType() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -223,10 +224,10 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [nonNullFn])
+        #expect(result.variables[sym]?.possibleTypes == [nonNullFn])
     }
 
-    func testMakeTypeNonNullableForNonNullableTypeIsIdentity() {
+    @Test func testMakeTypeNonNullableForNonNullableTypeIsIdentity() {
         let analyzer = DataFlowAnalyzer()
         let (sema, _, types, _) = makeSemaModule()
         let sym = SymbolID(rawValue: 0)
@@ -239,7 +240,8 @@ extension DataFlowAnalyzerTests {
             base: base,
             sema: sema
         )
-        XCTAssertEqual(result.variables[sym]?.possibleTypes, [intType])
+        #expect(result.variables[sym]?.possibleTypes == [intType])
     }
 
 }
+#endif

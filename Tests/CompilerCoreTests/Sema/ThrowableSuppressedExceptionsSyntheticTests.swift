@@ -1,7 +1,8 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ThrowableSuppressedExceptionsSyntheticTests: XCTestCase {
+@Suite
+struct ThrowableSuppressedExceptionsSyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,21 +11,22 @@ final class ThrowableSuppressedExceptionsSyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected Throwable surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), "Expected Throwable surface to resolve cleanly, got: \(diagnostics)")
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
+    @Test
     func testSuppressedExceptionsRootExtensionPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let kotlinPackage = ["kotlin"].map { interner.intern($0) }
         let collectionsPackage = ["kotlin", "collections"].map { interner.intern($0) }
 
-        let throwableSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let throwableSymbol = try #require(sema.symbols.lookup(
             fqName: kotlinPackage + [interner.intern("Throwable")]
         ))
-        let listSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let listSymbol = try #require(sema.symbols.lookup(
             fqName: collectionsPackage + [interner.intern("List")]
         ))
         let throwableType = sema.types.make(.classType(ClassType(
@@ -38,7 +40,7 @@ final class ThrowableSuppressedExceptionsSyntheticTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        let propertySymbol = try XCTUnwrap(
+        let propertySymbol = try #require(
             sema.symbols.lookupAll(
                 fqName: kotlinPackage + [interner.intern("suppressedExceptions")]
             ).first { symbolID in
@@ -47,15 +49,16 @@ final class ThrowableSuppressedExceptionsSyntheticTests: XCTestCase {
             },
             "Expected kotlin.Throwable.suppressedExceptions root extension property"
         )
-        let getterSymbol = try XCTUnwrap(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+        let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
 
-        XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), expectedListType)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: propertySymbol), "kk_throwable_suppressedExceptions")
-        XCTAssertEqual(sema.symbols.externalLinkName(for: getterSymbol), "kk_throwable_suppressedExceptions")
-        XCTAssertEqual(sema.symbols.functionSignature(for: getterSymbol)?.receiverType, throwableType)
-        XCTAssertEqual(sema.symbols.functionSignature(for: getterSymbol)?.returnType, expectedListType)
+        #expect(sema.symbols.propertyType(for: propertySymbol) == expectedListType)
+        #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_throwable_suppressedExceptions")
+        #expect(sema.symbols.externalLinkName(for: getterSymbol) == "kk_throwable_suppressedExceptions")
+        #expect(sema.symbols.functionSignature(for: getterSymbol)?.receiverType == throwableType)
+        #expect(sema.symbols.functionSignature(for: getterSymbol)?.returnType == expectedListType)
     }
 
+    @Test
     func testSuppressedExceptionsCanBeAssignedToListOfThrowable() throws {
         let source = """
         fun sample(e: Throwable) {
@@ -64,10 +67,10 @@ final class ThrowableSuppressedExceptionsSyntheticTests: XCTestCase {
         """
 
         let (sema, interner) = try makeSema(source: source)
-        let sampleSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let sampleSymbol = try #require(sema.symbols.lookup(
             fqName: [interner.intern("sample")]
         ))
 
-        XCTAssertNotNil(sema.symbols.functionSignature(for: sampleSymbol))
+        #expect(sema.symbols.functionSignature(for: sampleSymbol) != nil)
     }
 }

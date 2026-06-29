@@ -1,13 +1,14 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-012: Validates that `Sequence<T>.chunked` resolves through Sema
 /// for both overloads — the size-only form returning `Sequence<List<T>>` linked to
 /// `kk_sequence_chunked`, and the size + transform form returning `Sequence<R>`
 /// linked to `kk_sequence_chunked_transform`.
-final class SequenceChunkedFunctionTests: XCTestCase {
-    func testSequenceChunkedSizeOnlyOverloadResolvesToRuntimeABI() throws {
+@Suite
+struct SequenceChunkedFunctionTests {
+    @Test func testSequenceChunkedSizeOnlyOverloadResolvesToRuntimeABI() throws {
         let source = """
         fun probe(values: Sequence<Int>): Sequence<List<Int>> {
             return values.chunked(3)
@@ -19,24 +20,24 @@ final class SequenceChunkedFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
-                "Expected Sequence.chunked(size) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                Comment(rawValue: "Expected Sequence.chunked(size) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 "kotlin", "sequences", "Sequence", "chunked",
             ].map(ctx.interner.intern)
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
-            XCTAssertTrue(
+            #expect(
                 sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_chunked" },
                 "Expected Sequence.chunked(size) synthetic member to link to kk_sequence_chunked"
             )
         }
     }
 
-    func testSequenceChunkedSizeTransformOverloadResolvesToRuntimeABI() throws {
+    @Test func testSequenceChunkedSizeTransformOverloadResolvesToRuntimeABI() throws {
         let source = """
         fun probe(values: Sequence<Int>): Sequence<Int> {
             return values.chunked(3) { chunk -> chunk.size }
@@ -48,17 +49,17 @@ final class SequenceChunkedFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
-                "Expected Sequence.chunked(size, transform) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                Comment(rawValue: "Expected Sequence.chunked(size, transform) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 "kotlin", "sequences", "Sequence", "chunked",
             ].map(ctx.interner.intern)
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
-            XCTAssertTrue(
+            #expect(
                 sequenceMembers.contains {
                     sema.symbols.externalLinkName(for: $0) == "kk_sequence_chunked_transform"
                 },

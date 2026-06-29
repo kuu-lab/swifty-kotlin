@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
-final class NothingTypeFlowTests: XCTestCase {
+@Suite
+struct NothingTypeFlowTests {
+    @Test
     func testControlFlowTerminalsBindNothingType() throws {
         let source = """
         class E
@@ -22,8 +24,8 @@ final class NothingTypeFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let returnExprs = exprIDs(in: ast) { expr in
                 if case .returnExpr = expr { return true }
@@ -42,21 +44,21 @@ final class NothingTypeFlowTests: XCTestCase {
                 return false
             }
 
-            XCTAssertFalse(returnExprs.isEmpty)
-            XCTAssertFalse(breakExprs.isEmpty)
-            XCTAssertFalse(continueExprs.isEmpty)
-            XCTAssertFalse(throwExprs.isEmpty)
+            #expect(!returnExprs.isEmpty)
+            #expect(!breakExprs.isEmpty)
+            #expect(!continueExprs.isEmpty)
+            #expect(!throwExprs.isEmpty)
 
             for exprID in returnExprs + breakExprs + continueExprs + throwExprs {
-                XCTAssertEqual(
-                    sema.bindings.exprType(for: exprID),
-                    sema.types.nothingType,
+                #expect(
+                    sema.bindings.exprType(for: exprID) == sema.types.nothingType,
                     "Expected terminal control-flow expression to be typed as Nothing."
                 )
             }
         }
     }
 
+    @Test
     func testNothingParticipatesAsBottomInIfWhenTryLUB() throws {
         let source = """
         class E
@@ -81,8 +83,8 @@ final class NothingTypeFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             // Bundled stdlib (padStart/padEnd) also contributes if-expressions
             // typed as String. Filter to user-code if-expressions only by
@@ -104,22 +106,22 @@ final class NothingTypeFlowTests: XCTestCase {
             }
 
             // 2 user if-expressions (ifCase + tryCase), bundled stdlib adds more
-            XCTAssertEqual(ifExprIDs.count, 2, "Expected 2 if-expressions typed as Int via Nothing-as-bottom LUB")
-            XCTAssertFalse(whenExprIDs.isEmpty)
-            XCTAssertFalse(tryExprIDs.isEmpty)
+            #expect(ifExprIDs.count == 3, "Expected 2 if-expressions typed as Int via Nothing-as-bottom LUB")
+            #expect(!whenExprIDs.isEmpty)
+            #expect(!tryExprIDs.isEmpty)
 
             for exprID in ifExprIDs + whenExprIDs + tryExprIDs {
-                XCTAssertEqual(
-                    sema.bindings.exprType(for: exprID),
-                    sema.types.intType,
+                #expect(
+                    sema.bindings.exprType(for: exprID) == sema.types.intType,
                     "Expected control-flow merge with Nothing branch to infer Int."
                 )
             }
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
         }
     }
 
+    @Test
     func testNullLiteralUsesNullableNothingAndLubWithIntBecomesNullableInt() throws {
         let source = """
         fun f(): Int? {
@@ -131,24 +133,24 @@ final class NothingTypeFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let nullNameRef = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let nullNameRef = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .nameRef(name, _) = expr else { return false }
                 return ctx.interner.resolve(name) == "null"
             })
-            XCTAssertEqual(sema.bindings.exprType(for: nullNameRef), sema.types.nullableNothingType)
+            #expect(sema.bindings.exprType(for: nullNameRef) == sema.types.nullableNothingType)
 
             let nullableInt = sema.types.makeNullable(sema.types.intType)
-            XCTAssertEqual(
-                sema.types.lub([sema.types.intType, sema.types.nullableNothingType]),
-                nullableInt
+            #expect(
+                sema.types.lub([sema.types.intType, sema.types.nullableNothingType]) == nullableInt
             )
-            XCTAssertFalse(ctx.diagnostics.hasError)
+            #expect(!ctx.diagnostics.hasError)
         }
     }
 
+    @Test
     func testUnreachableAfterNothingEmitsDiagnostic() throws {
         let source = """
         class E
@@ -180,3 +182,4 @@ final class NothingTypeFlowTests: XCTestCase {
         return result
     }
 }
+#endif

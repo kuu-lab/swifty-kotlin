@@ -1,16 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
-final class NativeUnsignedByteArraySetterSurfaceTests: XCTestCase {
+private struct TestAbortError: Error {}
+
+@Suite
+struct NativeUnsignedByteArraySetterSurfaceTests {
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -25,16 +28,12 @@ final class NativeUnsignedByteArraySetterSurfaceTests: XCTestCase {
 
     private func byteArrayType(
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> TypeID {
         let fqName = ["kotlin", "ByteArray"].map { interner.intern($0) }
-        let byteArraySymbol = try XCTUnwrap(
+        let byteArraySymbol = try #require(
             sema.symbols.lookup(fqName: fqName),
-            "kotlin.ByteArray must be registered",
-            file: file,
-            line: line
+            "kotlin.ByteArray must be registered"
         )
         return sema.types.make(.classType(ClassType(
             classSymbol: byteArraySymbol,
@@ -47,12 +46,10 @@ final class NativeUnsignedByteArraySetterSurfaceTests: XCTestCase {
         named name: String,
         valueType: TypeID,
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> (SymbolID, FunctionSignature) {
         let nativeFQName = ["kotlin", "native", name].map { interner.intern($0) }
-        let receiverType = try byteArrayType(sema: sema, interner: interner, file: file, line: line)
+        let receiverType = try byteArrayType(sema: sema, interner: interner)
         let candidates = sema.symbols.lookupAll(fqName: nativeFQName)
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
@@ -66,10 +63,11 @@ final class NativeUnsignedByteArraySetterSurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected kotlin.native.\(name) ByteArray setter, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected kotlin.native.\(name) ByteArray setter, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw TestAbortError()
     }
 
+    @Test
     func testUnsignedByteArraySettersAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let expected: [(name: String, valueType: TypeID, linkName: String)] = [
@@ -87,19 +85,20 @@ final class NativeUnsignedByteArraySetterSurfaceTests: XCTestCase {
                 interner: interner
             )
             let annotations = sema.symbols.annotations(for: symbol)
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), setter.linkName)
-            XCTAssertTrue(
+            #expect(signature.valueParameterHasDefaultValues == [false, false])
+            #expect(sema.symbols.externalLinkName(for: symbol) == setter.linkName)
+            #expect(
                 annotations.contains { $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi" },
                 "\(setter.name) must carry ExperimentalNativeApi metadata"
             )
-            XCTAssertTrue(
+            #expect(
                 annotations.contains { $0.annotationFQName == "kotlin.ExperimentalUnsignedTypes" },
                 "\(setter.name) must carry ExperimentalUnsignedTypes metadata"
             )
         }
     }
 
+    @Test
     func testUnsignedByteArraySettersResolveInSourceWithOptIn() {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -119,6 +118,7 @@ final class NativeUnsignedByteArraySetterSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(errors.isEmpty, "Expected unsigned ByteArray setters to resolve without errors, got \(errors)")
+        #expect(errors.isEmpty, "Expected unsigned ByteArray setters to resolve without errors, got \(errors)")
     }
 }
+#endif

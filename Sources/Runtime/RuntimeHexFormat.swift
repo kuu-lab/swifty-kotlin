@@ -276,6 +276,15 @@ public func kk_string_hexToInt_flat(
     )
 }
 
+@_cdecl("kk_string_hexToInt")
+public func kk_string_hexToInt(
+    _ strRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToInt(hexFormatStringFromRaw(strRaw) ?? "", formatRaw, outThrown)
+}
+
 private func runtimeStringHexToInt(
     _ receiver: String,
     _ formatRaw: Int,
@@ -306,6 +315,15 @@ public func kk_string_hexToUByte_flat(
         formatRaw,
         outThrown
     )
+}
+
+@_cdecl("kk_string_hexToUByte")
+public func kk_string_hexToUByte(
+    _ strRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToUByte(hexFormatStringFromRaw(strRaw) ?? "", formatRaw, outThrown)
 }
 
 private func runtimeStringHexToUByte(
@@ -340,6 +358,15 @@ public func kk_string_hexToUShort_flat(
     )
 }
 
+@_cdecl("kk_string_hexToUShort")
+public func kk_string_hexToUShort(
+    _ strRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToUShort(hexFormatStringFromRaw(strRaw) ?? "", formatRaw, outThrown)
+}
+
 private func runtimeStringHexToUShort(
     _ receiver: String,
     _ formatRaw: Int,
@@ -370,6 +397,15 @@ public func kk_string_hexToUInt_flat(
         formatRaw,
         outThrown
     )
+}
+
+@_cdecl("kk_string_hexToUInt")
+public func kk_string_hexToUInt(
+    _ strRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToUInt(hexFormatStringFromRaw(strRaw) ?? "", formatRaw, outThrown)
 }
 
 private func runtimeStringHexToUInt(
@@ -404,6 +440,15 @@ public func kk_string_hexToULong_flat(
     )
 }
 
+@_cdecl("kk_string_hexToULong")
+public func kk_string_hexToULong(
+    _ strRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToULong(hexFormatStringFromRaw(strRaw) ?? "", formatRaw, outThrown)
+}
+
 private func runtimeStringHexToULong(
     _ receiver: String,
     _ formatRaw: Int,
@@ -434,6 +479,15 @@ public func kk_string_hexToShort_flat(
         formatRaw,
         outThrown
     )
+}
+
+@_cdecl("kk_string_hexToShort")
+public func kk_string_hexToShort(
+    _ strRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToShort(hexFormatStringFromRaw(strRaw) ?? "", formatRaw, outThrown)
 }
 
 private func runtimeStringHexToShort(
@@ -468,6 +522,15 @@ public func kk_string_hexToLong_flat(
     )
 }
 
+@_cdecl("kk_string_hexToLong")
+public func kk_string_hexToLong(
+    _ strRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToLong(hexFormatStringFromRaw(strRaw) ?? "", formatRaw, outThrown)
+}
+
 private func runtimeStringHexToLong(
     _ receiver: String,
     _ formatRaw: Int,
@@ -498,6 +561,14 @@ public func kk_string_hexToByteArray_flat(
     )
 }
 
+@_cdecl("kk_string_hexToByteArray")
+public func kk_string_hexToByteArray(
+    _ strRaw: Int,
+    _ formatRaw: Int
+) -> Int {
+    return runtimeStringHexToByteArray(hexFormatStringFromRaw(strRaw) ?? "", formatRaw)
+}
+
 private func runtimeStringHexToByteArray(_ receiver: String, _ formatRaw: Int) -> Int {
     let bytes = hexFormatParseByteValues(receiver, formatRaw).map { Int(Int8(bitPattern: $0)) }
     return hexFormatMakeListRaw(bytes)
@@ -517,6 +588,14 @@ public func kk_string_hexToUByteArray_flat(
         hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
         formatRaw
     )
+}
+
+@_cdecl("kk_string_hexToUByteArray")
+public func kk_string_hexToUByteArray(
+    _ strRaw: Int,
+    _ formatRaw: Int
+) -> Int {
+    return runtimeStringHexToUByteArray(hexFormatStringFromRaw(strRaw) ?? "", formatRaw)
 }
 
 private func runtimeStringHexToUByteArray(_ receiver: String, _ formatRaw: Int) -> Int {

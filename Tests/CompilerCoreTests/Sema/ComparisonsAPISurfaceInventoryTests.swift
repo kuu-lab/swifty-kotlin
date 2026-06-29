@@ -1,5 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import Testing
 import XCTest
 
 // MARK: - STDLIB-COMP-001: kotlin.comparisons API Surface Inventory
@@ -23,9 +25,10 @@ import XCTest
 // Gap convention:
 //   APIs not yet registered by the sema layer are marked with `_Gap` suffix and
 //   assert the *current absence* with a short follow-up note. Flip `XCTAssertNil` /
-//   `XCTAssertTrue(links.isEmpty)` to the positive assertion once implemented.
+//   `#expect(links.isEmpty)` to the positive assertion once implemented.
 
-final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
+@Suite
+struct ComparisonsAPISurfaceInventoryTests {
 
     // MARK: - Shared sema fixture
 
@@ -34,10 +37,10 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     // MARK: - Lookup helpers
@@ -75,300 +78,234 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 1. kotlin.Comparator interface
 
-    func testComparatorInterfaceIsRegistered() throws {
+    @Test func testComparatorInterfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertTrue(
-            symbolExists(fqPath: ["kotlin", "Comparator"], sema: sema, interner: interner),
-            "kotlin.Comparator interface must be registered in symbol table"
-        )
+        #expect(symbolExists(fqPath: ["kotlin", "Comparator"], sema: sema, interner: interner), "kotlin.Comparator interface must be registered in symbol table")
     }
 
-    func testComparatorCompareMemberIsRegistered() throws {
+    @Test func testComparatorCompareMemberIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertTrue(
-            symbolExists(fqPath: ["kotlin", "Comparator", "compare"], sema: sema, interner: interner),
-            "kotlin.Comparator.compare must be registered"
-        )
+        #expect(symbolExists(fqPath: ["kotlin", "Comparator", "compare"], sema: sema, interner: interner), "kotlin.Comparator.compare must be registered")
     }
 
     // MARK: - 2. Comparator member: thenBy
 
-    func testComparatorThenByIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenByIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "Comparator", "thenBy"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_then_by"),
-            "Comparator.thenBy must link to kk_comparator_then_by; found: \(links)"
-        )
-        XCTAssertTrue(
-            links.contains("kk_comparator_then_by_comparator_selector"),
-            "Comparator.thenBy(comparator, selector) must link to kk_comparator_then_by_comparator_selector; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_then_by"), "Comparator.thenBy must link to kk_comparator_then_by; found: \(links)")
+        #expect(links.contains("kk_comparator_then_by_comparator_selector"), "Comparator.thenBy(comparator, selector) must link to kk_comparator_then_by_comparator_selector; found: \(links)")
     }
 
     // MARK: - 3. Comparator member: thenByDescending
 
-    func testComparatorThenByDescendingIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenByDescendingIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "Comparator", "thenByDescending"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_then_by_descending"),
-            "Comparator.thenByDescending must link to kk_comparator_then_by_descending; found: \(links)"
-        )
-        XCTAssertTrue(
-            links.contains("kk_comparator_then_by_descending_comparator_selector"),
-            "Comparator.thenByDescending(comparator, selector) must link to kk_comparator_then_by_descending_comparator_selector; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_then_by_descending"), "Comparator.thenByDescending must link to kk_comparator_then_by_descending; found: \(links)")
+        #expect(links.contains("kk_comparator_then_by_descending_comparator_selector"), "Comparator.thenByDescending(comparator, selector) must link to kk_comparator_then_by_descending_comparator_selector; found: \(links)")
     }
 
     // MARK: - 4. Comparator member: thenComparator
 
-    func testComparatorThenComparatorIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenComparatorIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "Comparator", "thenComparator"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_comparator_then_comparator",
-            "Comparator.thenComparator must link to kk_comparator_then_comparator"
-        )
+        #expect(link == "kk_comparator_then_comparator", "Comparator.thenComparator must link to kk_comparator_then_comparator")
     }
 
     // MARK: - 5. Comparator member: thenDescending
 
-    func testComparatorThenDescendingIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorThenDescendingIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "Comparator", "thenDescending"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_comparator_then_descending",
-            "Comparator.thenDescending must link to kk_comparator_then_descending"
-        )
+        #expect(link == "kk_comparator_then_descending", "Comparator.thenDescending must link to kk_comparator_then_descending")
     }
 
     // MARK: - 6. Comparator member: reversed
 
-    func testComparatorReversedIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorReversedIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "Comparator", "reversed"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_comparator_reversed",
-            "Comparator.reversed must link to kk_comparator_reversed"
-        )
+        #expect(link == "kk_comparator_reversed", "Comparator.reversed must link to kk_comparator_reversed")
     }
 
     // MARK: - 7. Comparator member: nullsFirst
 
-    func testComparatorNullsFirstIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorNullsFirstIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "Comparator", "nullsFirst"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_comparator_nulls_first",
-            "Comparator.nullsFirst must link to kk_comparator_nulls_first"
-        )
+        #expect(link == "kk_comparator_nulls_first", "Comparator.nullsFirst must link to kk_comparator_nulls_first")
     }
 
     // MARK: - 8. Comparator member: nullsLast
 
-    func testComparatorNullsLastIsRegisteredWithCorrectLink() throws {
+    @Test func testComparatorNullsLastIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "Comparator", "nullsLast"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_comparator_nulls_last",
-            "Comparator.nullsLast must link to kk_comparator_nulls_last"
-        )
+        #expect(link == "kk_comparator_nulls_last", "Comparator.nullsLast must link to kk_comparator_nulls_last")
     }
 
     // MARK: - 9. Factory: compareBy (single-selector)
 
-    func testCompareByTopLevelIsRegistered() throws {
+    @Test func testCompareByTopLevelIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareBy"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_from_selector") ||
-            links.contains("kk_comparator_from_selector_primitive"),
-            "kotlin.comparisons.compareBy (single-selector) must link to a selector comparator runtime; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_from_selector") ||
+            links.contains("kk_comparator_from_selector_primitive"), "kotlin.comparisons.compareBy (single-selector) must link to a selector comparator runtime; found: \(links)")
     }
 
     // MARK: - 10. Factory: compareBy (primitive variant)
 
-    func testCompareByPrimitiveVariantIsRegistered() throws {
+    @Test func testCompareByPrimitiveVariantIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareByPrimitive"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_from_selector_primitive"),
-            "kotlin.comparisons.compareByPrimitive must link to kk_comparator_from_selector_primitive; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_from_selector_primitive"), "kotlin.comparisons.compareByPrimitive must link to kk_comparator_from_selector_primitive; found: \(links)")
     }
 
     // MARK: - 11. Factory: compareByDescending (single-selector)
 
-    func testCompareByDescendingTopLevelIsRegistered() throws {
+    @Test func testCompareByDescendingTopLevelIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareByDescending"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_from_selector_descending") ||
-            links.contains("kk_comparator_from_selector_primitive_descending"),
-            "kotlin.comparisons.compareByDescending must link to a descending selector comparator; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_from_selector_descending") ||
+            links.contains("kk_comparator_from_selector_primitive_descending"), "kotlin.comparisons.compareByDescending must link to a descending selector comparator; found: \(links)")
     }
 
     // MARK: - 12. Factory: compareBy with multi-selector (2 selectors)
 
-    func testCompareByTwoSelectorOverloadIsRegistered() throws {
+    @Test func testCompareByTwoSelectorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareBy"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_from_multi_selectors"),
-            "compareBy with 2 selectors must link to kk_comparator_from_multi_selectors; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_from_multi_selectors"), "compareBy with 2 selectors must link to kk_comparator_from_multi_selectors; found: \(links)")
     }
 
     // MARK: - 13. Factory: compareBy with multi-selector (3 selectors)
 
-    func testCompareByThreeSelectorOverloadIsRegistered() throws {
+    @Test func testCompareByThreeSelectorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareBy"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_from_multi_selectors3"),
-            "compareBy with 3 selectors must link to kk_comparator_from_multi_selectors3; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_from_multi_selectors3"), "compareBy with 3 selectors must link to kk_comparator_from_multi_selectors3; found: \(links)")
     }
 
     // MARK: - 14. Factory: naturalOrder
 
-    func testNaturalOrderIsRegisteredWithCorrectLink() throws {
+    @Test func testNaturalOrderIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "naturalOrder"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_natural_order"),
-            "kotlin.comparisons.naturalOrder must link to kk_comparator_natural_order; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_natural_order"), "kotlin.comparisons.naturalOrder must link to kk_comparator_natural_order; found: \(links)")
     }
 
     // MARK: - 15. Factory: reverseOrder
 
-    func testReverseOrderIsRegisteredWithCorrectLink() throws {
+    @Test func testReverseOrderIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "reverseOrder"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_comparator_reverse_order"),
-            "kotlin.comparisons.reverseOrder must link to kk_comparator_reverse_order; found: \(links)"
-        )
+        #expect(links.contains("kk_comparator_reverse_order"), "kotlin.comparisons.reverseOrder must link to kk_comparator_reverse_order; found: \(links)")
     }
 
     // MARK: - 16. compareValues (2 nullable args -> Int)
 
-    func testCompareValuesIsRegisteredWithCorrectLink() throws {
+    @Test func testCompareValuesIsRegisteredWithCorrectLink() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareValues"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_compareValues"),
-            "kotlin.comparisons.compareValues must link to kk_compareValues; found: \(links)"
-        )
+        #expect(links.contains("kk_compareValues"), "kotlin.comparisons.compareValues must link to kk_compareValues; found: \(links)")
     }
 
     // MARK: - 17. compareValuesBy (1 selector)
 
-    func testCompareValuesByArity1IsRegistered() throws {
+    @Test func testCompareValuesByArity1IsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_compareValuesBy1"),
-            "compareValuesBy (1-selector) must link to kk_compareValuesBy1; found: \(links)"
-        )
+        #expect(links.contains("kk_compareValuesBy1"), "compareValuesBy (1-selector) must link to kk_compareValuesBy1; found: \(links)")
     }
 
     // MARK: - 18. compareValuesBy (2 selectors)
 
-    func testCompareValuesByArity2IsRegistered() throws {
+    @Test func testCompareValuesByArity2IsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_compareValuesBy"),
-            "compareValuesBy (2-selector) must link to kk_compareValuesBy; found: \(links)"
-        )
+        #expect(links.contains("kk_compareValuesBy"), "compareValuesBy (2-selector) must link to kk_compareValuesBy; found: \(links)")
     }
 
     // MARK: - 19. compareValuesBy (3 selectors)
 
-    func testCompareValuesByArity3IsRegistered() throws {
+    @Test func testCompareValuesByArity3IsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "comparisons", "compareValuesBy"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_compareValuesBy3"),
-            "compareValuesBy (3-selector) must link to kk_compareValuesBy3; found: \(links)"
-        )
+        #expect(links.contains("kk_compareValuesBy3"), "compareValuesBy (3-selector) must link to kk_compareValuesBy3; found: \(links)")
     }
 
     // MARK: - 20. minOf / maxOf with Comparator (2-arg comparator overload)
@@ -398,79 +335,61 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
         }
     }
 
-    func testMaxOfWithComparatorOverloadIsRegistered() throws {
+    @Test func testMaxOfWithComparatorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertTrue(
-            hasThreeParamComparatorOverload(comparisonsName: "maxOf", sema: sema, interner: interner),
-            "kotlin.comparisons.maxOf must have a 3-param (a, b, Comparator<T>) overload"
-        )
+        #expect(hasThreeParamComparatorOverload(comparisonsName: "maxOf", sema: sema, interner: interner), "kotlin.comparisons.maxOf must have a 3-param (a, b, Comparator<T>) overload")
     }
 
-    func testMinOfWithComparatorOverloadIsRegistered() throws {
+    @Test func testMinOfWithComparatorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertTrue(
-            hasThreeParamComparatorOverload(comparisonsName: "minOf", sema: sema, interner: interner),
-            "kotlin.comparisons.minOf must have a 3-param (a, b, Comparator<T>) overload"
-        )
+        #expect(hasThreeParamComparatorOverload(comparisonsName: "minOf", sema: sema, interner: interner), "kotlin.comparisons.minOf must have a 3-param (a, b, Comparator<T>) overload")
     }
 
     // MARK: - 21. coerceIn range overloads (kotlin.ranges cross-inventory)
 
-    func testCoerceInIntOverloadIsRegistered() throws {
+    @Test func testCoerceInIntOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_int_coerceIn"),
-            "kotlin.ranges.coerceIn (Int) must link to kk_int_coerceIn; found: \(links)"
-        )
+        #expect(links.contains("kk_int_coerceIn"), "kotlin.ranges.coerceIn (Int) must link to kk_int_coerceIn; found: \(links)")
     }
 
-    func testCoerceInLongOverloadIsRegistered() throws {
+    @Test func testCoerceInLongOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_long_coerceIn"),
-            "kotlin.ranges.coerceIn (Long) must link to kk_long_coerceIn; found: \(links)"
-        )
+        #expect(links.contains("kk_long_coerceIn"), "kotlin.ranges.coerceIn (Long) must link to kk_long_coerceIn; found: \(links)")
     }
 
-    func testCoerceInDoubleOverloadIsRegistered() throws {
+    @Test func testCoerceInDoubleOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_double_coerceIn"),
-            "kotlin.ranges.coerceIn (Double) must link to kk_double_coerceIn; found: \(links)"
-        )
+        #expect(links.contains("kk_double_coerceIn"), "kotlin.ranges.coerceIn (Double) must link to kk_double_coerceIn; found: \(links)")
     }
 
-    func testCoerceInFloatOverloadIsRegistered() throws {
+    @Test func testCoerceInFloatOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
-            links.contains("kk_float_coerceIn"),
-            "kotlin.ranges.coerceIn (Float) must link to kk_float_coerceIn; found: \(links)"
-        )
+        #expect(links.contains("kk_float_coerceIn"), "kotlin.ranges.coerceIn (Float) must link to kk_float_coerceIn; found: \(links)")
     }
 
     // MARK: - 22. Mandatory API completeness assertion
 
-    func testAllMandatoryComparatorAPISymbolsAreRegistered() throws {
+    @Test func testAllMandatoryComparatorAPISymbolsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         // Comparator members
@@ -488,10 +407,7 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
 
         for entry in comparatorMembers {
             let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
-            XCTAssertTrue(
-                links.contains(entry.link),
-                "Missing or mislinked: \(entry.path.joined(separator: ".")) -> \(entry.link)"
-            )
+            #expect(links.contains(entry.link), "Missing or mislinked: \(entry.path.joined(separator: ".")) -> \(entry.link)")
         }
 
         // Factory functions
@@ -529,11 +445,9 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
         for entry in factoryLinks {
             let links = allExternalLinks(fqPath: entry.path, sema: sema, interner: interner)
             for expectedLink in entry.expectedLinks {
-                XCTAssertTrue(
-                    links.contains(expectedLink),
-                    "Missing: \(entry.path.joined(separator: ".")) -> \(expectedLink) (found: \(links))"
-                )
+                #expect(links.contains(expectedLink), "Missing: \(entry.path.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
             }
         }
     }
 }
+#endif

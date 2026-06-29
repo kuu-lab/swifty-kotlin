@@ -1,7 +1,8 @@
-import XCTest
+#if canImport(Testing)
+import Testing
 
-final class KotlinCompilationAssertionTests: XCTestCase {
-    func testCompile_assertCalls() throws {
+@Suite struct KotlinCompilationAssertionTests {
+    @Test func testCompile_assertCalls() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             assert(true)
@@ -10,3 +11,4 @@ final class KotlinCompilationAssertionTests: XCTestCase {
         """)
     }
 }
+#endif

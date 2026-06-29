@@ -1,24 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropArrayCPointerToCValuesFunctionTests: XCTestCase {
-    func testArrayCPointerToCValuesFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropArrayCPointerToCValuesFunctionTests {
+    @Test func testArrayCPointerToCValuesFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected Array<CPointer<T>?>.toCValues() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected Array<CPointer<T>?>.toCValues() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
         let kotlinPkg = [interner.intern("kotlin")]
 
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + [interner.intern(name)]),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + [interner.intern(name)])
+            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let cPointerSymbol = try cinteropSymbol("CPointer")
@@ -29,7 +26,7 @@ final class NativeCInteropArrayCPointerToCValuesFunctionTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let kotlinArraySymbol = try XCTUnwrap(
+        let kotlinArraySymbol = try #require(
             sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("Array")]),
             "kotlin.Array must be registered"
         )
@@ -38,7 +35,7 @@ final class NativeCInteropArrayCPointerToCValuesFunctionTests: XCTestCase {
         let toCValuesCandidates = sema.symbols.lookupAll(fqName: toCValuesFQName)
 
         // Find the overload whose receiver is Array<CPointer<T>?> — uniquely identified by having a type parameter
-        let toCValues = try XCTUnwrap(
+        let toCValues = try #require(
             toCValuesCandidates.first { symbolID in
                 guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
                 guard let typeParam = sig.typeParameterSymbols.first else { return false }
@@ -63,8 +60,8 @@ final class NativeCInteropArrayCPointerToCValuesFunctionTests: XCTestCase {
             "Array<CPointer<T>?>.toCValues() must be registered"
         )
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: toCValues))
-        let tParamSymbol = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let signature = try #require(sema.symbols.functionSignature(for: toCValues))
+        let tParamSymbol = try #require(signature.typeParameterSymbols.first)
         let tParamType = sema.types.make(.typeParam(TypeParamType(
             symbol: tParamSymbol,
             nullability: .nonNull
@@ -86,16 +83,16 @@ final class NativeCInteropArrayCPointerToCValuesFunctionTests: XCTestCase {
             args: [.invariant(cPointerVarOfCPointerT)],
             nullability: .nonNull
         )))
-        XCTAssertEqual(signature.returnType, expectedReturnType)
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: tParamSymbol), [cPointedType])
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[cPointedType]])
+        #expect(signature.returnType == expectedReturnType)
+        #expect(sema.symbols.typeParameterUpperBounds(for: tParamSymbol) == [cPointedType])
+        #expect(signature.typeParameterUpperBoundsList == [[cPointedType]])
 
-        let flags = try XCTUnwrap(sema.symbols.symbol(toCValues)?.flags)
-        XCTAssertTrue(flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: toCValues), sema.symbols.lookup(fqName: cinteropPkg))
+        let flags = try #require(sema.symbols.symbol(toCValues)?.flags)
+        #expect(flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: toCValues) == sema.symbols.lookup(fqName: cinteropPkg))
     }
 
-    func testArrayCPointerToCValuesFunctionResolvesInSource() throws {
+    @Test func testArrayCPointerToCValuesFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.ByteVar
         import kotlinx.cinterop.CPointer
@@ -107,9 +104,7 @@ final class NativeCInteropArrayCPointerToCValuesFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected Array<CPointer<T>?>.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected Array<CPointer<T>?>.toCValues() to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

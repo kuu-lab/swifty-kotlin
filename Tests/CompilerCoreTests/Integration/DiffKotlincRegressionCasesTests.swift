@@ -1,8 +1,9 @@
+#if canImport(Testing)
 import Foundation
-import XCTest
+import Testing
 
-final class DiffKotlincRegressionCasesTests: XCTestCase {
-    func testDiffKotlincRegressionCasesAreTracked() throws {
+@Suite struct DiffKotlincRegressionCasesTests {
+    @Test func testDiffKotlincRegressionCasesAreTracked() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Integration/
             .deletingLastPathComponent() // CompilerCoreTests/
@@ -11,19 +12,19 @@ final class DiffKotlincRegressionCasesTests: XCTestCase {
         let casesDir = root.appendingPathComponent("Scripts/diff_cases", isDirectory: true)
         let readmePath = casesDir.appendingPathComponent("README.md").path
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: readmePath))
+        #expect(FileManager.default.fileExists(atPath: readmePath))
 
         let files = try FileManager.default.contentsOfDirectory(at: casesDir, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "kt" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        XCTAssertGreaterThanOrEqual(files.count, 13)
+        #expect(files.count >= 13)
 
         for file in files {
             let contents = try String(contentsOf: file, encoding: .utf8)
-            XCTAssertFalse(contents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "Empty case file: \(file.lastPathComponent)")
+            #expect(!(contents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty), "Empty case file: \(file.lastPathComponent)")
             let isScript = file.lastPathComponent.hasPrefix("script_")
             if !isScript {
-                XCTAssertTrue(
+                #expect(
                     contents.contains("fun ") || contents.contains("class ") || contents.contains("object "),
                     "Regression case should include a top-level declaration: \(file.lastPathComponent)"
                 )
@@ -31,3 +32,4 @@ final class DiffKotlincRegressionCasesTests: XCTestCase {
         }
     }
 }
+#endif

@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectKVisibilitySyntheticTests: XCTestCase {
+@Suite
+struct ReflectKVisibilitySyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,23 +12,23 @@ final class ReflectKVisibilitySyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected KVisibility surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KVisibility surface to resolve cleanly, got: \(diagnostics)"))
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testKVisibilityEnumEntriesAreRegistered() throws {
+    @Test func testKVisibilityEnumEntriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
         let enumFQName = reflectPackage + [interner.intern("KVisibility")]
-        let enumSymbol = try XCTUnwrap(
+        let enumSymbol = try #require(
             sema.symbols.lookup(fqName: enumFQName),
             "Expected kotlin.reflect.KVisibility to be registered"
         )
 
-        XCTAssertEqual(sema.symbols.symbol(enumSymbol)?.kind, .enumClass)
-        XCTAssertTrue(sema.symbols.symbol(enumSymbol)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(enumSymbol)?.kind == .enumClass)
+        #expect(sema.symbols.symbol(enumSymbol)?.flags.contains(.synthetic) == true)
 
         let enumType = sema.types.make(.classType(ClassType(
             classSymbol: enumSymbol,
@@ -34,16 +36,16 @@ final class ReflectKVisibilitySyntheticTests: XCTestCase {
             nullability: .nonNull
         )))
         for entry in ["PUBLIC", "PROTECTED", "INTERNAL", "PRIVATE"] {
-            let entrySymbol = try XCTUnwrap(
+            let entrySymbol = try #require(
                 sema.symbols.lookup(fqName: enumFQName + [interner.intern(entry)]),
-                "Expected KVisibility.\(entry) to be registered"
+                Comment(rawValue: "Expected KVisibility.\(entry) to be registered")
             )
-            XCTAssertEqual(sema.symbols.parentSymbol(for: entrySymbol), enumSymbol)
-            XCTAssertEqual(sema.symbols.propertyType(for: entrySymbol), enumType)
+            #expect(sema.symbols.parentSymbol(for: entrySymbol) == enumSymbol)
+            #expect(sema.symbols.propertyType(for: entrySymbol) == enumType)
         }
     }
 
-    func testKVisibilityEntriesResolveInSource() throws {
+    @Test func testKVisibilityEntriesResolveInSource() throws {
         let source = """
         import kotlin.reflect.KVisibility
 
@@ -56,3 +58,4 @@ final class ReflectKVisibilitySyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

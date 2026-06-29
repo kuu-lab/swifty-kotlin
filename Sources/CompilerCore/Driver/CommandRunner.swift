@@ -6,13 +6,13 @@ import Darwin
 import Glibc
 #endif
 
-struct CommandResult: Sendable {
-    let exitCode: Int32
-    let stdout: String
-    let stderr: String
+package struct CommandResult: Sendable {
+    package let exitCode: Int32
+    package let stdout: String
+    package let stderr: String
 }
 
-enum CommandRunnerError: Error, Sendable {
+package enum CommandRunnerError: Error, Sendable {
     case launchFailed(String)
     case nonZeroExit(CommandResult)
     case timedOut(String)
@@ -51,13 +51,11 @@ private final class LockedCommandOutput: @unchecked Sendable {
     }
 }
 
-enum CommandRunner {
+package enum CommandRunner {
     private static let drainTimeoutSeconds: TimeInterval = 20
     private static let terminationGracePeriodSeconds: TimeInterval = 1
 
-    /// Resolves the absolute path for an executable by searching the PATH environment variable.
-    /// Falls back to the provided default path if the executable is not found in PATH.
-    static func resolveExecutable(_ name: String, fallback: String) -> String {
+    package static func resolveExecutable(_ name: String, fallback: String) -> String {
         let fileManager = FileManager.default
         if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
             for directory in pathEnv.split(separator: ":") {
@@ -73,7 +71,7 @@ enum CommandRunner {
     /// Runs a command and records its wall-clock time as a sub-phase in the
     /// given `PhaseTimer`, if non-nil.  The `subPhaseName` label appears in
     /// the `time-phases` output.
-    static func run(
+    package static func run(
         executable: String,
         arguments: [String],
         currentDirectoryPath: String? = nil,

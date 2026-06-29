@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - Test Helpers
 
@@ -156,6 +157,7 @@ extension LoweringPassRegressionTests {
 
     /// Verify that a lambda passed to an inline function is expanded in place,
     /// eliminating the indirect call to the lambda function.
+    @Test
     func testInlineLoweringInlinesLambdaArgumentBody() throws {
         let tc = InlineLambdaTestContext()
 
@@ -258,22 +260,22 @@ extension LoweringPassRegressionTests {
         )
 
         // The inline function call should be eliminated.
-        XCTAssertFalse(
-            callees.contains("applyBlock"),
+        #expect(
+            !callees.contains("applyBlock"),
             "applyBlock should have been inlined, got callees: \(callees)"
         )
 
         // The lambda indirect call should also be eliminated; instead the
         // lambda body (kk_op_add) should appear directly.
-        XCTAssertFalse(
-            callees.contains("$lambda_0"),
+        #expect(
+            !callees.contains("$lambda_0"),
             "Lambda should have been inlined, got callees: \(callees)"
         )
-        XCTAssertFalse(
-            callees.contains("kk_lambda_invoke"),
+        #expect(
+            !callees.contains("kk_lambda_invoke"),
             "Should not have indirect lambda invoke, got callees: \(callees)"
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_op_add"),
             "Lambda body should be inlined with kk_op_add, got callees: \(callees)"
         )
@@ -281,6 +283,7 @@ extension LoweringPassRegressionTests {
 
     /// Verify that non-lambda arguments (e.g. function references that are not
     /// resolved to a KIR function) still produce a regular call instruction.
+    @Test
     func testInlineLoweringFallsBackWhenLambdaNotResolvable() throws {
         let tc = InlineLambdaTestContext()
 
@@ -354,14 +357,14 @@ extension LoweringPassRegressionTests {
         )
 
         // applyBlock should still be inlined (function body expansion).
-        XCTAssertFalse(
-            callees.contains("applyBlock"),
+        #expect(
+            !callees.contains("applyBlock"),
             "Inline function body should still be expanded"
         )
 
         // But the lambda call should remain as is since we cannot resolve
         // the function reference to a KIR declaration.
-        XCTAssertTrue(
+        #expect(
             callees.contains("externalFunc"),
             "Unresolvable callable should remain as indirect call, got callees: \(callees)"
         )
@@ -369,6 +372,7 @@ extension LoweringPassRegressionTests {
 
     /// Verify that a multi-instruction lambda body is fully inlined (not just
     /// single-expression lambdas).
+    @Test
     func testInlineLoweringInlinesMultiStatementLambdaBody() throws {
         let tc = InlineLambdaTestContext()
 
@@ -482,14 +486,14 @@ extension LoweringPassRegressionTests {
         )
 
         // Both the inline function and the lambda should be inlined.
-        XCTAssertFalse(callees.contains("transform"))
-        XCTAssertFalse(callees.contains("$lambda_1"))
+        #expect(!callees.contains("transform"))
+        #expect(!callees.contains("$lambda_1"))
         // Both operations from the lambda body should appear.
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_op_mul"),
             "Lambda mul operation should be inlined, got: \(callees)"
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_op_add"),
             "Lambda add operation should be inlined, got: \(callees)"
         )
@@ -498,6 +502,7 @@ extension LoweringPassRegressionTests {
     /// Verify that a lambda body with multiple return instructions (control-flow
     /// branches) is correctly inlined using a merge label, preserving both
     /// branches and producing a single merged result.
+    @Test
     func testInlineLoweringInlinesControlFlowLambdaWithMergeLabel() throws {
         let tc = InlineLambdaTestContext()
 
@@ -615,17 +620,17 @@ extension LoweringPassRegressionTests {
         )
 
         // Both the inline function and the lambda should be fully inlined.
-        XCTAssertFalse(
-            callees.contains("applyBlock"),
+        #expect(
+            !callees.contains("applyBlock"),
             "applyBlock should have been inlined, got callees: \(callees)"
         )
-        XCTAssertFalse(
-            callees.contains("$lambda_cf"),
+        #expect(
+            !callees.contains("$lambda_cf"),
             "Lambda should have been inlined, got callees: \(callees)"
         )
 
         // The add operation from branch A should be present.
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_op_add"),
             "Branch A (kk_op_add) should be preserved, got callees: \(callees)"
         )
@@ -636,8 +641,8 @@ extension LoweringPassRegressionTests {
             if case let .label(id) = inst { return id }
             return nil
         }
-        XCTAssertGreaterThanOrEqual(
-            labels.count, 2,
+        #expect(
+            labels.count >= 2,
             "Should have at least 2 labels (branch + merge), got \(labels.count)"
         )
 
@@ -647,8 +652,8 @@ extension LoweringPassRegressionTests {
             if case .jump = $0 { return true }
             return false
         }
-        XCTAssertGreaterThanOrEqual(
-            jumps.count, 1,
+        #expect(
+            jumps.count >= 1,
             "Merge-label path should emit jump instructions to converge branches"
         )
 
@@ -663,7 +668,7 @@ extension LoweringPassRegressionTests {
             if case .intLiteral(100) = kind { return true }
             return false
         }
-        XCTAssertTrue(
+        #expect(
             hasHundred,
             "Branch B (return 100) should be preserved in the lowered body"
         )
@@ -673,8 +678,8 @@ extension LoweringPassRegressionTests {
             if case let .returnValue(expr) = inst { return expr }
             return nil
         }
-        XCTAssertEqual(
-            returnValues.count, 1,
+        #expect(
+            returnValues.count == 1,
             "Lowered body should have exactly one returnValue after merge, got \(returnValues.count)"
         )
     }
@@ -682,6 +687,7 @@ extension LoweringPassRegressionTests {
     /// Verify that lambda arguments materialized through an intermediate
     /// `constValue` instruction (rather than a direct `.symbolRef` expression)
     /// are still resolved and inlined.
+    @Test
     func testInlineLoweringResolvesLambdaThroughConstValueAlias() throws {
         let tc = InlineLambdaTestContext()
 
@@ -788,20 +794,21 @@ extension LoweringPassRegressionTests {
         )
 
         // The inline function should be expanded.
-        XCTAssertFalse(
-            callees.contains("applyBlock"),
+        #expect(
+            !callees.contains("applyBlock"),
             "applyBlock should have been inlined, got callees: \(callees)"
         )
 
         // The lambda should also be resolved through the constValue alias
         // and fully inlined.
-        XCTAssertFalse(
-            callees.contains("$lambda_alias"),
+        #expect(
+            !callees.contains("$lambda_alias"),
             "Lambda should have been resolved through constValue and inlined, got callees: \(callees)"
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_op_add"),
             "Lambda body should be inlined with kk_op_add, got callees: \(callees)"
         )
     }
 }
+#endif

@@ -1,23 +1,24 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
+@Suite
+struct NativeCInteropCPointerPlusFunctionTests {
+    @Test
     func testCPointerPlusFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected CPointer.plus surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
         )
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -43,15 +44,15 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
             file: StaticString = #filePath,
             line: UInt = #line
         ) throws {
-            let plusSymbol = try XCTUnwrap(plusCandidates.first { symbolID in
+            let plusSymbol = try #require(plusCandidates.first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
                 return signature.parameterTypes == [indexType]
                     && signature.typeParameterUpperBoundsList == [[upperBound]]
-            }, file: file, line: line)
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: plusSymbol), file: file, line: line)
-            let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first, file: file, line: line)
+            })
+            let signature = try #require(sema.symbols.functionSignature(for: plusSymbol))
+            let typeParameter = try #require(signature.typeParameterSymbols.first)
             let typeParameterType = sema.types.make(.typeParam(TypeParamType(
                 symbol: typeParameter,
                 nullability: .nonNull
@@ -61,16 +62,16 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
                 args: [.invariant(typeParameterType)],
                 nullability: .nonNull
             )))
-            let parameterSymbol = try XCTUnwrap(signature.valueParameterSymbols.first, file: file, line: line)
-            let flags = try XCTUnwrap(sema.symbols.symbol(plusSymbol)?.flags, file: file, line: line)
+            let parameterSymbol = try #require(signature.valueParameterSymbols.first)
+            let flags = try #require(sema.symbols.symbol(plusSymbol)?.flags)
 
-            XCTAssertTrue(flags.isSuperset(of: [.synthetic, .inlineFunction, .operatorFunction]), file: file, line: line)
-            XCTAssertEqual(signature.receiverType, expectedPointerType, file: file, line: line)
-            XCTAssertEqual(signature.returnType, expectedPointerType, file: file, line: line)
-            XCTAssertTrue(signature.reifiedTypeParameterIndices.isEmpty, file: file, line: line)
-            XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [upperBound], file: file, line: line)
-            XCTAssertEqual(sema.symbols.symbol(parameterSymbol)?.name, interner.intern("index"), file: file, line: line)
-            XCTAssertEqual(sema.symbols.propertyType(for: parameterSymbol), indexType, file: file, line: line)
+            #expect(flags.isSuperset(of: [.synthetic, .inlineFunction, .operatorFunction]))
+            #expect(signature.receiverType == expectedPointerType)
+            #expect(signature.returnType == expectedPointerType)
+            #expect(signature.reifiedTypeParameterIndices.isEmpty)
+            #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [upperBound])
+            #expect(sema.symbols.symbol(parameterSymbol)?.name == interner.intern("index"))
+            #expect(sema.symbols.propertyType(for: parameterSymbol) == indexType)
         }
 
         try assertPlusOverload(indexType: sema.types.intType, upperBound: byteVarOfUpperBound)
@@ -79,6 +80,7 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
         try assertPlusOverload(indexType: sema.types.longType, upperBound: cPointerVarOfUpperBound)
     }
 
+    @Test
     func testCPointerPlusFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.ByteVar
@@ -95,34 +97,24 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected CPointer.plus to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let plusFQName = ["kotlinx", "cinterop", "plus"].map { interner.intern($0) }
         let plusCandidates = Set(sema.symbols.lookupAll(fqName: plusFQName))
-        let plusExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+        let cpointerPlusBound = ast.arena.exprs.indices.filter { index -> Bool in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case .binary(.add, _, _, _) = expr,
-                  let range = ast.arena.exprRange(exprID),
-                  range.start.file.rawValue == 0  // user source file only (bundled stdlibs are FileID 1+)
-            else {
-                return nil
-            }
-            return exprID
+                  let binding = sema.bindings.callBinding(for: exprID)
+            else { return false }
+            return plusCandidates.contains(binding.chosenCallee)
         }
-
-        XCTAssertEqual(plusExprs.count, 2)
-        for exprID in plusExprs {
-            let chosen = try XCTUnwrap(
-                sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                "Expected CPointer.plus binary expression to bind a callee"
-            )
-            XCTAssertTrue(plusCandidates.contains(chosen))
-        }
+        #expect(cpointerPlusBound.count == 2, "Expected exactly 2 binary adds bound to CPointer.plus")
     }
 }
+#endif

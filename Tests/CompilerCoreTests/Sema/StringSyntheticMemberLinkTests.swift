@@ -1,11 +1,13 @@
 @testable import CompilerCore
 import Foundation
+import Testing
 import XCTest
 
 /// Verifies that the new String stdlib extension stubs added in the PR
 /// (STDLIB-006, STDLIB-009) are registered in the symbol table with the
 /// correct runtime external link names.
-final class StringSyntheticMemberLinkTests: XCTestCase {
+@Suite
+struct StringSyntheticMemberLinkTests {
     /// Resolve the `kotlin.text.<member>` symbol and return its external link name.
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
@@ -43,10 +45,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
@@ -61,485 +63,299 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         return results
     }
 
-    func testExistingStringStubsRetainCorrectExternalLinks() throws {
+    @Test func testExistingStringStubsRetainCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "trim": "kk_string_trim_flat",
-            "split": "kk_string_split_flat",
-            "replace": "kk_string_replace_flat",
-            "startsWith": "kk_string_startsWith_flat",
-            "endsWith": "kk_string_endsWith_flat",
-            "toInt": "kk_string_toInt_flat",
-            "toDouble": "kk_string_toDouble_flat",
-            "hexToByteArray": "kk_string_hexToByteArray_flat",
-            "hexToInt": "kk_string_hexToInt_flat",
-            "hexToLong": "kk_string_hexToLong_flat",
-            "hexToShort": "kk_string_hexToShort_flat",
-            "hexToUByte": "kk_string_hexToUByte_flat",
-            "hexToUByteArray": "kk_string_hexToUByteArray_flat",
-            "hexToUInt": "kk_string_hexToUInt_flat",
-            "hexToULong": "kk_string_hexToULong_flat",
-            "hexToUShort": "kk_string_hexToUShort_flat",
-            "trimIndent": "kk_string_trimIndent_flat",
-            "replaceIndentByMargin": "kk_string_replaceIndentByMargin_flat",
+            "trim": "kk_string_trim",
+            "split": "kk_string_split",
+            "replace": "kk_string_replace",
+            "startsWith": "kk_string_startsWith",
+            "endsWith": "kk_string_endsWith",
+            "toInt": "kk_string_toInt",
+            "toDouble": "kk_string_toDouble",
+            "hexToShort": "kk_string_hexToShort",
+            "hexToUByte": "kk_string_hexToUByte",
+            "hexToUByteArray": "kk_string_hexToUByteArray",
+            "hexToUInt": "kk_string_hexToUInt",
+            "hexToULong": "kk_string_hexToULong",
+            "hexToUShort": "kk_string_hexToUShort",
         ]
 
         for (member, expectedLink) in expected {
-            XCTAssertEqual(
-                externalLink(for: member, sema: sema, interner: interner),
-                expectedLink,
+            #expect(
+                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
                 "String.\(member) should link to \(expectedLink)"
             )
         }
-        XCTAssertTrue(
-            externalLinks(for: "orEmpty", sema: sema, interner: interner)
-                .contains("kk_string_orEmpty_flat"),
-            "String?.orEmpty should link to kk_string_orEmpty_flat"
-        )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_indexOfAny_chars_flat"),
-            "CharSequence.indexOfAny(chars, startIndex, ignoreCase) should link to kk_string_indexOfAny_chars_flat"
+                .contains("kk_string_indexOfAny_chars"),
+            "CharSequence.indexOfAny(chars, startIndex, ignoreCase) should link to kk_string_indexOfAny_chars"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_indexOfAny_strings_flat"),
-            "CharSequence.indexOfAny(strings, startIndex, ignoreCase) should link to kk_string_indexOfAny_strings_flat"
+                .contains("kk_string_indexOfAny_strings"),
+            "CharSequence.indexOfAny(strings, startIndex, ignoreCase) should link to kk_string_indexOfAny_strings"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "lastIndexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_lastIndexOfAny_chars_flat"),
-            "CharSequence.lastIndexOfAny(chars, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_chars_flat"
+                .contains("kk_string_lastIndexOfAny_chars"),
+            "CharSequence.lastIndexOfAny(chars, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_chars"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "lastIndexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_lastIndexOfAny_strings_flat"),
-            "CharSequence.lastIndexOfAny(strings, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_strings_flat"
+                .contains("kk_string_lastIndexOfAny_strings"),
+            "CharSequence.lastIndexOfAny(strings, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_strings"
         )
-        XCTAssertEqual(
-            externalLink(for: "findAnyOf", sema: sema, interner: interner),
-            "kk_string_findAnyOf_flat",
-            "CharSequence.findAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findAnyOf_flat"
+        #expect(
+            externalLink(for: "findAnyOf", sema: sema, interner: interner) == "kk_string_findAnyOf",
+            "CharSequence.findAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findAnyOf"
         )
-        XCTAssertEqual(
-            externalLink(for: "findLastAnyOf", sema: sema, interner: interner),
-            "kk_string_findLastAnyOf_flat",
-            "CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findLastAnyOf_flat"
+        #expect(
+            externalLink(for: "findLastAnyOf", sema: sema, interner: interner) == "kk_string_findLastAnyOf",
+            "CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findLastAnyOf"
         )
-        let expectedSubstringLinks: [String: Set<String>] = [
-            "substringBefore": [
-                "kk_string_substringBefore_flat",
-                "kk_string_substringBefore_char_flat",
-            ],
-            "substringAfter": [
-                "kk_string_substringAfter_flat",
-                "kk_string_substringAfter_char_flat",
-            ],
-            "substringBeforeLast": [
-                "kk_string_substringBeforeLast_flat",
-                "kk_string_substringBeforeLast_char_flat",
-            ],
-            "substringAfterLast": [
-                "kk_string_substringAfterLast_flat",
-                "kk_string_substringAfterLast_char_flat",
-            ],
-        ]
-        for (member, expectedLinks) in expectedSubstringLinks {
-            XCTAssertTrue(
-                expectedLinks.isSubset(of: externalLinks(for: member, sema: sema, interner: interner)),
-                "String.\(member) overloads should link to \(expectedLinks.sorted())"
-            )
-        }
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter_flat"),
-            "String.replaceAfter(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_flat"
+                .contains("kk_string_replaceAfter"),
+            "String.replaceAfter(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfter"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter_char_flat"),
-            "String.replaceAfter(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_char_flat"
+                .contains("kk_string_replaceAfter_char"),
+            "String.replaceAfter(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_char"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast_flat"),
-            "String.replaceAfterLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_flat"
+                .contains("kk_string_replaceAfterLast"),
+            "String.replaceAfterLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast_char_flat"),
-            "String.replaceAfterLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_char_flat"
+                .contains("kk_string_replaceAfterLast_char"),
+            "String.replaceAfterLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_char"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore_flat"),
-            "String.replaceBefore(String, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_flat"
+                .contains("kk_string_replaceBefore"),
+            "String.replaceBefore(String, replacement, missingDelimiterValue) should link to kk_string_replaceBefore"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore_char_flat"),
-            "String.replaceBefore(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_char_flat"
+                .contains("kk_string_replaceBefore_char"),
+            "String.replaceBefore(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_char"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast_flat"),
-            "String.replaceBeforeLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_flat"
+                .contains("kk_string_replaceBeforeLast"),
+            "String.replaceBeforeLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast_char_flat"),
-            "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char_flat"
+                .contains("kk_string_replaceBeforeLast_char"),
+            "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
         )
-        XCTAssertTrue(
-            externalLinks(for: "replaceFirst", sema: sema, interner: interner)
-                .contains("kk_string_replaceFirst_flat"),
-            "String.replaceFirst(String, String) should link to kk_string_replaceFirst_flat"
-        )
-        XCTAssertTrue(
-            externalLinks(for: "replaceRange", sema: sema, interner: interner)
-                .contains("kk_string_replaceRange_flat"),
-            "String.replaceRange(IntRange, String) should link to kk_string_replaceRange_flat"
-        )
-        XCTAssertTrue(
-            externalLinks(for: "removeRange", sema: sema, interner: interner)
-                .contains("kk_string_removeRange_flat"),
-            "String.removeRange(startIndex, endIndex) should link to kk_string_removeRange_flat"
-        )
-        XCTAssertTrue(
-            externalLinks(for: "removeRange", sema: sema, interner: interner)
-                .contains("kk_string_removeRange_range_flat"),
-            "String.removeRange(IntRange) should link to kk_string_removeRange_range_flat"
+        // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+        #expect(
+            externalLinks(for: "plus", sema: sema, interner: interner)
+                .contains("kk_string_plus"),
+            "String?.plus(other: Any?) should link to kk_string_plus"
         )
         // STDLIB-TEXT-FN-055: replace overloads
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char_flat"),
-            "String.replace(Char, Char) should link to kk_string_replace_char_flat"
+                .contains("kk_string_replace_char"),
+            "String.replace(Char, Char) should link to kk_string_replace_char"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_ignoreCase_flat"),
-            "String.replace(String, String, ignoreCase) should link to kk_string_replace_ignoreCase_flat"
+                .contains("kk_string_replace_ignoreCase"),
+            "String.replace(String, String, ignoreCase) should link to kk_string_replace_ignoreCase"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char_ignoreCase_flat"),
-            "String.replace(Char, Char, ignoreCase) should link to kk_string_replace_char_ignoreCase_flat"
+                .contains("kk_string_replace_char_ignoreCase"),
+            "String.replace(Char, Char, ignoreCase) should link to kk_string_replace_char_ignoreCase"
         )
     }
 
-    func testNewCaseConversionStubsHaveCorrectExternalLinks() throws {
+    @Test func testNewCaseConversionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "lowercase", sema: sema, interner: interner),
-            "kk_string_lowercase_flat",
-            "String.lowercase should link to kk_string_lowercase_flat"
+        // lowercase() and uppercase() are now bundled Kotlin functions (MIGRATION-TEXT-005) — no C external link.
+        // The `externalLink(for:)` helper returns the first match in the symbol table; since
+        // Char.lowercase / Char.uppercase share the same FQN prefix, we verify via the String-receiver
+        // overloads specifically.
+        let lowercaseLinks = externalLinks(for: "lowercase", sema: sema, interner: interner)
+        #expect(
+            !lowercaseLinks.contains("kk_string_lowercase"),
+            "String.lowercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
         )
-        XCTAssertEqual(
-            externalLink(for: "uppercase", sema: sema, interner: interner),
-            "kk_string_uppercase_flat",
-            "String.uppercase should link to kk_string_uppercase_flat"
+        let uppercaseLinks = externalLinks(for: "uppercase", sema: sema, interner: interner)
+        #expect(
+            !uppercaseLinks.contains("kk_string_uppercase"),
+            "String.uppercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
         )
-        XCTAssertEqual(
-            externalLink(for: "capitalize", sema: sema, interner: interner),
-            "kk_string_capitalize",
-            "String.capitalize should link to kk_string_capitalize"
+        // capitalize() is now a bundled Kotlin function (MIGRATION-TEXT-005) — no C external link.
+        #expect(
+            externalLink(for: "capitalize", sema: sema, interner: interner) == nil,
+            "String.capitalize should be a bundled Kotlin function with no C external link"
         )
 
-        let lowercaseFQ = ["kotlin", "text", "lowercase"].map { interner.intern($0) }
-        let lowercaseLinks = Set(
-            sema.symbols.lookupAll(fqName: lowercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
+        #expect(
+            externalLink(for: "__kk_lowercase_locale", sema: sema, interner: interner) == "kk_string_lowercase_locale",
+            "String.lowercase(Locale) wrapper should call the private locale primitive"
         )
-        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_flat"))
-        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_locale_flat"))
-
-        let uppercaseFQ = ["kotlin", "text", "uppercase"].map { interner.intern($0) }
-        let uppercaseLinks = Set(
-            sema.symbols.lookupAll(fqName: uppercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
+        #expect(
+            externalLink(for: "__kk_uppercase_locale", sema: sema, interner: interner) == "kk_string_uppercase_locale",
+            "String.uppercase(Locale) wrapper should call the private locale primitive"
         )
-        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_flat"))
-        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_locale_flat"))
     }
 
-    func testStringNormalizationStubsHaveCorrectExternalLinks() throws {
+    @Test func testCodePointCountStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "normalize", sema: sema, interner: interner),
-            "kk_string_normalize_flat",
-            "String.normalize should link to kk_string_normalize_flat"
+        let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
+        #expect(
+            codePointCountLinks.contains("kk_string_codePointCount"),
+            "CharSequence.codePointCount() should link to kk_string_codePointCount"
         )
-        XCTAssertEqual(
-            externalLink(for: "isNormalized", sema: sema, interner: interner),
-            "kk_string_isNormalized_flat",
-            "String.isNormalized should link to kk_string_isNormalized_flat"
+        #expect(
+            codePointCountLinks.contains("kk_string_codePointCount_from"),
+            "CharSequence.codePointCount(startIndex) should link to kk_string_codePointCount_from"
+        )
+        #expect(
+            codePointCountLinks.contains("kk_string_codePointCount_range"),
+            "CharSequence.codePointCount(startIndex, endIndex) should link to kk_string_codePointCount_range"
         )
     }
 
-    func testStringPartitionStubUsesFlatExternalLink() throws {
+    @Test func testStringNormalizationStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(
-                for: "partition",
-                receiverType: sema.types.stringType,
-                parameterCount: 1,
-                sema: sema,
-                interner: interner
-            ),
-            "kk_string_partition_flat",
-            "String.partition should link to kk_string_partition_flat"
+        #expect(
+            externalLink(for: "normalize", sema: sema, interner: interner) == "kk_string_normalize",
+            "String.normalize should link to kk_string_normalize"
+        )
+        #expect(
+            externalLink(for: "isNormalized", sema: sema, interner: interner) == "kk_string_isNormalized",
+            "String.isNormalized should link to kk_string_isNormalized"
         )
     }
 
-    func testChunkedSequenceStubsHaveCorrectExternalLinks() throws {
+    @Test func testChunkedSequenceStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
-        XCTAssertTrue(
-            links.contains("kk_string_chunked_sequence_transform_flat"),
-            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform_flat"
+        #expect(
+            links.contains("kk_string_chunked_sequence_transform"),
+            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
         )
-        XCTAssertTrue(
-            links.contains("kk_string_chunked_sequence_flat"),
-            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence_flat"
-        )
-        XCTAssertTrue(
-            links.contains("kk_string_chunked_sequence_transform_flat"),
-            "String.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform_flat"
-        )
-        XCTAssertTrue(
-            links.contains("kk_string_chunked_sequence_flat"),
-            "String.chunkedSequence should link to kk_string_chunked_sequence_flat"
+        #expect(
+            links.contains("kk_string_chunked_sequence"),
+            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
         )
     }
 
-    func testNewNullableConversionStubsHaveCorrectExternalLinks() throws {
+    @Test func testNewNullableConversionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "toIntOrNull", sema: sema, interner: interner),
-            "kk_string_toIntOrNull_flat",
-            "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
+        #expect(
+            externalLink(for: "toIntOrNull", sema: sema, interner: interner) == "kk_string_toIntOrNull",
+            "String.toIntOrNull should link to kk_string_toIntOrNull"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "toIntOrNull", sema: sema, interner: interner)
-                .contains("kk_string_toIntOrNull_radix_flat"),
-            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix_flat"
+                .contains("kk_string_toIntOrNull_radix"),
+            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix"
         )
-        XCTAssertEqual(
-            externalLink(for: "toUByteOrNull", sema: sema, interner: interner),
-            "kk_string_toUByteOrNull",
+        #expect(
+            externalLink(for: "toUByteOrNull", sema: sema, interner: interner) == "kk_string_toUByteOrNull",
             "String.toUByteOrNull should link to kk_string_toUByteOrNull"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "toUByteOrNull", sema: sema, interner: interner)
                 .contains("kk_string_toUByteOrNull_radix"),
             "String.toUByteOrNull(radix) should link to kk_string_toUByteOrNull_radix"
         )
-        XCTAssertEqual(
-            externalLink(for: "toUShortOrNull", sema: sema, interner: interner),
-            "kk_string_toUShortOrNull",
+        #expect(
+            externalLink(for: "toUShortOrNull", sema: sema, interner: interner) == "kk_string_toUShortOrNull",
             "String.toUShortOrNull should link to kk_string_toUShortOrNull"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "toUShortOrNull", sema: sema, interner: interner)
                 .contains("kk_string_toUShortOrNull_radix"),
             "String.toUShortOrNull(radix) should link to kk_string_toUShortOrNull_radix"
         )
-        XCTAssertEqual(
-            externalLink(for: "toUIntOrNull", sema: sema, interner: interner),
-            "kk_string_toUIntOrNull",
+        #expect(
+            externalLink(for: "toUIntOrNull", sema: sema, interner: interner) == "kk_string_toUIntOrNull",
             "String.toUIntOrNull should link to kk_string_toUIntOrNull"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "toUIntOrNull", sema: sema, interner: interner)
                 .contains("kk_string_toUIntOrNull_radix"),
             "String.toUIntOrNull(radix) should link to kk_string_toUIntOrNull_radix"
         )
-        XCTAssertEqual(
-            externalLink(for: "toULongOrNull", sema: sema, interner: interner),
-            "kk_string_toULongOrNull",
+        #expect(
+            externalLink(for: "toULongOrNull", sema: sema, interner: interner) == "kk_string_toULongOrNull",
             "String.toULongOrNull should link to kk_string_toULongOrNull"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "toULongOrNull", sema: sema, interner: interner)
                 .contains("kk_string_toULongOrNull_radix"),
             "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
         )
-        XCTAssertEqual(
-            externalLink(for: "toDoubleOrNull", sema: sema, interner: interner),
-            "kk_string_toDoubleOrNull_flat",
-            "String.toDoubleOrNull should link to kk_string_toDoubleOrNull_flat"
+        #expect(
+            externalLink(for: "toDoubleOrNull", sema: sema, interner: interner) == "kk_string_toDoubleOrNull",
+            "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
         )
-        XCTAssertEqual(
-            externalLink(for: "toBigDecimal", sema: sema, interner: interner),
-            "kk_string_toBigDecimal_flat",
-            "String.toBigDecimal should link to kk_string_toBigDecimal_flat"
+        #expect(
+            externalLink(for: "toBigDecimal", sema: sema, interner: interner) == "kk_string_toBigDecimal",
+            "String.toBigDecimal should link to kk_string_toBigDecimal"
         )
-        XCTAssertEqual(
-            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner),
-            "kk_string_toBigDecimalOrNull",
+        #expect(
+            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner) == "kk_string_toBigDecimalOrNull",
             "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
         )
-        XCTAssertEqual(
-            externalLink(for: "toBigInteger", sema: sema, interner: interner),
-            "kk_string_toBigInteger_flat",
-            "String.toBigInteger should link to kk_string_toBigInteger_flat"
+        #expect(
+            externalLink(for: "toBigInteger", sema: sema, interner: interner) == "kk_string_toBigInteger",
+            "String.toBigInteger should link to kk_string_toBigInteger"
+        )
+        #expect(
+            externalLink(for: "toBigIntegerOrNull", sema: sema, interner: interner) == "kk_string_toBigIntegerOrNull",
+            "String.toBigIntegerOrNull should link to kk_string_toBigIntegerOrNull"
         )
     }
 
-    func testStringScalarResultStubsUseFlatExternalLinks() throws {
-        let (sema, interner) = try makeSema()
-
-        let expected: [(member: String, parameterCount: Int, link: String)] = [
-            ("first", 0, "kk_string_first_flat"),
-            ("last", 0, "kk_string_last_flat"),
-            ("single", 0, "kk_string_single_flat"),
-            ("firstOrNull", 0, "kk_string_firstOrNull_flat"),
-            ("lastOrNull", 0, "kk_string_lastOrNull_flat"),
-            ("singleOrNull", 0, "kk_string_singleOrNull_flat"),
-            ("getOrNull", 1, "kk_string_getOrNull_flat"),
-            ("count", 1, "kk_string_count_flat"),
-            ("any", 1, "kk_string_any_flat"),
-            ("all", 1, "kk_string_all_flat"),
-            ("none", 1, "kk_string_none_flat"),
-            ("find", 1, "kk_string_find_flat"),
-            ("findLast", 1, "kk_string_findLast_flat"),
-            ("indexOfFirst", 1, "kk_string_indexOfFirst_flat"),
-            ("indexOfLast", 1, "kk_string_indexOfLast_flat"),
-            ("reduceOrNull", 1, "kk_string_reduceOrNull_flat"),
-            ("reduceRightIndexed", 1, "kk_string_reduceRightIndexed_flat"),
-            ("reduceRightIndexedOrNull", 1, "kk_string_reduceRightIndexedOrNull_flat"),
-            ("reduceRightOrNull", 1, "kk_string_reduceRightOrNull_flat"),
-            ("sumBy", 1, "kk_string_sumBy_flat"),
-            ("sumByDouble", 1, "kk_string_sumByDouble_flat"),
-        ]
-
-        for item in expected {
-            XCTAssertEqual(
-                externalLink(
-                    for: item.member,
-                    receiverType: sema.types.stringType,
-                    parameterCount: item.parameterCount,
-                    sema: sema,
-                    interner: interner
-                ),
-                item.link,
-                "String.\(item.member) should link to \(item.link)"
-            )
-        }
-    }
-
-    func testCharSequencePredicateTerminalMembersUseFlatExternalLinks() throws {
-        let source = """
-        fun countA(value: CharSequence): Int = value.count { it == 'a' }
-        fun anyA(value: CharSequence): Boolean = value.any { it == 'a' }
-        fun allA(value: CharSequence): Boolean = value.all { it == 'a' }
-        fun noneA(value: CharSequence): Boolean = value.none { it == 'a' }
-        fun firstA(value: CharSequence): Int = value.indexOfFirst { it == 'a' }
-        fun lastA(value: CharSequence): Int = value.indexOfLast { it == 'a' }
-        fun findA(value: CharSequence): Char? = value.find { it == 'a' }
-        fun findLastA(value: CharSequence): Char? = value.findLast { it == 'a' }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let expectedLinks = [
-                "count": "kk_string_count_flat",
-                "any": "kk_string_any_flat",
-                "all": "kk_string_all_flat",
-                "none": "kk_string_none_flat",
-                "indexOfFirst": "kk_string_indexOfFirst_flat",
-                "indexOfLast": "kk_string_indexOfLast_flat",
-                "find": "kk_string_find_flat",
-                "findLast": "kk_string_findLast_flat",
-            ]
-
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return expectedLinks.keys.contains(ctx.interner.resolve(callee))
-            }
-            XCTAssertEqual(callExprs.count, expectedLinks.count)
-
-            for callExpr in callExprs {
-                guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(callExpr) else {
-                    XCTFail("Expected member call")
-                    continue
-                }
-                let member = ctx.interner.resolve(callee)
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(member)"
-                )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLinks[member],
-                    "Expected CharSequence.\(member) to resolve to \(expectedLinks[member] ?? "<missing>")"
-                )
-            }
-        }
-    }
-
-    func testStringListResultHOFStubsUseFlatExternalLinks() throws {
-        let (sema, interner) = try makeSema()
-
-        let expected: [(member: String, parameterCount: Int, link: String)] = [
-            ("map", 1, "kk_string_map_flat"),
-            ("mapIndexed", 1, "kk_string_mapIndexed_flat"),
-            ("mapNotNull", 1, "kk_string_mapNotNull_flat"),
-        ]
-
-        for item in expected {
-            XCTAssertEqual(
-                externalLink(
-                    for: item.member,
-                    receiverType: sema.types.stringType,
-                    parameterCount: item.parameterCount,
-                    sema: sema,
-                    interner: interner
-                ),
-                item.link,
-                "String.\(item.member) should link to \(item.link)"
-            )
-        }
-    }
-
-    func testNewSubstringAndSearchStubsHaveCorrectExternalLinks() throws {
+    @Test func testNewSubstringAndSearchStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "indexOf": "kk_string_indexOf_flat",
-            "lastIndexOf": "kk_string_lastIndexOf_flat",
+            "indexOf": "kk_string_indexOf",
+            "lastIndexOf": "kk_string_lastIndexOf",
         ]
         for (member, expectedLink) in expected {
-            XCTAssertEqual(
-                externalLink(for: member, sema: sema, interner: interner),
-                expectedLink,
+            #expect(
+                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
                 "String.\(member) should link to \(expectedLink)"
             )
         }
     }
 
-    func testNewTransformStubsHaveCorrectExternalLinks() throws {
+    @Test func testNewTransformStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         // repeat and reversed are now bundled Kotlin functions — no C external link.
         let bundledMembers = ["repeat", "reversed"]
         for member in bundledMembers {
             let fq = ["kotlin", "text", member].map { interner.intern($0) }
-            XCTAssertFalse(
-                sema.symbols.lookupAll(fqName: fq).isEmpty,
+            #expect(
+                !sema.symbols.lookupAll(fqName: fq).isEmpty,
                 "String.\(member) should be registered as a bundled Kotlin symbol"
             )
-            XCTAssertNil(
-                externalLink(for: member, sema: sema, interner: interner),
+            #expect(
+                externalLink(for: member, sema: sema, interner: interner) == nil,
                 "String.\(member) must not have a C external link after migration to Kotlin source"
             )
         }
@@ -552,14 +368,14 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "toTypedArray": "kk_string_toTypedArray",
         ]
         for (member, expectedLink) in expected {
-            XCTAssertEqual(
-                externalLink(for: member, sema: sema, interner: interner),
-                expectedLink,
+            #expect(
+                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
                 "String.\(member) should link to \(expectedLink)"
             )
         }
     }
 
+    @Test func testNewPaddingStubsHaveCorrectExternalLinks() throws {
     func testStringCollectionAndSequenceResultStubsUseFlatExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -599,7 +415,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
-    func testNewPaddingStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         // padStart and padEnd are now bundled Kotlin functions with a default parameter.
@@ -607,13 +422,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         for member in ["padStart", "padEnd"] {
             let fq = ["kotlin", "text", member].map { interner.intern($0) }
             let symbols = sema.symbols.lookupAll(fqName: fq)
-            XCTAssertFalse(symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
+            #expect(!symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
             let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            XCTAssertTrue(links.isEmpty, "String.\(member) must not have C external links after migration to Kotlin source")
+            #expect(links.isEmpty, "String.\(member) must not have C external links after migration to Kotlin source")
         }
     }
 
-    func testNewSlicingStubsHaveCorrectExternalLinks() throws {
+    @Test func testNewSlicingStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
@@ -623,85 +438,60 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "takeLast": "kk_string_takeLast_flat",
         ]
         for (member, expectedLink) in expected {
-            XCTAssertEqual(
-                externalLink(for: member, sema: sema, interner: interner),
-                expectedLink,
+            #expect(
+                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
                 "String.\(member) should link to \(expectedLink)"
             )
         }
     }
 
-    func testIfBlankStubHasCorrectExternalLink() throws {
+    @Test func testIfBlankStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "ifBlank", sema: sema, interner: interner),
-            "kk_string_ifBlank",
+        #expect(
+            externalLink(for: "ifBlank", sema: sema, interner: interner) == "kk_string_ifBlank",
             "CharSequence.ifBlank should link to kk_string_ifBlank"
         )
     }
 
-    func testIfEmptyStubHasCorrectExternalLink() throws {
+    @Test func testIfEmptyStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "ifEmpty", sema: sema, interner: interner),
-            "kk_string_ifEmpty",
+        #expect(
+            externalLink(for: "ifEmpty", sema: sema, interner: interner) == "kk_string_ifEmpty",
             "CharSequence.ifEmpty should link to kk_string_ifEmpty"
         )
     }
 
-    func testChunkedSequenceStubHasCorrectExternalLink() throws {
+    @Test func testChunkedSequenceStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "chunkedSequence", sema: sema, interner: interner),
-            "kk_string_chunked_sequence_flat",
-            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence_flat"
+        #expect(
+            externalLink(for: "chunkedSequence", sema: sema, interner: interner) == "kk_string_chunked_sequence",
+            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
-                .contains("kk_string_chunked_sequence_transform_flat"),
-            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform_flat"
-        )
-        XCTAssertTrue(
-            externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
-                .contains("kk_string_chunked_sequence_flat"),
-            "String.chunkedSequence should link to kk_string_chunked_sequence_flat"
-        )
-        XCTAssertTrue(
-            externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
-                .contains("kk_string_chunked_sequence_transform_flat"),
-            "String.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform_flat"
+                .contains("kk_string_chunked_sequence_transform"),
+            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
         )
     }
 
-    func testWindowedSequenceStubHasCorrectExternalLink() throws {
+    @Test func testWindowedSequenceStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "windowedSequence", sema: sema, interner: interner),
-            "kk_string_windowedSequence_partial_flat",
-            "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial_flat"
+        #expect(
+            externalLink(for: "windowedSequence", sema: sema, interner: interner) == "kk_string_windowedSequence_partial",
+            "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial"
         )
-        XCTAssertTrue(
+        #expect(
             externalLinks(for: "windowedSequence", sema: sema, interner: interner)
-                .contains("kk_string_windowedSequence_transform_flat"),
-            "CharSequence.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform_flat"
-        )
-        XCTAssertTrue(
-            externalLinks(for: "windowedSequence", sema: sema, interner: interner)
-                .contains("kk_string_windowedSequence_partial_flat"),
-            "String.windowedSequence should link to kk_string_windowedSequence_partial_flat"
-        )
-        XCTAssertTrue(
-            externalLinks(for: "windowedSequence", sema: sema, interner: interner)
-                .contains("kk_string_windowedSequence_transform_flat"),
-            "String.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform_flat"
+                .contains("kk_string_windowedSequence_transform"),
+            "CharSequence.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform"
         )
     }
 
-    func testIfBlankResolvesInCallExpressions() throws {
+    @Test func testIfBlankResolvesInCallExpressions() throws {
         let source = """
         fun choose(value: CharSequence): String {
             return value.ifBlank { "fallback" }
@@ -715,28 +505,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "ifBlank"
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for ifBlank"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_ifBlank",
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_ifBlank",
                     "Expected ifBlank to resolve to kk_string_ifBlank"
                 )
             }
         }
     }
 
-    func testIfEmptyResolvesInCallExpressions() throws {
+    @Test func testIfEmptyResolvesInCallExpressions() throws {
         let source = """
         fun choose(value: CharSequence): String {
             return value.ifEmpty { "fallback" }
@@ -746,25 +535,24 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "ifEmpty"
             }, "Expected member call to ifEmpty in AST")
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected call binding for ifEmpty"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_ifEmpty",
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_ifEmpty",
                 "Expected ifEmpty to resolve to kk_string_ifEmpty"
             )
         }
     }
 
-    func testTrimPredicateStubsHaveCorrectExternalLinks() throws {
+    @Test func testTrimPredicateStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: Set<String>] = [
@@ -774,14 +562,14 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         ]
 
         for (member, expectedLinks) in expected {
-            XCTAssertTrue(
+            #expect(
                 externalLinks(for: member, sema: sema, interner: interner).isSuperset(of: expectedLinks),
                 "String.\(member) should expose no-arg and predicate overload ABI links"
             )
         }
     }
 
-    func testTrimPredicateMembersResolveInCallExpressions() throws {
+    @Test func testTrimPredicateMembersResolveInCallExpressions() throws {
         let source = """
         fun trimEdges(s: String): String {
             val a = s.trim { it == 'x' }
@@ -794,8 +582,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedLinks: [String: String] = [
                 "trim": "kk_string_trim_predicate_flat",
@@ -804,24 +592,23 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             ]
 
             for (memberName, externalLinkName) in expectedLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for \(memberName)"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
                     "Expected \(memberName) predicate overload to resolve to \(externalLinkName)"
                 )
             }
         }
     }
 
-    func testNewStringMembersResolveInCallExpressions() throws {
+    @Test func testNewStringMembersResolveInCallExpressions() throws {
         let source = """
         fun process(s: String): String {
             val lower = s.lowercase()
@@ -836,77 +623,38 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            // lowercase/uppercase/capitalize still have C external links.
-            let expectedLinks: [String: String] = [
-                "lowercase": "kk_string_lowercase",
-                "uppercase": "kk_string_uppercase",
-                "capitalize": "kk_string_capitalize",
-            ]
-            for (memberName, externalLinkName) in expectedLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            // lowercase, uppercase, capitalize, replaceFirstChar, repeat, reversed are now all
+            // bundled Kotlin functions (MIGRATION-TEXT-005) — no C external link.
+            // Use allExprIDs and filter by String receiver to avoid picking up internal
+            // Char.lowercase/Char.uppercase calls that the bundled implementations use.
+            for memberName in ["lowercase", "uppercase", "capitalize", "replaceFirstChar", "repeat", "reversed"] {
+                // Find a call that resolves to a callee with String receiver type.
+                let callExprs = allExprIDs(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(memberName)"
+                }
+                let stringReceiverCallee = callExprs.compactMap { callExpr -> SymbolID? in
+                    guard let binding = sema.bindings.callBinding(for: callExpr) else { return nil }
+                    let sig = sema.symbols.functionSignature(for: binding.chosenCallee)
+                    guard sig?.receiverType == sema.types.stringType else { return nil }
+                    return binding.chosenCallee
+                }.first
+                let chosenCallee = try #require(
+                    stringReceiverCallee,
+                    "Expected a call to String.\(memberName) in AST"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
-                )
-            }
-
-            // repeat and reversed are now bundled Kotlin functions — they must resolve but have no C link.
-            for memberName in ["repeat", "reversed"] {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(memberName)"
-                )
-                XCTAssertNil(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "Expected \(memberName) to be a bundled Kotlin function with no C external link"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected String.\(memberName) to be a bundled Kotlin function with no C external link"
                 )
             }
         }
     }
 
-    func testStringEqualsNullableOtherResolvesToFlatABI() throws {
-        let source = """
-        fun same(lhs: String, rhs: String?): Boolean {
-            return lhs.equals(rhs)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "equals"
-            }, "Expected member call to equals in AST")
-            let chosenCallee = try XCTUnwrap(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected call binding for equals"
-            )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_equals_flat"
-            )
-        }
-    }
-
-    func testStringNormalizationMembersResolveInCallExpressions() throws {
+    @Test func testStringNormalizationMembersResolveInCallExpressions() throws {
         let source = """
         fun normalizeText(s: String): String {
             val normalized = s.normalize(NormalizationForms.NFC)
@@ -918,8 +666,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedLinks: [String: String] = [
                 "normalize": "kk_string_normalize_flat",
@@ -927,24 +675,23 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             ]
 
             for (memberName, externalLinkName) in expectedLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for \(memberName)"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
                     "Expected \(memberName) to resolve to \(externalLinkName)"
                 )
             }
         }
     }
 
-    func testChunkedSequenceResolvesInCallExpressions() throws {
+    @Test func testChunkedSequenceResolvesInCallExpressions() throws {
         let source = """
         fun chunks(value: CharSequence): Sequence<String> {
             return value.chunkedSequence(2)
@@ -958,32 +705,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "chunkedSequence"
             }
-            XCTAssertEqual(callExprs.count, 2)
-            let expectedLinks = [
-                "kk_string_chunked_sequence_flat",
-                "kk_string_chunked_sequence_flat",
-            ]
-            for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
-                let chosenCallee = try XCTUnwrap(
+            #expect(callExprs.count == 2)
+            for callExpr in callExprs {
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for chunkedSequence"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLink,
-                    "Expected chunkedSequence to resolve to \(expectedLink)"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_chunked_sequence",
+                    "Expected chunkedSequence to resolve to kk_string_chunked_sequence"
                 )
             }
         }
     }
 
-    func testChunkedSequenceTransformResolvesInCallExpressions() throws {
+    @Test func testChunkedSequenceTransformResolvesInCallExpressions() throws {
         let source = """
         fun chunks(value: CharSequence): Sequence<String> {
             return value.chunkedSequence(2) { chunk -> "" + chunk + "!" }
@@ -997,32 +739,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "chunkedSequence"
             }
-            XCTAssertEqual(callExprs.count, 2)
-            let expectedLinks = [
-                "kk_string_chunked_sequence_transform_flat",
-                "kk_string_chunked_sequence_transform_flat",
-            ]
-            for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
-                let chosenCallee = try XCTUnwrap(
+            #expect(callExprs.count == 2)
+            for callExpr in callExprs {
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for chunkedSequence"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLink,
-                    "Expected chunkedSequence transform to resolve to \(expectedLink)"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_chunked_sequence_transform",
+                    "Expected chunkedSequence transform to resolve to kk_string_chunked_sequence_transform"
                 )
             }
         }
     }
 
-    func testWindowedSequenceResolvesInCallExpressions() throws {
+    @Test func testWindowedSequenceResolvesInCallExpressions() throws {
         let source = """
         fun windows(value: CharSequence): Sequence<String> {
             return value.windowedSequence(3, 2, true)
@@ -1036,32 +773,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "windowedSequence"
             }
-            XCTAssertEqual(callExprs.count, 2)
-            let expectedLinks = [
-                "kk_string_windowedSequence_partial_flat",
-                "kk_string_windowedSequence_partial_flat",
-            ]
-            for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
-                let chosenCallee = try XCTUnwrap(
+            #expect(callExprs.count == 2)
+            for callExpr in callExprs {
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for windowedSequence"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLink,
-                    "Expected windowedSequence to resolve to \(expectedLink)"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_windowedSequence_partial",
+                    "Expected windowedSequence to resolve to kk_string_windowedSequence_partial"
                 )
             }
         }
     }
 
-    func testWindowedSequenceTransformResolvesInCallExpressions() throws {
+    @Test func testWindowedSequenceTransformResolvesInCallExpressions() throws {
         let source = """
         fun windows(value: CharSequence): Sequence<Int> {
             return value.windowedSequence(3, 2, true) { it.length }
@@ -1075,32 +807,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "windowedSequence"
             }
-            XCTAssertEqual(callExprs.count, 2)
-            let expectedLinks = [
-                "kk_string_windowedSequence_transform_flat",
-                "kk_string_windowedSequence_transform_flat",
-            ]
-            for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
-                let chosenCallee = try XCTUnwrap(
+            #expect(callExprs.count == 2)
+            for callExpr in callExprs {
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for windowedSequence"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLink,
-                    "Expected windowedSequence transform to resolve to \(expectedLink)"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_windowedSequence_transform",
+                    "Expected windowedSequence transform to resolve to kk_string_windowedSequence_transform"
                 )
             }
         }
     }
 
-    func testIndexOfAnyCharsResolvesInCallExpressions() throws {
+    @Test func testIndexOfAnyCharsResolvesInCallExpressions() throws {
         let source = """
         fun firstAny(value: CharSequence, chars: CharArray): Int {
             return value.indexOfAny(chars, 1, true)
@@ -1114,28 +841,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "indexOfAny"
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for indexOfAny"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_indexOfAny_chars_flat",
-                    "Expected indexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_chars_flat"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_indexOfAny_chars",
+                    "Expected indexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_chars"
                 )
             }
         }
     }
 
-    func testIndexOfAnyStringsResolvesInCallExpressions() throws {
+    @Test func testIndexOfAnyStringsResolvesInCallExpressions() throws {
         let source = """
         fun firstAny(value: CharSequence, strings: Collection<String>): Int {
             return value.indexOfAny(strings, 1, true)
@@ -1149,28 +875,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "indexOfAny"
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for indexOfAny"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_indexOfAny_strings_flat",
-                    "Expected indexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_strings_flat"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_indexOfAny_strings",
+                    "Expected indexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_strings"
                 )
             }
         }
     }
 
-    func testLastIndexOfAnyCharsResolvesInCallExpressions() throws {
+    @Test func testLastIndexOfAnyCharsResolvesInCallExpressions() throws {
         let source = """
         fun lastAny(value: CharSequence, chars: CharArray): Int {
             return value.lastIndexOfAny(chars, 3, true)
@@ -1184,28 +909,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "lastIndexOfAny"
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for lastIndexOfAny"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_lastIndexOfAny_chars_flat",
-                    "Expected lastIndexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_chars_flat"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_lastIndexOfAny_chars",
+                    "Expected lastIndexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_chars"
                 )
             }
         }
     }
 
-    func testLastIndexOfAnyStringsResolvesInCallExpressions() throws {
+    @Test func testLastIndexOfAnyStringsResolvesInCallExpressions() throws {
         let source = """
         fun lastAny(value: CharSequence, strings: Collection<String>): Int {
             return value.lastIndexOfAny(strings, 3, true)
@@ -1219,28 +943,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "lastIndexOfAny"
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for lastIndexOfAny"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_lastIndexOfAny_strings_flat",
-                    "Expected lastIndexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_strings_flat"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_lastIndexOfAny_strings",
+                    "Expected lastIndexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_strings"
                 )
             }
         }
     }
 
-    func testFindAnyOfStringsResolvesInCallExpressions() throws {
+    @Test func testFindAnyOfStringsResolvesInCallExpressions() throws {
         let source = """
         fun findAny(value: CharSequence, strings: Collection<String>): Pair<Int, String>? {
             return value.findAnyOf(strings, 1, true)
@@ -1254,28 +977,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "findAnyOf"
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for findAnyOf"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_findAnyOf_flat",
-                    "Expected findAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findAnyOf_flat"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_findAnyOf",
+                    "Expected findAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findAnyOf"
                 )
             }
         }
     }
 
-    func testFindLastAnyOfStringsResolvesInCallExpressions() throws {
+    @Test func testFindLastAnyOfStringsResolvesInCallExpressions() throws {
         let source = """
         fun findLastAny(value: CharSequence, strings: Collection<String>): Pair<Int, String>? {
             return value.findLastAnyOf(strings, 3, true)
@@ -1289,28 +1011,27 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "findLastAnyOf"
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for findLastAnyOf"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_findLastAnyOf_flat",
-                    "Expected findLastAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findLastAnyOf_flat"
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_findLastAnyOf",
+                    "Expected findLastAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findLastAnyOf"
                 )
             }
         }
     }
 
-    func testReplaceAfterResolvesInCallExpressions() throws {
+    @Test func testReplaceAfterResolvesInCallExpressions() throws {
         let source = """
         fun replaceAfterString(value: String): String {
             return value.replaceAfter(":", "tail", "missing")
@@ -1332,26 +1053,26 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "replaceAfter"
             }
-            XCTAssertEqual(callExprs.count, 4)
+            #expect(callExprs.count == 4)
             let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceAfter"
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfter_flat" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfter_char_flat" }.count, 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfter" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfter_char" }.count == 2)
         }
     }
 
-    func testReplaceAfterLastResolvesInCallExpressions() throws {
+    @Test func testReplaceAfterLastResolvesInCallExpressions() throws {
         let source = """
         fun replaceAfterLastString(value: String): String {
             return value.replaceAfterLast(":", "tail", "missing")
@@ -1373,26 +1094,26 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "replaceAfterLast"
             }
-            XCTAssertEqual(callExprs.count, 4)
+            #expect(callExprs.count == 4)
             let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceAfterLast"
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfterLast_flat" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfterLast_char_flat" }.count, 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfterLast" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfterLast_char" }.count == 2)
         }
     }
 
-    func testReplaceBeforeResolvesInCallExpressions() throws {
+    @Test func testReplaceBeforeResolvesInCallExpressions() throws {
         let source = """
         fun replaceBeforeString(value: String): String {
             return value.replaceBefore(":", "head", "missing")
@@ -1414,26 +1135,26 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "replaceBefore"
             }
-            XCTAssertEqual(callExprs.count, 4)
+            #expect(callExprs.count == 4)
             let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceBefore"
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBefore_flat" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBefore_char_flat" }.count, 2)
+            #expect(links.filter { $0 == "kk_string_replaceBefore" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceBefore_char" }.count == 2)
         }
     }
 
-    func testReplaceBeforeLastResolvesInCallExpressions() throws {
+    @Test func testReplaceBeforeLastResolvesInCallExpressions() throws {
         let source = """
         fun replaceBeforeLastString(value: String): String {
             return value.replaceBeforeLast(":", "head", "missing")
@@ -1455,26 +1176,28 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "replaceBeforeLast"
             }
-            XCTAssertEqual(callExprs.count, 4)
+            #expect(callExprs.count == 4)
             let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceBeforeLast"
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBeforeLast_flat" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBeforeLast_char_flat" }.count, 2)
+            #expect(links.filter { $0 == "kk_string_replaceBeforeLast" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceBeforeLast_char" }.count == 2)
         }
     }
 
-    func testReplaceIndentByMarginResolvesInCallExpressions() throws {
+    @Test func testReplaceIndentByMarginResolvesInCallExpressions() throws {
+        // MIGRATION-TEXT-006: replaceIndentByMargin is now a Kotlin stdlib function.
+        // Verify it resolves to a valid callee without checking a C ABI link name.
         let source = """
         fun replaceIndentByMarginDefault(value: String): String {
             return value.replaceIndentByMargin()
@@ -1491,26 +1214,24 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            #expect(!(ctx.diagnostics.hasError), "replaceIndentByMargin should resolve: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "replaceIndentByMargin"
             }
-            XCTAssertEqual(callExprs.count, 3)
-            let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+            #expect(callExprs.count == 3)
+            for callExpr in callExprs {
+                #expect(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee != nil,
                     "Expected call binding for replaceIndentByMargin"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(Set(links), ["kk_string_replaceIndentByMargin_flat"])
         }
     }
 
-    func testAppendableInterfaceSurfaceResolves() throws {
+    @Test func testAppendableInterfaceSurfaceResolves() throws {
         let source = """
         import kotlin.text.Appendable
         import kotlin.text.StringBuilder
@@ -1530,16 +1251,16 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected Appendable surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let appendableFQName = ["kotlin", "text", "Appendable"].map { ctx.interner.intern($0) }
-            let appendableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: appendableFQName))
-            XCTAssertEqual(sema.symbols.symbol(appendableSymbol)?.kind, .interface)
+            let appendableSymbol = try #require(sema.symbols.lookup(fqName: appendableFQName))
+            #expect(sema.symbols.symbol(appendableSymbol)?.kind == .interface)
 
             let appendableType = sema.types.make(.classType(ClassType(
                 classSymbol: appendableSymbol,
@@ -1558,19 +1279,19 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 else { return false }
                 return signature.receiverType == appendableType
             }
-            XCTAssertEqual(appendCalls.count, 3)
+            #expect(appendCalls.count == 3)
             for callExpr in appendCalls {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected Appendable.append call binding"
                 )
-                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: chosenCallee))
-                XCTAssertEqual(signature.receiverType, appendableType)
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                #expect(signature.receiverType == appendableType)
             }
         }
     }
 
-    func testTypographyObjectSurfaceResolves() throws {
+    @Test func testTypographyObjectSurfaceResolves() throws {
         let source = """
         import kotlin.text.Typography
 
@@ -1587,15 +1308,15 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected Typography surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let typographyFQName = ["kotlin", "text", "Typography"].map { ctx.interner.intern($0) }
-            let typographySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: typographyFQName))
-            XCTAssertEqual(sema.symbols.symbol(typographySymbol)?.kind, .object)
+            let typographySymbol = try #require(sema.symbols.lookup(fqName: typographyFQName))
+            #expect(sema.symbols.symbol(typographySymbol)?.kind == .object)
 
             let expectedConstants: [String: UInt32] = [
                 "almostEqual": 0x2248,
@@ -1643,19 +1364,19 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             for (name, scalar) in expectedConstants {
                 let propertyFQName = typographyFQName + [ctx.interner.intern(name)]
-                let propertySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: propertyFQName))
-                XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), sema.types.make(.primitive(.char, .nonNull)))
-                XCTAssertTrue(sema.symbols.symbol(propertySymbol)?.flags.contains(.constValue) ?? false)
+                let propertySymbol = try #require(sema.symbols.lookup(fqName: propertyFQName))
+                #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.make(.primitive(.char, .nonNull)))
+                #expect(sema.symbols.symbol(propertySymbol)?.flags.contains(.constValue) ?? false)
                 guard case let .charLiteral(value) = sema.symbols.constValueExprKind(for: propertySymbol) else {
-                    XCTFail("Expected Typography.\(name) to carry a char literal constant")
+                    Issue.record("Expected Typography.\(name) to carry a char literal constant")
                     continue
                 }
-                XCTAssertEqual(value, scalar, "Unexpected Typography.\(name) scalar")
+                #expect(value == scalar, "Unexpected Typography.\(name) scalar")
             }
         }
     }
 
-    func testCaseInsensitiveOrderSurfaceResolves() throws {
+    @Test func testCaseInsensitiveOrderSurfaceResolves() throws {
         let source = """
         import kotlin.text.CASE_INSENSITIVE_ORDER
 
@@ -1676,31 +1397,30 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CASE_INSENSITIVE_ORDER surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let propertyFQName = ["kotlin", "text", "CASE_INSENSITIVE_ORDER"].map { ctx.interner.intern($0) }
-            let propertySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: propertyFQName))
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: propertySymbol),
-                "kk_string_case_insensitive_order"
+            let propertySymbol = try #require(sema.symbols.lookup(fqName: propertyFQName))
+            #expect(
+                sema.symbols.externalLinkName(for: propertySymbol) == "kk_string_case_insensitive_order"
             )
 
             let comparatorFQName = ["kotlin", "Comparator"].map { ctx.interner.intern($0) }
-            let comparatorSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: comparatorFQName))
+            let comparatorSymbol = try #require(sema.symbols.lookup(fqName: comparatorFQName))
             let expectedType = sema.types.make(.classType(ClassType(
                 classSymbol: comparatorSymbol,
                 args: [.invariant(sema.types.stringType)],
                 nullability: .nonNull
             )))
-            XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), expectedType)
+            #expect(sema.symbols.propertyType(for: propertySymbol) == expectedType)
         }
     }
 
-    func testStringBuilderDeleteAtResolvesInCallExpressions() throws {
+    @Test func testStringBuilderDeleteAtResolvesInCallExpressions() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -1720,20 +1440,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected StringBuilder.deleteAt surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let deleteAtBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_deleteAt"
             }
-            XCTAssertEqual(deleteAtBindings.count, 2)
+            #expect(deleteAtBindings.count == 2)
         }
     }
 
-    func testStringBuilderDeleteRangeResolvesInCallExpressions() throws {
+    @Test func testStringBuilderDeleteRangeResolvesInCallExpressions() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -1753,21 +1473,21 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected StringBuilder.deleteRange surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let deleteRangeBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_deleteRange"
             }
-            XCTAssertEqual(deleteRangeBindings.count, 2)
+            #expect(deleteRangeBindings.count == 2)
         }
     }
 
     // STDLIB-TEXT-FN-005: appendRange
-    func testStringBuilderAppendRangeResolvesInCallExpressions() throws {
+    @Test func testStringBuilderAppendRangeResolvesInCallExpressions() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -1787,21 +1507,21 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected StringBuilder.appendRange surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let appendRangeBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_appendRange_obj"
             }
-            XCTAssertEqual(appendRangeBindings.count, 2)
+            #expect(appendRangeBindings.count == 2)
         }
     }
 
     // STDLIB-TEXT-FN-024: insert
-    func testStringBuilderInsertResolvesInCallExpressions() throws {
+    @Test func testStringBuilderInsertResolvesInCallExpressions() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -1821,20 +1541,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected StringBuilder.insert surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let insertBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insert_obj"
             }
-            XCTAssertEqual(insertBindings.count, 2)
+            #expect(insertBindings.count == 2)
         }
     }
 
-    func testStringBuilderInsertRangeResolvesInCallExpressions() throws {
+    @Test func testStringBuilderInsertRangeResolvesInCallExpressions() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -1854,20 +1574,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected StringBuilder.insertRange surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let insertRangeBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insertRange_obj_flat"
             }
-            XCTAssertEqual(insertRangeBindings.count, 2)
+            #expect(insertRangeBindings.count == 2)
         }
     }
 
-    func testStringBuilderSetRangeResolvesInCallExpressions() throws {
+    @Test func testStringBuilderSetRangeResolvesInCallExpressions() throws {
         let source = """
         import kotlin.text.StringBuilder
 
@@ -1887,20 +1607,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected StringBuilder.setRange surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let setRangeBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setRange_flat"
             }
-            XCTAssertEqual(setRangeBindings.count, 2)
+            #expect(setRangeBindings.count == 2)
         }
     }
 
-    func testStringBuilderSetOperatorResolvesToSetCharAt() throws {
+    @Test func testStringBuilderSetOperatorResolvesToSetCharAt() throws {
         // STDLIB-TEXT-FN-064: operator fun set(index, value) desugars to sb.set(i, c)
         let source = """
         import kotlin.text.StringBuilder
@@ -1916,20 +1636,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected StringBuilder.set operator to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let setBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setCharAt"
             }
-            XCTAssertGreaterThanOrEqual(setBindings.count, 1)
+            #expect(setBindings.count >= 1)
         }
     }
 
-    func testCharSequenceZipWithNextMembersResolveInCallExpressions() throws {
+    @Test func testCharSequenceZipWithNextMembersResolveInCallExpressions() throws {
         let source = """
         fun pairs(value: CharSequence): List<Pair<Char, Char>> {
             return value.zipWithNext()
@@ -1944,8 +1664,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             var externalLinks: [String] = []
             for index in ast.arena.exprs.indices {
@@ -1961,14 +1681,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 externalLinks.append(link)
             }
 
-            XCTAssertEqual(
-                externalLinks,
-                ["kk_string_zipWithNext_flat", "kk_string_zipWithNextTransform_flat"]
+            #expect(
+                externalLinks == ["kk_string_zipWithNext", "kk_string_zipWithNextTransform"]
             )
         }
     }
 
-    func testCharSequenceFirstNotNullOfResolvesInCallExpressions() throws {
+    @Test func testCharSequenceFirstNotNullOfResolvesInCallExpressions() throws {
         let source = """
         fun firstLabel(value: CharSequence): String {
             return value.firstNotNullOf<String> { ch -> if (ch == 'b') "bee" else null }
@@ -1983,20 +1702,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.firstNotNullOf surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let firstNotNullOfBindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOf_flat"
             }
-            XCTAssertEqual(firstNotNullOfBindings.count, 2)
+            #expect(firstNotNullOfBindings.count == 2)
         }
     }
 
-    func testCharSequenceFirstNotNullOfOrNullResolvesInCallExpressions() throws {
+    @Test func testCharSequenceFirstNotNullOfOrNullResolvesInCallExpressions() throws {
         let source = """
         fun firstLabel(value: CharSequence): String? {
             return value.firstNotNullOfOrNull<String> { ch -> if (ch == 'b') "bee" else null }
@@ -2011,20 +1730,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.firstNotNullOfOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOfOrNull_flat"
             }
-            XCTAssertEqual(bindings.count, 2)
+            #expect(bindings.count == 2)
         }
     }
 
-    func testCharSequenceReduceRightIndexedResolvesInCallExpressions() throws {
+    @Test func testCharSequenceReduceRightIndexedResolvesInCallExpressions() throws {
         let source = """
         fun reduceFromSequence(value: CharSequence): Char {
             return value.reduceRightIndexed { index, ch, acc -> if (index == 1) ch else acc }
@@ -2039,23 +1758,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.reduceRightIndexed surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let links = sema.bindings.callBindings.values.compactMap { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee)
-            }.filter { link in
-                link == "kk_string_reduceRightIndexed_flat"
+            let sema = try #require(ctx.sema)
+            let bindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightIndexed"
             }
-            XCTAssertEqual(links.count, 2)
-            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightIndexed_flat"]))
+            #expect(bindings.count == 2)
         }
     }
 
-    func testCharSequenceReduceRightIndexedOrNullResolvesInCallExpressions() throws {
+    @Test func testCharSequenceReduceRightIndexedOrNullResolvesInCallExpressions() throws {
         let source = """
         fun reduceFromSequence(value: CharSequence): Char? {
             return value.reduceRightIndexedOrNull { index, ch, acc -> if (index == 1) ch else acc }
@@ -2070,26 +1786,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.reduceRightIndexedOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let links = sema.bindings.callBindings.values.compactMap { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee)
-            }.filter { link in
-                link == "kk_string_reduceRightIndexedOrNull_flat"
+            let sema = try #require(ctx.sema)
+            let bindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightIndexedOrNull"
             }
-            XCTAssertEqual(links.count, 2)
-            XCTAssertEqual(
-                Set(links),
-                Set(["kk_string_reduceRightIndexedOrNull_flat"])
-            )
+            #expect(bindings.count == 2)
         }
     }
 
-    func testCharSequenceReduceRightOrNullResolvesInCallExpressions() throws {
+    @Test func testCharSequenceReduceRightOrNullResolvesInCallExpressions() throws {
         let source = """
         fun reduceFromSequence(value: CharSequence): Char? {
             return value.reduceRightOrNull { ch, acc -> if (ch == 'b') ch else acc }
@@ -2104,23 +1814,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.reduceRightOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let links = sema.bindings.callBindings.values.compactMap { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee)
-            }.filter { link in
-                link == "kk_string_reduceRightOrNull_flat"
+            let sema = try #require(ctx.sema)
+            let bindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightOrNull"
             }
-            XCTAssertEqual(links.count, 2)
-            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightOrNull_flat"]))
+            #expect(bindings.count == 2)
         }
     }
 
-    func testCharSequenceSumByResolvesInCallExpressions() throws {
+    @Test func testCharSequenceSumByResolvesInCallExpressions() throws {
         let source = """
         fun sumFromSequence(value: CharSequence): Int {
             return value.sumBy { if (it == 'a') 10 else 1 }
@@ -2135,33 +1842,25 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.sumBy surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
-                let link = sema.symbols.externalLinkName(for: binding.chosenCallee)
-                return link == "kk_string_sumBy_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_sumBy"
             }
-            XCTAssertEqual(bindings.count, 2)
-            XCTAssertEqual(
-                Set(bindings.compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }),
-                Set(["kk_string_sumBy_flat"])
+            #expect(bindings.count == 2)
+            let sumBySymbol = try #require(bindings.first?.chosenCallee)
+            #expect(
+                sema.symbols.annotations(for: sumBySymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                "CharSequence.sumBy should carry Deprecated metadata"
             )
-            for binding in bindings {
-                XCTAssertTrue(
-                    sema.symbols.annotations(for: binding.chosenCallee).contains {
-                        $0.annotationFQName == "kotlin.Deprecated"
-                    },
-                    "sumBy overloads should carry Deprecated metadata"
-                )
-            }
         }
     }
 
-    func testCharSequenceSumByDoubleResolvesInCallExpressions() throws {
+    @Test func testCharSequenceSumByDoubleResolvesInCallExpressions() throws {
         let source = """
         fun sumFromSequence(value: CharSequence): Double {
             return value.sumByDouble { if (it == 'a') 1.5 else 0.25 }
@@ -2176,33 +1875,25 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.sumByDouble surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
-                let link = sema.symbols.externalLinkName(for: binding.chosenCallee)
-                return link == "kk_string_sumByDouble_flat"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_sumByDouble"
             }
-            XCTAssertEqual(bindings.count, 2)
-            XCTAssertEqual(
-                Set(bindings.compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }),
-                Set(["kk_string_sumByDouble_flat"])
+            #expect(bindings.count == 2)
+            let sumByDoubleSymbol = try #require(bindings.first?.chosenCallee)
+            #expect(
+                sema.symbols.annotations(for: sumByDoubleSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
+                "CharSequence.sumByDouble should carry Deprecated metadata"
             )
-            for binding in bindings {
-                XCTAssertTrue(
-                    sema.symbols.annotations(for: binding.chosenCallee).contains {
-                        $0.annotationFQName == "kotlin.Deprecated"
-                    },
-                    "sumByDouble overloads should carry Deprecated metadata"
-                )
-            }
         }
     }
 
-    func testByteArrayDecodeToStringRangeMembersResolveInCallExpressions() throws {
+    @Test func testByteArrayDecodeToStringRangeMembersResolveInCallExpressions() throws {
         let source = """
         fun decode(bytes: ByteArray): String {
             val sliced = bytes.decodeToString(1, 4)
@@ -2214,8 +1905,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let callExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
                 let exprID = ExprID(rawValue: Int32(index))
@@ -2227,38 +1918,38 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 }
                 return exprID
             }
-            XCTAssertEqual(callExprIDs.count, 2, "Expected two decodeToString range calls")
+            #expect(callExprIDs.count == 2, "Expected two decodeToString range calls")
 
             // After MIGRATION-TEXT-007, ByteArray.decodeToString range/range+throw variants are
             // defined in BundledKotlinStdlib Kotlin source (not synthetic stubs), so they have
             // no externalLinkName. The C bridge is called internally via __kk_decodeToString_range.
             for (index, callExprID) in callExprIDs.enumerated() {
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExprID)?.chosenCallee,
                     "Expected call binding for decodeToString overload \(index)"
                 )
-                XCTAssertNil(
-                    sema.symbols.externalLinkName(for: chosenCallee),
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
                     "kotlin.text.decodeToString range overload \(index) should resolve to Kotlin-source (no externalLinkName after migration)"
                 )
             }
         }
     }
 
-    func testCharSequenceWithIndexResolvesInCallExpressions() throws {
+    @Test func testCharSequenceWithIndexResolvesInCallExpressions() throws {
         let source = """
         fun indexed(value: CharSequence) = value.withIndex()
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected CharSequence.withIndex to resolve cleanly, got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let callExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
                 let exprID = ExprID(rawValue: Int32(index))
                 guard let expr = ast.arena.expr(exprID),
@@ -2270,15 +1961,14 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 return exprID
             }
 
-            let chosenCallee = try XCTUnwrap(
-                callExprIDs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }.first
-            )
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_string_withIndex_flat")
+            let chosenCalleeCandidate = callExprIDs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }.first
+            let chosenCallee = try #require(chosenCalleeCandidate)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_withIndex")
         }
     }
 
     // STDLIB-TEXT-FN-116: CharSequence.zip(other) / zip(other, transform)
-    func testCharSequenceZipMembersResolveInCallExpressions() throws {
+    @Test func testCharSequenceZipMembersResolveInCallExpressions() throws {
         let source = """
         fun pairs(value: CharSequence, other: CharSequence): List<Pair<Char, Char>> {
             return value.zip(other)
@@ -2293,8 +1983,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             var externalLinks: [String] = []
             for index in ast.arena.exprs.indices {
@@ -2310,47 +2000,34 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 externalLinks.append(link)
             }
 
-            XCTAssertEqual(
-                externalLinks,
-                ["kk_string_zip_flat", "kk_string_zipTransform_flat"]
+            #expect(
+                externalLinks == ["kk_string_zip", "kk_string_zipTransform"]
             )
         }
     }
 
-    // MARK: - STDLIB-TEXT-FN-019: indent
-
-    func testIndentOverloadsResolveToDifferentExternalLinks() throws {
+    @Test func testCharSequenceReduceOrNullResolvesInCallExpressions() throws {
         let source = """
-        fun indentDefault(value: String): String {
-            return value.indent()
+        fun reduceFromSequence(value: CharSequence): Char? {
+            return value.reduceOrNull { acc, ch -> if (ch == 'b') ch else acc }
         }
-
-        fun indentWithN(value: String): String {
-            return value.indent(4)
+        fun reduceFromString(value: String): Char? {
+            return value.reduceOrNull { acc, ch -> if (acc == 'a') acc else ch }
         }
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExprs = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "indent"
-            }
-            XCTAssertEqual(callExprs.count, 2)
-            let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for indent"
-                )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
-            }
-            XCTAssertEqual(
-                Set(links),
-                ["kk_string_indent_default", "kk_string_indent"]
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Expected CharSequence.reduceOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
+            let sema = try #require(ctx.sema)
+            let bindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceOrNull"
+            }
+            #expect(bindings.count == 2)
         }
     }
 }

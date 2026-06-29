@@ -1,7 +1,9 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class UnsignedPrimitiveMemberCallTests: XCTestCase {
+@Suite
+struct UnsignedPrimitiveMemberCallTests {
+    @Test
     func testUnsignedMemberCallsInferExpectedTypes() throws {
         let source = """
         fun sample(ub: UByte, us: UShort, ui: UInt, ul: ULong) {
@@ -15,8 +17,8 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
         let expectedTypes: [String: TypeID] = [
             "and": sema.types.ubyteType,
@@ -26,7 +28,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         ]
 
         for (memberName, expectedType) in expectedTypes {
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else {
                         return false
@@ -35,14 +37,14 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
                 },
                 "Expected a call expression for \(memberName)"
             )
-            XCTAssertEqual(
-                sema.bindings.exprTypes[callExpr],
-                expectedType,
+            #expect(
+                sema.bindings.exprTypes[callExpr] == expectedType,
                 "\(memberName) should infer expected type"
             )
         }
     }
 
+    @Test
     func testUnsignedCoercionMemberCallsInferExpectedTypes() throws {
         let source = """
         fun sample(ub: UByte, us: UShort, ui: UInt, ul: ULong) {
@@ -58,8 +60,8 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
         let checks: [(member: String, receiverType: TypeID, argumentCount: Int)] = [
             ("coerceAtLeast", sema.types.ubyteType, 1),
@@ -71,7 +73,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         ]
 
         for check in checks {
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(receiver, callee, _, args, _) = expr else {
                         return false
@@ -82,14 +84,14 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
                 },
                 "Expected a call expression for \(check.member)"
             )
-            XCTAssertEqual(
-                sema.bindings.exprTypes[callExpr],
-                check.receiverType,
+            #expect(
+                sema.bindings.exprTypes[callExpr] == check.receiverType,
                 "\(check.member) should infer the unsigned receiver type"
             )
         }
     }
 
+    @Test
     func testUnsignedCoercionMemberCallsAcceptRangeTypedParameters() throws {
         let source = """
         import kotlin.ranges.UIntRange
@@ -104,8 +106,8 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let uintRangeType = try nominalRangeType(named: "UIntRange", sema: sema, interner: ctx.interner)
         let ulongRangeType = try nominalRangeType(named: "ULongRange", sema: sema, interner: ctx.interner)
 
@@ -115,7 +117,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         ]
 
         for check in checks {
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(receiver, callee, _, args, _) = expr else {
                         return false
@@ -127,15 +129,16 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
                 "Expected a range-typed coerceIn call"
             )
             guard case let .memberCall(receiver, _, _, args, _) = ast.arena.expr(callExpr) else {
-                XCTFail("Expected member call expression")
+                Issue.record("Expected member call expression")
                 continue
             }
-            XCTAssertEqual(sema.bindings.exprTypes[receiver], check.receiverType)
-            XCTAssertEqual(sema.bindings.exprTypes[args[0].expr], check.argumentType)
-            XCTAssertEqual(sema.bindings.exprTypes[callExpr], check.receiverType)
+            #expect(sema.bindings.exprTypes[receiver] == check.receiverType)
+            #expect(sema.bindings.exprTypes[args[0].expr] == check.argumentType)
+            #expect(sema.bindings.exprTypes[callExpr] == check.receiverType)
         }
     }
 
+    @Test
     func testUnsignedCoercionMemberCallsRejectScalarRangeArguments() {
         let source = """
         fun sample(ui: UInt, ul: ULong) {
@@ -148,6 +151,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         assertDiagnosticCount("KSWIFTK-SEMA-0002", expected: 2, in: ctx)
     }
 
+    @Test
     func testUnsignedMemberCallsRejectMixedWidths() {
         let source = """
         fun sample(ub: UByte, us: UShort) {
@@ -159,6 +163,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
+    @Test
     func testUnsignedMemberCallsRejectNullableRhs() {
         let source = """
         fun sample(ub: UByte, rhs: UByte?) {
@@ -170,6 +175,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
+    @Test
     func testUnsignedMemberCallsRejectShiftOnUByte() {
         let source = """
         fun sample(ub: UByte) {
@@ -181,6 +187,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
+    @Test
     func testUnsignedMemberCallsRejectShiftOnUShort() {
         let source = """
         fun sample(us: UShort) {
@@ -192,6 +199,7 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
+    @Test
     func testUnsignedSafeInvCallsCompile() throws {
         let source = """
         fun sample(ub: UByte?, us: UShort?) {
@@ -203,22 +211,18 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected unsigned safe inv calls to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected unsigned safe inv calls to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
     }
 
     private func nominalRangeType(
         named name: String,
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> TypeID {
         let fqName = ["kotlin", "ranges", name].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
-            "Expected synthetic range type \(name)",
-            file: file,
-            line: line
+            "Expected synthetic range type \(name)"
         )
         return sema.types.make(.classType(ClassType(
             classSymbol: symbol,

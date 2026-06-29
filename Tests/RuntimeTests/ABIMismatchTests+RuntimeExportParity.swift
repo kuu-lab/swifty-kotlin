@@ -6,8 +6,8 @@ import XCTest
 extension ABIMismatchTests {
     func testRuntimeExportsHaveMatchingRuntimeABISpecEntries() throws {
         let exported = try runtimeExportedABIs()
-        let specNames = Set(RuntimeABISpec.allFunctions.map(\.name))
-        let missing = exported.map(\.name)
+        let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
+        let missing = exported.map { $0.name }
             .filter { !specNames.contains($0) && !allowedRuntimeExportOnlyABINames.contains($0) }
             .sorted()
 
@@ -41,8 +41,8 @@ extension ABIMismatchTests {
     }
 
     func testSpecOnlyRuntimeABINamesAreExplicitlyAllowed() throws {
-        let exportedNames = Set(try runtimeExportedABIs().map(\.name))
-        let specNames = Set(RuntimeABISpec.allFunctions.map(\.name))
+        let exportedNames = Set(try runtimeExportedABIs().map { $0.name })
+        let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
         let unexpected = specNames
             .subtracting(exportedNames)
             .subtracting(allowedSpecOnlyRuntimeABINames)

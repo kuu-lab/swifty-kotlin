@@ -1,12 +1,13 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-041: Validates that `CharSequence.padEnd(length, padChar)` resolves
 /// through Sema for `String` receivers using both overloads.
 /// - 1-arg overload (default padChar = ' ') links to `kk_string_padEnd_default_flat`.
 /// - 2-arg overload (explicit padChar) links to `kk_string_padEnd_flat`.
-final class StringPadEndFunctionTests: XCTestCase {
-    func testPadEndFunctionResolvesInSource() throws {
+@Suite
+struct StringPadEndFunctionTests {
+    @Test func testPadEndFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun rightPadDefault(s: String): String {
             return s.padEnd(8)
@@ -26,7 +27,7 @@ final class StringPadEndFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected padEnd to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

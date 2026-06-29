@@ -1,13 +1,15 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// TYPE-103: Verify that `arrayOf()` preserves element types and that
 /// array-specific members are not incorrectly resolved on `Any` receivers.
-final class ArrayOfTypeSafetyTests: XCTestCase {
+@Suite
+struct ArrayOfTypeSafetyTests {
 
     // MARK: - Positive: arrayOf(1, 2).get(0) should resolve without error
 
-    func testArrayOfIntGetResolvesWithoutError() throws {
+    @Test func testArrayOfIntGetResolvesWithoutError() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -23,7 +25,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testArrayOfStringSizeResolvesWithoutError() throws {
+    @Test func testArrayOfStringSizeResolvesWithoutError() throws {
         let source = """
         fun main() {
             val arr = arrayOf("a", "b", "c")
@@ -38,7 +40,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testArrayOfNullsResolvesAsNullableElementArray() throws {
+    @Test func testArrayOfNullsResolvesAsNullableElementArray() throws {
         let source = """
         fun main() {
             val values: Array<String?> = arrayOfNulls<String>(3)
@@ -54,7 +56,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testArrayOfContainsResolvesWithoutError() throws {
+    @Test func testArrayOfContainsResolvesWithoutError() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -69,7 +71,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testArrayBinarySearchWithComparatorResolvesWithoutError() throws {
+    @Test func testArrayBinarySearchWithComparatorResolvesWithoutError() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3, 4)
@@ -85,7 +87,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testProjectedArrayBinarySearchWithComparatorResolvesWithoutError() throws {
+    @Test func testProjectedArrayBinarySearchWithComparatorResolvesWithoutError() throws {
         let source = """
         fun main(values: Array<out Int>) {
             val idx = values.binarySearch(3, compareBy<Int> { it })
@@ -100,7 +102,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testArrayBinarySearchOverloadsResolveToInt() throws {
+    @Test func testArrayBinarySearchOverloadsResolveToInt() throws {
         let source = """
         fun main() {
             val stringArray = arrayOf("a", "c", "e", "g")
@@ -135,9 +137,9 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let mainBody = try XCTUnwrap(findMainBodyStatements(in: ast, interner: ctx.interner))
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let mainBody = try #require(findMainBodyStatements(in: ast, interner: ctx.interner))
             let expectedNames: Set<String> = [
                 "stringIndex",
                 "stringRangeIndex",
@@ -158,20 +160,19 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
                 let localName = ctx.interner.resolve(name)
                 guard expectedNames.contains(localName) else { continue }
 
-                XCTAssertEqual(
-                    boundType,
-                    sema.types.intType,
+                #expect(
+                    boundType == sema.types.intType,
                     "Expected \(localName) to be typed as Int."
                 )
                 seenNames.insert(localName)
             }
-            XCTAssertEqual(seenNames, expectedNames)
+            #expect(seenNames == expectedNames)
         }
     }
 
     // MARK: - Negative: array members on Any should fail
 
-    func testArrayGetOnAnyReceiverProducesError() throws {
+    @Test func testArrayGetOnAnyReceiverProducesError() throws {
         let source = """
         fun test(x: Any) {
             x.get(0)
@@ -185,7 +186,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testArraySizeOnAnyReceiverProducesError() throws {
+    @Test func testArraySizeOnAnyReceiverProducesError() throws {
         let source = """
         fun test(x: Any) {
             x.size
@@ -198,11 +199,11 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             let hasDiag = ctx.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-SEMA-0024" || $0.code == "KSWIFTK-SEMA-FIELD"
             }
-            XCTAssertTrue(hasDiag, "Expected unresolved member diagnostic for .size on Any, got: \(ctx.diagnostics.diagnostics.map(\.code))")
+            #expect(hasDiag, "Expected unresolved member diagnostic for .size on Any, got: \(ctx.diagnostics.diagnostics.map(\.code))")
         }
     }
 
-    func testIntArrayBinarySearchWithComparatorProducesError() throws {
+    @Test func testIntArrayBinarySearchWithComparatorProducesError() throws {
         let source = """
         fun main() {
             val arr = intArrayOf(1, 2, 3)
@@ -217,7 +218,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testBooleanArrayBinarySearchIsRejected() throws {
+    @Test func testBooleanArrayBinarySearchIsRejected() throws {
         let source = """
         fun main() {
             val arr = booleanArrayOf(true, false)
@@ -231,7 +232,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             let hasArrayBinarySearchDiag = ctx.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0024" || $0.code == "KSWIFTK-SEMA-BOUND"
             }
-            XCTAssertTrue(
+            #expect(
                 hasArrayBinarySearchDiag,
                 "Expected booleanArrayOf().binarySearch(...) to be rejected, got: \(ctx.diagnostics.diagnostics.map(\.code))"
             )
@@ -240,7 +241,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
 
     // MARK: - Element type preservation
 
-    func testArrayOfIntGetReturnsIntNotAny() throws {
+    @Test func testArrayOfIntGetReturnsIntNotAny() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 2, 3)
@@ -251,12 +252,12 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
 
             // Walk the main body and find `val x = arr.get(0)`, then check
             // the initializer type is Int (not Any).
-            let mainBody = try XCTUnwrap(findMainBodyStatements(in: ast, interner: ctx.interner))
+            let mainBody = try #require(findMainBodyStatements(in: ast, interner: ctx.interner))
             var foundGetResult = false
             for exprID in mainBody {
                 guard let expr = ast.arena.expr(exprID),
@@ -269,7 +270,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
                     foundGetResult = true
                 }
             }
-            XCTAssertTrue(foundGetResult, "Expected arr.get(0) to be typed as Int, not Any.")
+            #expect(foundGetResult, "Expected arr.get(0) to be typed as Int, not Any.")
         }
     }
 
@@ -294,7 +295,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
 
     // MARK: - Primitive array factories
 
-    func testIntArrayOfGetReturnsInt() throws {
+    @Test func testIntArrayOfGetReturnsInt() throws {
         let source = """
         fun main() {
             val arr = intArrayOf(10, 20, 30)
@@ -310,7 +311,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testUShortArrayConstructorAndGetReturnUShort() throws {
+    @Test func testUShortArrayConstructorAndGetReturnUShort() throws {
         let source = """
         fun main() {
             val arr = UShortArray(3) { it.toUShort() }
@@ -324,9 +325,9 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let mainBody = try XCTUnwrap(findMainBodyStatements(in: ast, interner: ctx.interner))
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let mainBody = try #require(findMainBodyStatements(in: ast, interner: ctx.interner))
 
             var foundUShortArray = false
             var foundUShortGet = false
@@ -349,12 +350,12 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
                 }
             }
 
-            XCTAssertTrue(foundUShortArray, "Expected arr to be typed as UShortArray.")
-            XCTAssertTrue(foundUShortGet, "Expected arr.get(0) to be typed as UShort.")
+            #expect(foundUShortArray, "Expected arr to be typed as UShortArray.")
+            #expect(foundUShortGet, "Expected arr.get(0) to be typed as UShort.")
         }
     }
 
-    func testUByteArrayConstructorInfersUByteElements() throws {
+    @Test func testUByteArrayConstructorInfersUByteElements() throws {
         let source = """
         fun main() {
             val arr = UByteArray(3) { it.toUByte() }
@@ -368,9 +369,9 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let mainBody = try XCTUnwrap(findMainBodyStatements(in: ast, interner: ctx.interner))
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let mainBody = try #require(findMainBodyStatements(in: ast, interner: ctx.interner))
 
             var foundUByteArray = false
             var foundUByteGet = false
@@ -393,12 +394,12 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
                 }
             }
 
-            XCTAssertTrue(foundUByteArray, "Expected arr to be typed as UByteArray.")
-            XCTAssertTrue(foundUByteGet, "Expected arr.get(0) to be typed as UByte.")
+            #expect(foundUByteArray, "Expected arr to be typed as UByteArray.")
+            #expect(foundUByteGet, "Expected arr.get(0) to be typed as UByte.")
         }
     }
 
-    func testUShortArrayFactoryReturnsUShortArray() throws {
+    @Test func testUShortArrayFactoryReturnsUShortArray() throws {
         let source = """
         fun main() {
             val arr = ushortArrayOf(1.toUShort(), 2.toUShort(), 65535.toUShort())
@@ -412,9 +413,9 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let mainBody = try XCTUnwrap(findMainBodyStatements(in: ast, interner: ctx.interner))
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let mainBody = try #require(findMainBodyStatements(in: ast, interner: ctx.interner))
 
             var foundUShortArray = false
             var foundIndexedUShort = false
@@ -437,12 +438,12 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
                 }
             }
 
-            XCTAssertTrue(foundUShortArray, "Expected ushortArrayOf(...) to produce UShortArray.")
-            XCTAssertTrue(foundIndexedUShort, "Expected indexed access to produce UShort.")
+            #expect(foundUShortArray, "Expected ushortArrayOf(...) to produce UShortArray.")
+            #expect(foundIndexedUShort, "Expected indexed access to produce UShort.")
         }
     }
 
-    func testUByteArrayOfFactoryResolvesWithoutError() throws {
+    @Test func testUByteArrayOfFactoryResolvesWithoutError() throws {
         let source = """
         fun main() {
             val arr = ubyteArrayOf(1.toUByte(), 2.toUByte(), 255.toUByte())
@@ -456,9 +457,9 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let mainBody = try XCTUnwrap(findMainBodyStatements(in: ast, interner: ctx.interner))
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let mainBody = try #require(findMainBodyStatements(in: ast, interner: ctx.interner))
 
             var foundUByteArray = false
             var foundIndexedUByte = false
@@ -481,12 +482,12 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
                 }
             }
 
-            XCTAssertTrue(foundUByteArray, "Expected ubyteArrayOf(...) to produce UByteArray.")
-            XCTAssertTrue(foundIndexedUByte, "Expected indexed access to produce UByte.")
+            #expect(foundUByteArray, "Expected ubyteArrayOf(...) to produce UByteArray.")
+            #expect(foundIndexedUByte, "Expected indexed access to produce UByte.")
         }
     }
 
-    func testArrayBinarySearchResolvesWithoutError() throws {
+    @Test func testArrayBinarySearchResolvesWithoutError() throws {
         let source = """
         fun main() {
             val arr = arrayOf(1, 3, 4, 7, 9)
@@ -502,7 +503,7 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
-    func testULongArrayBinarySearchResolvesWithoutError() throws {
+    @Test func testULongArrayBinarySearchResolvesWithoutError() throws {
         let source = """
         fun main() {
             val arr = ULongArray(3) { it.toULong() }
@@ -518,3 +519,4 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 }
+#endif

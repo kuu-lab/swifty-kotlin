@@ -416,6 +416,29 @@ public func kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments))
 }
 
+@_cdecl("kk_string_format_flat")
+public func kk_string_format_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ argsArrayRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
+        ?? runtimeListBox(from: argsArrayRaw)?.elements
+        ?? []
+    return runtimeRegisterFlatString(
+        runtimeFormatString(template, arguments: arguments),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_format_locale")
 public func kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let locale: Locale?
@@ -435,6 +458,39 @@ public func kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsAr
     return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments, locale: locale))
 }
 
+@_cdecl("kk_string_format_locale_flat")
+public func kk_string_format_locale_flat(
+    _ localeRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ argsArrayRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let locale: Locale?
+    if localeRaw == runtimeNullSentinelInt {
+        locale = nil
+    } else {
+        guard let box = runtimeLocaleBox(from: localeRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_format_locale_flat received invalid Locale handle")
+        }
+        locale = box.locale
+    }
+    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
+        ?? runtimeListBox(from: argsArrayRaw)?.elements
+        ?? []
+    return runtimeRegisterFlatString(
+        runtimeFormatString(template, arguments: arguments, locale: locale),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 // MARK: - Public @_cdecl functions: Indent operations
 
 @_cdecl("kk_string_trimIndent")
@@ -445,13 +501,20 @@ public func kk_string_trimIndent(_ strRaw: Int) -> Int {
 
 @_cdecl("kk_string_trimMargin_default")
 public func kk_string_trimMargin_default(_ strRaw: Int) -> Int {
-    kk_string_trimMargin(strRaw, runtimeDefaultTrimMarginPrefixRaw)
+    kk_string_trimMargin(strRaw, runtimeDefaultTrimMarginPrefixRaw, nil)
 }
 
 @_cdecl("kk_string_trimMargin")
-public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int) -> Int {
+public func kk_string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
+    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "marginPrefix must be non-blank string."
+        )
+        return runtimeMakeStringRaw("")
+    }
     return runtimeMakeStringRaw(runtimeTrimMargin(source, marginPrefix: marginPrefix))
 }
 
@@ -506,41 +569,6 @@ public func kk_string_replaceIndentByMargin(
     )
 }
 
-// MARK: - STDLIB-TEXT-FN-019: indent
-
-private func runtimeIndentLine(_ line: String, n: Int) -> String {
-    if n > 0 {
-        return String(repeating: " ", count: n) + line
-    }
-    let leadingCount = line.prefix { $0.isWhitespace }.count
-    return String(line.dropFirst(min(-n, leadingCount)))
-}
-
-private func runtimeIndent(_ source: String, n: Int) -> String {
-    if n == 0 { return source }
-    let lines = runtimeNormalizedMultilineString(source)
-    var result = ""
-    for (index, line) in lines.enumerated() {
-        if index < lines.count - 1 {
-            result += runtimeIndentLine(line, n: n) + "\n"
-        } else if !line.isEmpty {
-            result += runtimeIndentLine(line, n: n)
-        }
-    }
-    return result
-}
-
-@_cdecl("kk_string_indent_default")
-public func kk_string_indent_default(_ strRaw: Int) -> Int {
-    kk_string_indent(strRaw, 4)
-}
-
-@_cdecl("kk_string_indent")
-public func kk_string_indent(_ strRaw: Int, _ n: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(runtimeIndent(source, n: n))
-}
-
 // MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
 
 @_cdecl("__string_trimIndent")
@@ -549,8 +577,8 @@ public func __string_trimIndent(_ strRaw: Int) -> Int {
 }
 
 @_cdecl("__string_trimMargin")
-public func __string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int) -> Int {
-    return kk_string_trimMargin(strRaw, marginPrefixRaw)
+public func __string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_trimMargin(strRaw, marginPrefixRaw, outThrown)
 }
 
 @_cdecl("__string_prependIndent")

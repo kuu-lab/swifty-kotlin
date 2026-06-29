@@ -1,10 +1,13 @@
+#if canImport(Testing)
 @testable import LSPServer
-import XCTest
+import Testing
 
-final class FeatureTests: XCTestCase {
+@Suite("LSP.Feature")
+struct FeatureTests {
     private let uri = "file:///tmp/LSPFeatures.kt"
 
-    func testDocumentSymbolsOutlineClassAndMembers() {
+    @Test
+    func documentSymbolsOutlineClassAndMembers() {
         let source = """
         class Foo {
             val bar: Int = 1
@@ -17,35 +20,38 @@ final class FeatureTests: XCTestCase {
         let symbols = DocumentSymbolFeature.documentSymbols(for: analysis)
 
         let names = symbols.map(\.name)
-        XCTAssertTrue(names.contains("Foo"), "Outline should include the class: \(names)")
-        XCTAssertTrue(names.contains("topLevel"), "Outline should include the top-level function: \(names)")
+        #expect(names.contains("Foo"), "Outline should include the class: \(names)")
+        #expect(names.contains("topLevel"), "Outline should include the top-level function: \(names)")
 
         if let foo = symbols.first(where: { $0.name == "Foo" }) {
-            XCTAssertEqual(foo.kind, LSPSymbolKind.class.rawValue)
+            #expect(foo.kind == LSPSymbolKind.class.rawValue)
             let childNames = (foo.children ?? []).map(\.name)
-            XCTAssertTrue(childNames.contains("bar"), "Class outline should include property: \(childNames)")
-            XCTAssertTrue(childNames.contains("baz"), "Class outline should include method: \(childNames)")
+            #expect(childNames.contains("bar"), "Class outline should include property: \(childNames)")
+            #expect(childNames.contains("baz"), "Class outline should include method: \(childNames)")
         } else {
-            XCTFail("Expected a symbol for class Foo")
+            Issue.record("Expected a symbol for class Foo")
         }
     }
 
-    func testHoverOnIntegerLiteralReportsType() {
+    @Test
+    func hoverOnIntegerLiteralReportsType() {
         let source = "fun main() {\n    val answer = 42\n}\n"
         let analysis = Analyzer().analyze(uri: uri, text: source)
         guard let pos = LSPTestSupport.position(of: "42", in: source) else {
-            return XCTFail("Could not locate literal in source")
+            Issue.record("Could not locate literal in source")
+            return
         }
 
         let hover = HoverFeature.hover(for: analysis, line: pos.line, character: pos.character)
-        XCTAssertNotNil(hover, "Hover over a literal should return type information")
-        XCTAssertTrue(
+        #expect(hover != nil, "Hover over a literal should return type information")
+        #expect(
             hover?.contents.value.contains("Int") ?? false,
             "Hover for `42` should mention Int, got: \(hover?.contents.value ?? "nil")"
         )
     }
 
-    func testDefinitionResolvesTopLevelReference() {
+    @Test
+    func definitionResolvesTopLevelReference() {
         let source = """
         fun helper(): Int {
             return 1
@@ -58,7 +64,8 @@ final class FeatureTests: XCTestCase {
         let analysis = Analyzer().analyze(uri: uri, text: source)
         // Locate the call site `helper()` inside `main` (the second occurrence).
         guard let callRange = source.range(of: "helper", range: source.range(of: "fun main")!.upperBound ..< source.endIndex) else {
-            return XCTFail("Could not locate call site")
+            Issue.record("Could not locate call site")
+            return
         }
         let prefix = source[source.startIndex ..< callRange.lowerBound]
         let lines = prefix.split(separator: "\n", omittingEmptySubsequences: false)
@@ -69,8 +76,9 @@ final class FeatureTests: XCTestCase {
         // Definition resolution depends on call-binding population; assert that
         // when a location is returned it points inside the analyzed document.
         if let location {
-            XCTAssertEqual(location.uri, DocumentURI.uri(fromPath: analysis.path))
-            XCTAssertLessThanOrEqual(location.range.start.line, line)
+            #expect(location.uri == DocumentURI.uri(fromPath: analysis.path))
+            #expect(location.range.start.line <= line)
         }
     }
 }
+#endif

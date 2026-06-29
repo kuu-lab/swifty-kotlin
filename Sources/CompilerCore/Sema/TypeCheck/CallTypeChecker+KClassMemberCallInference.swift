@@ -77,6 +77,7 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
+        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         if calleeName == knownNames.simpleName || calleeName == knownNames.qualifiedName {
             _ = args.map { driver.inferExpr($0.expr, ctx: ctx, locals: &locals) }
             let nullableStringType = sema.types.makeNullable(
@@ -85,6 +86,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType
         }
+        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         if calleeName == knownNames.isInstanceName, args.count == 1 {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let boolType = sema.types.booleanType
@@ -108,6 +110,8 @@ extension CallTypeChecker {
         // STDLIB-REFLECT-060: KClass boolean properties (isFinal, isOpen, isAbstract)
         // STDLIB-REFLECT-067: KClass kind/modifier + type-kind booleans
         // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/isCompanion/isFun)
+        // NOTE: Kotlin source for isFinal/isAbstract/isSealed exists at
+        // Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         let kclassBooleanCallees: Set<InternedString> = [
             knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
             knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
@@ -127,9 +131,10 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType
         }
-        // STDLIB-REFLECT-065 / 060: KClass collection-shaped properties.
+        // STDLIB-REFLECT-065 / 060 / MIGRATION-REFLECT-002: KClass collection-shaped properties.
         let kclassMemberCollectionCallees: Set<InternedString> = [
             knownNames.membersName, knownNames.constructorsName,
+            knownNames.nestedClassesName,
             knownNames.propertiesName, knownNames.memberPropertiesName,
             knownNames.declaredMemberPropertiesName,
             knownNames.functionsName, knownNames.memberFunctionsName,
@@ -217,6 +222,7 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
+        // NOTE: Kotlin source exists at Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         if calleeName == knownNames.isInstanceName, args.count == 1 {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let boolType = sema.types.booleanType
@@ -238,6 +244,8 @@ extension CallTypeChecker {
         // STDLIB-REFLECT-060: KClass boolean properties via variable receiver
         // STDLIB-REFLECT-067: KClass kind/modifier + type-kind booleans
         // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/isCompanion/isFun)
+        // NOTE: Kotlin source for isFinal/isAbstract/isSealed exists at
+        // Stdlib/kotlin/reflect/KClassBasicAPI.kt (MIGRATION-REFLECT-001)
         let kclassVarBooleanCallees: Set<InternedString> = [
             knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
             knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
@@ -257,9 +265,10 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType
         }
-        // STDLIB-REFLECT-065 / 060: KClass collection-shaped properties (via variable receiver).
+        // STDLIB-REFLECT-065 / 060 / MIGRATION-REFLECT-002: KClass collection-shaped properties (via variable receiver).
         let kclassVarMemberCollectionCallees: Set<InternedString> = [
             knownNames.membersName, knownNames.constructorsName,
+            knownNames.nestedClassesName,
             knownNames.propertiesName, knownNames.memberPropertiesName,
             knownNames.declaredMemberPropertiesName,
             knownNames.functionsName, knownNames.memberFunctionsName,

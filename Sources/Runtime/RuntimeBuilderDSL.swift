@@ -265,9 +265,6 @@ public func kk_string_builder_append(_ valueRaw: Int) -> Int {
     return 0
 }
 
-// NOTE: The PR description originally referenced "kk_string_builder_appendLine" (camelCase),
-// but the actual exported symbol uses snake_case ("kk_string_builder_append_line") to match
-// the project's prevailing C ABI naming convention (e.g. kk_string_builder_append).
 @_cdecl("kk_string_builder_append_line")
 public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
     runtimeBuilderState.appendString(runtimeElementToString(valueRaw))

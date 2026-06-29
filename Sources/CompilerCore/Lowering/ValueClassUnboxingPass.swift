@@ -13,7 +13,7 @@
 ///   `m.amount` -> `copy(m, result)`.
 ///
 /// This pass must run **before** PropertyLoweringPass and ABILoweringPass.
-final class ValueClassUnboxingPass: LoweringPass {
+final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
     static let name = "ValueClassUnboxing"
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {

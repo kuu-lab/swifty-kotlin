@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class KIRLowererPart2CoverageTests: XCTestCase {
-    func testLambdaLowererPart2TraversesNestedExpressionsAndDetectsImplicitReceiver() {
+@Suite @MainActor
+struct KIRLowererPart2CoverageTests {
+    @Test func testLambdaLowererPart2TraversesNestedExpressionsAndDetectsImplicitReceiver() {
         let fixture = makeDirectKIRFixture()
         let range = makeRange()
         let typeRefID = fixture.astArena.appendTypeRef(
@@ -187,20 +189,20 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             seen: &seen
         )
 
-        XCTAssertTrue(referenced.contains(capturedSymbol))
-        XCTAssertEqual(Set(referenced), [capturedSymbol])
+        #expect(referenced.contains(capturedSymbol))
+        #expect(Set(referenced) == [capturedSymbol])
 
-        XCTAssertTrue(
+        #expect(
             fixture.driver.lambdaLowerer.containsImplicitReceiverReference(in: blockWithReceiverRefs, ast: fixture.ast)
         )
 
         let onlyLiteral = fixture.astArena.appendExpr(.intLiteral(1, range))
-        XCTAssertFalse(
-            fixture.driver.lambdaLowerer.containsImplicitReceiverReference(in: onlyLiteral, ast: fixture.ast)
+        #expect(
+            !(fixture.driver.lambdaLowerer.containsImplicitReceiverReference(in: onlyLiteral, ast: fixture.ast))
         )
     }
 
-    func testLambdaLowererPart2CaptureHelpersCoverBranchPaths() {
+    @Test func testLambdaLowererPart2CaptureHelpersCoverBranchPaths() {
         let fixture = makeDirectKIRFixture()
 
         let localSymbol = defineSymbol(in: fixture, kind: .local, fqName: ["pkg", "local"])
@@ -220,15 +222,15 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             paramIndex: 0
         )
 
-        XCTAssertFalse(
-            fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
+        #expect(
+            !(fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
                 syntheticParamSymbol,
                 lambdaExprID: lambdaExprID,
                 lambdaParamCount: 1,
                 sema: fixture.sema
-            )
+            ))
         )
-        XCTAssertTrue(
+        #expect(
             fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
                 localSymbol,
                 lambdaExprID: lambdaExprID,
@@ -236,7 +238,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
                 sema: fixture.sema
             )
         )
-        XCTAssertTrue(
+        #expect(
             fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
                 classSymbol,
                 lambdaExprID: lambdaExprID,
@@ -244,15 +246,15 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
                 sema: fixture.sema
             )
         )
-        XCTAssertFalse(
-            fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
+        #expect(
+            !(fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
                 SymbolID(rawValue: 9999),
                 lambdaExprID: lambdaExprID,
                 lambdaParamCount: 0,
                 sema: fixture.sema
-            )
+            ))
         )
-        XCTAssertTrue(
+        #expect(
             fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
                 parameterSymbol,
                 lambdaExprID: lambdaExprID,
@@ -269,7 +271,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             interner: fixture.interner,
             emit: &emit
         )
-        XCTAssertEqual(captured, localExpr)
+        #expect(captured == localExpr)
 
         let unique = fixture.driver.lambdaLowerer.uniqueSymbolsPreservingOrder([
             localSymbol,
@@ -277,7 +279,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             localSymbol,
             parameterSymbol,
         ])
-        XCTAssertEqual(unique, [localSymbol, parameterSymbol])
+        #expect(unique == [localSymbol, parameterSymbol])
 
         let receiverCaptured = fixture.driver.lambdaLowerer.captureValueExpr(
             for: classSymbol,
@@ -286,7 +288,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             interner: fixture.interner,
             emit: &emit
         )
-        XCTAssertEqual(receiverCaptured, receiverExpr)
+        #expect(receiverCaptured == receiverExpr)
 
         _ = fixture.driver.lambdaLowerer.captureValueExpr(
             for: parameterSymbol,
@@ -295,7 +297,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             interner: fixture.interner,
             emit: &emit
         )
-        XCTAssertFalse(emit.instructions.isEmpty)
+        #expect(!emit.instructions.isEmpty)
 
         let nonCapturable = fixture.driver.lambdaLowerer.captureValueExpr(
             for: SymbolID(rawValue: 7777),
@@ -304,7 +306,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             interner: fixture.interner,
             emit: &emit
         )
-        XCTAssertNil(nonCapturable)
+        #expect(nonCapturable == nil)
     }
 }
 
@@ -395,3 +397,4 @@ func defineSymbol(
         flags: flags
     )
 }
+#endif

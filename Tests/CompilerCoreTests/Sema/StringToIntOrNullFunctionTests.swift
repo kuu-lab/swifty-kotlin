@@ -1,8 +1,10 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class StringToIntOrNullFunctionTests: XCTestCase {
+@Suite
+struct StringToIntOrNullFunctionTests {
+    @Test
     func testStringToIntOrNullInfersNullableIntType() throws {
         let source = """
         fun probe(text: String) {
@@ -15,21 +17,20 @@ final class StringToIntOrNullFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
                 "Expected String.toIntOrNull() to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toIntOrNull"
             })
 
-            XCTAssertEqual(
-                sema.bindings.exprType(for: callExpr),
-                sema.types.makeNullable(sema.types.intType)
+            #expect(
+                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
             )
 
             let fqName = [
@@ -37,12 +38,14 @@ final class StringToIntOrNullFunctionTests: XCTestCase {
                 ctx.interner.intern("text"),
                 ctx.interner.intern("toIntOrNull"),
             ]
-            XCTAssertTrue(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+            let allSatisfy = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
                 sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull_flat"
-            })
+            }
+            #expect(allSatisfy)
         }
     }
 
+    @Test
     func testStringToIntOrNullWithRadixInfersNullableIntType() throws {
         let source = """
         fun probe(text: String) {
@@ -55,21 +58,20 @@ final class StringToIntOrNullFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
                 "Expected String.toIntOrNull(radix) to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toIntOrNull" && args.count == 1
             })
 
-            XCTAssertEqual(
-                sema.bindings.exprType(for: callExpr),
-                sema.types.makeNullable(sema.types.intType)
+            #expect(
+                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
             )
 
             let fqName = [
@@ -77,12 +79,14 @@ final class StringToIntOrNullFunctionTests: XCTestCase {
                 ctx.interner.intern("text"),
                 ctx.interner.intern("toIntOrNull"),
             ]
-            XCTAssertTrue(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+            let allSatisfy = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
                 sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull_radix_flat"
-            })
+            }
+            #expect(allSatisfy)
         }
     }
 
+    @Test
     func testStringToIntOrNullOnLiteralAndElvisFallback() throws {
         let source = """
         fun probe(): Int {
@@ -95,21 +99,20 @@ final class StringToIntOrNullFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
                 "Expected String.toIntOrNull() on a literal to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toIntOrNull"
             })
 
-            XCTAssertEqual(
-                sema.bindings.exprType(for: callExpr),
-                sema.types.makeNullable(sema.types.intType)
+            #expect(
+                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
             )
         }
     }

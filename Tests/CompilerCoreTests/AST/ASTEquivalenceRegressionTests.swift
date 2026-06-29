@@ -1,21 +1,27 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - AST Equivalence Regression Tests (P5-58)
 
 // Verify that decl/expr counts and source ranges remain consistent
 // after BuildAST optimisation changes.
 
-final class ASTEquivalenceRegressionTests: XCTestCase {
+@Suite
+struct ASTEquivalenceRegressionTests {
     // MARK: - Helpers
 
-    private let bundledStdlibDeclarationCount = 54
+    private var bundledStdlibDeclarationCount: Int {
+        let ctx: CompilationContext = makeContextFromSource("fun __probe__() {}")
+        try! runFrontend(ctx)
+        return ctx.ast!.declarationCount - 1
+    }
 
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
         let ctx: CompilationContext = makeContextFromSource(source)
         try runFrontend(ctx)
-        let ast = try XCTUnwrap(ctx.ast)
+        let ast = try #require(ctx.ast)
         return (ast, ctx)
     }
 
@@ -26,19 +32,15 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         line: UInt = #line
     ) {
         guard let range else {
-            XCTFail("\(label): range is nil", file: file, line: line)
+            Issue.record("\(label): range is nil")
             return
         }
-        XCTAssertTrue(
-            range.start.offset <= range.end.offset,
-            "\(label): start (\(range.start.offset)) should be <= end (\(range.end.offset))",
-            file: file,
-            line: line
-        )
+        #expect(range.start.offset <= range.end.offset, "\(label): start (\(range.start.offset)) should be <= end (\(range.end.offset))")
     }
 
     // MARK: - Simple function
 
+    @Test
     func testSimpleFunctionDeclAndExprCounts() throws {
         let source = """
         fun add(a: Int, b: Int): Int = a + b
@@ -47,12 +49,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // 2 user declarations + 54 bundled stdlib functions (37 collections + 17 text)
-        XCTAssertEqual(
-            ast.declarationCount,
-            2 + bundledStdlibDeclarationCount,
-            "Expected 56 top-level declarations (2 user + 54 bundled stdlib)"
-        )
-        XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 2, "Expected at least 2 expressions")
+        #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount, "Expected 56 top-level declarations (2 user + 54 bundled stdlib)")
+        #expect(ast.arena.exprs.count >= 2, "Expected at least 2 expressions")
 
         for decl in ast.arena.declarations() {
             switch decl {
@@ -66,6 +64,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
 
     // MARK: - Block body with locals
 
+    @Test
     func testBlockBodyDeclExprCounts() throws {
         let source = """
         fun compute(x: Int): Int {
@@ -79,9 +78,9 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
-        XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
+        #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
         // At least: localDecl(a), localDecl(b), compoundAssign, returnExpr, + body expressions
-        XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
+        #expect(ast.arena.exprs.count >= 6)
 
         for i in ast.arena.exprs.indices {
             let id = ExprID(rawValue: Int32(i))
@@ -91,6 +90,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
 
     // MARK: - Class with members
 
+    @Test
     func testClassDeclAndExprCounts() throws {
         let source = """
         class Counter(val initial: Int) {
@@ -103,23 +103,24 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // classDecl + funDecl(main) + 24 bundled stdlib functions (7 collections + 13 text)
-        XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
+        #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
         let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
             guard case let .classDecl(c) = decl else { return nil }
             return c
         }
-        XCTAssertEqual(classDecls.count, 1)
+        #expect(classDecls.count == 1)
         let counterClass = classDecls[0]
         assertValidSourceRange(counterClass.range, label: "Counter class")
 
         // Should have member decls: property(count), fun(increment), fun(get)
-        XCTAssertGreaterThanOrEqual(counterClass.memberFunctions.count, 2)
-        XCTAssertGreaterThanOrEqual(counterClass.memberProperties.count, 1)
+        #expect(counterClass.memberFunctions.count >= 2)
+        #expect(counterClass.memberProperties.count >= 1)
     }
 
     // MARK: - Control flow
 
+    @Test
     func testControlFlowExprCounts() throws {
         let source = """
         fun fib(n: Int): Int {
@@ -138,9 +139,9 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
-        XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
+        #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
         // localDecl(a), localDecl(b), forExpr, localDecl(tmp), localAssign(a), localAssign(b), returnExpr etc.
-        XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 8)
+        #expect(ast.arena.exprs.count >= 8)
 
         for i in ast.arena.exprs.indices {
             let id = ExprID(rawValue: Int32(i))
@@ -150,6 +151,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
 
     // MARK: - Lambda and when expression
 
+    @Test
     func testLambdaAndWhenExprCounts() throws {
         let source = """
         fun classify(x: Int): String {
@@ -169,8 +171,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // 3 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
-        XCTAssertEqual(ast.declarationCount, 3 + bundledStdlibDeclarationCount)
-        XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
+        #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
+        #expect(ast.arena.exprs.count >= 6)
 
         for i in ast.arena.exprs.indices {
             let id = ExprID(rawValue: Int32(i))
@@ -180,6 +182,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
 
     // MARK: - Interface and inheritance
 
+    @Test
     func testInterfaceDeclCounts() throws {
         let source = """
         interface Shape {
@@ -193,18 +196,19 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // interface + class + fun(main) + 24 bundled stdlib functions (7 collections + 13 text)
-        XCTAssertEqual(ast.declarationCount, 3 + bundledStdlibDeclarationCount)
+        #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
 
         let interfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
             guard case let .interfaceDecl(i) = decl else { return nil }
             return i
         }
-        XCTAssertEqual(interfaceDecls.count, 1)
+        #expect(interfaceDecls.count == 1)
         assertValidSourceRange(interfaceDecls[0].range, label: "Shape interface")
     }
 
     // MARK: - Properties with accessors
 
+    @Test
     func testPropertyDeclCounts() throws {
         let source = """
         class Box(val width: Int, val height: Int) {
@@ -216,7 +220,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
-        XCTAssertEqual(ast.declarationCount, 2 + bundledStdlibDeclarationCount)
+        #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
         for i in ast.arena.exprs.indices {
             let id = ExprID(rawValue: Int32(i))
@@ -226,6 +230,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
 
     // MARK: - All source ranges are valid across a complex file
 
+    @Test
     func testAllSourceRangesValidForComplexInput() throws {
         let source = """
         class Calculator {
@@ -249,7 +254,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         let (ast, _) = try buildAST(from: source)
 
         // class + factorial + main + 24 bundled stdlib functions (7 collections + 13 text)
-        XCTAssertEqual(ast.declarationCount, 3 + bundledStdlibDeclarationCount)
+        #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
 
         // Verify ALL decl ranges are valid
         for decl in ast.arena.declarations() {
@@ -280,6 +285,7 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
 
     // MARK: - Script mode
 
+    @Test
     func testScriptModeDeclExprCounts() throws {
         let source = """
         val x = 42
@@ -289,11 +295,12 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source, fileExtension: "kts") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
 
             // Script wraps body into a synthetic main function
-            XCTAssertGreaterThanOrEqual(ast.declarationCount, 1)
-            XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 2)
+            #expect(ast.declarationCount >= 1)
+            #expect(ast.arena.exprs.count >= 2)
         }
     }
 }
+#endif

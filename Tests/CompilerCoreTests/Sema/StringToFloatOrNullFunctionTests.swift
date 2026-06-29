@@ -1,6 +1,6 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-098: `fun String.toFloatOrNull(): Float?` in `kotlin.text`.
 ///
@@ -10,7 +10,8 @@ import XCTest
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Float?`.
-final class StringToFloatOrNullFunctionTests: XCTestCase {
+@Suite
+struct StringToFloatOrNullFunctionTests {
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
@@ -25,26 +26,27 @@ final class StringToFloatOrNullFunctionTests: XCTestCase {
         )
     }
 
+    @Test
     func testToFloatOrNullStubLinksToRuntimeSymbol() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
-            XCTAssertEqual(
-                externalLink(for: "toFloatOrNull", sema: sema, interner: ctx.interner),
-                "kk_string_toFloatOrNull",
+            #expect(
+                externalLink(for: "toFloatOrNull", sema: sema, interner: ctx.interner) == "kk_string_toFloatOrNull",
                 "String.toFloatOrNull should link to kk_string_toFloatOrNull"
             )
 
             let links = externalLinks(for: "toFloatOrNull", sema: sema, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 links.contains("kk_string_toFloatOrNull"),
                 "lookupAll for toFloatOrNull must include kk_string_toFloatOrNull; got: \(links)"
             )
         }
     }
 
+    @Test
     func testToFloatOrNullResolvesOnStringReceiver() throws {
         let source = """
         fun parse(raw: String): Float? {
@@ -58,34 +60,35 @@ final class StringToFloatOrNullFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected String.toFloatOrNull to resolve cleanly, got: \(diagnosticSummary)"
             )
         }
     }
 
+    @Test
     func testToFloatOrNullReturnsNullableFloat() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "toFloatOrNull"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookupAll(fqName: fq).first { symbolID in
                     guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
                     return sig.receiverType == sema.types.stringType && sig.parameterTypes.isEmpty
                 }
             )
-            let returnType = try XCTUnwrap(sema.symbols.functionSignature(for: symbol)?.returnType)
-            XCTAssertEqual(
-                returnType,
-                sema.types.make(.primitive(.float, .nullable)),
+            let returnType = try #require(sema.symbols.functionSignature(for: symbol)?.returnType)
+            #expect(
+                returnType == sema.types.make(.primitive(.float, .nullable)),
                 "String.toFloatOrNull() should return Float?"
             )
         }
     }
 
+    @Test
     func testToFloatOrNullInBranchContext() throws {
         let source = """
         fun safeParse(raw: String): Float {
@@ -96,8 +99,8 @@ final class StringToFloatOrNullFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Elvis operator over toFloatOrNull should type-check without errors"
             )
         }

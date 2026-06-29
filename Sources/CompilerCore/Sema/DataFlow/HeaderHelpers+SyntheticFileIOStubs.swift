@@ -369,6 +369,7 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - File read/write methods (STDLIB-320)
+        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
 
         registerFileMemberFunction(
             named: "readText",
@@ -393,17 +394,7 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - File.appendText() (STDLIB-664)
-
-        registerFileMemberFunction(
-            named: "appendText",
-            externalLinkName: "kk_file_appendText",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
+        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
 
         registerFileMemberFunction(
             named: "appendText",
@@ -428,6 +419,7 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - File.readBytes() (STDLIB-665)
+        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
 
         // ByteArray is represented as List<Int> in the runtime
         let intType = types.intType
@@ -453,6 +445,7 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - File.appendBytes() (STDLIB-IO-FN-001)
+        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
         //
         // Kotlin signature: `fun File.appendBytes(array: ByteArray): Unit`
         // ByteArray is represented internally as List<Int>; we register both
@@ -473,6 +466,96 @@ extension DataFlowSemaPhase {
             registerFileMemberFunction(
                 named: "appendBytes",
                 externalLinkName: "kk_file_appendBytes",
+                ownerSymbol: fileSymbol,
+                ownerType: fileType,
+                parameters: [("array", arrayParamType)],
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        // MARK: - File.writeBytes() (MIGRATION-IO-001)
+        // NOTE: Kotlin source exists in Stdlib/kotlin/io/FileIO.kt (MIGRATION-IO-001)
+        //
+        // Kotlin signature: `fun File.writeBytes(array: ByteArray): Unit`
+
+        for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
+            registerFileMemberFunction(
+                named: "writeBytes",
+                externalLinkName: "kk_file_writeBytes",
+                ownerSymbol: fileSymbol,
+                ownerType: fileType,
+                parameters: [("array", arrayParamType)],
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        // MARK: - MIGRATION-IO-001: Private C-bridge stubs called from BundledKotlinStdlib
+
+        registerFileMemberFunction(
+            named: "__kk_file_readText",
+            externalLinkName: "kk_file_readText",
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [],
+            returnType: types.stringType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerFileMemberFunction(
+            named: "__kk_file_writeText",
+            externalLinkName: "kk_file_writeText",
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [("text", types.stringType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerFileMemberFunction(
+            named: "__kk_file_appendText",
+            externalLinkName: "kk_file_appendText",
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [("text", types.stringType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerFileMemberFunction(
+            named: "__kk_file_readBytes",
+            externalLinkName: "kk_file_readBytes",
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [],
+            returnType: listOfIntType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
+            registerFileMemberFunction(
+                named: "__kk_file_appendBytes",
+                externalLinkName: "kk_file_appendBytes",
+                ownerSymbol: fileSymbol,
+                ownerType: fileType,
+                parameters: [("array", arrayParamType)],
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
+            registerFileMemberFunction(
+                named: "__kk_file_writeBytes",
+                externalLinkName: "kk_file_writeBytes",
                 ownerSymbol: fileSymbol,
                 ownerType: fileType,
                 parameters: [("array", arrayParamType)],

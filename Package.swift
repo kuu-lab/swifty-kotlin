@@ -31,7 +31,13 @@ let package = Package(
         .target(
             name: "CompilerCore",
             dependencies: ["RuntimeABI"],
-            resources: [.process("Stdlib")]
+            resources: [
+                .copy("Stdlib"),
+            ]
+        ),
+        .target(
+            name: "CompilerBackend",
+            dependencies: ["CompilerCore", "RuntimeABI"]
         ),
         .target(
             name: "GoldenHarnessSupport",
@@ -47,12 +53,13 @@ let package = Package(
                 "GoldenHarnessGoldenSuiteKind.swift",
                 "GoldenHarnessPaths.swift",
                 "GoldenHarnessSemaFormat.swift",
+                "GoldenHarnessStableRenderContext.swift",
                 "GoldenHarnessSyntaxFormat.swift",
             ]
         ),
         .executableTarget(
             name: "KSwiftKCLI",
-            dependencies: ["CompilerCore"]
+            dependencies: ["CompilerCore", "CompilerBackend"]
         ),
         .target(
             name: "LSPServer",
@@ -78,6 +85,11 @@ let package = Package(
                 "GoldenCases",
                 "Integration/ClassDelegationSmokeTest.kt",
             ]
+        ),
+        .testTarget(
+            name: "CompilerBackendTests",
+            dependencies: ["CompilerBackend", "CompilerCore"],
+            path: "Tests/CompilerBackendTests"
         ),
         .testTarget(
             name: "RuntimeTests",

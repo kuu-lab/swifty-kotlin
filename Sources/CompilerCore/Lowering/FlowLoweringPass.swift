@@ -1,5 +1,5 @@
 
-final class FlowLoweringPass: LoweringPass {
+final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "FlowLowering"
 
     private enum RuntimeFlowTag: Int64 {
@@ -40,26 +40,8 @@ final class FlowLoweringPass: LoweringPass {
             ctx.interner.intern("toList"),
             ctx.interner.intern("first"),
         ]
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else {
-                continue
-            }
-            for instruction in function.body {
-                switch instruction {
-                case let .call(_, callee, _, _, _, _, _, _):
-                    if calleeNames.contains(callee) {
-                        return true
-                    }
-                case let .virtualCall(_, callee, _, _, _, _, _, _):
-                    if calleeNames.contains(callee) {
-                        return true
-                    }
-                default:
-                    continue
-                }
-            }
-        }
-        return false
+        module.ensureFeaturesScanned()
+        return !calleeNames.isDisjoint(with: module.usedCallees)
     }
 
     // swiftlint:disable:next cyclomatic_complexity

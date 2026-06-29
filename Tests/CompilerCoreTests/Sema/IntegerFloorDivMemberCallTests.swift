@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class IntegerFloorDivMemberCallTests: XCTestCase {
-    func testSignedAndUnsignedFloorDivMemberCallsInferExpectedTypes() throws {
+@Suite
+struct IntegerFloorDivMemberCallTests {
+    @Test func testSignedAndUnsignedFloorDivMemberCallsInferExpectedTypes() throws {
         let source = """
         fun sample(b: Byte, s: Short, i: Int, l: Long, ub: UByte, us: UShort, ui: UInt, ul: ULong) {
             val byteShort: Int = b.floorDiv(s)
@@ -18,10 +20,10 @@ final class IntegerFloorDivMemberCallTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected floorDiv overload matrix to type-check cleanly")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected floorDiv overload matrix to type-check cleanly")
     }
 
-    func testFloorDivRejectsFloatingAndMixedSignednessReceivers() {
+    @Test func testFloorDivRejectsFloatingAndMixedSignednessReceivers() {
         let source = """
         fun sample(i: Int, ui: UInt, d: Double) {
             i.floorDiv(ui)
@@ -37,10 +39,10 @@ final class IntegerFloorDivMemberCallTests: XCTestCase {
             // Diagnostics are asserted below.
         }
 
-        XCTAssertGreaterThanOrEqual(
-            ctx.diagnostics.diagnostics.count,
-            3,
+        #expect(
+            ctx.diagnostics.diagnostics.count >= 3,
             "Expected floorDiv to reject mixed signedness and floating receivers"
         )
     }
 }
+#endif

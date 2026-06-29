@@ -167,6 +167,17 @@ extension CallTypeChecker {
 
         // Provide contextual function type for collection HOF lambda inference.
         let receiverElementType = collectionFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
+
+        // flatten() is only valid on List<List<T>>. Reject when the element type
+        // is a KNOWN non-collection (e.g. Int).  If the element type is Any we
+        // cannot be sure — it may be List<Any> wrapping real lists at runtime,
+        // so we let it through to preserve the pre-migration behaviour.
+        if interner.resolve(calleeName) == "flatten", !isSequenceReceiver,
+           receiverElementType != sema.types.anyType,
+           !isCollectionLikeType(receiverElementType, sema: sema, interner: interner) {
+            return nil
+        }
+
         if let expectation = collectionFallbackLambdaExpectation(
             memberName: calleeName,
             argCount: args.count,
@@ -883,7 +894,6 @@ extension CallTypeChecker {
             knownNames.getValue,
             knownNames.getOrDefault,
             interner.intern("plus"),
-            interner.intern("minus"),
         ]
         if listOnlyMembers.contains(memberName) {
             return isListReceiver
@@ -896,6 +906,9 @@ extension CallTypeChecker {
         }
         if memberName == interner.intern("elementAtOrElse") {
             return isListReceiver
+        }
+        if memberName == interner.intern("minus") {
+            return isMapReceiver || isListReceiver || isSetReceiver
         }
         if mapOnlyMembers.contains(memberName) {
             return isMapReceiver
@@ -1078,8 +1091,10 @@ extension CallTypeChecker {
             return (isMutableListReceiver || isMutableSetReceiver) && argCount == 0
         case knownNames.putAll:
             return isMutableMapReceiver && argCount == 1
-        case interner.intern("plus"), interner.intern("minus"):
+        case interner.intern("plus"):
             return isMapReceiver && argCount == 1
+        case interner.intern("minus"):
+            return (isMapReceiver || isListReceiver || isSetReceiver) && argCount == 1
         case interner.intern("fold"), interner.intern("foldRight"), interner.intern("foldIndexed"), interner.intern("foldRightIndexed"), interner.intern("scan"), interner.intern("scanIndexed"), interner.intern("runningFold"), interner.intern("runningFoldIndexed"), interner.intern("subList"):
             return argCount == 2
         case interner.intern("slice"):

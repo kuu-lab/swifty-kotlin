@@ -1,6 +1,4 @@
 
-// MARK: - When Condition Key Helper
-
 /// Returns a canonical string key for a when-branch condition expression,
 /// used for detecting duplicate conditions (Sema) and deduplicating
 /// OR-chain comparisons (KIR).  Returns `nil` for conditions that
@@ -111,8 +109,6 @@ private func isCheckKey(
     }
     return "is:\(negated ? "!" : "")\(typeRefID.rawValue)"
 }
-
-// MARK: - Deduplication Helper
 
 /// Removes duplicate conditions from a when-branch condition list,
 /// keeping the first occurrence of each canonically-equal condition.

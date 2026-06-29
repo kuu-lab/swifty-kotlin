@@ -812,6 +812,8 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(durationClassType, for: durationSymbol)
 
+        // MIGRATION-TIME-002: inWholeMilliseconds/Seconds/Microseconds migrated to Kotlin source.
+        /*
         // Register Duration.inWholeMilliseconds property (returns Long)
         registerSyntheticDurationMember(
             named: "inWholeMilliseconds",
@@ -850,6 +852,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             isProperty: true
         )
+        */
 
         // Register Duration.inWholeNanoseconds property (returns Long)
         registerSyntheticDurationMember(

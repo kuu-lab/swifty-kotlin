@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testExternalStringStubWithDefaultArgsDoesNotCallDefaultStub() throws {
+    @Test func testExternalStringStubWithDefaultArgsDoesNotCallDefaultStub() throws {
         let source = """
         fun main() {
             val parts = "1,2,3".split(",")
@@ -15,17 +16,17 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_string_split_flat"), "Expected direct kk_string_split_flat call, got: \(callees)")
-            XCTAssertTrue(callees.contains("kk_string_startsWith_flat"), "Expected direct kk_string_startsWith_flat call, got: \(callees)")
-            XCTAssertFalse(callees.contains { $0.contains("split$default") || $0.contains("startsWith$default") },
+            #expect(callees.contains("kk_string_split"), "Expected direct kk_string_split call, got: \(callees)")
+            #expect(callees.contains("kk_string_startsWith"), "Expected direct kk_string_startsWith call, got: \(callees)")
+            #expect(!(callees.contains { $0.contains("split$default") || $0.contains("startsWith$default") }),
                            "External string stubs must not route through $default: \(callees)")
         }
     }
 
-    func testDefaultArgNoStubWhenAllArgsProvided() throws {
+    @Test func testDefaultArgNoStubWhenAllArgsProvided() throws {
         let source = """
         fun add(a: Int, b: Int = 10): Int = a + b
         fun main() = add(5, 20)
@@ -34,17 +35,17 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("add"), "Expected direct call to add, got: \(callees)")
-            XCTAssertFalse(callees.contains("add$default"), "Should not call stub when all args provided, got: \(callees)")
+            #expect(callees.contains("add"), "Expected direct call to add, got: \(callees)")
+            #expect(!(callees.contains("add$default")), "Should not call stub when all args provided, got: \(callees)")
         }
     }
 
     // MARK: - Default Argument Callee-Context Semantics (P5-56)
 
-    func testDefaultArgStubBindsPrecedingParameterForDefaultExpression() throws {
+    @Test func testDefaultArgStubBindsPrecedingParameterForDefaultExpression() throws {
         // Default expression `b = a + 1` must reference preceding parameter `a`
         // in callee context (the $default stub), not at the caller site.
         let source = """
@@ -55,11 +56,11 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             // Call site must route through $default stub
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(mainCallees.contains("withDep$default"),
+            #expect(mainCallees.contains("withDep$default"),
                           "Expected call to withDep$default stub, got: \(mainCallees)")
 
             // Stub must exist and call the original function
@@ -67,23 +68,23 @@ extension BuildKIRRegressionTests {
                 guard case let .function(function) = decl else { return nil }
                 return ctx.interner.resolve(function.name) == "withDep$default" ? function : nil
             }.first
-            XCTAssertNotNil(stubFunction, "Expected withDep$default stub function")
+            #expect(stubFunction != nil, "Expected withDep$default stub function")
             if let stub = stubFunction {
                 let stubCallees = extractCallees(from: stub.body, interner: ctx.interner)
-                XCTAssertTrue(stubCallees.contains("withDep"),
+                #expect(stubCallees.contains("withDep"),
                               "Stub should call original withDep, got: \(stubCallees)")
                 // Stub body must contain a binary add for the default expression `a + 1`
                 let hasBinaryAdd = stub.body.contains { instruction in
                     guard case let .binary(op, _, _, _) = instruction else { return false }
                     return op == .add
                 }
-                XCTAssertTrue(hasBinaryAdd,
+                #expect(hasBinaryAdd,
                               "Stub should evaluate default `a + 1` with a binary add instruction")
             }
         }
     }
 
-    func testDefaultArgStubEvaluatesMultipleDefaultsLeftToRightWithDependencies() throws {
+    @Test func testDefaultArgStubEvaluatesMultipleDefaultsLeftToRightWithDependencies() throws {
         // fun chain(a: Int = 1, b: Int = a + 10, c: Int = b + 100): Int
         // When called with chain(), defaults should be evaluated left-to-right:
         //   a = 1, b = 1 + 10 = 11, c = 11 + 100 = 111
@@ -97,15 +98,15 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let stubFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else { return nil }
                 return ctx.interner.resolve(function.name) == "chain$default" ? function : nil
             }.first
-            XCTAssertNotNil(stubFunction, "Expected chain$default stub function")
+            #expect(stubFunction != nil, "Expected chain$default stub function")
             if let stub = stubFunction {
                 // The stub should have 3 original params + 1 mask param = 4 params
-                XCTAssertEqual(stub.params.count, 4,
+                #expect(stub.params.count == 4,
                                "Stub should have 3 original params + mask, got \(stub.params.count)")
 
                 // Verify label pairs: each default param generates skip/after labels.
@@ -116,18 +117,18 @@ extension BuildKIRRegressionTests {
                         labelOrder.append(id)
                     }
                 }
-                XCTAssertEqual(labelOrder.count, 6,
+                #expect(labelOrder.count == 6,
                                "Expected 6 labels (2 per default param), got \(labelOrder.count)")
                 // Labels must be strictly ascending (left-to-right order).
                 for i in 1 ..< labelOrder.count {
-                    XCTAssertGreaterThan(labelOrder[i], labelOrder[i - 1],
+                    #expect(labelOrder[i] > labelOrder[i - 1],
                                          "Labels must be ascending for left-to-right evaluation")
                 }
             }
         }
     }
 
-    func testDefaultArgStubBindsReceiverForExtensionFunctionDefault() throws {
+    @Test func testDefaultArgStubBindsReceiverForExtensionFunctionDefault() throws {
         // Extension function default referencing `this` must have the receiver
         // available in the $default stub's callee context.
         let source = """
@@ -138,11 +139,11 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             // Call site must use the $default stub
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(mainCallees.contains("addDefault$default"),
+            #expect(mainCallees.contains("addDefault$default"),
                           "Expected call to addDefault$default stub, got: \(mainCallees)")
 
             // Stub must exist and include a receiver parameter
@@ -150,19 +151,19 @@ extension BuildKIRRegressionTests {
                 guard case let .function(function) = decl else { return nil }
                 return ctx.interner.resolve(function.name) == "addDefault$default" ? function : nil
             }.first
-            XCTAssertNotNil(stubFunction, "Expected addDefault$default stub function")
+            #expect(stubFunction != nil, "Expected addDefault$default stub function")
             if let stub = stubFunction {
                 // receiver + original param + mask = 3 params
-                XCTAssertGreaterThanOrEqual(stub.params.count, 3,
+                #expect(stub.params.count >= 3,
                                             "Stub should have receiver + param + mask, got \(stub.params.count)")
                 let stubCallees = extractCallees(from: stub.body, interner: ctx.interner)
-                XCTAssertTrue(stubCallees.contains("addDefault"),
+                #expect(stubCallees.contains("addDefault"),
                               "Stub should call original addDefault, got: \(stubCallees)")
             }
         }
     }
 
-    func testDefaultArgCallerDoesNotLowerDefaultExpressionDirectly() throws {
+    @Test func testDefaultArgCallerDoesNotLowerDefaultExpressionDirectly() throws {
         // Verify the caller only emits a sentinel + mask and delegates to the
         // $default stub. The caller's instruction stream must NOT contain the
         // default expression's evaluation (no binary add for `a + 1`).
@@ -174,10 +175,10 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(mainCallees.contains("compute$default"),
+            #expect(mainCallees.contains("compute$default"),
                           "Caller should route to compute$default, got: \(mainCallees)")
 
             // The caller (main) body should NOT have a binary add — that belongs
@@ -186,14 +187,14 @@ extension BuildKIRRegressionTests {
                 guard case let .binary(op, _, _, _) = instruction else { return false }
                 return op == .add
             }
-            XCTAssertFalse(callerHasBinaryAdd,
+            #expect(!(callerHasBinaryAdd),
                            "Caller must not directly evaluate the default expression (binary add)")
         }
     }
 
     // MARK: - Nested Return Propagation (P5-48)
 
-    func testNestedReturnInsideIfBranchEmitsReturnValueInstruction() throws {
+    @Test func testNestedReturnInsideIfBranchEmitsReturnValueInstruction() throws {
         let source = """
         fun choose(flag: Boolean): Int {
             if (flag) {
@@ -206,17 +207,17 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "choose", in: module, interner: ctx.interner)
             let returnValues = body.compactMap { instruction -> KIRExprID? in
                 guard case let .returnValue(id) = instruction else { return nil }
                 return id
             }
-            XCTAssertGreaterThanOrEqual(returnValues.count, 2, "Expected at least 2 returnValue instructions (if-branch + fallthrough), got \(returnValues.count)")
+            #expect(returnValues.count >= 2, "Expected at least 2 returnValue instructions (if-branch + fallthrough), got \(returnValues.count)")
         }
     }
 
-    func testNestedReturnInsideBothIfElseBranchesEmitsReturnValues() throws {
+    @Test func testNestedReturnInsideBothIfElseBranchesEmitsReturnValues() throws {
         let source = """
         fun pick(flag: Boolean): Int {
             if (flag) {
@@ -230,17 +231,17 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "pick", in: module, interner: ctx.interner)
             let returnValues = body.compactMap { instruction -> KIRExprID? in
                 guard case let .returnValue(id) = instruction else { return nil }
                 return id
             }
-            XCTAssertGreaterThanOrEqual(returnValues.count, 2, "Expected at least 2 returnValue instructions (then-branch + else-branch), got \(returnValues.count)")
+            #expect(returnValues.count >= 2, "Expected at least 2 returnValue instructions (then-branch + else-branch), got \(returnValues.count)")
         }
     }
 
-    func testNestedReturnInsideWhenBranchEmitsReturnValueInstruction() throws {
+    @Test func testNestedReturnInsideWhenBranchEmitsReturnValueInstruction() throws {
         let source = """
         fun describe(x: Int): Int {
             return when (x) {
@@ -254,17 +255,17 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "describe", in: module, interner: ctx.interner)
             let returnValues = body.compactMap { instruction -> KIRExprID? in
                 guard case let .returnValue(id) = instruction else { return nil }
                 return id
             }
-            XCTAssertGreaterThanOrEqual(returnValues.count, 2, "Expected at least 2 returnValue instructions for when-branch returns, got \(returnValues.count)")
+            #expect(returnValues.count >= 2, "Expected at least 2 returnValue instructions for when-branch returns, got \(returnValues.count)")
         }
     }
 
-    func testNestedReturnInIfBranchDoesNotEmitDeadCopyInstruction() throws {
+    @Test func testNestedReturnInIfBranchDoesNotEmitDeadCopyInstruction() throws {
         let source = """
         fun choose(flag: Boolean): Int {
             if (flag) {
@@ -277,7 +278,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "choose", in: module, interner: ctx.interner)
 
             // After a returnValue instruction, there should be no copy to the if-result
@@ -301,12 +302,12 @@ extension BuildKIRRegressionTests {
                     }
                 }
             }
-            XCTAssertTrue(foundReturnInBranch, "Expected returnValue in if-branch")
-            XCTAssertFalse(deadCopyAfterReturn, "No dead copy should follow a returnValue instruction in a terminated branch")
+            #expect(foundReturnInBranch, "Expected returnValue in if-branch")
+            #expect(!(deadCopyAfterReturn), "No dead copy should follow a returnValue instruction in a terminated branch")
         }
     }
 
-    func testFunctionTypedMemberPropertyCallKeepsPropertyCalleeName() throws {
+    @Test func testFunctionTypedMemberPropertyCallKeepsPropertyCalleeName() throws {
         let source = """
         class Holder {
             val transform: (Int) -> Int = { it + 1 }
@@ -317,17 +318,18 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("transform"),
                 "Expected property callee name 'transform', got: \(callees)"
             )
-            XCTAssertFalse(
-                callees.contains("invoke"),
+            #expect(
+                !(callees.contains("invoke")),
                 "Function-typed property calls must not be rewritten to 'invoke'."
             )
         }
     }
 }
+#endif

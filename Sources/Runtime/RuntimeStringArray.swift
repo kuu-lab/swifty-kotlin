@@ -435,6 +435,17 @@ public func kk_string_compareTo_flat(
     return runtimeCompareStrings(lhs, rhs)
 }
 
+// STDLIB-TEXT-FN-043: String?.plus(other: Any?): String
+// Receiver is passed as Int (intptr) so null receivers produce "null".
+// Primitives passed as `other` are already boxed by the ABI lowering pass
+// when widened to Any?, so runtimeElementToString handles them correctly.
+@_cdecl("kk_string_plus")
+public func kk_string_plus(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
+    let lhs = runtimeElementToString(receiverRaw)
+    let rhs = runtimeElementToString(otherRaw)
+    return runtimeMakeStringRaw(lhs + rhs)
+}
+
 @_cdecl("kk_op_is")
 public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -1145,6 +1156,14 @@ public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     return registerRuntimeObject(RuntimeListBox(elements: runtimeKConstructorRegistry.constructors(for: kclassRaw)))
+}
+
+/// Returns the nested classes of this KClass as a runtime list of KClass handles.
+/// Currently returns an empty list; nested class metadata registration is not yet
+/// emitted by the compiler (MIGRATION-REFLECT-002).
+@_cdecl("kk_kclass_nested_classes")
+public func kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
+    return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
 /// Returns the primary constructor of this KClass as a KConstructor box, or null sentinel if none.

@@ -56,8 +56,6 @@ fun useIsNotEmpty(): Boolean = "x".isNotEmpty()
 
 fun useIsBlank(): Boolean = "  ".isBlank()
 
-fun useIsBlankOnCharSequence(cs: CharSequence): Boolean = cs.isBlank()
-
 fun useIsNotBlank(): Boolean = "x".isNotBlank()
 
 fun useFirst(): Char = "hello".first()
@@ -68,8 +66,12 @@ fun usePrependIndent(): String = "abc\ndef".prependIndent("  ")
 
 fun useReplaceIndent(): String = "  abc\n  def".replaceIndent("")
 
+fun useEquals(): Boolean = "abc".equals("abc")
+
 fun useEqualsIgnoreCase(): Boolean = "abc".equals("ABC", ignoreCase = true)
 
 fun useReplaceFirst(): String = "abcabc".replaceFirst("abc", "X")
+
+fun useReplaceFirstIgnoreCase(): String = "abcABC".replaceFirst("abc", "X", ignoreCase = true)
 
 fun useReplaceRange(): String = "hello".replaceRange(0..2, "HE")

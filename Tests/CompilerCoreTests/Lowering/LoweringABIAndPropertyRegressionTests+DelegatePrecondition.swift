@@ -1,12 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - Delegate Lowering Precondition Violation Tests
 
     /// Verify that a `lazy(...)` call WITHOUT a subsequent `copy to $delegate_`
     /// field does not crash and is left unchanged by the delegate lowering pass.
+    @Test
     func testLazyCallWithoutDelegateFieldDoesNotCrash() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -53,29 +55,30 @@ extension LoweringABIAndPropertyRegressionTests {
         )
 
         // Must not crash.
-        XCTAssertNoThrow(try runLowering(
+        try runLowering(
             module: module,
             interner: interner,
             moduleName: "DelegateNoCrash",
             sema: sema
-        ))
+        )
 
         // The lazy call should remain unchanged (not rewritten to kk_lazy_create)
         // because there is no $delegate_ field copy.
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(
+        #expect(
             callees.contains("lazy"),
             "Without delegate field, lazy call should remain unchanged, got: \(callees)"
         )
-        XCTAssertFalse(
-            callees.contains("kk_lazy_create"),
+        #expect(
+            !callees.contains("kk_lazy_create"),
             "Should not rewrite to kk_lazy_create without delegate field"
         )
     }
 
     /// Verify that an observable-like call with a copy to $delegate_ but with
     /// zero arguments (missing initial value and callback) does not crash.
+    @Test
     func testObservableDelegateWithMissingArgsPassesThrough() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -131,16 +134,17 @@ extension LoweringABIAndPropertyRegressionTests {
         )
 
         // Must not crash even with zero args.
-        XCTAssertNoThrow(try runLowering(
+        try runLowering(
             module: module,
             interner: interner,
             moduleName: "DelegateObservableBadArgs",
             sema: sema
-        ))
+        )
     }
 
     /// Verify that an unknown delegate callee name (not lazy/observable/vetoable)
     /// with a $delegate_ copy preserves the original instructions unchanged.
+    @Test
     func testUnknownDelegateKindPreservesOriginalInstructions() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -204,18 +208,19 @@ extension LoweringABIAndPropertyRegressionTests {
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
         // Unknown callee must be preserved as-is.
-        XCTAssertTrue(
+        #expect(
             callees.contains("unknownDelegateFactory"),
             "Unknown delegate factory call should remain unchanged, got: \(callees)"
         )
         // Must NOT rewrite to any kk_*_create runtime call.
-        XCTAssertFalse(callees.contains("kk_lazy_create"))
-        XCTAssertFalse(callees.contains("kk_observable_create"))
-        XCTAssertFalse(callees.contains("kk_vetoable_create"))
+        #expect(!callees.contains("kk_lazy_create"))
+        #expect(!callees.contains("kk_observable_create"))
+        #expect(!callees.contains("kk_vetoable_create"))
     }
 
     /// Verify that ABI boxing is correctly applied when delegate getter return
     /// type differs from the property declaration type.
+    @Test
     func testDelegateGetterReturnTypeMismatchInsertsBoxing() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -299,9 +304,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
         // When Int is stored into Any?, ABI lowering should insert kk_box_int.
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_box_int"),
             "Expected kk_box_int for Int -> Any? boxing in delegate getter, got: \(callees)"
         )
     }
 }
+#endif

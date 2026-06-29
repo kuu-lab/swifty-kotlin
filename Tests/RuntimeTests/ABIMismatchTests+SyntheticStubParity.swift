@@ -502,7 +502,7 @@ extension ABIMismatchTests {
     /// This catches the case where a synthetic stub references a runtime function
     /// that doesn't exist or was renamed.
     func testSyntheticStubExternalLinkNamesExistInABISpec() {
-        let allExternNames = Set(RuntimeABIExterns.allExterns.map(\.name))
+        let allExternNames = Set(RuntimeABIExterns.allExterns.map { $0.name })
         let missing = Self.allSyntheticStubLinkNames.subtracting(allExternNames)
         XCTAssertTrue(
             missing.isEmpty,

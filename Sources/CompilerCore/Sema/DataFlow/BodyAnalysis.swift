@@ -755,8 +755,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // MARK: - Tailrec validation helpers
-
     /// Check whether the function body contains a self-recursive call in tail position.
     /// For block bodies, checks ALL return expressions (not just the last statement)
     /// to handle patterns like `if (cond) return f(x); return base`.

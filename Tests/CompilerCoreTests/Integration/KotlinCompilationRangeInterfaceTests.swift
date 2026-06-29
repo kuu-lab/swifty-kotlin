@@ -1,8 +1,9 @@
+#if canImport(Testing)
 import Foundation
-import XCTest
+import Testing
 
-final class KotlinCompilationRangeInterfaceTests: XCTestCase {
-    func testCompile_openEndRangeInterfaceProperties() throws {
+@Suite struct KotlinCompilationRangeInterfaceTests {
+    @Test func testCompile_openEndRangeInterfaceProperties() throws {
         try assertKotlinCompilesToKIR("""
         fun inspect(range: OpenEndRange<Int>): Int {
             val start = range.start
@@ -17,7 +18,7 @@ final class KotlinCompilationRangeInterfaceTests: XCTestCase {
         """)
     }
 
-    func testCompile_openEndRangeInterfaceMembers() throws {
+    @Test func testCompile_openEndRangeInterfaceMembers() throws {
         try assertKotlinCompilesToKIR("""
         fun inspect(range: OpenEndRange<Int>): Boolean {
             return range.contains(3) && !range.isEmpty()
@@ -30,3 +31,4 @@ final class KotlinCompilationRangeInterfaceTests: XCTestCase {
         """)
     }
 }
+#endif

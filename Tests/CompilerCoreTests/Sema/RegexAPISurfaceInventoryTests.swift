@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-REGEX-001: kotlin.text.Regex API Surface Inventory
 //
@@ -15,7 +16,8 @@ import XCTest
 // Scope: signature-level / sema-level only — runtime correctness is covered by
 //        RuntimeRegexTests and STDLIB-REGEX-003 (commit #1208).
 
-final class RegexAPISurfaceInventoryTests: XCTestCase {
+@Suite
+struct RegexAPISurfaceInventoryTests {
 
     // MARK: - Shared sema fixture
 
@@ -24,10 +26,10 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     // MARK: - Lookup helpers
@@ -58,7 +60,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 1. Constructors
 
-    func testRegexSingleArgConstructorIsRegistered() throws {
+    @Test func testRegexSingleArgConstructorIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // Regex(pattern: String) -> Regex
         let links = allExternalLinks(
@@ -66,13 +68,13 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_regex_create_flat"),
             "Regex(pattern) constructor must link to kk_regex_create_flat"
         )
     }
 
-    func testRegexSingleOptionConstructorIsRegistered() throws {
+    @Test func testRegexSingleOptionConstructorIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // Regex(pattern: String, option: RegexOption) -> Regex
         let links = allExternalLinks(
@@ -80,13 +82,13 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_regex_create_with_option_flat"),
             "Regex(pattern, option) constructor must link to kk_regex_create_with_option_flat"
         )
     }
 
-    func testRegexSetOptionsConstructorIsRegistered() throws {
+    @Test func testRegexSetOptionsConstructorIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // Regex(pattern: String, options: Set<RegexOption>) -> Regex
         let links = allExternalLinks(
@@ -94,13 +96,13 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_regex_create_with_options_flat"),
             "Regex(pattern, options) constructor must link to kk_regex_create_with_options_flat"
         )
     }
 
-    func testAllThreeRegexConstructorOverloadsArePresent() throws {
+    @Test func testAllThreeRegexConstructorOverloadsArePresent() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "text", "Regex"],
@@ -112,22 +114,22 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             "kk_regex_create_with_option_flat",
             "kk_regex_create_with_options_flat",
         ]
-        XCTAssertTrue(
+        #expect(
             required.isSubset(of: links),
-            "All three Regex constructor overloads must be registered; found: \(links)"
+            Comment(rawValue: "All three Regex constructor overloads must be registered; found: \(links)")
         )
     }
 
     // MARK: - 2. RegexOption enum entries
 
-    func testRegexOptionEnumClassIsRegistered() throws {
+    @Test func testRegexOptionEnumClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let sym = sema.symbols.lookup(fqName: fq)
-        XCTAssertNotNil(sym, "kotlin.text.RegexOption enum class must exist in symbol table")
+        #expect(sym != nil, "kotlin.text.RegexOption enum class must exist in symbol table")
     }
 
-    func testRegexOptionAllEnumEntriesAreRegistered() throws {
+    @Test func testRegexOptionAllEnumEntriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let entries = [
             "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL",
@@ -135,305 +137,305 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         ]
         for entry in entries {
             let fq = ["kotlin", "text", "RegexOption", entry].map { interner.intern($0) }
-            XCTAssertNotNil(
-                sema.symbols.lookup(fqName: fq),
-                "RegexOption.\(entry) must be registered in symbol table"
+            #expect(
+                sema.symbols.lookup(fqName: fq) != nil,
+                Comment(rawValue: "RegexOption.\(entry) must be registered in symbol table")
             )
         }
     }
 
     // MARK: - 3. Regex member functions
 
-    func testRegexMatchesIsRegistered() throws {
+    @Test func testRegexMatchesIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "matches"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches_flat")
+        #expect(link == "kk_regex_matches", "Regex.matches must link to kk_regex_matches")
     }
 
-    func testRegexContainsMatchInIsRegistered() throws {
+    @Test func testRegexContainsMatchInIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "containsMatchIn"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_containsMatchIn_flat",
-                       "Regex.containsMatchIn must link to kk_regex_containsMatchIn_flat")
+        #expect(link == "kk_regex_containsMatchIn",
+                       "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
     }
 
-    func testRegexFindIsRegistered() throws {
+    @Test func testRegexFindIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "find"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_find_flat", "Regex.find must link to kk_regex_find_flat")
+        #expect(link == "kk_regex_find", "Regex.find must link to kk_regex_find")
     }
 
-    func testRegexFindAllIsRegistered() throws {
+    @Test func testRegexFindAllIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "findAll"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll_flat")
+        #expect(link == "kk_regex_findAll", "Regex.findAll must link to kk_regex_findAll")
     }
 
-    func testRegexMatchEntireIsRegistered() throws {
+    @Test func testRegexMatchEntireIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "matchEntire"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_matchEntire_flat",
-                       "Regex.matchEntire must link to kk_regex_matchEntire_flat")
+        #expect(link == "kk_regex_matchEntire",
+                       "Regex.matchEntire must link to kk_regex_matchEntire")
     }
 
-    func testRegexReplaceWithLambdaIsRegistered() throws {
+    @Test func testRegexReplaceWithLambdaIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "replace"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_replace_lambda",
+        #expect(link == "kk_regex_replace_lambda",
                        "Regex.replace(input, transform) must link to kk_regex_replace_lambda")
     }
 
     // MARK: - 4. Regex properties
 
-    func testRegexPatternPropertyIsRegistered() throws {
+    @Test func testRegexPatternPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "pattern"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_pattern", "Regex.pattern must link to kk_regex_pattern")
+        #expect(link == "kk_regex_pattern", "Regex.pattern must link to kk_regex_pattern")
     }
 
-    func testRegexOptionsPropertyIsRegistered() throws {
+    @Test func testRegexOptionsPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "options"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_options", "Regex.options must link to kk_regex_options")
+        #expect(link == "kk_regex_options", "Regex.options must link to kk_regex_options")
     }
 
-    func testRegexGroupNamesPropertyIsRegistered() throws {
+    @Test func testRegexGroupNamesPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "Regex", "groupNames"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_group_names",
+        #expect(link == "kk_regex_group_names",
                        "Regex.groupNames must link to kk_regex_group_names")
     }
 
     // MARK: - 5. Companion methods (fromLiteral)
 
-    func testRegexFromLiteralCompanionMethodIsRegistered() throws {
+    @Test func testRegexFromLiteralCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "Regex", "Companion", "fromLiteral"]
             .map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Regex.Companion.fromLiteral must be registered")
+        #expect(!(syms.isEmpty), "Regex.Companion.fromLiteral must be registered")
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
-            links.contains("kk_regex_from_literal_flat"),
-            "Regex.fromLiteral must link to kk_regex_from_literal_flat; found: \(links)"
+        #expect(
+            links.contains("kk_regex_from_literal"),
+            Comment(rawValue: "Regex.fromLiteral must link to kk_regex_from_literal; found: \(links)")
         )
     }
 
     // MARK: - 6. MatchResult properties and functions
 
-    func testMatchResultValueIsRegistered() throws {
+    @Test func testMatchResultValueIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // MatchResult.value has multiple registrations (on MatchResult and MatchGroup);
         // verify the MatchResult one exists.
         let fq = ["kotlin", "text", "MatchResult", "value"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_match_result_value"),
-            "MatchResult.value must link to kk_match_result_value; found: \(links)"
+            Comment(rawValue: "MatchResult.value must link to kk_match_result_value; found: \(links)")
         )
     }
 
-    func testMatchResultRangeIsRegistered() throws {
+    @Test func testMatchResultRangeIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchResult", "range"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_match_result_range"),
-            "MatchResult.range must link to kk_match_result_range; found: \(links)"
+            Comment(rawValue: "MatchResult.range must link to kk_match_result_range; found: \(links)")
         )
     }
 
-    func testMatchResultGroupsIsRegistered() throws {
+    @Test func testMatchResultGroupsIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchResult", "groups"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_result_groups",
+        #expect(link == "kk_match_result_groups",
                        "MatchResult.groups must link to kk_match_result_groups")
     }
 
-    func testMatchResultGroupValuesIsRegistered() throws {
+    @Test func testMatchResultGroupValuesIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchResult", "groupValues"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_result_groupValues",
+        #expect(link == "kk_match_result_groupValues",
                        "MatchResult.groupValues must link to kk_match_result_groupValues")
     }
 
-    func testMatchResultComponent1IsRegistered() throws {
+    @Test func testMatchResultComponent1IsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchResult", "component1"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_result_component1",
+        #expect(link == "kk_match_result_component1",
                        "MatchResult.component1() must link to kk_match_result_component1")
     }
 
-    func testMatchResultComponent2IsRegistered() throws {
+    @Test func testMatchResultComponent2IsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchResult", "component2"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_result_component2",
+        #expect(link == "kk_match_result_component2",
                        "MatchResult.component2() must link to kk_match_result_component2")
     }
 
-    func testMatchResultNextIsRegistered() throws {
+    @Test func testMatchResultNextIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchResult", "next"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_result_next",
+        #expect(link == "kk_match_result_next",
                        "MatchResult.next() must link to kk_match_result_next")
     }
 
     // MARK: - 7. MatchGroupCollection
 
-    func testMatchGroupCollectionGetByNameIsRegistered() throws {
+    @Test func testMatchGroupCollectionGetByNameIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_match_group_collection_get"),
-            "MatchGroupCollection.get(name) must link to kk_match_group_collection_get; found: \(links)"
+            Comment(rawValue: "MatchGroupCollection.get(name) must link to kk_match_group_collection_get; found: \(links)")
         )
     }
 
-    func testMatchGroupCollectionGetByIndexIsRegistered() throws {
+    @Test func testMatchGroupCollectionGetByIndexIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_match_group_collection_get_at"),
-            "MatchGroupCollection.get(index) must link to kk_match_group_collection_get_at; found: \(links)"
+            Comment(rawValue: "MatchGroupCollection.get(index) must link to kk_match_group_collection_get_at; found: \(links)")
         )
     }
 
-    func testMatchGroupCollectionHasBothGetOverloads() throws {
+    @Test func testMatchGroupCollectionHasBothGetOverloads() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "MatchGroupCollection", "get"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertGreaterThanOrEqual(
-            syms.count, 2,
+        #expect(
+            syms.count >= 2,
             "MatchGroupCollection.get must have at least 2 overloads (by-name and by-index)"
         )
     }
 
-    func testMatchGroupCollectionSizeIsRegistered() throws {
+    @Test func testMatchGroupCollectionSizeIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchGroupCollection", "size"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_group_collection_size",
+        #expect(link == "kk_match_group_collection_size",
                        "MatchGroupCollection.size must link to kk_match_group_collection_size")
     }
 
     // MARK: - 8. MatchGroup properties
 
-    func testMatchGroupValueIsRegistered() throws {
+    @Test func testMatchGroupValueIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchGroup", "value"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_group_value",
+        #expect(link == "kk_match_group_value",
                        "MatchGroup.value must link to kk_match_group_value")
     }
 
-    func testMatchGroupRangeIsRegistered() throws {
+    @Test func testMatchGroupRangeIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
             fqPath: ["kotlin", "text", "MatchGroup", "range"],
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_match_group_range",
+        #expect(link == "kk_match_group_range",
                        "MatchGroup.range must link to kk_match_group_range")
     }
 
     // MARK: - 9. String extension: replaceFirst / split with Regex
 
-    func testStringReplaceFirstWithRegexIsRegistered() throws {
+    @Test func testStringReplaceFirstWithRegexIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "replaceFirst"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_string_replaceFirst_regex"),
-            "kotlin.text.replaceFirst(Regex, String) must link to kk_string_replaceFirst_regex; found: \(links)"
+            Comment(rawValue: "kotlin.text.replaceFirst(Regex, String) must link to kk_string_replaceFirst_regex; found: \(links)")
         )
     }
 
-    func testStringSplitWithRegexIsRegistered() throws {
+    @Test func testStringSplitWithRegexIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // String.split(Regex) is registered in HeaderHelpers+SyntheticStringStubs
-        // as kotlin.text.split with externalLinkName kk_string_split_regex_flat.
+        // as kotlin.text.split with externalLinkName kk_string_split_regex.
         let fq = ["kotlin", "text", "split"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(
-            links.contains("kk_string_split_regex_flat"),
-            "kotlin.text.split(Regex) must link to kk_string_split_regex_flat; found: \(links)"
+        #expect(
+            links.contains("kk_string_split_regex"),
+            Comment(rawValue: "kotlin.text.split(Regex) must link to kk_string_split_regex; found: \(links)")
         )
     }
 
     // MARK: - 10. Call-site resolution: constructors resolve in Kotlin source
 
-    func testRegexSingleArgConstructorResolvesInCallExpr() throws {
+    @Test func testRegexSingleArgConstructorResolvesInCallExpr() throws {
         // Verify that Regex(pattern: String) compiles without sema errors.
         // Symbol-level verification is covered by testRegexSingleArgConstructorIsRegistered
         // and testAllThreeRegexConstructorOverloadsArePresent.
@@ -446,14 +448,14 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Regex(pattern) should compile without sema errors"
             )
         }
     }
 
-    func testRegexSingleOptionConstructorResolvesInCallExpr() throws {
+    @Test func testRegexSingleOptionConstructorResolvesInCallExpr() throws {
         let source = """
         fun test() {
             val r = Regex("hello", RegexOption.IGNORE_CASE)
@@ -464,8 +466,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let regexCallExprs = allExprIDs(in: ast) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
@@ -479,16 +481,15 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
                 guard case let .call(_, _, args, _) = ast.arena.expr(exprID) else { return false }
                 return args.count == 2
             }
-            let callExpr = try XCTUnwrap(twoArgCall, "Expected Regex(pattern, option) call")
-            let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_create_with_option_flat"
+            let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option"
             )
         }
     }
 
-    func testRegexMatchesMemberCallResolvesCorrectly() throws {
+    @Test func testRegexMatchesMemberCallResolvesCorrectly() throws {
         let source = """
         fun test() {
             val r = Regex("^\\\\d+$")
@@ -499,23 +500,22 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "matches"
             }, "Expected .matches(...) member call")
 
-            let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_matches_flat"
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches"
             )
         }
     }
 
-    func testRegexContainsMatchInMemberCallResolvesCorrectly() throws {
+    @Test func testRegexContainsMatchInMemberCallResolvesCorrectly() throws {
         let source = """
         fun test() {
             val r = Regex("[a-z]+")
@@ -526,23 +526,22 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "containsMatchIn"
             }, "Expected .containsMatchIn(...) member call")
 
-            let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_containsMatchIn_flat"
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn"
             )
         }
     }
 
-    func testRegexFindMemberCallResolvesCorrectly() throws {
+    @Test func testRegexFindMemberCallResolvesCorrectly() throws {
         let source = """
         fun test() {
             val r = Regex("\\\\d+")
@@ -554,23 +553,22 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "find"
             }, "Expected .find(...) member call")
 
-            let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_find_flat"
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find"
             )
         }
     }
 
-    func testRegexMatchEntireMemberCallResolvesCorrectly() throws {
+    @Test func testRegexMatchEntireMemberCallResolvesCorrectly() throws {
         let source = """
         fun test() {
             val r = Regex("[a-z]+")
@@ -582,23 +580,22 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "matchEntire"
             }, "Expected .matchEntire(...) member call")
 
-            let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_matchEntire_flat"
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire"
             )
         }
     }
 
-    func testRegexFromLiteralCallResolvesCorrectly() throws {
+    @Test func testRegexFromLiteralCallResolvesCorrectly() throws {
         let source = """
         fun test() {
             val r = Regex.fromLiteral("hello.world")
@@ -609,25 +606,24 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "fromLiteral"
             }, "Expected .fromLiteral(...) member call")
 
-            let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_from_literal_flat"
+            let binding = try #require(sema.bindings.callBinding(for: callExpr))
+            #expect(
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal"
             )
         }
     }
 
     // MARK: - 11. Named group access resolves at call site
 
-    func testNamedGroupAccessChainResolves() throws {
+    @Test func testNamedGroupAccessChainResolves() throws {
         let source = """
         fun test() {
             val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})")
@@ -640,8 +636,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             // No diagnostics expected for valid named-group access chain.
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Named group access chain should produce no sema errors"
             )
         }
@@ -649,7 +645,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 12. Option combination (setOf) compiles without sema errors
 
-    func testRegexOptionSetCombinationCompiles() throws {
+    @Test func testRegexOptionSetCombinationCompiles() throws {
         let source = """
         fun test() {
             val r = Regex(
@@ -662,8 +658,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Regex option set combination should compile without sema errors"
             )
         }
@@ -671,7 +667,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 13. Empty pattern compiles
 
-    func testEmptyPatternCompiles() throws {
+    @Test func testEmptyPatternCompiles() throws {
         let source = """
         fun test() {
             val r = Regex("")
@@ -681,8 +677,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Empty pattern Regex should compile without sema errors"
             )
         }
@@ -690,7 +686,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 14. Unicode pattern compiles
 
-    func testUnicodePatternCompiles() throws {
+    @Test func testUnicodePatternCompiles() throws {
         let source = """
         fun test() {
             val r = Regex("[\\u00C0-\\u024F]+")
@@ -700,8 +696,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Unicode pattern Regex should compile without sema errors"
             )
         }
@@ -709,7 +705,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 15. Symbol table completeness: all mandatory API symbols present
 
-    func testMandatoryAPISymbolsAreAllRegistered() throws {
+    @Test func testMandatoryAPISymbolsAreAllRegistered() throws {
         let (sema, interner) = try makeSema()
 
         // Each (fqPath, expectedLinkName) pair must be present.
@@ -758,9 +754,9 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
 
         for (fqPath, expectedLink) in mandatoryLinks {
             let links = allExternalLinks(fqPath: fqPath, sema: sema, interner: interner)
-            XCTAssertTrue(
+            #expect(
                 links.contains(expectedLink),
-                "Missing API: \(fqPath.joined(separator: ".")) -> \(expectedLink) (found: \(links))"
+                Comment(rawValue: "Missing API: \(fqPath.joined(separator: ".")) -> \(expectedLink) (found: \(links))")
             )
         }
     }
@@ -780,3 +776,4 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         }
     }
 }
+#endif

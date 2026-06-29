@@ -1,7 +1,8 @@
-import XCTest
+#if canImport(Testing)
+import Testing
 
-final class KotlinCompilationURITests: XCTestCase {
-    func testCompile_uriBasicOperations() throws {
+@Suite struct KotlinCompilationURITests {
+    @Test func testCompile_uriBasicOperations() throws {
         try assertKotlinCompilesToKIR("""
         import java.net.URI
 
@@ -20,3 +21,4 @@ final class KotlinCompilationURITests: XCTestCase {
         """)
     }
 }
+#endif

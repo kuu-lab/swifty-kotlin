@@ -1,12 +1,13 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-078: Validates that `CharSequence.take(n)` resolves through
 /// Sema for `String` receivers. The synthetic extension links to
 /// `kk_string_take_flat`, which trims the receiver to its first `n` scalars and
 /// throws `IllegalArgumentException` when `n` is negative.
-final class StringTakeFunctionTests: XCTestCase {
-    func testTakeFunctionResolvesInSource() throws {
+@Suite
+struct StringTakeFunctionTests {
+    @Test func testTakeFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun firstThree(s: String): String {
             return s.take(3)
@@ -26,7 +27,7 @@ final class StringTakeFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected take to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

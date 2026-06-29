@@ -1,21 +1,22 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCOpaqueSurfaceTests: XCTestCase {
+@Suite
+struct NativeCInteropCOpaqueSurfaceTests {
+    @Test
     func testCOpaqueClassSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected COpaque surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
         )
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) }),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let cOpaqueSymbol = try cinteropSymbol("COpaque")
@@ -30,20 +31,21 @@ final class NativeCInteropCOpaqueSurfaceTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.symbol(cOpaqueSymbol)?.kind, .class)
-        XCTAssertTrue(sema.symbols.symbol(cOpaqueSymbol)?.flags.contains(.abstractType) == true)
-        XCTAssertEqual(sema.symbols.propertyType(for: cOpaqueSymbol), cOpaqueType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: cOpaqueSymbol), [try cinteropSymbol("CPointed")])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: cOpaqueSymbol), [try cinteropSymbol("CPointed")])
+        #expect(sema.symbols.symbol(cOpaqueSymbol)?.kind == .class)
+        #expect(sema.symbols.symbol(cOpaqueSymbol)?.flags.contains(.abstractType) == true)
+        #expect(sema.symbols.propertyType(for: cOpaqueSymbol) == cOpaqueType)
+        #expect(sema.symbols.directSupertypes(for: cOpaqueSymbol) == [try cinteropSymbol("CPointed")])
+        #expect(sema.types.directNominalSupertypes(for: cOpaqueSymbol) == [try cinteropSymbol("CPointed")])
 
-        let fqName = try XCTUnwrap(sema.symbols.symbol(cOpaqueSymbol)?.fqName)
+        let fqName = try #require(sema.symbols.symbol(cOpaqueSymbol)?.fqName)
         let constructors = sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
+        let constructorSignature = try #require(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
             $0.parameterTypes == [nativePtrType] && $0.returnType == cOpaqueType
         })
-        XCTAssertEqual(constructorSignature.valueParameterHasDefaultValues, [false])
+        #expect(constructorSignature.valueParameterHasDefaultValues == [false])
     }
 
+    @Test
     func testCOpaqueResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.COpaque
@@ -54,9 +56,10 @@ final class NativeCInteropCOpaqueSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected COpaque to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 }
+#endif

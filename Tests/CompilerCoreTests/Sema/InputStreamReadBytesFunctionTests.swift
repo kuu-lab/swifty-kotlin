@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import RuntimeABI
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-029: Validates that `InputStream.readBytes()` resolves through
 /// Sema for the `java.io.InputStream` receiver and produces a `ByteArray`
@@ -12,13 +13,14 @@ import XCTest
 /// The receiver is NOT closed by `readBytes()` — callers are expected to wrap
 /// the call in `.use { it.readBytes() }`.  These tests pin down both the
 /// stand-alone call shape and the more idiomatic `.use` pattern.
-final class InputStreamReadBytesFunctionTests: XCTestCase {
+@Suite
+struct InputStreamReadBytesFunctionTests {
     // MARK: - Basic resolution
 
     /// `InputStream.readBytes()` should type-check when invoked on a plain
     /// `java.io.InputStream` receiver.  The returned value must be assignable
     /// to a `ByteArray` (which the runtime models as `List<Int>`).
-    func testInputStreamReadBytesResolves() throws {
+    @Test func testInputStreamReadBytesResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
 
@@ -29,7 +31,7 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected InputStream.readBytes() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -39,7 +41,7 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
     /// inheritance check should also let `readBytes()` resolve when the static
     /// receiver type is a buffered stream.  This exercises the inheritance
     /// path through the synthetic stub registry.
-    func testBufferedInputStreamReadBytesResolves() throws {
+    @Test func testBufferedInputStreamReadBytesResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.BufferedInputStream
         import java.io.File
@@ -51,7 +53,7 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected BufferedInputStream.readBytes() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -61,7 +63,7 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
     /// drains the stream and closes the resource.  Sema must resolve the
     /// `readBytes()` invocation inside a closure body when the receiver flows
     /// through the synthetic `Closeable.use` extension.
-    func testInputStreamReadBytesInsideUseBlock() throws {
+    @Test func testInputStreamReadBytesInsideUseBlock() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
 
@@ -73,7 +75,7 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected InputStream.use { it.readBytes() } to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -92,22 +94,22 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
     ///
     /// Pinning these here guards against accidental renames or signature
     /// drift that would silently break the lowering pipeline.
-    func testInputStreamReadBytesSignatureAndRuntimeLink() throws {
+    @Test func testInputStreamReadBytesSignatureAndRuntimeLink() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
 
         let interner = ctx.interner
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let symbols = sema.symbols
         let types = sema.types
 
-        let inputStreamSymbol = try XCTUnwrap(
+        let inputStreamSymbol = try #require(
             symbols.lookup(fqName: ["java", "io", "InputStream"].map(interner.intern))
         )
         let inputStreamType = types.make(
             .classType(ClassType(classSymbol: inputStreamSymbol, args: [], nullability: .nonNull))
         )
-        let listSymbol = try XCTUnwrap(
+        let listSymbol = try #require(
             symbols.lookup(fqName: ["kotlin", "collections", "List"].map(interner.intern))
         )
         let listOfIntType = types.make(.classType(ClassType(
@@ -119,24 +121,23 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
         let candidates = symbols.lookupAll(
             fqName: ["java", "io", "InputStream", "readBytes"].map(interner.intern)
         )
-        let readBytes = try XCTUnwrap(candidates.first { symbolID in
+        let readBytes = try #require(candidates.first { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == inputStreamType
                 && signature.parameterTypes.isEmpty
         })
 
-        XCTAssertEqual(
-            symbols.externalLinkName(for: readBytes),
-            "kk_input_stream_readAllBytes",
+        #expect(
+            symbols.externalLinkName(for: readBytes) == "kk_input_stream_readAllBytes",
             "InputStream.readBytes should bind to runtime helper kk_input_stream_readAllBytes"
         )
 
-        let signature = try XCTUnwrap(symbols.functionSignature(for: readBytes))
-        XCTAssertEqual(signature.returnType, listOfIntType,
+        let signature = try #require(symbols.functionSignature(for: readBytes))
+        #expect(signature.returnType == listOfIntType,
                        "InputStream.readBytes() must return ByteArray (List<Int>)")
-        XCTAssertEqual(signature.receiverType, inputStreamType)
-        XCTAssertTrue(signature.valueParameterIsVararg.allSatisfy { !$0 })
-        XCTAssertTrue(signature.valueParameterHasDefaultValues.allSatisfy { !$0 })
+        #expect(signature.receiverType == inputStreamType)
+        #expect(signature.valueParameterIsVararg.allSatisfy { !$0 })
+        #expect(signature.valueParameterHasDefaultValues.allSatisfy { !$0 })
     }
 
     // MARK: - Runtime ABI registration
@@ -144,18 +145,19 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
     /// The runtime helper `kk_input_stream_readAllBytes` must be declared in
     /// the FileIO ABI spec with the (streamRaw, outThrown) signature so the
     /// codegen pass can emit the correct extern declaration.
-    func testRuntimeABISpecRegistersReadAllBytes() throws {
+    @Test func testRuntimeABISpecRegistersReadAllBytes() throws {
         let spec = RuntimeABISpec.fileIOFunctions.first { $0.name == "kk_input_stream_readAllBytes" }
-        let unwrapped = try XCTUnwrap(
+        let unwrapped = try #require(
             spec,
             "kk_input_stream_readAllBytes must be registered in RuntimeABISpec+FileIO.swift"
         )
-        XCTAssertEqual(unwrapped.parameters.count, 2)
-        XCTAssertEqual(unwrapped.parameters[0].name, "streamRaw")
-        XCTAssertEqual(unwrapped.parameters[0].type, .intptr)
-        XCTAssertEqual(unwrapped.parameters[1].name, "outThrown")
-        XCTAssertEqual(unwrapped.parameters[1].type, .nullableIntptrPointer)
-        XCTAssertEqual(unwrapped.returnType, .intptr)
-        XCTAssertEqual(unwrapped.section, "FileIO")
+        #expect(unwrapped.parameters.count == 2)
+        #expect(unwrapped.parameters[0].name == "streamRaw")
+        #expect(unwrapped.parameters[0].type == .intptr)
+        #expect(unwrapped.parameters[1].name == "outThrown")
+        #expect(unwrapped.parameters[1].type == .nullableIntptrPointer)
+        #expect(unwrapped.returnType == .intptr)
+        #expect(unwrapped.section == "FileIO")
     }
 }
+#endif

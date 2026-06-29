@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-ANNO-001: kotlin.annotation API Surface Inventory
 //
@@ -24,7 +25,8 @@ import XCTest
 // Scope: symbol-table / sema-level only.  Diagnostic behaviour for these annotations
 //        is covered by AnnotationSemanticTests (codex #1205).
 
-final class KotlinAnnotationAPIInventoryTests: XCTestCase {
+@Suite
+struct KotlinAnnotationAPIInventoryTests {
 
     // MARK: - Shared sema fixture
 
@@ -33,10 +35,10 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     // MARK: - Lookup helpers
@@ -62,79 +64,79 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
 
     // MARK: - 1. Package hierarchy
 
-    func testKotlinAnnotationPackageIsPresent() throws {
+    @Test func testKotlinAnnotationPackageIsPresent() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "annotation"].map { interner.intern($0) }
-        XCTAssertNotNil(
-            sema.symbols.lookup(fqName: fq),
+        #expect(
+            sema.symbols.lookup(fqName: fq) != nil,
             "kotlin.annotation package must be registered in the symbol table"
         )
     }
 
     // MARK: - 2. Annotation classes
 
-    func testTargetAnnotationClassIsRegistered() throws {
+    @Test func testTargetAnnotationClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "Target"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.annotation.Target must be registered in symbol table")
+        #expect(sym != nil, "kotlin.annotation.Target must be registered in symbol table")
         if let sym {
-            XCTAssertEqual(
-                sema.symbols.symbol(sym)?.kind, .annotationClass,
+            #expect(
+                sema.symbols.symbol(sym)?.kind == .annotationClass,
                 "kotlin.annotation.Target must have kind .annotationClass"
             )
-            XCTAssertTrue(
+            #expect(
                 sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
                 "kotlin.annotation.Target must be marked synthetic"
             )
-            XCTAssertEqual(
-                sema.symbols.symbol(sym)?.visibility, .public,
+            #expect(
+                sema.symbols.symbol(sym)?.visibility == .public,
                 "kotlin.annotation.Target must be public"
             )
         }
     }
 
-    func testRetentionAnnotationClassIsRegistered() throws {
+    @Test func testRetentionAnnotationClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "Retention"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.annotation.Retention must be registered in symbol table")
+        #expect(sym != nil, "kotlin.annotation.Retention must be registered in symbol table")
         if let sym {
-            XCTAssertEqual(
-                sema.symbols.symbol(sym)?.kind, .annotationClass,
+            #expect(
+                sema.symbols.symbol(sym)?.kind == .annotationClass,
                 "kotlin.annotation.Retention must have kind .annotationClass"
             )
-            XCTAssertTrue(
+            #expect(
                 sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
                 "kotlin.annotation.Retention must be marked synthetic"
             )
         }
     }
 
-    func testRepeatableAnnotationClassIsRegistered() throws {
+    @Test func testRepeatableAnnotationClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "Repeatable"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.annotation.Repeatable must be registered in symbol table")
+        #expect(sym != nil, "kotlin.annotation.Repeatable must be registered in symbol table")
         if let sym {
-            XCTAssertEqual(
-                sema.symbols.symbol(sym)?.kind, .annotationClass,
+            #expect(
+                sema.symbols.symbol(sym)?.kind == .annotationClass,
                 "kotlin.annotation.Repeatable must have kind .annotationClass"
             )
-            XCTAssertTrue(
+            #expect(
                 sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
                 "kotlin.annotation.Repeatable must be marked synthetic"
             )
         }
     }
 
-    func testMustBeDocumentedAnnotationClassIsRegistered() throws {
+    @Test func testMustBeDocumentedAnnotationClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = symbol(fqPath: ["kotlin", "annotation", "MustBeDocumented"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.annotation.MustBeDocumented must be registered in symbol table")
+        #expect(sym != nil, "kotlin.annotation.MustBeDocumented must be registered in symbol table")
         if let sym {
-            XCTAssertEqual(
-                sema.symbols.symbol(sym)?.kind, .annotationClass,
+            #expect(
+                sema.symbols.symbol(sym)?.kind == .annotationClass,
                 "kotlin.annotation.MustBeDocumented must have kind .annotationClass"
             )
-            XCTAssertTrue(
+            #expect(
                 sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
                 "kotlin.annotation.MustBeDocumented must be marked synthetic"
             )
@@ -143,89 +145,93 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
 
     // MARK: - 3. @Target carries its own @Target(ANNOTATION_CLASS)
 
-    func testTargetAnnotationCarriesAnnotationClassTarget() throws {
+    @Test func testTargetAnnotationCarriesAnnotationClassTarget() throws {
         let (sema, interner) = try makeSema()
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "Target"], sema: sema, interner: interner),
             "kotlin.annotation.Target must be present"
         )
         let annotations = sema.symbols.annotations(for: sym)
-        XCTAssertTrue(
-            annotations.contains(where: {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-            }),
+        let hasTarget = annotations.contains(where: {
+            $0.annotationFQName == "kotlin.annotation.Target"
+                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+        })
+        #expect(
+            hasTarget,
             "kotlin.annotation.Target must carry @Target(AnnotationTarget.ANNOTATION_CLASS); found: \(annotations)"
         )
     }
 
-    func testRetentionAnnotationCarriesAnnotationClassTarget() throws {
+    @Test func testRetentionAnnotationCarriesAnnotationClassTarget() throws {
         let (sema, interner) = try makeSema()
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "Retention"], sema: sema, interner: interner),
             "kotlin.annotation.Retention must be present"
         )
         let annotations = sema.symbols.annotations(for: sym)
-        XCTAssertTrue(
-            annotations.contains(where: {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-            }),
+        let hasTarget = annotations.contains(where: {
+            $0.annotationFQName == "kotlin.annotation.Target"
+                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+        })
+        #expect(
+            hasTarget,
             "kotlin.annotation.Retention must carry @Target(AnnotationTarget.ANNOTATION_CLASS); found: \(annotations)"
         )
     }
 
-    func testRepeatableAnnotationCarriesAnnotationClassTarget() throws {
+    @Test func testRepeatableAnnotationCarriesAnnotationClassTarget() throws {
         let (sema, interner) = try makeSema()
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "Repeatable"], sema: sema, interner: interner),
             "kotlin.annotation.Repeatable must be present"
         )
         let annotations = sema.symbols.annotations(for: sym)
-        XCTAssertTrue(
-            annotations.contains(where: {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-            }),
+        let hasTarget = annotations.contains(where: {
+            $0.annotationFQName == "kotlin.annotation.Target"
+                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+        })
+        #expect(
+            hasTarget,
             "kotlin.annotation.Repeatable must carry @Target(AnnotationTarget.ANNOTATION_CLASS); found: \(annotations)"
         )
     }
 
-    func testMustBeDocumentedAnnotationCarriesAnnotationClassTarget() throws {
+    @Test func testMustBeDocumentedAnnotationCarriesAnnotationClassTarget() throws {
         let (sema, interner) = try makeSema()
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "MustBeDocumented"], sema: sema, interner: interner),
             "kotlin.annotation.MustBeDocumented must be present"
         )
         let annotations = sema.symbols.annotations(for: sym)
-        XCTAssertTrue(
-            annotations.contains(where: {
-                $0.annotationFQName == "kotlin.annotation.Target"
-                    && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
-            }),
+        let hasTarget = annotations.contains(where: {
+            $0.annotationFQName == "kotlin.annotation.Target"
+                && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+        })
+        #expect(
+            hasTarget,
             "kotlin.annotation.MustBeDocumented must carry @Target(AnnotationTarget.ANNOTATION_CLASS); found: \(annotations)"
         )
     }
 
     // MARK: - 4. AnnotationTarget enum class
 
-    func testAnnotationTargetEnumClassIsRegistered() throws {
+    @Test func testAnnotationTargetEnumClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = symbol(
             fqPath: ["kotlin", "annotation", "AnnotationTarget"],
             sema: sema,
             interner: interner
         )
-        XCTAssertNotNil(sym, "kotlin.annotation.AnnotationTarget enum class must be registered")
+        #expect(sym != nil, "kotlin.annotation.AnnotationTarget enum class must be registered")
         if let sym {
-            XCTAssertEqual(
-                sema.symbols.symbol(sym)?.kind, .enumClass,
+            #expect(
+                sema.symbols.symbol(sym)?.kind == .enumClass,
                 "AnnotationTarget must have kind .enumClass"
             )
         }
     }
 
-    func testAnnotationTargetAllEntriesAreRegistered() throws {
+    @Test func testAnnotationTargetAllEntriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let entries = [
             "CLASS",
@@ -250,14 +256,14 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
                 sema: sema,
                 interner: interner
             )
-            XCTAssertNotNil(
-                sym,
+            #expect(
+                sym != nil,
                 "AnnotationTarget.\(entry) must be registered in symbol table"
             )
         }
     }
 
-    func testAnnotationTargetEntryCountIsExact() throws {
+    @Test func testAnnotationTargetEntryCountIsExact() throws {
         let (sema, interner) = try makeSema()
         let expectedEntries: Set<String> = [
             "CLASS", "ANNOTATION_CLASS", "TYPE_PARAMETER", "PROPERTY", "FIELD",
@@ -269,82 +275,81 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            actualEntries,
-            expectedEntries,
+        #expect(
+            actualEntries == expectedEntries,
             "AnnotationTarget entries must match the Kotlin stdlib target list exactly"
         )
     }
 
-    func testAnnotationTargetEntriesHaveEnumType() throws {
+    @Test func testAnnotationTargetEntriesHaveEnumType() throws {
         let (sema, interner) = try makeSema()
-        let enumSym = try XCTUnwrap(
+        let enumSym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "AnnotationTarget"], sema: sema, interner: interner),
             "AnnotationTarget enum must be registered"
         )
         for entry in ["CLASS", "FUNCTION", "PROPERTY", "FILE", "TYPE"] {
-            let entrySym = try XCTUnwrap(
+            let entrySym = try #require(
                 symbol(fqPath: ["kotlin", "annotation", "AnnotationTarget", entry], sema: sema, interner: interner),
                 "AnnotationTarget.\(entry) must be registered"
             )
             guard let propType = sema.symbols.propertyType(for: entrySym) else {
-                XCTFail("AnnotationTarget.\(entry) must have a property type")
+                Issue.record("AnnotationTarget.\(entry) must have a property type")
                 continue
             }
             if case let .classType(ct) = sema.types.kind(of: propType) {
-                XCTAssertEqual(
-                    ct.classSymbol, enumSym,
+                #expect(
+                    ct.classSymbol == enumSym,
                     "AnnotationTarget.\(entry) type must reference the AnnotationTarget enum symbol"
                 )
             } else {
-                XCTFail("AnnotationTarget.\(entry) property type must be a classType, got: \(sema.types.kind(of: propType))")
+                Issue.record("AnnotationTarget.\(entry) property type must be a classType, got: \(sema.types.kind(of: propType))")
             }
         }
     }
 
     // MARK: - 5. AnnotationRetention enum class
 
-    func testAnnotationRetentionEnumClassIsRegistered() throws {
+    @Test func testAnnotationRetentionEnumClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = symbol(
             fqPath: ["kotlin", "annotation", "AnnotationRetention"],
             sema: sema,
             interner: interner
         )
-        XCTAssertNotNil(sym, "kotlin.annotation.AnnotationRetention enum class must be registered")
+        #expect(sym != nil, "kotlin.annotation.AnnotationRetention enum class must be registered")
         if let sym {
-            XCTAssertEqual(
-                sema.symbols.symbol(sym)?.kind, .enumClass,
+            #expect(
+                sema.symbols.symbol(sym)?.kind == .enumClass,
                 "AnnotationRetention must have kind .enumClass"
             )
         }
     }
 
-    func testAnnotationRetentionSourceEntryIsRegistered() throws {
+    @Test func testAnnotationRetentionSourceEntryIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertNotNil(
-            symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "SOURCE"], sema: sema, interner: interner),
+        #expect(
+            symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "SOURCE"], sema: sema, interner: interner) != nil,
             "AnnotationRetention.SOURCE must be registered"
         )
     }
 
-    func testAnnotationRetentionBinaryEntryIsRegistered() throws {
+    @Test func testAnnotationRetentionBinaryEntryIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertNotNil(
-            symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "BINARY"], sema: sema, interner: interner),
+        #expect(
+            symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "BINARY"], sema: sema, interner: interner) != nil,
             "AnnotationRetention.BINARY must be registered"
         )
     }
 
-    func testAnnotationRetentionRuntimeEntryIsRegistered() throws {
+    @Test func testAnnotationRetentionRuntimeEntryIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertNotNil(
-            symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "RUNTIME"], sema: sema, interner: interner),
+        #expect(
+            symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", "RUNTIME"], sema: sema, interner: interner) != nil,
             "AnnotationRetention.RUNTIME must be registered"
         )
     }
 
-    func testAnnotationRetentionAllEntriesPresent() throws {
+    @Test func testAnnotationRetentionAllEntriesPresent() throws {
         let (sema, interner) = try makeSema()
         let expectedEntries: Set<String> = ["SOURCE", "BINARY", "RUNTIME"]
         let actualEntries = childNames(
@@ -352,64 +357,63 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            actualEntries,
-            expectedEntries,
+        #expect(
+            actualEntries == expectedEntries,
             "AnnotationRetention entries must match the Kotlin stdlib retention list exactly"
         )
     }
 
-    func testAnnotationRetentionEntriesHaveEnumType() throws {
+    @Test func testAnnotationRetentionEntriesHaveEnumType() throws {
         let (sema, interner) = try makeSema()
-        let enumSym = try XCTUnwrap(
+        let enumSym = try #require(
             symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention"], sema: sema, interner: interner),
             "AnnotationRetention enum must be registered"
         )
         for entry in ["SOURCE", "BINARY", "RUNTIME"] {
-            let entrySym = try XCTUnwrap(
+            let entrySym = try #require(
                 symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention", entry], sema: sema, interner: interner),
                 "AnnotationRetention.\(entry) must be registered"
             )
             guard let propType = sema.symbols.propertyType(for: entrySym) else {
-                XCTFail("AnnotationRetention.\(entry) must have a property type")
+                Issue.record("AnnotationRetention.\(entry) must have a property type")
                 continue
             }
             if case let .classType(ct) = sema.types.kind(of: propType) {
-                XCTAssertEqual(
-                    ct.classSymbol, enumSym,
+                #expect(
+                    ct.classSymbol == enumSym,
                     "AnnotationRetention.\(entry) type must reference the AnnotationRetention enum symbol"
                 )
             } else {
-                XCTFail("AnnotationRetention.\(entry) property type must be a classType")
+                Issue.record("AnnotationRetention.\(entry) property type must be a classType")
             }
         }
     }
 
     // MARK: - 6. @Retention carries default value property wired to RUNTIME
 
-    func testRetentionHasValuePropertyWithRuntimeDefault() throws {
+    @Test func testRetentionHasValuePropertyWithRuntimeDefault() throws {
         let (sema, interner) = try makeSema()
         let valueSym = symbol(
             fqPath: ["kotlin", "annotation", "Retention", "value"],
             sema: sema,
             interner: interner
         )
-        XCTAssertNotNil(valueSym, "kotlin.annotation.Retention.value property must be registered")
+        #expect(valueSym != nil, "kotlin.annotation.Retention.value property must be registered")
         if let valueSym {
             let propType = sema.symbols.propertyType(for: valueSym)
-            XCTAssertNotNil(propType, "Retention.value must have a property type (AnnotationRetention)")
-            let enumSym = try XCTUnwrap(
+            #expect(propType != nil, "Retention.value must have a property type (AnnotationRetention)")
+            let enumSym = try #require(
                 symbol(fqPath: ["kotlin", "annotation", "AnnotationRetention"], sema: sema, interner: interner),
                 "AnnotationRetention enum must be registered for Retention.value typing"
             )
             if let propType {
                 if case let .classType(ct) = sema.types.kind(of: propType) {
-                    XCTAssertEqual(
-                        ct.classSymbol, enumSym,
+                    #expect(
+                        ct.classSymbol == enumSym,
                         "Retention.value must be typed with the AnnotationRetention enum symbol"
                     )
                 } else {
-                    XCTFail("Retention.value property type must be a classType for AnnotationRetention")
+                    Issue.record("Retention.value property type must be a classType for AnnotationRetention")
                 }
             }
 
@@ -418,13 +422,13 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
                 sema: sema,
                 interner: interner
             )
-            XCTAssertNotNil(runtimeSym, "AnnotationRetention.RUNTIME must be registered to check default")
+            #expect(runtimeSym != nil, "AnnotationRetention.RUNTIME must be registered to check default")
         }
     }
 
     // MARK: - 7. Complete mandatory inventory assertion
 
-    func testAllMandatoryAnnotationAPISymbolsPresent() throws {
+    @Test func testAllMandatoryAnnotationAPISymbolsPresent() throws {
         let (sema, interner) = try makeSema()
 
         let mandatorySymbols: [[String]] = [
@@ -465,7 +469,7 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
             }
         }
 
-        XCTAssertTrue(
+        #expect(
             gaps.isEmpty,
             "Missing kotlin.annotation API symbols: \(gaps.joined(separator: ", "))"
         )
@@ -473,7 +477,7 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
 
     // MARK: - 8. Call-site resolution: annotations resolve without sema errors
 
-    func testTargetAnnotationResolvesOnAnnotationClass() throws {
+    @Test func testTargetAnnotationResolvesOnAnnotationClass() throws {
         let source = """
         import kotlin.annotation.Target
         import kotlin.annotation.AnnotationTarget
@@ -484,14 +488,14 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "@Target(AnnotationTarget.CLASS) on annotation class must not produce sema errors"
             )
         }
     }
 
-    func testRetentionAnnotationResolvesOnAnnotationClass() throws {
+    @Test func testRetentionAnnotationResolvesOnAnnotationClass() throws {
         let source = """
         import kotlin.annotation.Retention
         import kotlin.annotation.AnnotationRetention
@@ -502,14 +506,14 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "@Retention(AnnotationRetention.RUNTIME) must compile without sema errors"
             )
         }
     }
 
-    func testRepeatableAnnotationResolvesOnAnnotationClass() throws {
+    @Test func testRepeatableAnnotationResolvesOnAnnotationClass() throws {
         let source = """
         import kotlin.annotation.Repeatable
 
@@ -519,14 +523,14 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "@Repeatable on annotation class must compile without sema errors"
             )
         }
     }
 
-    func testMustBeDocumentedAnnotationResolvesOnAnnotationClass() throws {
+    @Test func testMustBeDocumentedAnnotationResolvesOnAnnotationClass() throws {
         let source = """
         import kotlin.annotation.MustBeDocumented
 
@@ -536,14 +540,14 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "@MustBeDocumented on annotation class must compile without sema errors"
             )
         }
     }
 
-    func testAllAnnotationTargetEntriesResolveAsExpressions() throws {
+    @Test func testAllAnnotationTargetEntriesResolveAsExpressions() throws {
         let entries = [
             "CLASS", "ANNOTATION_CLASS", "TYPE_PARAMETER", "PROPERTY", "FIELD",
             "LOCAL_VARIABLE", "VALUE_PARAMETER", "CONSTRUCTOR", "FUNCTION",
@@ -562,14 +566,14 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "@Target with all AnnotationTarget entries must compile without sema errors"
             )
         }
     }
 
-    func testAllAnnotationRetentionEntriesResolveAsExpressions() throws {
+    @Test func testAllAnnotationRetentionEntriesResolveAsExpressions() throws {
         let (sema, interner) = try makeSema()
         for entry in ["SOURCE", "BINARY", "RUNTIME"] {
             let sym = symbol(
@@ -577,7 +581,8 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
                 sema: sema,
                 interner: interner
             )
-            XCTAssertNotNil(sym, "AnnotationRetention.\(entry) must resolve in symbol table")
+            #expect(sym != nil, "AnnotationRetention.\(entry) must resolve in symbol table")
         }
     }
 }
+#endif

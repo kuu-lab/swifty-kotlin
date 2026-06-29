@@ -72,12 +72,54 @@ final class LoadSourcesPhase: CompilerPhase {
         }
     }
 
+    private static let excludedBundledStdlibFiles: Set<String> = [
+        "kotlin/Result",
+        "kotlin/ResultExtensions",
+        "kotlin/collections/CollectionFactories",
+        "kotlin/collections/ListFilterHOF",
+        "kotlin/collections/ListWindowChunk",
+        "kotlin/logging/AdvancedLogger",
+        "kotlin/reflect/KClassAnnotationRegistration",
+        "kotlin/sequences/SequenceWindowChunk",
+        "kotlin/text/StringBuilder",
+        "kotlin/text/StringBasics",
+        "kotlin/text/StringEncoding",
+        "kotlin/text/StringIndentFormat",
+        "kotlin/text/StringSearchReplace",
+        "kotlin/text/StringSplitJoin",
+        "kotlin/uuid/Uuid",
+    ]
+
     private func injectBundledStdlib(into sourceManager: SourceManager) {
-        let sources: [(path: String, source: String)] = [
+        guard let resourcePath = Bundle.module.resourcePath else { return }
+        let stdlibDir = (resourcePath as NSString).appendingPathComponent("Stdlib")
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(atPath: stdlibDir) else { return }
+
+        var relativePaths: [String] = []
+        while let path = enumerator.nextObject() as? String {
+            if path.hasSuffix(".kt") {
+                relativePaths.append(String(path.dropLast(3)))
+            }
+        }
+        relativePaths.sort()
+
+        for relativePath in relativePaths {
+            guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
+            let bundledPath = "__bundled_\(relativePath).kt"
+            guard !sourceManager.containsFile(path: bundledPath) else { continue }
+            let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
+            guard let data = fm.contents(atPath: fullPath) else { continue }
+            _ = sourceManager.addFile(path: bundledPath, contents: data)
+        }
+
+        let residualSources: [(path: String, source: String)] = [
             ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
             ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
+            ("__bundled_kotlin_sequences_stdlib.kt", BundledKotlinStdlib.kotlinSequencesSource),
+            ("__bundled_kotlin_time_stdlib.kt", BundledKotlinStdlib.kotlinTimeSource),
         ]
-        for (path, source) in sources {
+        for (path, source) in residualSources {
             guard !sourceManager.containsFile(path: path) else { continue }
             _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
         }
@@ -360,7 +402,8 @@ final class BuildASTPhase: CompilerPhase {
             case .enumEntry:
                 let decl = Decl.enumEntryDecl(EnumEntryDecl(
                     range: node.range,
-                    name: declarationName(from: nodeID, in: cst, interner: interner)
+                    name: declarationName(from: nodeID, in: cst, interner: interner),
+                    annotations: declarationAnnotations(from: nodeID, in: cst, interner: interner)
                 ))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
 

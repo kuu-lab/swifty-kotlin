@@ -1,5 +1,5 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-093: Validates that `String.toCharArray()` resolves through Sema
 /// and links to the `kk_string_toCharArray_flat` runtime entry.
@@ -8,8 +8,9 @@ import XCTest
 /// `HeaderHelpers+SyntheticStringStubs.swift`, the call lowering routes to the
 /// runtime symbol in `CallLowerer+LegacyMemberLikeCalls.swift`, and the runtime
 /// implementation lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
-final class StringToCharArrayFunctionTests: XCTestCase {
-    func testToCharArrayResolvesInSource() throws {
+@Suite
+struct StringToCharArrayFunctionTests {
+    @Test func testToCharArrayResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun explode(s: String): CharArray {
             return s.toCharArray()
@@ -21,13 +22,13 @@ final class StringToCharArrayFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected toCharArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testToCharArrayChainedAsCharArrayReceiverResolves() throws {
+    @Test func testToCharArrayChainedAsCharArrayReceiverResolves() throws {
         // Validates that the returned CharArray supports CharArray-level members
         // — i.e. the inferred return type really is CharArray, not e.g. List<Char>.
         let ctx = makeContextFromSource("""
@@ -41,7 +42,7 @@ final class StringToCharArrayFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected toCharArray chained access to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -54,8 +55,9 @@ final class StringToCharArrayFunctionTests: XCTestCase {
 /// The synthetic extension function is registered in
 /// `HeaderHelpers+SyntheticStringStubs.swift` and the runtime implementation
 /// lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
-final class StringToTypedArrayFunctionTests: XCTestCase {
-    func testToTypedArrayResolvesInSource() throws {
+@Suite
+struct StringToTypedArrayFunctionTests {
+    @Test func testToTypedArrayResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun explode(s: String): Array<Char> {
             return s.toTypedArray()
@@ -67,7 +69,7 @@ final class StringToTypedArrayFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected toTypedArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

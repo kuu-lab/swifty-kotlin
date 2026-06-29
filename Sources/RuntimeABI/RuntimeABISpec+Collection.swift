@@ -251,6 +251,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_js_readonly_set_toMutableSet",
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_list_to_mutable_set",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -261,16 +270,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_set_to_mutable_set",
-            parameters: [
-                RuntimeABIParameter(name: "setRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        // STDLIB-JS-COLLECTIONS-FN-005: JsReadonlySet<E>.toMutableSet()
-        RuntimeABIFunctionSpec(
-            name: "kk_js_readonly_set_toMutableSet",
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
             ],

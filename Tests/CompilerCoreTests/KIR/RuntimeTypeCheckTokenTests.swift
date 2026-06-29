@@ -1,12 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class RuntimeTypeCheckTokenTests: XCTestCase {
+@Suite @MainActor
+struct RuntimeTypeCheckTokenTests {
 
     // MARK: - classify() Tests
 
-    func testClassifyBuiltinTypes() {
+    @Test func testClassifyBuiltinTypes() {
         let types = TypeSystem()
         let symbols = SymbolTable()
         let sema = SemaModule(
@@ -32,16 +34,15 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         for (kind, expectedCategory, expectedNullable) in cases {
             let typeID = types.make(kind)
             let descriptor = RuntimeTypeCheckToken.classify(type: typeID, sema: sema)
-            XCTAssertEqual(
-                descriptor.category.base,
-                expectedCategory.base,
+            #expect(
+                descriptor.category.base == expectedCategory.base,
                 "Expected \(expectedCategory) for \(kind), got base \(descriptor.category.base)"
             )
-            XCTAssertEqual(descriptor.nullable, expectedNullable, "Nullable mismatch for \(kind)")
+            #expect(descriptor.nullable == expectedNullable, "Nullable mismatch for \(kind)")
         }
     }
 
-    func testClassifyNothingType() {
+    @Test func testClassifyNothingType() {
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),
@@ -52,14 +53,14 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
 
         let nothingNonNull = types.make(.nothing(.nonNull))
         let descriptorNonNull = RuntimeTypeCheckToken.classify(type: nothingNonNull, sema: sema)
-        XCTAssertEqual(descriptorNonNull.category.base, RuntimeTypeCheckToken.unknownBase)
+        #expect(descriptorNonNull.category.base == RuntimeTypeCheckToken.unknownBase)
 
         let nothingNullable = types.make(.nothing(.nullable))
         let descriptorNullable = RuntimeTypeCheckToken.classify(type: nothingNullable, sema: sema)
-        XCTAssertEqual(descriptorNullable.category.base, RuntimeTypeCheckToken.nullBase)
+        #expect(descriptorNullable.category.base == RuntimeTypeCheckToken.nullBase)
     }
 
-    func testClassifyNominalType() {
+    @Test func testClassifyNominalType() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -81,16 +82,16 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         )
         let classType = types.make(.classType(ClassType(classSymbol: classSymbol, args: [], nullability: .nonNull)))
         let descriptor = RuntimeTypeCheckToken.classify(type: classType, sema: sema)
-        XCTAssertEqual(descriptor.category.base, RuntimeTypeCheckToken.nominalBase)
-        XCTAssertFalse(descriptor.nullable)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.nominalBase)
+        #expect(!(descriptor.nullable))
         if case let .nominal(symbolID) = descriptor.category {
-            XCTAssertEqual(symbolID, classSymbol)
+            #expect(symbolID == classSymbol)
         } else {
-            XCTFail("Expected .nominal category for class type")
+            Issue.record("Expected .nominal category for class type")
         }
     }
 
-    func testClassifyUnknownTypes() {
+    @Test func testClassifyUnknownTypes() {
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),
@@ -109,12 +110,12 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             nullability: .nonNull
         )))
         let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
-        XCTAssertEqual(descriptor.category.base, RuntimeTypeCheckToken.unknownBase)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.unknownBase)
     }
 
     // MARK: - encode() Consistency Tests
 
-    func testEncodeConsistencyWithClassify() {
+    @Test func testEncodeConsistencyWithClassify() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -145,15 +146,14 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
                 base: descriptor.category.base,
                 nullable: descriptor.nullable
             )
-            XCTAssertEqual(
-                encoded,
-                manuallyEncoded,
+            #expect(
+                encoded == manuallyEncoded,
                 "encode(type:) and classify()+encode(base:) should produce the same token for \(kind)"
             )
         }
     }
 
-    func testEncodeNothingUsesCanonicalLegacyTokens() {
+    @Test func testEncodeNothingUsesCanonicalLegacyTokens() {
         let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
@@ -164,19 +164,19 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         )
 
         let nothingNonNull = types.make(.nothing(.nonNull))
-        XCTAssertEqual(
-            RuntimeTypeCheckToken.encode(type: nothingNonNull, sema: sema, interner: interner),
+        #expect(
+            RuntimeTypeCheckToken.encode(type: nothingNonNull, sema: sema, interner: interner) ==
             RuntimeTypeCheckToken.unknownBase
         )
 
         let nothingNullable = types.make(.nothing(.nullable))
-        XCTAssertEqual(
-            RuntimeTypeCheckToken.encode(type: nothingNullable, sema: sema, interner: interner),
+        #expect(
+            RuntimeTypeCheckToken.encode(type: nothingNullable, sema: sema, interner: interner) ==
             RuntimeTypeCheckToken.nullBase
         )
     }
 
-    func testEncodeNominalConsistencyWithClassify() {
+    @Test func testEncodeNominalConsistencyWithClassify() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -201,7 +201,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         let encoded = RuntimeTypeCheckToken.encode(type: classType, sema: sema, interner: interner)
         let descriptor = RuntimeTypeCheckToken.classify(type: classType, sema: sema)
         guard case let .nominal(symbolID) = descriptor.category else {
-            XCTFail("Expected .nominal category")
+            Issue.record("Expected .nominal category")
             return
         }
         let nominalPayload = RuntimeTypeCheckToken.stableNominalTypeID(symbol: symbolID, sema: sema, interner: interner)
@@ -210,12 +210,12 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             nullable: descriptor.nullable,
             payload: nominalPayload
         )
-        XCTAssertEqual(encoded, manuallyEncoded)
+        #expect(encoded == manuallyEncoded)
     }
 
     // MARK: - simpleName() Consistency Tests
 
-    func testSimpleNameConsistencyWithCategory() {
+    @Test func testSimpleNameConsistencyWithCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
@@ -242,15 +242,15 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             let typeID = types.make(kind)
             let simpleName = RuntimeTypeCheckToken.simpleName(of: typeID, sema: sema, interner: interner)
             let descriptor = RuntimeTypeCheckToken.classify(type: typeID, sema: sema)
-            XCTAssertEqual(simpleName, expectedName, "simpleName mismatch for \(kind)")
+            #expect(simpleName == expectedName, "simpleName mismatch for \(kind)")
             if descriptor.category.simpleName != nil {
-                XCTAssertEqual(descriptor.category.simpleName, expectedName, "category.simpleName mismatch for \(kind)")
-                XCTAssertEqual(simpleName, descriptor.category.simpleName, "simpleName and category.simpleName should be equal for \(kind)")
+                #expect(descriptor.category.simpleName == expectedName, "category.simpleName mismatch for \(kind)")
+                #expect(simpleName == descriptor.category.simpleName, "simpleName and category.simpleName should be equal for \(kind)")
             }
         }
     }
 
-    func testSimpleNameForPrimitivesNotInCategory() {
+    @Test func testSimpleNameForPrimitivesNotInCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
@@ -272,13 +272,13 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         for (kind, expectedName) in extraPrimitives {
             let typeID = types.make(kind)
             let simpleName = RuntimeTypeCheckToken.simpleName(of: typeID, sema: sema, interner: interner)
-            XCTAssertEqual(simpleName, expectedName)
+            #expect(simpleName == expectedName)
         }
     }
 
     // MARK: - Catch/Is Token Consistency Tests
 
-    func testCatchTokenMatchesIsToken() throws {
+    @Test func testCatchTokenMatchesIsToken() throws {
         let source = """
         class MyException : Exception()
         fun demo() {
@@ -293,15 +293,15 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
 
-            let tryExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let tryExprID = try #require(firstExprID(in: ast) { _, expr in
                 if case .tryExpr = expr { return true }
                 return false
             })
             guard case let .tryExpr(_, catchClauses, _, _)? = ast.arena.expr(tryExprID) else {
-                XCTFail("Expected try expression.")
+                Issue.record("Expected try expression.")
                 return
             }
 
@@ -317,9 +317,8 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
                         sema: sema,
                         interner: ctx.interner
                     )
-                    XCTAssertEqual(
-                        catchToken,
-                        isToken,
+                    #expect(
+                        catchToken == isToken,
                         "Catch and is paths should produce the same token for the same type."
                     )
                 }
@@ -329,7 +328,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
 
     // MARK: - Type Alias Resolution Test
 
-    func testTypeAliasResolvesToCorrectToken() {
+    @Test func testTypeAliasResolvesToCorrectToken() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -350,21 +349,20 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             base: RuntimeTypeCheckToken.intBase,
             nullable: false
         )
-        XCTAssertEqual(
-            aliasToken,
-            directToken,
+        #expect(
+            aliasToken == directToken,
             "A resolved type alias to Int should produce the same token as Int directly."
         )
 
         // Verify it does NOT produce a nominal token
         let descriptor = RuntimeTypeCheckToken.classify(type: intType, sema: sema)
         if case .nominal = descriptor.category {
-            XCTFail("Resolved type alias to Int should not classify as nominal.")
+            Issue.record("Resolved type alias to Int should not classify as nominal.")
         }
-        XCTAssertEqual(descriptor.category.base, RuntimeTypeCheckToken.intBase)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.intBase)
     }
 
-    func testDistinctNominalTypesProduceDifferentTokens() {
+    @Test func testDistinctNominalTypesProduceDifferentTokens() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -400,6 +398,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
 
         let tokenA = RuntimeTypeCheckToken.encode(type: classAType, sema: sema, interner: interner)
         let tokenB = RuntimeTypeCheckToken.encode(type: classBType, sema: sema, interner: interner)
-        XCTAssertNotEqual(tokenA, tokenB, "Different nominal types should produce different tokens.")
+        #expect(tokenA != tokenB, "Different nominal types should produce different tokens.")
     }
 }
+#endif

@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension OverloadResolverTests {
-    func testUnifiedInference_StarProjectionProducesNoConstraint() {
+    @Test func testUnifiedInference_StarProjectionProducesNoConstraint() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "star_T", symbols: symbols, interner: interner)
@@ -34,13 +35,13 @@ extension OverloadResolverTests {
         // Star projection means no constraint is generated for that type arg pair.
         // The simple type constraint Box<Int> <: Box<*> still fails because they are
         // structurally different, so candidate is rejected.
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertNotNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic != nil)
     }
 
     // MARK: - Coverage: incompatible variance (.out vs .in) triggers invariant fallback
 
-    func testUnifiedInference_IncompatibleVarianceFallsBackToInvariant() {
+    @Test func testUnifiedInference_IncompatibleVarianceFallsBackToInvariant() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "ivar_T", symbols: symbols, interner: interner)
@@ -69,15 +70,15 @@ extension OverloadResolverTests {
             args: [CallArg(type: pairOfOutInt)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
         // Invariant fallback means T = Int (both directions)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // MARK: - Coverage: nullability mismatch in class type falls through to simple constraint
 
-    func testUnifiedInference_NullabilityMismatchClassTypeFallsThrough() {
+    @Test func testUnifiedInference_NullabilityMismatchClassTypeFallsThrough() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "null_T", symbols: symbols, interner: interner)
@@ -107,14 +108,14 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
         // Nullability differs but supertype is nullable, so decomposition proceeds.
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // MARK: - Coverage: function type param count mismatch falls through
 
-    func testUnifiedInference_FunctionTypeParamCountMismatchFallsThrough() {
+    @Test func testUnifiedInference_FunctionTypeParamCountMismatchFallsThrough() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "fpm_T", symbols: symbols, interner: interner)
@@ -144,13 +145,13 @@ extension OverloadResolverTests {
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
         // Param count mismatch means function decomposition is skipped.
         // Falls through to simple type constraint which may fail.
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertNotNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic != nil)
     }
 
     // MARK: - Coverage: Case 4 backward inference with class type var on subtype side
 
-    func testUnifiedInference_SubtypeSideClassDecomposition() {
+    @Test func testUnifiedInference_SubtypeSideClassDecomposition() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "sub4_T", symbols: symbols, interner: interner)
@@ -179,14 +180,14 @@ extension OverloadResolverTests {
         )
         // Expected type is Wrap<Int> – triggers Case 4 (subtype side class decomposition)
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: wrapOfInt, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // MARK: - Coverage: isSuspend mismatch in function type falls through
 
-    func testUnifiedInference_SuspendMismatchFunctionTypeFallsThrough() {
+    @Test func testUnifiedInference_SuspendMismatchFunctionTypeFallsThrough() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "susp_T", symbols: symbols, interner: interner)
@@ -216,13 +217,13 @@ extension OverloadResolverTests {
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
         // isSuspend mismatch means function decomposition is skipped; falls through
         // to simple type constraint which fails.
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertNotNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic != nil)
     }
 
     // MARK: - Coverage: class type arg count mismatch falls through
 
-    func testUnifiedInference_ClassArgCountMismatchFallsThrough() {
+    @Test func testUnifiedInference_ClassArgCountMismatchFallsThrough() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "acm_T", symbols: symbols, interner: interner)
@@ -253,13 +254,13 @@ extension OverloadResolverTests {
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
         // Arg count mismatch → decomposition falls through to simple type constraint
         // which fails because Box<Int,Int> is not subtype of Box<T>.
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertNotNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic != nil)
     }
 
     // MARK: - Coverage: different class symbols falls through
 
-    func testUnifiedInference_DifferentClassSymbolFallsThrough() {
+    @Test func testUnifiedInference_DifferentClassSymbolFallsThrough() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "dcs_T", symbols: symbols, interner: interner)
@@ -291,13 +292,13 @@ extension OverloadResolverTests {
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
         // Different class symbols → decomposition falls through to simple constraint
         // which fails because Set<Int> is not subtype of List<T>.
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertNotNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic != nil)
     }
 
     // MARK: - Coverage: non-generic type on supertype side (no decomposition)
 
-    func testUnifiedInference_NonGenericSupertypeSkipsDecomposition() {
+    @Test func testUnifiedInference_NonGenericSupertypeSkipsDecomposition() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let stringType = types.stringType
@@ -324,6 +325,7 @@ extension OverloadResolverTests {
         )
         // Expected type is String to exercise the default simple constraint path
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: stringType, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
+        #expect(resolved.chosenCallee == fn)
     }
 }
+#endif

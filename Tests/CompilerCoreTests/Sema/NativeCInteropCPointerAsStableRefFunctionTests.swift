@@ -1,23 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCPointerAsStableRefFunctionTests: XCTestCase {
-    func testCPointerAsStableRefFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropCPointerAsStableRefFunctionTests {
+    @Test func testCPointerAsStableRefFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer.asStableRef<T>() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer.asStableRef<T>() surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -31,7 +28,7 @@ final class NativeCInteropCPointerAsStableRefFunctionTests: XCTestCase {
             nullability: .nonNull
         )))
         let asStableRefFQName = cinteropPkg + [interner.intern("asStableRef")]
-        let asStableRef = try XCTUnwrap(sema.symbols.lookupAll(fqName: asStableRefFQName).first { symbolID in
+        let asStableRef = try #require(sema.symbols.lookupAll(fqName: asStableRefFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
@@ -39,8 +36,8 @@ final class NativeCInteropCPointerAsStableRefFunctionTests: XCTestCase {
                 && signature.parameterTypes.isEmpty
                 && signature.typeParameterSymbols.count == 1
         })
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: asStableRef))
-        let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let signature = try #require(sema.symbols.functionSignature(for: asStableRef))
+        let typeParameter = try #require(signature.typeParameterSymbols.first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -50,20 +47,20 @@ final class NativeCInteropCPointerAsStableRefFunctionTests: XCTestCase {
             args: [.out(typeParameterType)],
             nullability: .nonNull
         )))
-        let flags = try XCTUnwrap(sema.symbols.symbol(asStableRef)?.flags)
-        let typeParameterFlags = try XCTUnwrap(sema.symbols.symbol(typeParameter)?.flags)
+        let flags = try #require(sema.symbols.symbol(asStableRef)?.flags)
+        let typeParameterFlags = try #require(sema.symbols.symbol(typeParameter)?.flags)
 
-        XCTAssertTrue(flags.isSuperset(of: [.synthetic, .inlineFunction]))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: asStableRef), sema.symbols.lookup(fqName: cinteropPkg))
-        XCTAssertEqual(signature.returnType, expectedReturnType)
-        XCTAssertEqual(signature.reifiedTypeParameterIndices, [0])
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[sema.types.anyType]])
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [sema.types.anyType])
-        XCTAssertTrue(typeParameterFlags.isSuperset(of: [.synthetic, .reifiedTypeParameter]))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: typeParameter), asStableRef)
+        #expect(flags.isSuperset(of: [.synthetic, .inlineFunction]))
+        #expect(sema.symbols.parentSymbol(for: asStableRef) == sema.symbols.lookup(fqName: cinteropPkg))
+        #expect(signature.returnType == expectedReturnType)
+        #expect(signature.reifiedTypeParameterIndices == [0])
+        #expect(signature.typeParameterUpperBoundsList == [[sema.types.anyType]])
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [sema.types.anyType])
+        #expect(typeParameterFlags.isSuperset(of: [.synthetic, .reifiedTypeParameter]))
+        #expect(sema.symbols.parentSymbol(for: typeParameter) == asStableRef)
     }
 
-    func testCPointerAsStableRefFunctionResolvesInSource() throws {
+    @Test func testCPointerAsStableRefFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointer
         import kotlinx.cinterop.StableRef
@@ -75,9 +72,7 @@ final class NativeCInteropCPointerAsStableRefFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer.asStableRef<String>() to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer.asStableRef<String>() to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

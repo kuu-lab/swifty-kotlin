@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-FN-022: BufferedReader.iterator()
 //
@@ -8,11 +9,12 @@ import XCTest
 // that user code calling `reader.iterator()` (or iterating with `for-in`) compiles
 // against our synthetic `java.io.BufferedReader` declarations.
 
-final class BufferedReaderIteratorFunctionTests: XCTestCase {
+@Suite
+struct BufferedReaderIteratorFunctionTests {
 
     // MARK: - Direct iterator() call resolves and types as Iterator<String>
 
-    func testBufferedReaderIteratorCallResolves() throws {
+    @Test func testBufferedReaderIteratorCallResolves() throws {
         let source = """
         import java.io.File
 
@@ -29,8 +31,8 @@ final class BufferedReaderIteratorFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "BufferedReader.iterator() should resolve to Iterator<String>: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -38,7 +40,7 @@ final class BufferedReaderIteratorFunctionTests: XCTestCase {
 
     // MARK: - Iterator chained with hasNext/next is well-typed
 
-    func testBufferedReaderIteratorElementsAreStrings() throws {
+    @Test func testBufferedReaderIteratorElementsAreStrings() throws {
         let source = """
         import java.io.File
 
@@ -57,8 +59,8 @@ final class BufferedReaderIteratorFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "iter.next() on BufferedReader iterator should type as String: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -66,7 +68,7 @@ final class BufferedReaderIteratorFunctionTests: XCTestCase {
 
     // MARK: - Used within Closeable.use { } block
 
-    func testBufferedReaderIteratorWorksInsideUseBlock() throws {
+    @Test func testBufferedReaderIteratorWorksInsideUseBlock() throws {
         let source = """
         import java.io.File
 
@@ -82,10 +84,11 @@ final class BufferedReaderIteratorFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "BufferedReader.iterator() should resolve inside Closeable.use { } block: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 }
+#endif

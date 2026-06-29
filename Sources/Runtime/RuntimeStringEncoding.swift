@@ -10,6 +10,17 @@ public func kk_string_toByteArray(_ strRaw: Int) -> Int {
     return runtimeMakeListRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
+@_cdecl("kk_string_toByteArray_flat")
+public func kk_string_toByteArray_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeMakeListRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+}
+
 // STDLIB-581: Charset tag constants (mirrors Charsets.* singleton properties)
 private enum CharsetTag: Int {
     case utf8 = 0
@@ -132,11 +143,110 @@ public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> I
     return runtimeMakeListRaw(bytes)
 }
 
+@_cdecl("kk_string_toByteArray_charset_flat")
+public func kk_string_toByteArray_charset_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charsetTag: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let tag = CharsetTag(rawValue: charsetTag) else {
+        return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+    }
+    let bytes: [Int]
+    switch tag {
+    case .utf8:
+        bytes = source.utf8.map(Int.init)
+    case .iso8859_1:
+        bytes = source.utf16.map { unit in
+            unit <= 0xFF ? Int(unit) : Int(UInt8(ascii: "?"))
+        }
+    case .usASCII:
+        bytes = source.utf16.map { unit in
+            unit <= 0x7F ? Int(unit) : Int(UInt8(ascii: "?"))
+        }
+    case .utf16:
+        var result: [Int] = [0xFE, 0xFF]
+        for unit in source.utf16 {
+            result.append(Int(unit >> 8))
+            result.append(Int(unit & 0xFF))
+        }
+        bytes = result
+    case .utf16be:
+        var result: [Int] = []
+        for unit in source.utf16 {
+            result.append(Int(unit >> 8))
+            result.append(Int(unit & 0xFF))
+        }
+        bytes = result
+    case .utf16le:
+        var result: [Int] = []
+        for unit in source.utf16 {
+            result.append(Int(unit & 0xFF))
+            result.append(Int(unit >> 8))
+        }
+        bytes = result
+    case .utf32:
+        var result: [Int] = [0x00, 0x00, 0xFE, 0xFF]
+        for scalar in source.unicodeScalars {
+            let v = scalar.value
+            result.append(Int((v >> 24) & 0xFF))
+            result.append(Int((v >> 16) & 0xFF))
+            result.append(Int((v >> 8) & 0xFF))
+            result.append(Int(v & 0xFF))
+        }
+        bytes = result
+    case .utf32be:
+        var result: [Int] = []
+        for scalar in source.unicodeScalars {
+            let v = scalar.value
+            result.append(Int((v >> 24) & 0xFF))
+            result.append(Int((v >> 16) & 0xFF))
+            result.append(Int((v >> 8) & 0xFF))
+            result.append(Int(v & 0xFF))
+        }
+        bytes = result
+    case .utf32le:
+        var result: [Int] = []
+        for scalar in source.unicodeScalars {
+            let v = scalar.value
+            result.append(Int(v & 0xFF))
+            result.append(Int((v >> 8) & 0xFF))
+            result.append(Int((v >> 16) & 0xFF))
+            result.append(Int((v >> 24) & 0xFF))
+        }
+        bytes = result
+    }
+    return runtimeMakeListRaw(bytes)
+}
+
+func runtimeStringToByteArrayWithCharsetRaw(_ source: String, charsetTag: Int) -> Int {
+    let raw = Int(bitPattern: source.withCString { cstr in
+        cstr.withMemoryRebound(to: UInt8.self, capacity: source.utf8.count) { pointer in
+            kk_string_from_utf8(pointer, Int32(source.utf8.count))
+        }
+    })
+    return kk_string_toByteArray_charset(raw, charsetTag)
+}
+
 // STDLIB-573: String.encodeToByteArray()
 // Sema types this as ByteArray — must return ArrayBox so kk_array_size/get work.
 @_cdecl("kk_string_encodeToByteArray")
 public func kk_string_encodeToByteArray(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+}
+
+@_cdecl("kk_string_encodeToByteArray_flat")
+public func kk_string_encodeToByteArray_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
@@ -149,6 +259,20 @@ public func kk_string_encodeToByteArray_range(_ strRaw: Int, _ startIndex: Int, 
     return runtimeMakeArrayRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
+@_cdecl("kk_string_encodeToByteArray_range_flat")
+public func kk_string_encodeToByteArray_range_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ startIndex: Int,
+    _ endIndex: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let slice = runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
+    return runtimeMakeArrayRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
+}
+
 // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload.
 // Sema types this as ByteArray — must return ArrayBox.
 // kk_string_toByteArray_charset returns ListBox (Sema: List<Int>), so we
@@ -156,6 +280,21 @@ public func kk_string_encodeToByteArray_range(_ strRaw: Int, _ startIndex: Int, 
 @_cdecl("kk_string_encodeToByteArray_charset")
 public func kk_string_encodeToByteArray_charset(_ strRaw: Int, _ charsetID: Int) -> Int {
     let listHandle = kk_string_toByteArray_charset(strRaw, charsetID)
+    let elements = runtimeListBox(from: listHandle)?.elements ?? []
+    return runtimeMakeArrayRaw(elements)
+}
+
+@_cdecl("kk_string_encodeToByteArray_charset_flat")
+public func kk_string_encodeToByteArray_charset_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charsetID: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let raw = runtimeMakeStringRaw(source)
+    let listHandle = kk_string_toByteArray_charset(raw, charsetID)
     let elements = runtimeListBox(from: listHandle)?.elements ?? []
     return runtimeMakeArrayRaw(elements)
 }

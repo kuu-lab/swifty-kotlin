@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension ConstraintSolverTests {
-    func testSolveHandlesUnregisteredVariablesInConstraints() {
+    @Test func testSolveHandlesUnregisteredVariablesInConstraints() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let t0 = TypeVarID(rawValue: 0)
@@ -26,11 +27,11 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
         // t1 is not in vars so resolve returns nil → failure
-        XCTAssertFalse(solution.isSuccess)
-        XCTAssertNotNil(solution.failure)
+        #expect(!(solution.isSuccess))
+        #expect(solution.failure != nil)
     }
 
-    func testSolvePostSubstitutionEqualConstraintViolationMessage() {
+    @Test func testSolvePostSubstitutionEqualConstraintViolationMessage() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -44,13 +45,13 @@ extension ConstraintSolverTests {
             VariableConstraint(kind: .equal, left: .variable(t0), right: .type(boolType), blameRange: blame),
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
-        XCTAssertFalse(solution.isSuccess)
-        XCTAssertNotNil(solution.failure)
+        #expect(!(solution.isSuccess))
+        #expect(solution.failure != nil)
     }
 
     // MARK: - Empty constraints with multiple variables
 
-    func testSolveEmptyConstraintsWithManyVariablesAllGetErrorType() {
+    @Test func testSolveEmptyConstraintsWithManyVariablesAllGetErrorType() {
         let (solver, types) = makeDeps()
         let vars = (0 ..< 5).map { TypeVarID(rawValue: Int32(200 + $0)) }
 
@@ -60,14 +61,14 @@ extension ConstraintSolverTests {
             typeSystem: types
         )
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertNil(solution.failure)
+        #expect(solution.isSuccess)
+        #expect(solution.failure == nil)
         for v in vars {
-            XCTAssertEqual(solution.substitution[v], types.errorType)
+            #expect(solution.substitution[v] == types.errorType)
         }
     }
 
-    func testSolveEmptyConstraintsWithSingleVariableGetsErrorType() {
+    @Test func testSolveEmptyConstraintsWithSingleVariableGetsErrorType() {
         let (solver, types) = makeDeps()
         let t0 = TypeVarID(rawValue: 210)
 
@@ -77,11 +78,11 @@ extension ConstraintSolverTests {
             typeSystem: types
         )
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], types.errorType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == types.errorType)
     }
 
-    func testSolveEmptyConstraintsEmptyVarsSucceeds() {
+    @Test func testSolveEmptyConstraintsEmptyVarsSucceeds() {
         let (solver, types) = makeDeps()
 
         let solution = solver.solve(
@@ -90,13 +91,13 @@ extension ConstraintSolverTests {
             typeSystem: types
         )
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertTrue(solution.substitution.isEmpty)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution.isEmpty)
     }
 
     // MARK: - Circular variable constraints
 
-    func testSolveCircularTwoVariablesWithSharedBound() {
+    @Test func testSolveCircularTwoVariablesWithSharedBound() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let t0 = TypeVarID(rawValue: 220)
@@ -110,12 +111,12 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
-        XCTAssertEqual(solution.substitution[t1], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
+        #expect(solution.substitution[t1] == intType)
     }
 
-    func testSolveCircularThreeVariablesWithSharedBound() {
+    @Test func testSolveCircularThreeVariablesWithSharedBound() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -133,13 +134,13 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1, t2], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
-        XCTAssertEqual(solution.substitution[t1], intType)
-        XCTAssertEqual(solution.substitution[t2], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
+        #expect(solution.substitution[t1] == intType)
+        #expect(solution.substitution[t2] == intType)
     }
 
-    func testSolveCircularVariablesNoBoundsAllGetErrorType() {
+    @Test func testSolveCircularVariablesNoBoundsAllGetErrorType() {
         let (solver, types) = makeDeps()
         let t0 = TypeVarID(rawValue: 240)
         let t1 = TypeVarID(rawValue: 241)
@@ -151,14 +152,14 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], types.errorType)
-        XCTAssertEqual(solution.substitution[t1], types.errorType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == types.errorType)
+        #expect(solution.substitution[t1] == types.errorType)
     }
 
     // MARK: - Mixed constraint types (subtype, equal, supertype)
 
-    func testSolveMixedConstraintKindsOnSingleVariable() {
+    @Test func testSolveMixedConstraintKindsOnSingleVariable() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -174,11 +175,11 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
     }
 
-    func testSolveMixedConstraintKindsAcrossMultipleVariables() {
+    @Test func testSolveMixedConstraintKindsAcrossMultipleVariables() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let stringType = types.stringType
@@ -201,13 +202,13 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1, t2], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
-        XCTAssertEqual(solution.substitution[t1], stringType)
-        XCTAssertEqual(solution.substitution[t2], stringType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
+        #expect(solution.substitution[t1] == stringType)
+        #expect(solution.substitution[t2] == stringType)
     }
 
-    func testSolveMixedConstraintKindsWithTypeTypeConflictFails() {
+    @Test func testSolveMixedConstraintKindsWithTypeTypeConflictFails() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -220,11 +221,11 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], types.errorType)
+        #expect(!(solution.isSuccess))
+        #expect(solution.substitution[t0] == types.errorType)
     }
 
-    func testSolveSupertypeTypeTypeConstraintSatisfied() {
+    @Test func testSolveSupertypeTypeTypeConstraintSatisfied() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -237,13 +238,13 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
     }
 
     // MARK: - Multiple failure scenario combinations
 
-    func testSolveMultipleConflictingBoundsReportsFirstFailure() throws {
+    @Test func testSolveMultipleConflictingBoundsReportsFirstFailure() throws {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -264,10 +265,11 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertEqual(failure.code, "KSWIFTK-TYPE-0001")
-        XCTAssertTrue(failure.message.contains("Conflicting bounds"))
-        XCTAssertEqual(failure.primaryRange, blame0)
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.code == "KSWIFTK-TYPE-0001")
+        #expect(failure.message.contains("Conflicting bounds"))
+        #expect(failure.primaryRange == blame0)
     }
 }
+#endif

@@ -1,7 +1,9 @@
-import XCTest
+#if canImport(Testing)
+import Foundation
+import Testing
 
-final class KotlinCompilationLocaleTests: XCTestCase {
-    func testCompile_localeBasicUsage() throws {
+@Suite struct KotlinCompilationLocaleTests {
+    @Test func testCompile_localeBasicUsage() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -29,3 +31,4 @@ final class KotlinCompilationLocaleTests: XCTestCase {
         """)
     }
 }
+#endif

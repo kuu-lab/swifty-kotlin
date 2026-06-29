@@ -1,3 +1,4 @@
+import Foundation
 
 public struct KIRDeclID: Hashable, Sendable {
     public let rawValue: Int32
@@ -195,6 +196,9 @@ public final class KIRArena {
     public private(set) var lambdaCaptureArgsBySymbol: [SymbolID: [KIRExprID]] = [:]
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
 
+    private let parallelLock = NSLock()
+    var isParallelTransformActive = false
+
     public init() {}
 
     public func appendDecl(_ decl: KIRDecl) -> KIRDeclID {
@@ -204,6 +208,14 @@ public final class KIRArena {
     }
 
     public func appendExpr(_ expr: KIRExprKind, type: TypeID? = nil) -> KIRExprID {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            let id = KIRExprID(rawValue: Int32(expressions.count))
+            expressions.append(expr)
+            if let type { exprTypes[id] = type }
+            return id
+        }
         let id = KIRExprID(rawValue: Int32(expressions.count))
         expressions.append(expr)
         if let type {
@@ -230,6 +242,13 @@ public final class KIRArena {
     }
 
     public func expr(_ id: KIRExprID) -> KIRExprKind? {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            let index = Int(id.rawValue)
+            guard index >= 0, index < expressions.count else { return nil }
+            return expressions[index]
+        }
         let index = Int(id.rawValue)
         guard index >= 0, index < expressions.count else {
             return nil
@@ -238,6 +257,13 @@ public final class KIRArena {
     }
 
     public func setExprType(_ type: TypeID, for id: KIRExprID) {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            guard Int(id.rawValue) >= 0, Int(id.rawValue) < expressions.count else { return }
+            exprTypes[id] = type
+            return
+        }
         guard expr(id) != nil else {
             return
         }
@@ -245,7 +271,12 @@ public final class KIRArena {
     }
 
     public func exprType(_ id: KIRExprID) -> TypeID? {
-        exprTypes[id]
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            return exprTypes[id]
+        }
+        return exprTypes[id]
     }
 
     public func registerLambdaCaptureArgs(_ lambdaSymbol: SymbolID, captureArgs: [KIRExprID]) {
@@ -257,6 +288,10 @@ public final class KIRArena {
     }
 
     public func transformFunctions(_ transform: (KIRFunction) -> KIRFunction) {
+        if isParallelTransformActive {
+            transformFunctionsParallel(transform)
+            return
+        }
         for index in declarations.indices {
             guard case let .function(function) = declarations[index] else {
                 continue
@@ -264,6 +299,64 @@ public final class KIRArena {
             declarations[index] = .function(transform(function))
         }
     }
+
+    private func transformFunctionsParallel(_ transform: (KIRFunction) -> KIRFunction) {
+        let functionIndices: [(Int, KIRFunction)] = declarations.enumerated().compactMap { index, decl in
+            guard case let .function(function) = decl else { return nil }
+            return (index, function)
+        }
+        let count = functionIndices.count
+        guard count > 4 else {
+            for (index, function) in functionIndices {
+                declarations[index] = .function(transform(function))
+            }
+            return
+        }
+
+        withoutActuallyEscaping(transform) { escapingTransform in
+            let work = ParallelTransformWork(
+                functions: functionIndices,
+                transform: escapingTransform
+            )
+            DispatchQueue.concurrentPerform(iterations: count) { i in
+                let result = work.transform(work.functions[i].1)
+                work.lock.lock()
+                work.results[i] = result
+                work.lock.unlock()
+            }
+            for i in 0..<count {
+                if let result = work.results[i] {
+                    declarations[functionIndices[i].0] = .function(result)
+                }
+            }
+        }
+    }
+}
+
+private final class ParallelTransformWork: @unchecked Sendable {
+    let functions: [(Int, KIRFunction)]
+    let transform: (KIRFunction) -> KIRFunction
+    let lock = NSLock()
+    var results: [Int: KIRFunction] = [:]
+
+    init(functions: [(Int, KIRFunction)], transform: @escaping (KIRFunction) -> KIRFunction) {
+        self.functions = functions
+        self.transform = transform
+    }
+}
+
+public struct KIRModuleFeatures: OptionSet, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+
+    public static let hasBeginEndBlock         = KIRModuleFeatures(rawValue: 1 << 0)
+    public static let hasBinaryOp              = KIRModuleFeatures(rawValue: 1 << 1)
+    public static let hasUnaryOp               = KIRModuleFeatures(rawValue: 1 << 2)
+    public static let hasNullAssert            = KIRModuleFeatures(rawValue: 1 << 3)
+    public static let hasTailrecFunction       = KIRModuleFeatures(rawValue: 1 << 4)
+    public static let hasInlineFunction        = KIRModuleFeatures(rawValue: 1 << 5)
+    public static let hasSuspendFunction       = KIRModuleFeatures(rawValue: 1 << 6)
+    public static let hasNonTerminatedFunction = KIRModuleFeatures(rawValue: 1 << 7)
 }
 
 public final class KIRModule {
@@ -276,10 +369,58 @@ public final class KIRModule {
     /// instead of relying solely on string-prefix conventions.
     public private(set) var nonThrowingClosureCallees: Set<InternedString> = []
 
+    public private(set) var features: KIRModuleFeatures = []
+    public private(set) var usedCallees: Set<InternedString> = []
+    private var featuresScanned = false
+
+    public func ensureFeaturesScanned() {
+        if !featuresScanned { scanFeatures() }
+    }
+
     public init(files: [KIRFile], arena: KIRArena, executedLowerings: [String] = []) {
         self.files = files
         self.arena = arena
         self.executedLowerings = executedLowerings
+    }
+
+    public func scanFeatures() {
+        var feats: KIRModuleFeatures = []
+        var callees: Set<InternedString> = []
+        for decl in arena.declarations {
+            guard case let .function(function) = decl else { continue }
+            if function.isTailrec { feats.insert(.hasTailrecFunction) }
+            if function.isInline { feats.insert(.hasInlineFunction) }
+            if function.isSuspend { feats.insert(.hasSuspendFunction) }
+            if let last = function.body.last {
+                switch last {
+                case .returnUnit, .returnValue: break
+                default: feats.insert(.hasNonTerminatedFunction)
+                }
+            } else if !function.body.isEmpty || function.params.isEmpty {
+                feats.insert(.hasNonTerminatedFunction)
+            }
+            for instruction in function.body {
+                switch instruction {
+                case .beginBlock, .endBlock:
+                    feats.insert(.hasBeginEndBlock)
+                case .binary:
+                    feats.insert(.hasBinaryOp)
+                case .unary:
+                    feats.insert(.hasUnaryOp)
+                case .nullAssert:
+                    feats.insert(.hasNullAssert)
+                case let .call(_, callee, _, _, _, _, _, _):
+                    callees.insert(callee)
+                case let .virtualCall(_, callee, _, _, _, _, _, _):
+                    callees.insert(callee)
+                default:
+                    break
+                }
+            }
+        }
+        features = feats
+        usedCallees = callees
+        featuresScanned = true
     }
 
     public func registerNonThrowingClosureCallee(_ name: InternedString) {

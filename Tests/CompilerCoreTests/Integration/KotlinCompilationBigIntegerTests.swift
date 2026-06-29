@@ -1,7 +1,8 @@
-import XCTest
+#if canImport(Testing)
+import Testing
 
-final class KotlinCompilationBigIntegerTests: XCTestCase {
-    func testCompile_bigIntegerAndExtension() throws {
+@Suite struct KotlinCompilationBigIntegerTests {
+    @Test func testCompile_bigIntegerAndExtension() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -17,7 +18,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
 
     // MARK: - STDLIB-GAP-PH1: bitwise and shift extension functions
 
-    func testCompile_bigIntegerOrExtension() throws {
+    @Test func testCompile_bigIntegerOrExtension() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -31,7 +32,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 
-    func testCompile_bigIntegerXorExtension() throws {
+    @Test func testCompile_bigIntegerXorExtension() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -44,7 +45,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 
-    func testCompile_bigIntegerInvExtension() throws {
+    @Test func testCompile_bigIntegerInvExtension() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -56,7 +57,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 
-    func testCompile_bigIntegerShlExtension() throws {
+    @Test func testCompile_bigIntegerShlExtension() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -69,7 +70,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 
-    func testCompile_bigIntegerShrExtension() throws {
+    @Test func testCompile_bigIntegerShrExtension() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -81,7 +82,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 
-    func testCompile_bigIntegerToByteArray() throws {
+    @Test func testCompile_bigIntegerToByteArray() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -93,7 +94,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 
-    func testCompile_bigIntegerModInverse() throws {
+    @Test func testCompile_bigIntegerModInverse() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -106,7 +107,7 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 
-    func testCompile_bigIntegerModPow() throws {
+    @Test func testCompile_bigIntegerModPow() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -120,3 +121,4 @@ final class KotlinCompilationBigIntegerTests: XCTestCase {
         """)
     }
 }
+#endif

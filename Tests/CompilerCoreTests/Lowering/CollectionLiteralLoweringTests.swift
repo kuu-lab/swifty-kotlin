@@ -1,8 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import Testing
 import XCTest
 
-final class CollectionLiteralLoweringTests: XCTestCase {
+@Suite
+struct CollectionLiteralLoweringTests {
     // MARK: - Helper
 
     private func makeKIRContext(interner: StringInterner) -> KIRContext {
@@ -116,6 +119,7 @@ final class CollectionLiteralLoweringTests: XCTestCase {
 
     // MARK: - listOf rewriting
 
+    @Test
     func testListOfRewrittenToKkListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -126,10 +130,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("listOf"), "listOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_list_of"), "listOf should become kk_list_of")
+        #expect(!callees.contains("listOf"), "listOf should be rewritten")
+        #expect(callees.contains("kk_list_of"), "listOf should become kk_list_of")
     }
 
+    @Test
     func testMutableListOfRewrittenToKkListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -140,10 +145,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mutableListOf"), "mutableListOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_list_of"), "mutableListOf should become kk_list_of")
+        #expect(!callees.contains("mutableListOf"), "mutableListOf should be rewritten")
+        #expect(callees.contains("kk_list_of"), "mutableListOf should become kk_list_of")
     }
 
+    @Test
     func testArrayListOfRewrittenToKkListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -154,10 +160,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("arrayListOf"), "arrayListOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_list_of"), "arrayListOf should become kk_list_of")
+        #expect(!callees.contains("arrayListOf"), "arrayListOf should be rewritten")
+        #expect(callees.contains("kk_list_of"), "arrayListOf should become kk_list_of")
     }
 
+    @Test
     func testEmptyListRewrittenToKkListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -168,10 +175,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("emptyList"), "emptyList should be rewritten")
-        XCTAssertTrue(callees.contains("kk_emptyList"), "emptyList should become kk_emptyList")
+        #expect(!callees.contains("emptyList"), "emptyList should be rewritten")
+        #expect(callees.contains("kk_emptyList"), "emptyList should become kk_emptyList")
     }
 
+    @Test
     func testListOfNotNullRewrittenToKkListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -182,12 +190,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("listOfNotNull"), "listOfNotNull should be rewritten")
-        XCTAssertTrue(callees.contains("kk_list_of_not_null"), "listOfNotNull should become kk_list_of_not_null")
+        #expect(!callees.contains("listOfNotNull"), "listOfNotNull should be rewritten")
+        #expect(callees.contains("kk_list_of_not_null"), "listOfNotNull should become kk_list_of_not_null")
     }
 
     // MARK: - mapOf rewriting
 
+    @Test
     func testMapOfRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -215,10 +224,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mapOf"), "mapOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
     }
 
+    @Test
     func testLinkedMapOfRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -243,10 +253,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "linkedMapOf should become kk_map_of")
+        #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
+        #expect(callees.contains("kk_map_of"), "linkedMapOf should become kk_map_of")
     }
 
+    @Test
     func testHashMapOfRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -271,10 +282,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("hashMapOf"), "hashMapOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "hashMapOf should become kk_map_of")
+        #expect(!callees.contains("hashMapOf"), "hashMapOf should be rewritten")
+        #expect(callees.contains("kk_map_of"), "hashMapOf should become kk_map_of")
     }
 
+    @Test
     func testEmptyMapRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -285,10 +297,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("emptyMap"), "emptyMap should be rewritten")
-        XCTAssertTrue(callees.contains("kk_emptyMap"), "emptyMap should become kk_emptyMap")
+        #expect(!callees.contains("emptyMap"), "emptyMap should be rewritten")
+        #expect(callees.contains("kk_emptyMap"), "emptyMap should become kk_emptyMap")
     }
 
+    @Test
     func testMapCountRewriteToKkMapCount() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -334,12 +347,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mapOf"), "mapOf should be rewritten")
-        XCTAssertFalse(callees.contains("count"), "map.count should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        XCTAssertTrue(callees.contains("kk_map_count"), "count on map should become kk_map_count")
+        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(!callees.contains("count"), "map.count should be rewritten")
+        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("kk_map_count"), "count on map should become kk_map_count")
     }
 
+    @Test
     func testMapAnyRewriteToKkMapAny() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -384,12 +398,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mapOf"), "mapOf should be rewritten")
-        XCTAssertFalse(callees.contains("any"), "map.any should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        XCTAssertTrue(callees.contains("kk_map_any"), "any on map should become kk_map_any")
+        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(!callees.contains("any"), "map.any should be rewritten")
+        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("kk_map_any"), "any on map should become kk_map_any")
     }
 
+    @Test
     func testMapAllRewriteToKkMapAll() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -434,12 +449,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mapOf"), "mapOf should be rewritten")
-        XCTAssertFalse(callees.contains("all"), "map.all should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        XCTAssertTrue(callees.contains("kk_map_all"), "all on map should become kk_map_all")
+        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(!callees.contains("all"), "map.all should be rewritten")
+        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("kk_map_all"), "all on map should become kk_map_all")
     }
 
+    @Test
     func testMapNoneRewriteToKkMapNone() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -484,14 +500,15 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mapOf"), "mapOf should be rewritten")
-        XCTAssertFalse(callees.contains("none"), "map.none should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
-        XCTAssertTrue(callees.contains("kk_map_none"), "none on map should become kk_map_none")
+        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(!callees.contains("none"), "map.none should be rewritten")
+        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("kk_map_none"), "none on map should become kk_map_none")
     }
 
     // MARK: - emptySet rewriting
 
+    @Test
     func testEmptySetRewrittenToKkSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -502,12 +519,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("emptySet"), "emptySet should be rewritten")
-        XCTAssertTrue(callees.contains("kk_emptySet"), "emptySet should become kk_emptySet")
+        #expect(!callees.contains("emptySet"), "emptySet should be rewritten")
+        #expect(callees.contains("kk_emptySet"), "emptySet should become kk_emptySet")
     }
 
     // MARK: - Zero-arg factory rewriting
 
+    @Test
     func testZeroArgListOfRewrittenToKkEmptyList() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -518,10 +536,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("listOf"), "listOf() with zero args should be rewritten")
-        XCTAssertTrue(callees.contains("kk_emptyList"), "listOf() should become kk_emptyList")
+        #expect(!callees.contains("listOf"), "listOf() with zero args should be rewritten")
+        #expect(callees.contains("kk_emptyList"), "listOf() should become kk_emptyList")
     }
 
+    @Test
     func testZeroArgSetOfRewrittenToKkEmptySet() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -532,10 +551,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("setOf"), "setOf() with zero args should be rewritten")
-        XCTAssertTrue(callees.contains("kk_emptySet"), "setOf() should become kk_emptySet")
+        #expect(!callees.contains("setOf"), "setOf() with zero args should be rewritten")
+        #expect(callees.contains("kk_emptySet"), "setOf() should become kk_emptySet")
     }
 
+    @Test
     func testZeroArgMapOfRewrittenToKkEmptyMap() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -546,12 +566,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mapOf"), "mapOf() with zero args should be rewritten")
-        XCTAssertTrue(callees.contains("kk_emptyMap"), "mapOf() should become kk_emptyMap")
+        #expect(!callees.contains("mapOf"), "mapOf() with zero args should be rewritten")
+        #expect(callees.contains("kk_emptyMap"), "mapOf() should become kk_emptyMap")
     }
 
     // MARK: - Zero-arg mutable factory rewriting
 
+    @Test
     func testZeroArgMutableListOfRewrittenToKkListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -562,10 +583,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_list_of"), "mutableListOf() should become kk_list_of (fresh mutable)")
+        #expect(!callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
+        #expect(callees.contains("kk_list_of"), "mutableListOf() should become kk_list_of (fresh mutable)")
     }
 
+    @Test
     func testZeroArgArrayListOfRewrittenToKkListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -576,10 +598,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("arrayListOf"), "arrayListOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_list_of"), "arrayListOf() should become kk_list_of (fresh mutable)")
+        #expect(!callees.contains("arrayListOf"), "arrayListOf() should be rewritten")
+        #expect(callees.contains("kk_list_of"), "arrayListOf() should become kk_list_of (fresh mutable)")
     }
 
+    @Test
     func testZeroArgMutableSetOfRewrittenToKkSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -590,10 +613,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mutableSetOf"), "mutableSetOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_set_of"), "mutableSetOf() should become kk_set_of (fresh mutable)")
+        #expect(!callees.contains("mutableSetOf"), "mutableSetOf() should be rewritten")
+        #expect(callees.contains("kk_set_of"), "mutableSetOf() should become kk_set_of (fresh mutable)")
     }
 
+    @Test
     func testZeroArgLinkedSetOfRewrittenToKkSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -604,10 +628,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("linkedSetOf"), "linkedSetOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_set_of"), "linkedSetOf() should become kk_set_of (fresh mutable)")
+        #expect(!callees.contains("linkedSetOf"), "linkedSetOf() should be rewritten")
+        #expect(callees.contains("kk_set_of"), "linkedSetOf() should become kk_set_of (fresh mutable)")
     }
 
+    @Test
     func testZeroArgHashSetOfRewrittenToKkSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -618,10 +643,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("hashSetOf"), "hashSetOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_set_of"), "hashSetOf() should become kk_set_of (fresh mutable)")
+        #expect(!callees.contains("hashSetOf"), "hashSetOf() should be rewritten")
+        #expect(callees.contains("kk_set_of"), "hashSetOf() should become kk_set_of (fresh mutable)")
     }
 
+    @Test
     func testZeroArgMutableMapOfRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -632,10 +658,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "mutableMapOf() should become kk_map_of (fresh mutable)")
+        #expect(!callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
+        #expect(callees.contains("kk_map_of"), "mutableMapOf() should become kk_map_of (fresh mutable)")
     }
 
+    @Test
     func testZeroArgLinkedMapOfRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -646,10 +673,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "linkedMapOf() should become kk_map_of (fresh mutable)")
+        #expect(!callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
+        #expect(callees.contains("kk_map_of"), "linkedMapOf() should become kk_map_of (fresh mutable)")
     }
 
+    @Test
     func testZeroArgHashMapOfRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -660,12 +688,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("hashMapOf"), "hashMapOf() should be rewritten")
-        XCTAssertTrue(callees.contains("kk_map_of"), "hashMapOf() should become kk_map_of (fresh mutable)")
+        #expect(!callees.contains("hashMapOf"), "hashMapOf() should be rewritten")
+        #expect(callees.contains("kk_map_of"), "hashMapOf() should become kk_map_of (fresh mutable)")
     }
 
     // MARK: - setOf rewriting
 
+    @Test
     func testSetOfRewrittenToKkSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -691,11 +720,12 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("setOf"), "setOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_set_of"),
+        #expect(!callees.contains("setOf"), "setOf should be rewritten")
+        #expect(callees.contains("kk_set_of"),
                       "setOf should be rewritten to kk_set_of, got: \(callees)")
     }
 
+    @Test
     func testSetOfNotNullRewrittenToKkSetOfNotNull() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -706,13 +736,14 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("setOfNotNull"), "setOfNotNull should be rewritten")
-        XCTAssertTrue(
+        #expect(!callees.contains("setOfNotNull"), "setOfNotNull should be rewritten")
+        #expect(
             callees.contains("kk_set_of_not_null"),
             "setOfNotNull should be rewritten to kk_set_of_not_null, got: \(callees)"
         )
     }
 
+    @Test
     func testLinkedSetOfRewrittenToKkSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -723,10 +754,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("linkedSetOf"), "linkedSetOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_set_of"), "linkedSetOf should become kk_set_of")
+        #expect(!callees.contains("linkedSetOf"), "linkedSetOf should be rewritten")
+        #expect(callees.contains("kk_set_of"), "linkedSetOf should become kk_set_of")
     }
 
+    @Test
     func testHashSetOfRewrittenToKkSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -737,12 +769,13 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("hashSetOf"), "hashSetOf should be rewritten")
-        XCTAssertTrue(callees.contains("kk_set_of"), "hashSetOf should become kk_set_of")
+        #expect(!callees.contains("hashSetOf"), "hashSetOf should be rewritten")
+        #expect(callees.contains("kk_set_of"), "hashSetOf should become kk_set_of")
     }
 
     // MARK: - buildList rewriting (STDLIB-070)
 
+    @Test
     func testBuildListRewrittenToKkBuildList() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -753,10 +786,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("buildList"), "buildList should be rewritten")
-        XCTAssertTrue(callees.contains("kk_build_list"), "buildList should become kk_build_list")
+        #expect(!callees.contains("buildList"), "buildList should be rewritten")
+        #expect(callees.contains("kk_build_list"), "buildList should become kk_build_list")
     }
 
+    @Test
     func testBuildListCapacityRewrittenToKkBuildListWithCapacity() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -789,13 +823,14 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("buildList"), "buildList(capacity) should be rewritten")
-        XCTAssertTrue(
+        #expect(!callees.contains("buildList"), "buildList(capacity) should be rewritten")
+        #expect(
             callees.contains("kk_build_list_with_capacity"),
             "buildList(capacity) should become kk_build_list_with_capacity"
         )
     }
 
+    @Test
     func testBuildStringBuilderRewrittenToKkBuildStringBuilder() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -806,13 +841,14 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("buildStringBuilder"), "buildStringBuilder should be rewritten")
-        XCTAssertTrue(
+        #expect(!callees.contains("buildStringBuilder"), "buildStringBuilder should be rewritten")
+        #expect(
             callees.contains("kk_build_string_builder"),
             "buildStringBuilder should become kk_build_string_builder"
         )
     }
 
+    @Test
     func testBuildStringBuilderCapacityRewrittenToKkBuildStringBuilderWithCapacity() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -845,8 +881,8 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should be rewritten")
-        XCTAssertTrue(
+        #expect(!callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should be rewritten")
+        #expect(
             callees.contains("kk_build_string_builder_with_capacity"),
             "buildStringBuilder(capacity) should become kk_build_string_builder_with_capacity"
         )
@@ -854,6 +890,7 @@ final class CollectionLiteralLoweringTests: XCTestCase {
 
     // MARK: - buildMap rewriting (STDLIB-071)
 
+    @Test
     func testBuildMapRewrittenToKkBuildMap() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -864,10 +901,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertFalse(callees.contains("buildMap"), "buildMap should be rewritten")
-        XCTAssertTrue(callees.contains("kk_build_map"), "buildMap should become kk_build_map")
+        #expect(!callees.contains("buildMap"), "buildMap should be rewritten")
+        #expect(callees.contains("kk_build_map"), "buildMap should become kk_build_map")
     }
 
+    @Test
     func testStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -911,11 +949,12 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertTrue(callees.contains("kk_string_split_flat"))
-        XCTAssertTrue(callees.contains("kk_list_to_string"),
+        #expect(callees.contains("kk_string_split"))
+        #expect(callees.contains("kk_list_to_string"),
                       "split result should be recognized as list and routed through kk_list_to_string")
     }
 
+    @Test
     func testListMinusCollectionResultIsTreatedAsListForPrintlnRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -966,13 +1005,14 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertTrue(callees.contains("kk_list_minus_collection"))
-        XCTAssertTrue(
+        #expect(callees.contains("kk_list_minus_collection"))
+        #expect(
             callees.contains("kk_list_to_string"),
             "list minus collection result should be recognized as list and routed through kk_list_to_string"
         )
     }
 
+    @Test
     func testRangeReversedRewrittenToKkRangeReversed() throws {
         let source = """
         fun main() {
@@ -986,15 +1026,16 @@ final class CollectionLiteralLoweringTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            XCTAssertFalse(callees.contains("reversed"), "range.reversed should be rewritten")
-            XCTAssertTrue(callees.contains("kk_range_reversed"), "range.reversed should become kk_range_reversed")
+            #expect(!callees.contains("reversed"), "range.reversed should be rewritten")
+            #expect(callees.contains("kk_range_reversed"), "range.reversed should become kk_range_reversed")
         }
     }
 
+    @Test
     func testRangeEndExclusiveRewrittenToKkRangeEndExclusive() throws {
         let source = """
         fun main() {
@@ -1008,15 +1049,16 @@ final class CollectionLiteralLoweringTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            XCTAssertFalse(callees.contains("endExclusive"), "range.endExclusive should be rewritten")
-            XCTAssertTrue(callees.contains("kk_range_endExclusive"), "range.endExclusive should become kk_range_endExclusive")
+            #expect(!callees.contains("endExclusive"), "range.endExclusive should be rewritten")
+            #expect(callees.contains("kk_range_endExclusive"), "range.endExclusive should become kk_range_endExclusive")
         }
     }
 
+    @Test
     func testRangeAsReversedIsNotRewrittenToKkRangeReversed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1058,10 +1100,11 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertTrue(callees.contains("asReversed"), "range.asReversed should remain unresolved for non-list receivers")
-        XCTAssertFalse(callees.contains("kk_range_reversed"), "range.asReversed must not become kk_range_reversed")
+        #expect(callees.contains("asReversed"), "range.asReversed should remain unresolved for non-list receivers")
+        #expect(!callees.contains("kk_range_reversed"), "range.asReversed must not become kk_range_reversed")
     }
 
+    @Test
     func testShouldRunAlwaysReturnsTrue() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1069,7 +1112,7 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         let ctx = makeKIRContext(interner: interner)
 
         let shouldRun = CollectionLiteralLoweringPass().shouldRun(module: module, ctx: ctx)
-        XCTAssertTrue(shouldRun)
+        #expect(shouldRun)
     }
 
     // MARK: - LOWERING-001: Static type based collection classification
@@ -1172,33 +1215,37 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         return calleesInDecl(declID, module: module, interner: interner)
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_size"),
             "virtualCall(size) on List-typed parameter should be rewritten to kk_list_size, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "size")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_set_size"),
             "virtualCall(size) on Set-typed parameter should be rewritten to kk_set_size, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnMapTypedParameterRewritesToKkMapSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "size")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_map_size"),
             "virtualCall(size) on Map-typed parameter should be rewritten to kk_map_size, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnMutableListTypedParameterRewritesToKkListIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "MutableList", callee: "isEmpty")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_is_empty"),
             "virtualCall(isEmpty) on MutableList-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
         )
@@ -1263,206 +1310,229 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         return calleesInDecl(declID, module: module, interner: interner)
     }
 
+    @Test
     func testVirtualCallOnArrayTypedParameterRewritesToKkArrayToList() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_array_toList"),
             "virtualCall(toList) on Array-typed parameter should be rewritten to kk_array_toList, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnArrayTypedParameterRewritesToKkArraySize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "size")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_array_size"),
             "virtualCall(size) on Array-typed parameter should be rewritten to kk_array_size, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnArrayTypedParameterRewritesToKkArrayAll() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Array", callee: "all", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_array_all"),
             "virtualCall(all) on Array-typed parameter should be rewritten to kk_array_all, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListAsSequence() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "asSequence")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_asSequence"),
             "virtualCall(asSequence) on List-typed parameter should be rewritten to kk_list_asSequence, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListContains() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "contains", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_contains"),
             "virtualCall(contains) on List-typed parameter should be rewritten to kk_list_contains, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetContains() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Set", callee: "contains", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_set_contains"),
             "virtualCall(contains) on Set-typed parameter should be rewritten to kk_set_contains, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "isEmpty")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_set_is_empty"),
             "virtualCall(isEmpty) on Set-typed parameter should be rewritten to kk_set_is_empty, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnMapTypedParameterRewritesToKkMapIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "isEmpty")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_map_is_empty"),
             "virtualCall(isEmpty) on Map-typed parameter should be rewritten to kk_map_is_empty, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListReversed() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "reversed")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_reversed"),
             "virtualCall(reversed) on List-typed parameter should be rewritten to kk_list_reversed, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListSorted() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_sorted"),
             "virtualCall(sorted) on List-typed parameter should be rewritten to kk_list_sorted, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListDistinct() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "distinct")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_distinct"),
             "virtualCall(distinct) on List-typed parameter should be rewritten to kk_list_distinct, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListIndexOf() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "indexOf", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_indexOf"),
             "virtualCall(indexOf) on List-typed parameter should be rewritten to kk_list_indexOf, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListTake() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "take", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_take"),
             "virtualCall(take) on List-typed parameter should be rewritten to kk_list_take, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListDrop() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "drop", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_drop"),
             "virtualCall(drop) on List-typed parameter should be rewritten to kk_list_drop, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListDropLastWhile() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "List", callee: "dropLastWhile", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_list_dropLastWhile"),
             "virtualCall(dropLastWhile) on List-typed parameter should be rewritten to kk_list_dropLastWhile, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceToList() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "toList")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_sequence_to_list"),
             "virtualCall(toList) on Sequence-typed parameter should be rewritten to kk_sequence_to_list, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceToCollection() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "toCollection", argCount: 1
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_sequence_toCollection"),
             "virtualCall(toCollection) on Sequence-typed parameter should be rewritten to kk_sequence_toCollection, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapTo", argCount: 2
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_sequence_mapTo"),
             "virtualCall(mapTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapTo, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapNotNullTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapNotNullTo", argCount: 2
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_sequence_mapNotNullTo"),
             "virtualCall(mapNotNullTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapNotNullTo, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapIndexedTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapIndexedTo", argCount: 2
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_sequence_mapIndexedTo"),
             "virtualCall(mapIndexedTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapIndexedTo, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMapIndexedNotNullTo() throws {
         let callees = try buildAndLowerVirtualCallWithArgs(
             receiverTypeName: "Sequence", callee: "mapIndexedNotNullTo", argCount: 2
         )
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_sequence_mapIndexedNotNullTo"),
             "virtualCall(mapIndexedNotNullTo) on Sequence-typed parameter should be rewritten to kk_sequence_mapIndexedNotNullTo, got: \(callees)"
         )
     }
 
+    @Test
     func testVirtualCallOnSequenceTypedParameterRewritesToKkSequenceMax() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "max")
-        XCTAssertTrue(
+        #expect(
             callees.contains("kk_sequence_max"),
             "virtualCall(max) on Sequence-typed parameter should be rewritten to kk_sequence_max, got: \(callees)"
         )
     }
 
+    @Test
     func testWithoutSemaContextVirtualCallIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1506,15 +1576,16 @@ final class CollectionLiteralLoweringTests: XCTestCase {
 
         // Virtual call should remain as-is (no kk_list_size call generated).
         guard case let .function(resultFn) = module.arena.decl(declID) else {
-            XCTFail("Expected function"); return
+            Issue.record("Expected function"); return
         }
         let hasVirtualCall = resultFn.body.contains { instr in
             if case .virtualCall = instr { return true }
             return false
         }
-        XCTAssertTrue(
+        #expect(
             hasVirtualCall,
             "Without sema context, virtual call should remain unrewritten"
         )
     }
 }
+#endif

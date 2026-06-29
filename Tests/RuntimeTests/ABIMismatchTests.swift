@@ -25,9 +25,9 @@ final class ABIMismatchTests: XCTestCase {
 
     func testAllFunctionNamesAreUnique() {
         let reflectionNames =
-            RuntimeABISpec.kPropertyStubFunctions.map(\.name)
-            + RuntimeABISpec.kFunctionFunctions.map(\.name)
-            + RuntimeABISpec.callableRefFunctions.map(\.name)
+            RuntimeABISpec.kPropertyStubFunctions.map { $0.name }
+            + RuntimeABISpec.kFunctionFunctions.map { $0.name }
+            + RuntimeABISpec.callableRefFunctions.map { $0.name }
         let uniqueNames = Set(reflectionNames)
         XCTAssertEqual(
             reflectionNames.count,
@@ -62,7 +62,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testParameterNamesUniquePerFunction() {
         for spec in RuntimeABISpec.allFunctions {
-            let names = spec.parameters.map(\.name)
+            let names = spec.parameters.map { $0.name }
             let uniqueNames = Set(names)
             XCTAssertEqual(
                 names.count,
@@ -181,7 +181,7 @@ final class ABIMismatchTests: XCTestCase {
             let spec = try requireSpec(name)
             XCTAssertEqual(spec.returnType, .intptr)
             XCTAssertEqual(spec.parameters.map(\.type), [.intptr, .intptr])
-            XCTAssertEqual(spec.parameters.map(\.name), ["lhs", "rhs"])
+            XCTAssertEqual(spec.parameters.map { $0.name }, ["lhs", "rhs"])
         }
     }
 
@@ -252,7 +252,7 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.stringBuilderFunctions,
             RuntimeABISpec.fileIOFunctions,
             RuntimeABISpec.pathFunctions,
-            RuntimeABISpec.i18nFunctions,
+            RuntimeABISpec.stringFunctions,
             RuntimeABISpec.uuidFunctions,
             RuntimeABISpec.durationFunctions,
             RuntimeABISpec.timeAndPathBridgeFunctions,
@@ -266,7 +266,7 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.networkFunctions,
             RuntimeABISpec.abiParityFunctions,
         ]
-        let sectionNames = sections.flatMap { $0.map(\.name) }
+        let sectionNames = sections.flatMap { $0.map { $0.name } }
         let duplicateNames = Dictionary(grouping: sectionNames, by: { $0 })
             .filter { $0.value.count > 1 }
             .keys

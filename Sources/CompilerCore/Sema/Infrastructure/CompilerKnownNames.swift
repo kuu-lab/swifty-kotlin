@@ -1,5 +1,5 @@
 
-enum KnownCompilerAnnotation {
+package enum KnownCompilerAnnotation {
     case deprecated
     case deprecatedSinceKotlin
     case replaceWith
@@ -13,7 +13,6 @@ enum KnownCompilerAnnotation {
     case jvmField
     case jvmOverloads
     case experimentalJsExport
-    case experimentalJsFileName
     case experimentalJsStatic
     case experimentalJsReflectionCreateInstance
     case experimentalJsCollectionsApi
@@ -65,8 +64,6 @@ enum KnownCompilerAnnotation {
             "JvmOverloads"
         case .experimentalJsExport:
             "ExperimentalJsExport"
-        case .experimentalJsFileName:
-            "ExperimentalJsFileName"
         case .experimentalJsStatic:
             "ExperimentalJsStatic"
         case .experimentalJsReflectionCreateInstance:
@@ -142,8 +139,6 @@ enum KnownCompilerAnnotation {
             "kotlin.jvm.JvmOverloads"
         case .experimentalJsExport:
             "kotlin.js.ExperimentalJsExport"
-        case .experimentalJsFileName:
-            "kotlin.js.ExperimentalJsFileName"
         case .experimentalJsStatic:
             "kotlin.js.ExperimentalJsStatic"
         case .experimentalJsReflectionCreateInstance:
@@ -191,7 +186,7 @@ enum KnownCompilerAnnotation {
         }
     }
 
-    func matches(_ rawName: String) -> Bool {
+    package func matches(_ rawName: String) -> Bool {
         rawName == simpleName || rawName == qualifiedName
     }
 }
@@ -205,7 +200,7 @@ enum KnownCollectionKind {
     case sequence
 }
 
-struct KnownCompilerNames {
+package struct KnownCompilerNames {
 
     let byte: InternedString
     let short: InternedString
@@ -268,7 +263,7 @@ struct KnownCompilerNames {
     let null: InternedString
     let field: InternedString
     let thisName: InternedString
-    let main: InternedString
+    package let main: InternedString
     let with: InternedString
     let run: InternedString
     let runCatching: InternedString
@@ -297,6 +292,8 @@ struct KnownCompilerNames {
     let kClassSafeCastName: InternedString
     let membersName: InternedString
     let constructorsName: InternedString
+    // MIGRATION-REFLECT-002: KClass member introspection
+    let nestedClassesName: InternedString
     // STDLIB-REFLECT-060: KClass basic reflection features
     let isFinalName: InternedString
     let isOpenName: InternedString
@@ -393,7 +390,7 @@ struct KnownCompilerNames {
     let kotlinResultFQName: [InternedString]
     let kotlinRunCatchingFQName: [InternedString]
 
-    init(interner: StringInterner) {
+    package init(interner: StringInterner) {
 
         byte = interner.intern("Byte")
         short = interner.intern("Short")
@@ -485,6 +482,8 @@ struct KnownCompilerNames {
         kClassSafeCastName = interner.intern("safeCast")
         membersName = interner.intern("members")
         constructorsName = interner.intern("constructors")
+        // MIGRATION-REFLECT-002: KClass member introspection
+        nestedClassesName = interner.intern("nestedClasses")
         // STDLIB-REFLECT-060: KClass basic reflection features
         isFinalName = interner.intern("isFinal")
         isOpenName = interner.intern("isOpen")

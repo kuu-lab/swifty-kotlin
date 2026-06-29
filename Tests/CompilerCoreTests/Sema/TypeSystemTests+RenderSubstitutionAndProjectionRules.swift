@@ -1,89 +1,101 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension TypeSystemTests {
+    @Test
     func testRenderTypeForBuiltIns() {
         let ts = TypeSystem()
-        XCTAssertEqual(ts.renderType(ts.errorType), "<error>")
-        XCTAssertEqual(ts.renderType(ts.unitType), "Unit")
-        XCTAssertEqual(ts.renderType(ts.nothingType), "Nothing")
-        XCTAssertEqual(ts.renderType(ts.anyType), "Any")
-        XCTAssertEqual(ts.renderType(ts.nullableAnyType), "Any?")
+        #expect(ts.renderType(ts.errorType) == "<error>")
+        #expect(ts.renderType(ts.unitType) == "Unit")
+        #expect(ts.renderType(ts.nothingType) == "Nothing")
+        #expect(ts.renderType(ts.anyType) == "Any")
+        #expect(ts.renderType(ts.nullableAnyType) == "Any?")
     }
 
+    @Test
     func testRenderTypeForPrimitives() {
         let ts = TypeSystem()
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.boolean, .nonNull))), "Boolean")
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.char, .nonNull))), "Char")
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.int, .nonNull))), "Int")
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.long, .nonNull))), "Long")
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.float, .nonNull))), "Float")
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.double, .nonNull))), "Double")
-        XCTAssertEqual(ts.renderType(ts.stringType), "String")
+        #expect(ts.renderType(ts.make(.primitive(.boolean, .nonNull))) == "Boolean")
+        #expect(ts.renderType(ts.make(.primitive(.char, .nonNull))) == "Char")
+        #expect(ts.renderType(ts.make(.primitive(.int, .nonNull))) == "Int")
+        #expect(ts.renderType(ts.make(.primitive(.long, .nonNull))) == "Long")
+        #expect(ts.renderType(ts.make(.primitive(.float, .nonNull))) == "Float")
+        #expect(ts.renderType(ts.make(.primitive(.double, .nonNull))) == "Double")
+        #expect(ts.renderType(ts.stringType) == "String")
     }
 
+    @Test
     func testRenderTypeNullablePrimitive() {
         let ts = TypeSystem()
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.int, .nullable))), "Int?")
+        #expect(ts.renderType(ts.make(.primitive(.int, .nullable))) == "Int?")
     }
 
+    @Test
     func testRenderTypePlatformNullabilitySuffix() {
         let ts = TypeSystem()
         let platformInt = ts.make(.primitive(.int, .platformType))
         let platformAny = ts.withNullability(.platformType, for: ts.anyType)
-        XCTAssertEqual(ts.renderType(platformInt), "Int!")
-        XCTAssertEqual(ts.renderType(platformAny), "Any!")
+        #expect(ts.renderType(platformInt) == "Int!")
+        #expect(ts.renderType(platformAny) == "Any!")
     }
 
+    @Test
     func testRenderTypeClassType() {
         let ts = TypeSystem()
         let ct = ts.make(.classType(ClassType(classSymbol: SymbolID(rawValue: 5))))
-        XCTAssertTrue(ts.renderType(ct).contains("Class#5"))
+        #expect(ts.renderType(ct).contains("Class#5"))
     }
 
+    @Test
     func testRenderTypeClassTypeNullable() {
         let ts = TypeSystem()
         let ct = ts.make(.classType(ClassType(classSymbol: SymbolID(rawValue: 3), nullability: .nullable)))
-        XCTAssertTrue(ts.renderType(ct).hasSuffix("?"))
+        #expect(ts.renderType(ct).hasSuffix("?"))
     }
 
+    @Test
     func testRenderTypeTypeParam() {
         let ts = TypeSystem()
         let tp = ts.make(.typeParam(TypeParamType(symbol: SymbolID(rawValue: 7))))
-        XCTAssertEqual(ts.renderType(tp), "T#7")
+        #expect(ts.renderType(tp) == "T#7")
     }
 
+    @Test
     func testRenderTypeTypeParamNullable() {
         let ts = TypeSystem()
         let tp = ts.make(.typeParam(TypeParamType(symbol: SymbolID(rawValue: 2), nullability: .nullable)))
-        XCTAssertEqual(ts.renderType(tp), "T#2?")
+        #expect(ts.renderType(tp) == "T#2?")
     }
 
+    @Test
     func testRenderTypeFunctionType() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let ft = ts.make(.functionType(FunctionType(params: [intType], returnType: intType)))
         let rendered = ts.renderType(ft)
-        XCTAssertTrue(rendered.contains("(Int) -> Int"))
+        #expect(rendered.contains("(Int) -> Int"))
     }
 
+    @Test
     func testRenderTypeSuspendFunctionType() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let ft = ts.make(.functionType(FunctionType(params: [], returnType: intType, isSuspend: true)))
         let rendered = ts.renderType(ft)
-        XCTAssertTrue(rendered.hasPrefix("suspend "))
+        #expect(rendered.hasPrefix("suspend "))
     }
 
+    @Test
     func testRenderTypeFunctionTypeWithReceiver() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let stringType = ts.stringType
         let ft = ts.make(.functionType(FunctionType(receiver: stringType, params: [], returnType: intType)))
         let rendered = ts.renderType(ft)
-        XCTAssertTrue(rendered.contains("String."))
+        #expect(rendered.contains("String."))
     }
 
+    @Test
     func testRenderTypeFunctionTypeWithContextReceivers() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -94,18 +106,20 @@ extension TypeSystemTests {
             params: [intType],
             returnType: intType
         )))
-        XCTAssertEqual(ts.renderType(ft), "context(String, Int) String.(Int) -> Int")
+        #expect(ts.renderType(ft) == "context(String, Int) String.(Int) -> Int")
     }
 
+    @Test
     func testRenderTypeIntersection() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let stringType = ts.stringType
         let inter = ts.make(.intersection([intType, stringType]))
         let rendered = ts.renderType(inter)
-        XCTAssertTrue(rendered.contains(" & "))
+        #expect(rendered.contains(" & "))
     }
 
+    @Test
     func testRenderTypeClassTypeWithTypeArgs() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -114,13 +128,14 @@ extension TypeSystemTests {
             args: [.invariant(intType), .out(intType), .in(intType), .star]
         )))
         let rendered = ts.renderType(ct)
-        XCTAssertTrue(rendered.contains("out "))
-        XCTAssertTrue(rendered.contains("in "))
-        XCTAssertTrue(rendered.contains("*"))
+        #expect(rendered.contains("out "))
+        #expect(rendered.contains("in "))
+        #expect(rendered.contains("*"))
     }
 
     // MARK: - substituteTypeParameters
 
+    @Test
     func testSubstituteTypeParameterReplacesMatching() throws {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -128,15 +143,16 @@ extension TypeSystemTests {
         let tp = ts.make(.typeParam(TypeParamType(symbol: tpSym)))
 
         let varMap = ts.makeTypeVarBySymbol([tpSym])
-        let tv = try XCTUnwrap(varMap[tpSym])
+        let tv = try #require(varMap[tpSym])
         let result = ts.substituteTypeParameters(
             in: tp,
             substitution: [tv: intType],
             typeVarBySymbol: varMap
         )
-        XCTAssertEqual(result, intType)
+        #expect(result == intType)
     }
 
+    @Test
     func testSubstituteTypeParameterLeavesUnmatchedAlone() {
         let ts = TypeSystem()
         let tpSym = SymbolID(rawValue: 0)
@@ -149,9 +165,10 @@ extension TypeSystemTests {
             substitution: [:],
             typeVarBySymbol: varMap
         )
-        XCTAssertEqual(result, tp)
+        #expect(result == tp)
     }
 
+    @Test
     func testSubstituteInClassTypeArgs() throws {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -165,7 +182,7 @@ extension TypeSystemTests {
         )))
 
         let varMap = ts.makeTypeVarBySymbol([tpSym])
-        let tv = try XCTUnwrap(varMap[tpSym])
+        let tv = try #require(varMap[tpSym])
         let result = ts.substituteTypeParameters(
             in: classWithT,
             substitution: [tv: intType],
@@ -173,17 +190,18 @@ extension TypeSystemTests {
         )
 
         if case let .classType(ct) = ts.kind(of: result) {
-            XCTAssertEqual(ct.args.count, 1)
+            #expect(ct.args.count == 1)
             if case let .invariant(inner) = ct.args[0] {
-                XCTAssertEqual(inner, intType)
+                #expect(inner == intType)
             } else {
-                XCTFail("Expected invariant type arg")
+                Issue.record("Expected invariant type arg")
             }
         } else {
-            XCTFail("Expected classType after substitution")
+            Issue.record("Expected classType after substitution")
         }
     }
 
+    @Test
     func testSubstituteInFunctionType() throws {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -192,7 +210,7 @@ extension TypeSystemTests {
 
         let ft = ts.make(.functionType(FunctionType(params: [tp], returnType: tp)))
         let varMap = ts.makeTypeVarBySymbol([tpSym])
-        let tv = try XCTUnwrap(varMap[tpSym])
+        let tv = try #require(varMap[tpSym])
         let result = ts.substituteTypeParameters(
             in: ft,
             substitution: [tv: intType],
@@ -200,13 +218,14 @@ extension TypeSystemTests {
         )
 
         if case let .functionType(resultFt) = ts.kind(of: result) {
-            XCTAssertEqual(resultFt.params, [intType])
-            XCTAssertEqual(resultFt.returnType, intType)
+            #expect(resultFt.params == [intType])
+            #expect(resultFt.returnType == intType)
         } else {
-            XCTFail("Expected functionType after substitution")
+            Issue.record("Expected functionType after substitution")
         }
     }
 
+    @Test
     func testSubstituteInFunctionTypeContextReceivers() throws {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -220,7 +239,7 @@ extension TypeSystemTests {
             returnType: tp
         )))
         let varMap = ts.makeTypeVarBySymbol([tpSym])
-        let tv = try XCTUnwrap(varMap[tpSym])
+        let tv = try #require(varMap[tpSym])
         let result = ts.substituteTypeParameters(
             in: ft,
             substitution: [tv: intType],
@@ -228,15 +247,16 @@ extension TypeSystemTests {
         )
 
         if case let .functionType(resultFt) = ts.kind(of: result) {
-            XCTAssertEqual(resultFt.contextReceivers, [intType])
-            XCTAssertEqual(resultFt.receiver, intType)
-            XCTAssertEqual(resultFt.params, [intType])
-            XCTAssertEqual(resultFt.returnType, intType)
+            #expect(resultFt.contextReceivers == [intType])
+            #expect(resultFt.receiver == intType)
+            #expect(resultFt.params == [intType])
+            #expect(resultFt.returnType == intType)
         } else {
-            XCTFail("Expected functionType after substitution")
+            Issue.record("Expected functionType after substitution")
         }
     }
 
+    @Test
     func testSubstituteNullableTypeParameterPreservesNullableWrapper() throws {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -245,16 +265,17 @@ extension TypeSystemTests {
         let nullableTypeParam = ts.make(.typeParam(TypeParamType(symbol: tpSym, nullability: .nullable)))
 
         let varMap = ts.makeTypeVarBySymbol([tpSym])
-        let tv = try XCTUnwrap(varMap[tpSym])
+        let tv = try #require(varMap[tpSym])
         let result = ts.substituteTypeParameters(
             in: nullableTypeParam,
             substitution: [tv: intType],
             typeVarBySymbol: varMap
         )
 
-        XCTAssertEqual(result, nullableIntType)
+        #expect(result == nullableIntType)
     }
 
+    @Test
     func testSubstituteInIntersectionType() throws {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -263,7 +284,7 @@ extension TypeSystemTests {
 
         let inter = ts.make(.intersection([tp, ts.anyType]))
         let varMap = ts.makeTypeVarBySymbol([tpSym])
-        let tv = try XCTUnwrap(varMap[tpSym])
+        let tv = try #require(varMap[tpSym])
         let result = ts.substituteTypeParameters(
             in: inter,
             substitution: [tv: intType],
@@ -271,41 +292,45 @@ extension TypeSystemTests {
         )
 
         if case let .intersection(parts) = ts.kind(of: result) {
-            XCTAssertTrue(parts.contains(intType))
+            #expect(parts.contains(intType))
         } else {
-            XCTFail("Expected intersection after substitution")
+            Issue.record("Expected intersection after substitution")
         }
     }
 
+    @Test
     func testSubstituteNoOpForPrimitive() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let result = ts.substituteTypeParameters(in: intType, substitution: [:], typeVarBySymbol: [:])
-        XCTAssertEqual(result, intType)
+        #expect(result == intType)
     }
 
+    @Test
     func testSubstituteClassTypeNoChangeReturnsSameID() {
         let ts = TypeSystem()
         let classSym = SymbolID(rawValue: 0)
         let intType = ts.make(.primitive(.int, .nonNull))
         let ct = ts.make(.classType(ClassType(classSymbol: classSym, args: [.invariant(intType)])))
         let result = ts.substituteTypeParameters(in: ct, substitution: [:], typeVarBySymbol: [:])
-        XCTAssertEqual(result, ct)
+        #expect(result == ct)
     }
 
     // MARK: - makeTypeVarBySymbol
 
+    @Test
     func testMakeTypeVarBySymbolCreatesCorrectMapping() {
         let ts = TypeSystem()
         let syms = [SymbolID(rawValue: 10), SymbolID(rawValue: 20)]
         let mapping = ts.makeTypeVarBySymbol(syms)
-        XCTAssertEqual(mapping.count, 2)
-        XCTAssertEqual(mapping[syms[0]]?.rawValue, 0)
-        XCTAssertEqual(mapping[syms[1]]?.rawValue, 1)
+        #expect(mapping.count == 2)
+        #expect(mapping[syms[0]]?.rawValue == 0)
+        #expect(mapping[syms[1]]?.rawValue == 1)
     }
 
     // MARK: - isNominalSubtypeSymbol
 
+    @Test
     func testIsNominalSubtypeSymbolTransitive() {
         let ts = TypeSystem()
         let grandparent = SymbolID(rawValue: 0)
@@ -314,43 +339,48 @@ extension TypeSystemTests {
         ts.setNominalDirectSupertypes([grandparent], for: parent)
         ts.setNominalDirectSupertypes([parent], for: child)
 
-        XCTAssertTrue(ts.isNominalSubtypeSymbol(child, of: grandparent))
-        XCTAssertFalse(ts.isNominalSubtypeSymbol(grandparent, of: child))
+        #expect(ts.isNominalSubtypeSymbol(child, of: grandparent))
+        #expect(!(ts.isNominalSubtypeSymbol(grandparent, of: child)))
     }
 
+    @Test
     func testIsNominalSubtypeSymbolSelf() {
         let ts = TypeSystem()
         let sym = SymbolID(rawValue: 0)
-        XCTAssertTrue(ts.isNominalSubtypeSymbol(sym, of: sym))
+        #expect(ts.isNominalSubtypeSymbol(sym, of: sym))
     }
 
     // MARK: - normalizedNominalVariances
 
+    @Test
     func testNormalizedNominalVariancesPadsWithInvariant() {
         let ts = TypeSystem()
         let sym = SymbolID(rawValue: 0)
         ts.setNominalTypeParameterVariances([.out], for: sym)
         let variances = ts.normalizedNominalVariances(for: sym, arity: 3)
-        XCTAssertEqual(variances, [.out, .invariant, .invariant])
+        #expect(variances == [.out, .invariant, .invariant])
     }
 
+    @Test
     func testNormalizedNominalVariancesEmptyReturnsAllInvariant() {
         let ts = TypeSystem()
         let sym = SymbolID(rawValue: 0)
         let variances = ts.normalizedNominalVariances(for: sym, arity: 2)
-        XCTAssertEqual(variances, [.invariant, .invariant])
+        #expect(variances == [.invariant, .invariant])
     }
 
+    @Test
     func testNormalizedNominalVariancesTruncatesExcess() {
         let ts = TypeSystem()
         let sym = SymbolID(rawValue: 0)
         ts.setNominalTypeParameterVariances([.out, .in, .invariant], for: sym)
         let variances = ts.normalizedNominalVariances(for: sym, arity: 2)
-        XCTAssertEqual(variances, [.out, .in])
+        #expect(variances == [.out, .in])
     }
 
     // MARK: - Class Subtyping with type args
 
+    @Test
     func testClassSubtypingWithStarProjection() {
         let ts = TypeSystem()
         let parentSym = SymbolID(rawValue: 0)
@@ -360,63 +390,70 @@ extension TypeSystemTests {
         let intType = ts.make(.primitive(.int, .nonNull))
         let child = ts.make(.classType(ClassType(classSymbol: childSym, args: [.invariant(intType)])))
         let parentStar = ts.make(.classType(ClassType(classSymbol: parentSym, args: [.star])))
-        XCTAssertTrue(ts.isSubtype(child, parentStar))
+        #expect(ts.isSubtype(child, parentStar))
     }
 
+    @Test
     func testClassSubtypingSameSymbolDifferentArgCount() {
         let ts = TypeSystem()
         let sym = SymbolID(rawValue: 0)
         let intType = ts.make(.primitive(.int, .nonNull))
         let withArg = ts.make(.classType(ClassType(classSymbol: sym, args: [.invariant(intType)])))
         let withoutArg = ts.make(.classType(ClassType(classSymbol: sym, args: [])))
-        XCTAssertFalse(ts.isSubtype(withArg, withoutArg))
+        #expect(!(ts.isSubtype(withArg, withoutArg)))
     }
 
     // MARK: - Projection Subtyping
 
+    @Test
     func testProjectionSubtypeStarAcceptsAll() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        XCTAssertTrue(ts.isProjectionSubtype(.invariant(intType), .star))
-        XCTAssertTrue(ts.isProjectionSubtype(.out(intType), .star))
-        XCTAssertTrue(ts.isProjectionSubtype(.in(intType), .star))
+        #expect(ts.isProjectionSubtype(.invariant(intType), .star))
+        #expect(ts.isProjectionSubtype(.out(intType), .star))
+        #expect(ts.isProjectionSubtype(.in(intType), .star))
     }
 
+    @Test
     func testProjectionSubtypeInvalidRejectsBoth() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        XCTAssertFalse(ts.isProjectionSubtype(.invalid, .invariant(intType)))
-        XCTAssertFalse(ts.isProjectionSubtype(.invariant(intType), .invalid))
+        #expect(!(ts.isProjectionSubtype(.invalid, .invariant(intType))))
+        #expect(!(ts.isProjectionSubtype(.invariant(intType), .invalid)))
     }
 
+    @Test
     func testProjectionSubtypeStarIsNotSubtypeOfConcrete() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        XCTAssertFalse(ts.isProjectionSubtype(.star, .invariant(intType)))
+        #expect(!(ts.isProjectionSubtype(.star, .invariant(intType))))
     }
 
+    @Test
     func testComposedProjectionOutVariance() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let result = ts.composedProjection(declarationVariance: .out, useSite: .invariant(intType))
         if case let .out(t) = result {
-            XCTAssertEqual(t, intType)
+            #expect(t == intType)
         } else {
-            XCTFail("Expected .out projection")
+            Issue.record("Expected .out projection")
         }
     }
 
+    @Test
     func testComposedProjectionInVariance() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let result = ts.composedProjection(declarationVariance: .in, useSite: .invariant(intType))
         if case let .in(t) = result {
-            XCTAssertEqual(t, intType)
+            #expect(t == intType)
         } else {
-            XCTFail("Expected .in projection")
+            Issue.record("Expected .in projection")
         }
     }
 
+    @Test
     func testComposedProjectionOutWithInReturnsInvalid() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -424,10 +461,11 @@ extension TypeSystemTests {
         if case .invalid = result {
             // Expected
         } else {
-            XCTFail("Expected .invalid from out + in")
+            Issue.record("Expected .invalid from out + in")
         }
     }
 
+    @Test
     func testComposedProjectionInWithOutReturnsInvalid() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
@@ -435,18 +473,19 @@ extension TypeSystemTests {
         if case .invalid = result {
             // Expected
         } else {
-            XCTFail("Expected .invalid from in + out")
+            Issue.record("Expected .invalid from in + out")
         }
     }
 
+    @Test
     func testComposedProjectionInWithInReturnsOut() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
         let result = ts.composedProjection(declarationVariance: .in, useSite: .in(intType))
         if case let .out(t) = result {
-            XCTAssertEqual(t, intType)
+            #expect(t == intType)
         } else {
-            XCTFail("Expected .out from in + in")
+            Issue.record("Expected .out from in + in")
         }
     }
 }

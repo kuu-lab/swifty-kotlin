@@ -122,12 +122,12 @@ extension KotlinParser {
         }
     }
 
-    public func canStartTypeArguments(after token: Token) -> Bool {
+    func canStartTypeArguments(after token: Token) -> Bool {
         _ = token
         return canStartTypeArgumentsInternal(hasAnchorToken: true)
     }
 
-    public func canStartTypeArguments(after node: NodeID) -> Bool {
+    func canStartTypeArguments(after node: NodeID) -> Bool {
         guard Int(node.rawValue) >= 0, Int(node.rawValue) < arena.nodes.count else { return false }
         let nodeKind = arena.node(node).kind
         if case .typeArgs = nodeKind {

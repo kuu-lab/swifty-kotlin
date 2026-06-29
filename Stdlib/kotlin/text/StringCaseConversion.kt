@@ -45,7 +45,7 @@ package kotlin.text
 @Deprecated("Use replaceFirstChar instead.",
     replaceWith = ReplaceWith("replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }"))
 public fun String.capitalize(): String {
-    if (isEmpty()) return this
+    if (__string_struct_get_length(this) == 0) return this
     val sb = StringBuilder()
     sb.append(this[0].uppercase())
     var i = 1
@@ -61,7 +61,7 @@ public fun String.capitalize(): String {
  * does not fill in the extra end/hasEnd parameters that kk_string_substring expects.
  */
 public fun String.replaceFirstChar(transform: (Char) -> Char): String {
-    if (isEmpty()) return this
+    if (__string_struct_get_length(this) == 0) return this
     val sb = StringBuilder()
     sb.append(transform(this[0]))
     var i = 1

@@ -6,6 +6,12 @@ final class RuntimeBigDecimalTests: XCTestCase {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
+    private func runtimeString(_ text: String) -> Int {
+        Array(text.utf8).withUnsafeBufferPointer { buffer in
+            Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
+        }
+    }
+
     private func withFlatString<T>(
         _ text: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T

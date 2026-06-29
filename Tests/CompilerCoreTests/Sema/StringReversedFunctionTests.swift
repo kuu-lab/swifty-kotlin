@@ -1,23 +1,24 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-063: `kotlin.text.CharSequence.reversed()`
 ///
 /// `reversed()` returns a new string with the receiver scalars in reverse order.
 /// Sema resolves it to `kk_string_reversed_flat` and keeps the result typed as
 /// `String` (Kotlin's `CharSequence` implementation).
-final class StringReversedFunctionTests: XCTestCase {
-    func testReversedOnStringLiteralResolves() throws {
+@Suite
+struct StringReversedFunctionTests {
+    @Test func testReversedOnStringLiteralResolves() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val s: String = "hello".reversed()
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testReversedOnStringVariableResolves() throws {
+    @Test func testReversedOnStringVariableResolves() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val source: String = "kotlin"
@@ -25,10 +26,10 @@ final class StringReversedFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testReversedAcceptsNoArguments() throws {
+    @Test func testReversedAcceptsNoArguments() throws {
         // Pass an unexpected positional argument; Sema should reject it.
         let ctx = makeContextFromSource("""
         fun main() {
@@ -36,13 +37,13 @@ final class StringReversedFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertTrue(
+        #expect(
             ctx.diagnostics.hasError,
             "expected error for extra argument, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
-    func testReversedReturnTypeIsString() throws {
+    @Test func testReversedReturnTypeIsString() throws {
         // The return must be a String so subsequent String members (length) resolve.
         let ctx = makeContextFromSource("""
         fun main() {
@@ -50,10 +51,10 @@ final class StringReversedFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testReversedChainable() throws {
+    @Test func testReversedChainable() throws {
         // Reversing twice should still produce a String compatible with String APIs.
         let ctx = makeContextFromSource("""
         fun main() {
@@ -61,6 +62,6 @@ final class StringReversedFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }

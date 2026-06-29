@@ -1,11 +1,12 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-011: Validates that `String.concat(str)` resolves through
 /// Sema for plain String receivers as well as literal / expression contexts.
 /// The runtime link involved is `kk_string_concat_flat`.
-final class StringConcatFunctionTests: XCTestCase {
-    func testStringConcatResolvesInSource() throws {
+@Suite
+struct StringConcatFunctionTests {
+    @Test func testStringConcatResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun concatTwo(a: String, b: String): String {
             return a.concat(b)
@@ -25,20 +26,20 @@ final class StringConcatFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected String.concat(str) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testStringConcatResolvesToRuntimeLink() throws {
+    @Test func testStringConcatResolvesToRuntimeLink() throws {
         var resolvedLink: String?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "concat"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -46,16 +47,15 @@ final class StringConcatFunctionTests: XCTestCase {
                     && signature.parameterTypes == [sema.types.stringType]
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
-            XCTAssertEqual(
-                sema.symbols.functionSignature(for: symbol)?.returnType,
-                sema.types.stringType,
+            #expect(
+                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
                 "String.concat(str) should return String"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_concat_flat")
+        #expect(resolvedLink == "kk_string_concat")
     }
 
-    func testStringConcatCallBindingResolvesToRuntimeLink() throws {
+    @Test func testStringConcatCallBindingResolvesToRuntimeLink() throws {
         let source = """
         fun joinWords(a: String, b: String): String {
             return a.concat(b)
@@ -65,22 +65,21 @@ final class StringConcatFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "concat"
             }, "Expected a member call to concat in the AST")
 
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected a call binding for the concat invocation"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_concat_flat",
-                "String.concat(str) member call must resolve to kk_string_concat_flat"
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_concat",
+                "String.concat(str) member call must resolve to kk_string_concat"
             )
         }
     }

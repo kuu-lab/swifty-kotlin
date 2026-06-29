@@ -1,25 +1,26 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCFunctionSurfaceTests: XCTestCase {
+@Suite
+struct NativeCInteropCFunctionSurfaceTests {
+    @Test
     func testCFunctionClassSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected CFunction surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
         )
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) }),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let cFunctionSymbol = try cinteropSymbol("CFunction")
-        let typeParameter = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: cFunctionSymbol).first)
+        let typeParameter = try #require(sema.types.nominalTypeParameterSymbols(for: cFunctionSymbol).first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -35,24 +36,25 @@ final class NativeCInteropCFunctionSurfaceTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.symbol(cFunctionSymbol)?.kind, .class)
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: cFunctionSymbol), [.invariant])
-        XCTAssertEqual(sema.symbols.symbol(typeParameter)?.name, interner.intern("T"))
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [sema.types.anyType])
-        XCTAssertEqual(sema.symbols.propertyType(for: cFunctionSymbol), cFunctionType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: cFunctionSymbol), [try cinteropSymbol("CPointed")])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: cFunctionSymbol), [try cinteropSymbol("CPointed")])
+        #expect(sema.symbols.symbol(cFunctionSymbol)?.kind == .class)
+        #expect(sema.types.nominalTypeParameterVariances(for: cFunctionSymbol) == [.invariant])
+        #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [sema.types.anyType])
+        #expect(sema.symbols.propertyType(for: cFunctionSymbol) == cFunctionType)
+        #expect(sema.symbols.directSupertypes(for: cFunctionSymbol) == [try cinteropSymbol("CPointed")])
+        #expect(sema.types.directNominalSupertypes(for: cFunctionSymbol) == [try cinteropSymbol("CPointed")])
 
-        let fqName = try XCTUnwrap(sema.symbols.symbol(cFunctionSymbol)?.fqName)
+        let fqName = try #require(sema.symbols.symbol(cFunctionSymbol)?.fqName)
         let constructors = sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
+        let constructorSignature = try #require(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
             $0.parameterTypes == [nativePtrType] && $0.returnType == cFunctionType
         })
-        XCTAssertEqual(constructorSignature.typeParameterSymbols, [typeParameter])
-        XCTAssertEqual(constructorSignature.classTypeParameterCount, 1)
-        XCTAssertEqual(constructorSignature.valueParameterHasDefaultValues, [false])
+        #expect(constructorSignature.typeParameterSymbols == [typeParameter])
+        #expect(constructorSignature.classTypeParameterCount == 1)
+        #expect(constructorSignature.valueParameterHasDefaultValues == [false])
     }
 
+    @Test
     func testCFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CFunction
@@ -63,9 +65,10 @@ final class NativeCInteropCFunctionSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected CFunction to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 }
+#endif

@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension ConstraintSolverTests {
-    func testSolveTypeTypeFailurePlusVariableConflict() {
+    @Test func testSolveTypeTypeFailurePlusVariableConflict() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -16,11 +17,11 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], types.errorType)
+        #expect(!(solution.isSuccess))
+        #expect(solution.substitution[t0] == types.errorType)
     }
 
-    func testSolvePostSubstitutionSupertypeViolation() throws {
+    @Test func testSolvePostSubstitutionSupertypeViolation() throws {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -37,12 +38,12 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertTrue(failure.message.contains("Conflicting bounds"))
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.message.contains("Conflicting bounds"))
     }
 
-    func testSolveAllVariablesGetErrorTypeOnEarlyFailure() {
+    @Test func testSolveAllVariablesGetErrorTypeOnEarlyFailure() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -59,15 +60,15 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1, t2], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], types.errorType)
-        XCTAssertEqual(solution.substitution[t1], types.errorType)
-        XCTAssertEqual(solution.substitution[t2], types.errorType)
+        #expect(!(solution.isSuccess))
+        #expect(solution.substitution[t0] == types.errorType)
+        #expect(solution.substitution[t1] == types.errorType)
+        #expect(solution.substitution[t2] == types.errorType)
     }
 
     // MARK: - Complex variable dependencies
 
-    func testSolveDiamondDependencyPattern() {
+    @Test func testSolveDiamondDependencyPattern() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -92,15 +93,15 @@ extension ConstraintSolverTests {
             typeSystem: types
         )
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
         // t1, t2 propagated intType lower from t0
-        XCTAssertEqual(solution.substitution[t1], intType)
-        XCTAssertEqual(solution.substitution[t2], intType)
-        XCTAssertEqual(solution.substitution[t3], intType)
+        #expect(solution.substitution[t1] == intType)
+        #expect(solution.substitution[t2] == intType)
+        #expect(solution.substitution[t3] == intType)
     }
 
-    func testSolveLongChainDependency() {
+    @Test func testSolveLongChainDependency() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -125,13 +126,13 @@ extension ConstraintSolverTests {
             typeSystem: types
         )
 
-        XCTAssertTrue(solution.isSuccess)
+        #expect(solution.isSuccess)
         for v in [t0, t1, t2, t3, t4] {
-            XCTAssertEqual(solution.substitution[v], intType)
+            #expect(solution.substitution[v] == intType)
         }
     }
 
-    func testSolveMultipleIndependentVariableGroups() {
+    @Test func testSolveMultipleIndependentVariableGroups() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let stringType = types.stringType
@@ -154,14 +155,14 @@ extension ConstraintSolverTests {
             typeSystem: types
         )
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
-        XCTAssertEqual(solution.substitution[t1], intType)
-        XCTAssertEqual(solution.substitution[t2], stringType)
-        XCTAssertEqual(solution.substitution[t3], stringType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
+        #expect(solution.substitution[t1] == intType)
+        #expect(solution.substitution[t2] == stringType)
+        #expect(solution.substitution[t3] == stringType)
     }
 
-    func testSolveVariableDependencyWithEqualAndSubtype() {
+    @Test func testSolveVariableDependencyWithEqualAndSubtype() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -176,23 +177,23 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
-        XCTAssertEqual(solution.substitution[t1], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
+        #expect(solution.substitution[t1] == intType)
     }
 
     // MARK: - Coverage: relationOperator (private helper exposed as internal for testability)
 
-    func testRelationOperatorReturnsCorrectSymbols() {
+    @Test func testRelationOperatorReturnsCorrectSymbols() {
         let solver = ConstraintSolver()
-        XCTAssertEqual(solver.relationOperator(for: .subtype), "<:")
-        XCTAssertEqual(solver.relationOperator(for: .equal), "==")
-        XCTAssertEqual(solver.relationOperator(for: .supertype), ":>")
+        #expect(solver.relationOperator(for: .subtype) == "<:")
+        #expect(solver.relationOperator(for: .equal) == "==")
+        #expect(solver.relationOperator(for: .supertype) == ":>")
     }
 
     // MARK: - Coverage: firstRelevantBlameRange returns nil
 
-    func testSolveBlameRangeIsNilWhenVariableOnlyOnRightOfVarVarConstraint() throws {
+    @Test func testSolveBlameRangeIsNilWhenVariableOnlyOnRightOfVarVarConstraint() throws {
         // When a variable only appears on the RIGHT side of a variable-to-variable
         // constraint, the firstRelevantBlameRange helper cannot find it because
         // the first switch case (.variable(let lhs), _) matches but lhs != target.
@@ -210,14 +211,14 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t1, t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertTrue(failure.message.contains("Failed to infer"))
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.message.contains("Failed to infer"))
         // blameRange should be nil since firstRelevantBlameRange couldn't find t1
-        XCTAssertNil(failure.primaryRange)
+        #expect(failure.primaryRange == nil)
     }
 
-    func testSolveDiamondWithConflictingLeafBoundsFails() throws {
+    @Test func testSolveDiamondWithConflictingLeafBoundsFails() throws {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -236,8 +237,9 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1, t2], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertEqual(failure.code, "KSWIFTK-TYPE-0001")
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.code == "KSWIFTK-TYPE-0001")
     }
 }
+#endif

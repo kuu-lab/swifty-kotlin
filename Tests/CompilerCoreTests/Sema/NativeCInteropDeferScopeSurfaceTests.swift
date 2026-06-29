@@ -1,15 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropDeferScopeSurfaceTests: XCTestCase {
+@Suite
+struct NativeCInteropDeferScopeSurfaceTests {
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected DeferScope surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        return (try XCTUnwrap(ctx.sema), ctx.interner)
+        #expect(!(ctx.diagnostics.hasError), "Expected DeferScope surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        return (try #require(ctx.sema), ctx.interner)
     }
 
     private func cinteropSymbol(
@@ -19,12 +18,7 @@ final class NativeCInteropDeferScopeSurfaceTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> SymbolID {
-        try XCTUnwrap(
-            sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) }),
-            "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered",
-            file: file,
-            line: line
-        )
+        try #require(sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) }), "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
     }
 
     private func cinteropSymbol(
@@ -51,41 +45,41 @@ final class NativeCInteropDeferScopeSurfaceTests: XCTestCase {
         )))
     }
 
-    func testDeferScopeClassSurfaceMatchesNativeShape() throws {
+    @Test func testDeferScopeClassSurfaceMatchesNativeShape() throws {
         let (sema, interner) = try makeSema()
 
         let deferScopeSymbol = try cinteropSymbol("DeferScope", sema: sema, interner: interner)
         let deferScopeType = try cinteropType("DeferScope", sema: sema, interner: interner)
-        let fqName = try XCTUnwrap(sema.symbols.symbol(deferScopeSymbol)?.fqName)
-        let flags = try XCTUnwrap(sema.symbols.symbol(deferScopeSymbol)?.flags)
+        let fqName = try #require(sema.symbols.symbol(deferScopeSymbol)?.fqName)
+        let flags = try #require(sema.symbols.symbol(deferScopeSymbol)?.flags)
 
-        XCTAssertEqual(sema.symbols.symbol(deferScopeSymbol)?.kind, .class)
-        XCTAssertTrue(flags.contains(.openType))
-        XCTAssertEqual(sema.symbols.propertyType(for: deferScopeSymbol), deferScopeType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: deferScopeSymbol), [])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: deferScopeSymbol), [])
+        #expect(sema.symbols.symbol(deferScopeSymbol)?.kind == .class)
+        #expect(flags.contains(.openType))
+        #expect(sema.symbols.propertyType(for: deferScopeSymbol) == deferScopeType)
+        #expect(sema.symbols.directSupertypes(for: deferScopeSymbol) == [])
+        #expect(sema.types.directNominalSupertypes(for: deferScopeSymbol) == [])
 
         let constructors = sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(constructors.compactMap {
+        let constructorSignature = try #require(constructors.compactMap {
             sema.symbols.functionSignature(for: $0)
         }.first {
             $0.parameterTypes.isEmpty && $0.returnType == deferScopeType
         })
-        XCTAssertEqual(constructorSignature.valueParameterHasDefaultValues, [])
+        #expect(constructorSignature.valueParameterHasDefaultValues == [])
     }
 
-    func testDeferScopeDeferMemberIsRegistered() throws {
+    @Test func testDeferScopeDeferMemberIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let deferScopeSymbol = try cinteropSymbol("DeferScope", sema: sema, interner: interner)
         let deferScopeType = try cinteropType("DeferScope", sema: sema, interner: interner)
-        let fqName = try XCTUnwrap(sema.symbols.symbol(deferScopeSymbol)?.fqName)
+        let fqName = try #require(sema.symbols.symbol(deferScopeSymbol)?.fqName)
         let blockType = sema.types.make(.functionType(FunctionType(
             params: [],
             returnType: sema.types.unitType
         )))
         let deferMembers = sema.symbols.lookupAll(fqName: fqName + [interner.intern("defer")])
-        let deferSymbol = try XCTUnwrap(deferMembers.first { symbol in
+        let deferSymbol = try #require(deferMembers.first { symbol in
             guard let signature = sema.symbols.functionSignature(for: symbol) else {
                 return false
             }
@@ -93,17 +87,17 @@ final class NativeCInteropDeferScopeSurfaceTests: XCTestCase {
                 && signature.parameterTypes == [blockType]
                 && signature.returnType == sema.types.unitType
         })
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: deferSymbol))
+        let signature = try #require(sema.symbols.functionSignature(for: deferSymbol))
 
-        XCTAssertTrue(sema.symbols.symbol(deferSymbol)?.flags.isSuperset(of: [.synthetic, .inlineFunction]) == true)
-        XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-        XCTAssertEqual(signature.valueParameterIsVararg, [false])
-        let blockParameter = try XCTUnwrap(signature.valueParameterSymbols.first)
-        XCTAssertEqual(sema.symbols.symbol(blockParameter)?.name, interner.intern("block"))
-        XCTAssertEqual(sema.symbols.propertyType(for: blockParameter), blockType)
+        #expect(sema.symbols.symbol(deferSymbol)?.flags.isSuperset(of: [.synthetic, .inlineFunction]) == true)
+        #expect(signature.valueParameterHasDefaultValues == [false])
+        #expect(signature.valueParameterIsVararg == [false])
+        let blockParameter = try #require(signature.valueParameterSymbols.first)
+        #expect(sema.symbols.symbol(blockParameter)?.name == interner.intern("block"))
+        #expect(sema.symbols.propertyType(for: blockParameter) == blockType)
     }
 
-    func testDeferScopeResolvesInSource() throws {
+    @Test func testDeferScopeResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.DeferScope
 
@@ -118,9 +112,7 @@ final class NativeCInteropDeferScopeSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected DeferScope constructor and defer member to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected DeferScope constructor and defer member to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

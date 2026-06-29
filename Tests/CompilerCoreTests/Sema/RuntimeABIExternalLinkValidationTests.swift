@@ -1,12 +1,14 @@
 @testable import CompilerCore
 import RuntimeABI
-import XCTest
+import Foundation
+import Testing
 
-final class RuntimeABIExternalLinkValidationTests: XCTestCase {
-    func testRegisteredSemaExternalLinkNamesExistInRuntimeABI() throws {
+@Suite
+struct RuntimeABIExternalLinkValidationTests {
+    @Test func testRegisteredSemaExternalLinkNamesExistInRuntimeABI() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let runtimeABINames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let linkNames = Set(sema.symbols.allSymbols().compactMap { symbol in
             sema.symbols.externalLinkName(for: symbol.id)
@@ -16,13 +18,13 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             .subtracting(allowedCompilerExternalLinks)
             .sorted()
 
-        XCTAssertTrue(
+        #expect(
             missing.isEmpty,
-            "Compiler synthetic externalLinkName values missing from RuntimeABISpec: \(missing.joined(separator: ", "))"
+            Comment(rawValue: "Compiler synthetic externalLinkName values missing from RuntimeABISpec: \(missing.joined(separator: ", "))")
         )
     }
 
-    func testKIRHardcodedRuntimeLinkNamesExistInRuntimeABI() throws {
+    @Test func testKIRHardcodedRuntimeLinkNamesExistInRuntimeABI() throws {
         let runtimeABINames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let compilerCore = packageRoot().appendingPathComponent("Sources/CompilerCore")
         let linkNames = try collectRuntimeLinkNameLiterals(
@@ -38,9 +40,9 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             .subtracting(allowedCompilerExternalLinks)
             .sorted()
 
-        XCTAssertTrue(
+        #expect(
             missing.isEmpty,
-            "KIR runtime link name literals missing from RuntimeABISpec: \(missing.joined(separator: ", "))"
+            Comment(rawValue: "KIR runtime link name literals missing from RuntimeABISpec: \(missing.joined(separator: ", "))")
         )
     }
 

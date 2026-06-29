@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-COL-FN-074: Validates that `firstOrNull` resolves through Sema for the
 /// collection receivers wired through the standard aggregate / HOF infrastructure
@@ -7,8 +8,9 @@ import XCTest
 /// (no-arg and predicate overloads).
 /// Runtime link names involved: `kk_list_firstOrNull`, `kk_list_firstOrNull_predicate`,
 /// `kk_set_firstOrNull`, `kk_range_firstOrNull`, `kk_range_firstOrNull_predicate`.
-final class CollectionsFirstOrNullFunctionTests: XCTestCase {
-    func testFirstOrNullFunctionResolvesInSource() throws {
+@Suite
+struct CollectionsFirstOrNullFunctionTests {
+    @Test func testFirstOrNullFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun maybeFirstList(xs: List<Int>): Int? {
             return xs.firstOrNull()
@@ -32,9 +34,7 @@ final class CollectionsFirstOrNullFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
-            errors.isEmpty,
-            "Expected firstOrNull to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
+        #expect(errors.isEmpty, "Expected firstOrNull to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
     }
 }
+#endif

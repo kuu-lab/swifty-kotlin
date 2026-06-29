@@ -444,6 +444,21 @@ public func kk_string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) 
     return runtimeMakeStringRaw(result)
 }
 
+// STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase)
+@_cdecl("kk_string_replaceFirst_ignoreCase")
+public func kk_string_replaceFirst_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
+    let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
+    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
+    guard let range = source.range(of: oldValue, options: options) else {
+        return runtimeMakeStringRaw(source)
+    }
+    var result = source
+    result.replaceSubrange(range, with: newValue)
+    return runtimeMakeStringRaw(result)
+}
+
 @_cdecl("kk_string_replaceRange")
 public func kk_string_replaceRange(
     _ strRaw: Int,
@@ -471,6 +486,34 @@ public func kk_string_replaceRange(
     let replacement = runtimeStringFromRawOrPanic(replacementRaw, caller: #function)
     let before = runtimeStringFromScalars(scalars[0 ..< first])
     let after = runtimeStringFromScalars(scalars[endIndex...])
+    return runtimeMakeStringRaw(before + replacement + after)
+}
+
+// MARK: - STDLIB-TEXT-FN-062: replaceRange(startIndex, endIndex, replacement)
+
+@_cdecl("kk_string_replaceRange_indices")
+public func kk_string_replaceRange_indices(
+    _ strRaw: Int,
+    _ startRaw: Int,
+    _ endRaw: Int,
+    _ replacementRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    let length = scalars.count
+    let start = startRaw
+    let end = endRaw
+    if start < 0 || start > length || end < 0 || end > length || start > end {
+        runtimeSetThrown(
+            outThrown,
+            message: "StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(length)"
+        )
+        return 0
+    }
+    let replacement = runtimeStringFromRawOrPanic(replacementRaw, caller: #function)
+    let before = runtimeStringFromScalars(scalars[0 ..< start])
+    let after = runtimeStringFromScalars(scalars[end...])
     return runtimeMakeStringRaw(before + replacement + after)
 }
 
@@ -514,24 +557,3 @@ public func kk_string_removeRange_range(
     return kk_string_removeRange(strRaw, range.first, range.last + 1, outThrown)
 }
 
-// MARK: - Bridge functions for substring/replace/remove operations (MIGRATION-TEXT-005)
-
-@_cdecl("__string_replaceFirst")
-public func __string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    return kk_string_replaceFirst(strRaw, oldRaw, newRaw)
-}
-
-@_cdecl("__string_replaceRange")
-public func __string_replaceRange(_ strRaw: Int, _ rangeRaw: Int, _ replacementRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_replaceRange(strRaw, rangeRaw, replacementRaw, outThrown)
-}
-
-@_cdecl("__string_removeRange")
-public func __string_removeRange(_ strRaw: Int, _ startRaw: Int, _ endRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_removeRange(strRaw, startRaw, endRaw, outThrown)
-}
-
-@_cdecl("__string_removeRange_range")
-public func __string_removeRange_range(_ strRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_removeRange_range(strRaw, rangeRaw, outThrown)
-}

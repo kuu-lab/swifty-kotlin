@@ -1,14 +1,18 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import Testing
 import XCTest
 
 // MARK: - BuildAST BodyParsing Regression Tests
 
 // Target: BuildASTPhase+BodyParsing.swift (56.9%)
 
-final class BuildASTBodyParsingRegressionTests: XCTestCase {
+@Suite
+struct BuildASTBodyParsingRegressionTests {
     // MARK: - Typed local variable declaration
 
+    @Test
     func testTypedLocalVariableDeclaration() throws {
         let source = """
         fun main(): Int {
@@ -21,13 +25,14 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            XCTAssertGreaterThanOrEqual(ast.declarationCount, 1)
+            let ast = try #require(ctx.ast)
+            #expect(ast.declarationCount >= 1)
         }
     }
 
     // MARK: - Local variable without initializer
 
+    @Test
     func testLocalVariableWithoutInitializer() throws {
         let source = """
         fun main(): Int {
@@ -39,13 +44,14 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            XCTAssertGreaterThanOrEqual(ast.declarationCount, 1)
+            let ast = try #require(ctx.ast)
+            #expect(ast.declarationCount >= 1)
         }
     }
 
     // MARK: - Local function with expression body
 
+    @Test
     func testLocalFunctionWithExpressionBody() throws {
         let source = """
         fun outer(): Int {
@@ -57,13 +63,14 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.bindings.exprTypes.isEmpty))
         }
     }
 
     // MARK: - Nested local function
 
+    @Test
     func testNestedLocalFunction() throws {
         let source = """
         fun outer(): Int {
@@ -78,11 +85,12 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.bindings.exprTypes.isEmpty))
         }
     }
 
+    @Test
     func testSuspendLocalFunctionParsesThroughKIR() throws {
         let source = """
         suspend fun delayed(value: Int): Int = value
@@ -95,13 +103,14 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.bindings.exprTypes.isEmpty))
         }
     }
 
     // MARK: - Compound assignment operators in body parsing
 
+    @Test
     func testCompoundAssignmentOperatorsInBody() throws {
         let source = """
         fun main(): Int {
@@ -117,13 +126,14 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            XCTAssertGreaterThanOrEqual(ast.declarationCount, 1)
+            let ast = try #require(ctx.ast)
+            #expect(ast.declarationCount >= 1)
         }
     }
 
     // MARK: - Array assignment
 
+    @Test
     func testArrayAssignmentInBody() throws {
         let source = """
         fun main(): Int {
@@ -136,13 +146,14 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            XCTAssertGreaterThanOrEqual(ast.declarationCount, 1)
+            let ast = try #require(ctx.ast)
+            #expect(ast.declarationCount >= 1)
         }
     }
 
     // MARK: - Block body with multiple statements
 
+    @Test
     func testBlockBodyMultipleStatements() throws {
         let source = """
         fun compute(a: Int, b: Int): Int {
@@ -156,14 +167,15 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
-            XCTAssertFalse(body.isEmpty)
+            #expect(!(body.isEmpty))
         }
     }
 
     // MARK: - String template in body
 
+    @Test
     func testStringTemplateInBody() throws {
         let source = """
         fun greet(name: String): String {
@@ -175,11 +187,12 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.bindings.exprTypes.isEmpty))
         }
     }
 
+    @Test
     func testAnnotatedExtensionFunctionTypeAliasPreservesTypeAnnotations() throws {
         let source = """
         annotation class A
@@ -191,43 +204,42 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             // Skip bundled stdlib file — user file is last
-            let file = try XCTUnwrap(ast.files.last)
-            let aliasDeclID = try XCTUnwrap(
-                file.topLevelDecls.first(where: {
+            let file = try #require(ast.files.last)
+            let aliasDeclID = try #require(file.topLevelDecls.first(where: {
                     if case .typeAliasDecl = ast.arena.decl($0) {
                         return true
                     }
                     return false
-                })
-            )
+                }))
 
             guard case let .typeAliasDecl(typeAliasDecl) = ast.arena.decl(aliasDeclID) else {
-                XCTFail("Expected typealias declaration")
+                Issue.record("Expected typealias declaration")
                 return
             }
-            let underlyingType = try XCTUnwrap(typeAliasDecl.underlyingType)
-            guard case let .annotated(base, annotations) = try XCTUnwrap(ast.arena.typeRef(underlyingType)) else {
-                XCTFail("Expected annotated type reference")
-                return
-            }
-
-            XCTAssertEqual(annotations.map(\.name), ["A", "B", "ExtensionFunctionType"])
-
-            guard case let .named(path, args, nullable) = try XCTUnwrap(ast.arena.typeRef(base)) else {
-                XCTFail("Expected named type reference")
+            let underlyingType = try #require(typeAliasDecl.underlyingType)
+            guard case let .annotated(base, annotations) = try #require(ast.arena.typeRef(underlyingType)) else {
+                Issue.record("Expected annotated type reference")
                 return
             }
 
-            XCTAssertEqual(path.map(ctx.interner.resolve), ["Function1"])
-            XCTAssertEqual(args.count, 2)
-            XCTAssertFalse(nullable)
+            #expect(annotations.map(\.name) == ["A", "B", "ExtensionFunctionType"])
+
+            guard case let .named(path, args, nullable) = try #require(ast.arena.typeRef(base)) else {
+                Issue.record("Expected named type reference")
+                return
+            }
+
+            #expect(path.map(ctx.interner.resolve) == ["Function1"])
+            #expect(args.count == 2)
+            #expect(!(nullable))
         }
     }
 
     // MARK: - Lambda/Object literal/Callable reference roundtrip
 
+    @Test
     func testLambdaObjectLiteralAndCallableReferenceRoundtripToASTLocals() throws {
         let source = """
         fun host(receiver: String): Int {
@@ -246,7 +258,7 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let funDecls = ast.arena.declarations().compactMap { decl -> FunDecl? in
                 guard case let .funDecl(funDecl) = decl else {
                     return nil
@@ -254,12 +266,12 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
                 return funDecl
             }
             let funNames = Set(funDecls.map { ctx.interner.resolve($0.name) })
-            XCTAssertTrue(funNames.contains("host"))
-            XCTAssertTrue(funNames.contains("after"))
+            #expect(funNames.contains("host"))
+            #expect(funNames.contains("after"))
 
-            let hostDecl = try XCTUnwrap(funDecls.first(where: { ctx.interner.resolve($0.name) == "host" }))
+            let hostDecl = try #require(funDecls.first(where: { ctx.interner.resolve($0.name) == "host" }))
             guard case let .block(bodyExprs, _) = hostDecl.body else {
-                XCTFail("host should have a block body")
+                Issue.record("host should have a block body")
                 return
             }
 
@@ -274,27 +286,27 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             }
             let localsByName = Dictionary(uniqueKeysWithValues: localInitializers.map { ($0.0, $0.1) })
 
-            let lambdaInit = try XCTUnwrap(localsByName["lambda"], "Missing lambda initializer")
+            let lambdaInit = try #require(localsByName["lambda"])
             guard let lambdaExpr = ast.arena.expr(lambdaInit),
                   case .lambdaLiteral = lambdaExpr
             else {
-                XCTFail("Expected `lambda` local initializer to be `.lambdaLiteral`.")
+                Issue.record("Expected `lambda` local initializer to be `.lambdaLiteral`.")
                 return
             }
 
-            let objectInit = try XCTUnwrap(localsByName["instance"], "Missing object initializer")
+            let objectInit = try #require(localsByName["instance"])
             guard let objectExpr = ast.arena.expr(objectInit),
                   case .objectLiteral = objectExpr
             else {
-                XCTFail("Expected `instance` local initializer to be `.objectLiteral`.")
+                Issue.record("Expected `instance` local initializer to be `.objectLiteral`.")
                 return
             }
 
-            let callableInit = try XCTUnwrap(localsByName["ref"], "Missing callable reference initializer")
+            let callableInit = try #require(localsByName["ref"])
             guard let callableExpr = ast.arena.expr(callableInit),
                   case .callableRef = callableExpr
             else {
-                XCTFail("Expected `ref` local initializer to be `.callableRef`.")
+                Issue.record("Expected `ref` local initializer to be `.callableRef`.")
                 return
             }
         }
@@ -302,6 +314,7 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
 
     // MARK: - Multi-line expression merging (BuildASTPhase+BodyParsing fix)
 
+    @Test
     func testMultiLineFunctionCallMergesIntoSingleStatement() throws {
         // Arguments spread across multiple lines should be parsed as one call.
         let source = """
@@ -317,13 +330,11 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
-                "Expected no errors for multi-line call, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for multi-line call, got: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testMultiLineBinaryExpressionMergesIntoSingleStatement() throws {
         // A binary expression split across lines should merge when the previous
         // line ends with the operator.
@@ -338,13 +349,11 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
-                "Expected no errors for multi-line binary expr, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for multi-line binary expr, got: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testMultiLineStringConcatMergesCorrectly() throws {
         let source = """
         fun main(): String {
@@ -357,13 +366,11 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
-                "Expected no errors for multi-line string concat, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for multi-line string concat, got: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testChainedMemberCallsAcrossLinesMerge() throws {
         // Method chains split across lines (dot at start of next line) should parse correctly.
         let source = """
@@ -377,13 +384,11 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
-                "Expected no errors for chained member calls, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for chained member calls, got: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testClosingParenOnSeparateLineMergesWithCall() throws {
         // Closing paren on its own line should still be merged with the call.
         let source = """
@@ -399,13 +404,11 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
-                "Expected no errors for closing paren on separate line, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })), "Expected no errors for closing paren on separate line, got: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testTopLevelDeclarationAnnotationsAreCollectedWithMixedModifierOrder() throws {
         let source = """
         package anno.ast
@@ -418,10 +421,10 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             // Skip bundled stdlib file — user file is last
-            let file = try XCTUnwrap(ast.sortedFiles.last)
-            let function = try XCTUnwrap(file.topLevelDecls.compactMap { declID -> FunDecl? in
+            let file = try #require(ast.sortedFiles.last)
+            let function = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
                 guard let decl = ast.arena.decl(declID),
                       case let .funDecl(funDecl) = decl,
                       ctx.interner.resolve(funDecl.name) == "suppressedCast"
@@ -431,12 +434,13 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
                 return funDecl
             }.first)
 
-            XCTAssertEqual(function.annotations.count, 1)
-            XCTAssertEqual(function.annotations[0].name, "Suppress")
-            XCTAssertEqual(function.annotations[0].arguments, ["\"\"UNCHECKED_CAST\"\""])
+            #expect(function.annotations.count == 1)
+            #expect(function.annotations[0].name == "Suppress")
+            #expect(function.annotations[0].arguments == ["\"\"UNCHECKED_CAST\"\""])
         }
     }
 
+    @Test
     func testCompanionMemberAnnotationsAreCollectedWithMixedModifierOrder() throws {
         let source = """
         package anno.ast
@@ -453,10 +457,10 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             // Skip bundled stdlib file — user file is last
-            let file = try XCTUnwrap(ast.sortedFiles.last)
-            let hostClass = try XCTUnwrap(file.topLevelDecls.compactMap { declID -> ClassDecl? in
+            let file = try #require(ast.sortedFiles.last)
+            let hostClass = try #require(file.topLevelDecls.compactMap { declID -> ClassDecl? in
                 guard let decl = ast.arena.decl(declID),
                       case let .classDecl(classDecl) = decl,
                       ctx.interner.resolve(classDecl.name) == "Host"
@@ -465,23 +469,23 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
                 }
                 return classDecl
             }.first)
-            let companionDeclID = try XCTUnwrap(hostClass.companionObject)
+            let companionDeclID = try #require(hostClass.companionObject)
             guard let companionDecl = ast.arena.decl(companionDeclID),
                   case let .objectDecl(companionObject) = companionDecl
             else {
-                XCTFail("Expected companion object declaration.")
+                Issue.record("Expected companion object declaration.")
                 return
             }
-            let companionFunctionDeclID = try XCTUnwrap(companionObject.memberFunctions.first)
+            let companionFunctionDeclID = try #require(companionObject.memberFunctions.first)
             guard let functionDecl = ast.arena.decl(companionFunctionDeclID),
                   case let .funDecl(function) = functionDecl
             else {
-                XCTFail("Expected companion member function declaration.")
+                Issue.record("Expected companion member function declaration.")
                 return
             }
 
-            XCTAssertEqual(function.annotations.count, 1)
-            XCTAssertEqual(function.annotations[0].name, "JvmStatic")
+            #expect(function.annotations.count == 1)
+            #expect(function.annotations[0].name == "JvmStatic")
         }
     }
 
@@ -518,3 +522,4 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
         }
     }
 }
+#endif

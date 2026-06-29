@@ -595,7 +595,8 @@ public func kk_dispatcher_main() -> Int {
 }
 
 /// A simple heap-allocated, `@unchecked Sendable` box used to pass an integer
-/// result from a `DispatchQueue.async` closure back to the waiting thread.
+/// result from a `DispatchQueue.async` closure back to the waiting thread in
+/// the non-coroutine (semaphore) fallback path of `kk_with_context`.
 /// Synchronization is provided externally by a `DispatchSemaphore`.
 private final class WithContextResultBox: @unchecked Sendable {
     var value: Int = 0
@@ -672,14 +673,41 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
         )
     }
 
-    // CORO-004: Continuation-based withContext is still in progress.
-    // For now keep the semaphore fallback, which matches the current runtime
-    // model and avoids relying on unfinished continuation result plumbing.
+    // CORO-004: Continuation-based withContext (caller suspend path).
+    //
+    // When called from inside a coroutine, the caller's GCD thread must not be
+    // blocked while the dispatched block runs.  Instead we install a completion
+    // resumer on the *caller* state so the outer suspend-entry loop can re-enter
+    // without holding any thread.  The dispatched block runs its own inner
+    // suspend-entry loop on the target queue (which may itself release that
+    // thread for internal suspensions via the existing continuation model).
+    if let callerState = RuntimeContinuationState.current {
+        let capturedContinuation = continuation
+        dispatcher.dispatchAsync {
+            let savedScope = RuntimeCoroutineScope.current
+            RuntimeCoroutineScope.current = parentScope
+            defer { RuntimeCoroutineScope.current = savedScope }
+            var blockThrown: Int = 0
+            let blockResult = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: blockFnPtr,
+                continuation: capturedContinuation,
+                outThrown: &blockThrown
+            )
+            if blockThrown != 0 {
+                callerState.resume(withException: blockThrown)
+            } else {
+                callerState.resume(with: blockResult)
+            }
+        }
+        return Int(bitPattern: kk_coroutine_suspended())
+    }
+
+    // Non-coroutine context (e.g. runBlocking top-level, tests): block the
+    // calling thread until the dispatched block completes.
     let semaphore = DispatchSemaphore(value: 0)
     let resultBox = WithContextResultBox()
 
     dispatcher.dispatchAsync {
-        // Propagate the coroutine scope to the target thread.
         let savedScope = RuntimeCoroutineScope.current
         RuntimeCoroutineScope.current = parentScope
         defer { RuntimeCoroutineScope.current = savedScope }

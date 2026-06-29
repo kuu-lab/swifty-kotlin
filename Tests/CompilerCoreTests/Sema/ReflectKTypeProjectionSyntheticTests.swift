@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectKTypeProjectionSyntheticTests: XCTestCase {
+@Suite
+struct ReflectKTypeProjectionSyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,32 +12,32 @@ final class ReflectKTypeProjectionSyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected KTypeProjection surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KTypeProjection surface to resolve cleanly, got: \(diagnostics)"))
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testKTypeProjectionPropertiesAreRegistered() throws {
+    @Test func testKTypeProjectionPropertiesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
         let collectionsPackage = ["kotlin", "collections"].map { interner.intern($0) }
 
-        let kTypeSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kTypeSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KType")]
         ))
-        let kTypeProjectionSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kTypeProjectionSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KTypeProjection")]
         ))
-        let kVarianceSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kVarianceSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KVariance")]
         ))
-        let listSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let listSymbol = try #require(sema.symbols.lookup(
             fqName: collectionsPackage + [interner.intern("List")]
         ))
 
-        XCTAssertEqual(sema.symbols.symbol(kTypeProjectionSymbol)?.kind, .class)
-        XCTAssertTrue(sema.symbols.symbol(kTypeProjectionSymbol)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(kTypeProjectionSymbol)?.kind == .class)
+        #expect(sema.symbols.symbol(kTypeProjectionSymbol)?.flags.contains(.synthetic) == true)
 
         let nullableKVariance = sema.types.makeNullable(sema.types.make(.classType(ClassType(
             classSymbol: kVarianceSymbol,
@@ -48,14 +50,14 @@ final class ReflectKTypeProjectionSyntheticTests: XCTestCase {
             nullability: .nonNull
         ))))
 
-        let varianceSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let varianceSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KTypeProjection"), interner.intern("variance")]
         ))
-        let typeSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let typeSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KTypeProjection"), interner.intern("type")]
         ))
-        XCTAssertEqual(sema.symbols.propertyType(for: varianceSymbol), nullableKVariance)
-        XCTAssertEqual(sema.symbols.propertyType(for: typeSymbol), nullableKType)
+        #expect(sema.symbols.propertyType(for: varianceSymbol) == nullableKVariance)
+        #expect(sema.symbols.propertyType(for: typeSymbol) == nullableKType)
 
         let projectionType = sema.types.make(.classType(ClassType(
             classSymbol: kTypeProjectionSymbol,
@@ -67,13 +69,13 @@ final class ReflectKTypeProjectionSyntheticTests: XCTestCase {
             args: [.out(projectionType)],
             nullability: .nonNull
         )))
-        let argumentsSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let argumentsSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KType"), interner.intern("arguments")]
         ))
-        XCTAssertEqual(sema.symbols.propertyType(for: argumentsSymbol), listOfProjection)
+        #expect(sema.symbols.propertyType(for: argumentsSymbol) == listOfProjection)
     }
 
-    func testKTypeProjectionPropertiesResolveInSource() throws {
+    @Test func testKTypeProjectionPropertiesResolveInSource() throws {
         let source = """
         import kotlin.reflect.KType
         import kotlin.reflect.KTypeProjection
@@ -87,3 +89,4 @@ final class ReflectKTypeProjectionSyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

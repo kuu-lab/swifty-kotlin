@@ -1,23 +1,25 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class BuildKIRRegressionTests: XCTestCase {
-    func testLoadSourcesPhaseReportsMissingInputsAndUnreadableFiles() {
+@Suite @MainActor
+struct BuildKIRRegressionTests {
+    @Test func testLoadSourcesPhaseReportsMissingInputsAndUnreadableFiles() {
         let emptyCtx = makeCompilationContext(inputs: [])
-        XCTAssertThrowsError(try LoadSourcesPhase().run(emptyCtx))
-        XCTAssertEqual(emptyCtx.diagnostics.diagnostics.last?.code, "KSWIFTK-SOURCE-0001")
+        #expect(throws: (any Error).self) { try LoadSourcesPhase().run(emptyCtx) }
+        #expect(emptyCtx.diagnostics.diagnostics.last?.code == "KSWIFTK-SOURCE-0001")
 
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("kt")
             .path
         let missingCtx = makeCompilationContext(inputs: [missingPath])
-        XCTAssertThrowsError(try LoadSourcesPhase().run(missingCtx))
-        XCTAssertEqual(missingCtx.diagnostics.diagnostics.last?.code, "KSWIFTK-SOURCE-0002")
+        #expect(throws: (any Error).self) { try LoadSourcesPhase().run(missingCtx) }
+        #expect(missingCtx.diagnostics.diagnostics.last?.code == "KSWIFTK-SOURCE-0002")
     }
 
-    func testRunToKIRAndLoweringRecordsAllPasses() throws {
+    @Test func testRunToKIRAndLoweringRecordsAllPasses() throws {
         let source = """
         inline fun add(a: Int, b: Int) = a + b
         suspend fun susp(v: Int) = v
@@ -34,8 +36,8 @@ final class BuildKIRRegressionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertEqual(module.executedLowerings, [
+            let module = try #require(ctx.kir)
+            #expect(module.executedLowerings == [
                 "TailrecLowering",
                 "NormalizeBlocks",
                 "OperatorLowering",
@@ -57,11 +59,11 @@ final class BuildKIRRegressionTests: XCTestCase {
                 "ABILowering",
             ])
             // Source defines add, susp, chooser, main
-            XCTAssertGreaterThanOrEqual(module.functionCount, 4)
+            #expect(module.functionCount >= 4)
         }
     }
 
-    func testBuildKIRLowersStringAdditionToRuntimeConcatCall() throws {
+    @Test func testBuildKIRLowersStringAdditionToRuntimeConcatCall() throws {
         let source = """
         fun main() = "a" + "b"
         """
@@ -69,21 +71,21 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_string_concat_flat"))
-            XCTAssertFalse(body.contains { instruction in
+            #expect(callees.contains("kk_string_concat_flat"))
+            #expect(!(body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else {
                     return false
                 }
                 return op == .add
-            })
+            }))
         }
     }
 
-    func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
+    @Test func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
         let source = """
         fun lengthOf(value: String): Int {
             return value.length
@@ -93,16 +95,16 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("__string_struct_get_length"))
-            XCTAssertFalse(callees.contains("kk_string_struct_get_length"))
+            #expect(callees.contains("__string_struct_get_length"))
+            #expect(!callees.contains("kk_string_struct_get_length"))
         }
     }
 
-    func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
+    @Test func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
         let source = """
         fun main(): Int {
             val x = 2
@@ -116,7 +118,7 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let binaryOps = body.compactMap { instruction -> KIRBinaryOp? in
@@ -125,12 +127,12 @@ final class BuildKIRRegressionTests: XCTestCase {
                 }
                 return op
             }
-            XCTAssertTrue(binaryOps.contains(.subtract))
-            XCTAssertTrue(binaryOps.contains(.equal))
+            #expect(binaryOps.contains(.subtract))
+            #expect(binaryOps.contains(.equal))
         }
     }
 
-    func testBuildKIRLowersComparisonAndLogicalOperatorsToRuntimeCalls() throws {
+    @Test func testBuildKIRLowersComparisonAndLogicalOperatorsToRuntimeCalls() throws {
         let source = """
         fun main(): Int {
             val x = 3
@@ -149,21 +151,21 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            XCTAssertTrue(callees.contains("kk_op_ne"))
-            XCTAssertTrue(callees.contains("kk_op_lt"))
-            XCTAssertTrue(callees.contains("kk_op_le"))
-            XCTAssertTrue(callees.contains("kk_op_gt"))
-            XCTAssertTrue(callees.contains("kk_op_ge"))
-            XCTAssertTrue(callees.contains("kk_op_and"))
-            XCTAssertTrue(callees.contains("kk_op_or"))
+            #expect(callees.contains("kk_op_ne"))
+            #expect(callees.contains("kk_op_lt"))
+            #expect(callees.contains("kk_op_le"))
+            #expect(callees.contains("kk_op_gt"))
+            #expect(callees.contains("kk_op_ge"))
+            #expect(callees.contains("kk_op_and"))
+            #expect(callees.contains("kk_op_or"))
         }
     }
 
-    func testBuildKIRUsesResolvedOperatorOverloadCallForBinaryExpression() throws {
+    @Test func testBuildKIRUsesResolvedOperatorOverloadCallForBinaryExpression() throws {
         // Kotlin member functions take precedence over extensions with the same
         // signature.  Int.plus is a built-in member, so `operator fun Int.plus`
         // defined as an extension must NOT shadow the built-in `+`.
@@ -175,28 +177,28 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             // The built-in binary .add instruction should be used, not a call.
-            XCTAssertTrue(body.contains { instruction in
+            #expect(body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else {
                     return false
                 }
                 return op == .add
             })
-            XCTAssertFalse(body.contains { instruction in
+            #expect(!(body.contains { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
                 return ctx.interner.resolve(callee) == "plus"
-            })
+            }))
         }
     }
 
     // MARK: - Member operator/member call integration (P5-19)
 
-    func testBuildKIRUsesChosenMemberOperatorSymbolForBinaryPlusExpression() throws {
+    @Test func testBuildKIRUsesChosenMemberOperatorSymbolForBinaryPlusExpression() throws {
         let source = """
         class Vec {
             operator fun plus(other: Vec): Vec = this
@@ -207,10 +209,10 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
 
-            let operatorExprID = try XCTUnwrap(topLevelExpressionBodyExprID(
+            let operatorExprID = try #require(topLevelExpressionBodyExprID(
                 named: "useOperator",
                 ast: ast,
                 interner: ctx.interner
@@ -218,60 +220,57 @@ final class BuildKIRRegressionTests: XCTestCase {
             guard let operatorExpr = ast.arena.expr(operatorExprID),
                   case let .binary(op, _, _, _) = operatorExpr
             else {
-                XCTFail("Expected useOperator body to be a binary expression.")
+                Issue.record("Expected useOperator body to be a binary expression.")
                 return
             }
-            XCTAssertEqual(op, .add)
-            let resolvedBinding = try XCTUnwrap(sema.bindings.callBindings[operatorExprID])
+            #expect(op == .add)
+            let resolvedBinding = try #require(sema.bindings.callBindings[operatorExprID])
             let chosenSymbol = resolvedBinding.chosenCallee
-            let chosenSemanticSymbol = try XCTUnwrap(sema.symbols.symbol(chosenSymbol))
-            XCTAssertEqual(ctx.interner.resolve(chosenSemanticSymbol.name), "plus")
-            let ownerSymbolID = try XCTUnwrap(sema.symbols.parentSymbol(for: chosenSymbol))
-            let ownerSymbol = try XCTUnwrap(sema.symbols.symbol(ownerSymbolID))
-            XCTAssertEqual(ctx.interner.resolve(ownerSymbol.name), "Vec")
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: chosenSymbol))
-            XCTAssertNotNil(signature.receiverType)
-            XCTAssertEqual(sema.bindings.exprTypes[operatorExprID], signature.returnType)
+            let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
+            #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "plus")
+            let ownerSymbolID = try #require(sema.symbols.parentSymbol(for: chosenSymbol))
+            let ownerSymbol = try #require(sema.symbols.symbol(ownerSymbolID))
+            #expect(ctx.interner.resolve(ownerSymbol.name) == "Vec")
+            let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
+            #expect(signature.receiverType != nil)
+            #expect(sema.bindings.exprTypes[operatorExprID] == signature.returnType)
 
             try BuildKIRPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
 
             let body = try findKIRFunctionBody(named: "useOperator", in: module, interner: ctx.interner)
-            let resolvedCall = try XCTUnwrap(body.first { instruction in
+            let resolvedCall = try #require(body.first { instruction in
                 guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else {
                     return false
                 }
                 return symbol == chosenSymbol
             })
             guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = resolvedCall else {
-                XCTFail("Expected chosen call instruction for useOperator.")
+                Issue.record("Expected chosen call instruction for useOperator.")
                 return
             }
 
-            XCTAssertEqual(callSymbol, chosenSymbol)
-            XCTAssertEqual(ctx.interner.resolve(callee), "plus")
-            XCTAssertFalse(ctx.interner.resolve(callee).hasPrefix("kk_op_"))
-            XCTAssertFalse(body.contains { instruction in
+            #expect(callSymbol == chosenSymbol)
+            #expect(ctx.interner.resolve(callee) == "plus")
+            #expect(!(ctx.interner.resolve(callee).hasPrefix("kk_op_")))
+            #expect(!(body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else {
                     return false
                 }
                 return op == .add
-            })
-            XCTAssertFalse(body.contains { instruction in
+            }))
+            #expect(!(body.contains { instruction in
                 guard case let .call(_, callCallee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
                 return ctx.interner.resolve(callCallee).hasPrefix("kk_op_")
-            })
-            XCTAssertEqual(
-                symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner),
-                ["a", "b"]
-            )
+            }))
+            #expect(symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner) == ["a", "b"])
         }
     }
 
-    func testBuildKIRLowersExplicitMemberCallByInsertingReceiverArgument() throws {
+    @Test func testBuildKIRLowersExplicitMemberCallByInsertingReceiverArgument() throws {
         let source = """
         class Vec {
             fun plus(other: Vec): Vec = this
@@ -282,10 +281,10 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
 
-            let memberExprID = try XCTUnwrap(topLevelExpressionBodyExprID(
+            let memberExprID = try #require(topLevelExpressionBodyExprID(
                 named: "useMemberCall",
                 ast: ast,
                 interner: ctx.interner
@@ -293,46 +292,43 @@ final class BuildKIRRegressionTests: XCTestCase {
             guard let memberExpr = ast.arena.expr(memberExprID),
                   case .memberCall = memberExpr
             else {
-                XCTFail("Expected useMemberCall body to be a member call expression.")
+                Issue.record("Expected useMemberCall body to be a member call expression.")
                 return
             }
-            let resolvedBinding = try XCTUnwrap(sema.bindings.callBindings[memberExprID])
+            let resolvedBinding = try #require(sema.bindings.callBindings[memberExprID])
             let chosenSymbol = resolvedBinding.chosenCallee
-            let chosenSemanticSymbol = try XCTUnwrap(sema.symbols.symbol(chosenSymbol))
-            XCTAssertEqual(ctx.interner.resolve(chosenSemanticSymbol.name), "plus")
-            let ownerSymbolID = try XCTUnwrap(sema.symbols.parentSymbol(for: chosenSymbol))
-            let ownerSymbol = try XCTUnwrap(sema.symbols.symbol(ownerSymbolID))
-            XCTAssertEqual(ctx.interner.resolve(ownerSymbol.name), "Vec")
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: chosenSymbol))
-            XCTAssertNotNil(signature.receiverType)
-            XCTAssertEqual(sema.bindings.exprTypes[memberExprID], signature.returnType)
+            let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
+            #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "plus")
+            let ownerSymbolID = try #require(sema.symbols.parentSymbol(for: chosenSymbol))
+            let ownerSymbol = try #require(sema.symbols.symbol(ownerSymbolID))
+            #expect(ctx.interner.resolve(ownerSymbol.name) == "Vec")
+            let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
+            #expect(signature.receiverType != nil)
+            #expect(sema.bindings.exprTypes[memberExprID] == signature.returnType)
 
             try BuildKIRPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
 
             let body = try findKIRFunctionBody(named: "useMemberCall", in: module, interner: ctx.interner)
-            let memberCall = try XCTUnwrap(body.first { instruction in
+            let memberCall = try #require(body.first { instruction in
                 guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else {
                     return false
                 }
                 return symbol == chosenSymbol
             })
             guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = memberCall else {
-                XCTFail("Expected chosen call instruction for useMemberCall.")
+                Issue.record("Expected chosen call instruction for useMemberCall.")
                 return
             }
 
-            XCTAssertEqual(callSymbol, chosenSymbol)
-            XCTAssertEqual(ctx.interner.resolve(callee), "plus")
-            XCTAssertEqual(
-                symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner),
-                ["a", "b"]
-            )
+            #expect(callSymbol == chosenSymbol)
+            #expect(ctx.interner.resolve(callee) == "plus")
+            #expect(symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner) == ["a", "b"])
         }
     }
 
-    func testBuildKIRUsesChosenUnaryOperatorSymbolForUnaryMinusExpression() throws {
+    @Test func testBuildKIRUsesChosenUnaryOperatorSymbolForUnaryMinusExpression() throws {
         let source = """
         class Vec {
             operator fun unaryMinus(): Vec = this
@@ -343,10 +339,10 @@ final class BuildKIRRegressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
 
-            let operatorExprID = try XCTUnwrap(topLevelExpressionBodyExprID(
+            let operatorExprID = try #require(topLevelExpressionBodyExprID(
                 named: "useUnary",
                 ast: ast,
                 interner: ctx.interner
@@ -354,64 +350,47 @@ final class BuildKIRRegressionTests: XCTestCase {
             guard let operatorExpr = ast.arena.expr(operatorExprID),
                   case let .unaryExpr(op, _, _) = operatorExpr
             else {
-                XCTFail("Expected useUnary body to be a unary expression.")
+                Issue.record("Expected useUnary body to be a unary expression.")
                 return
             }
-            XCTAssertEqual(op, .unaryMinus)
-            let resolvedBinding = try XCTUnwrap(sema.bindings.callBindings[operatorExprID])
+            #expect(op == .unaryMinus)
+            let resolvedBinding = try #require(sema.bindings.callBindings[operatorExprID])
             let chosenSymbol = resolvedBinding.chosenCallee
-            let chosenSemanticSymbol = try XCTUnwrap(sema.symbols.symbol(chosenSymbol))
-            XCTAssertEqual(ctx.interner.resolve(chosenSemanticSymbol.name), "unaryMinus")
-            let ownerSymbolID = try XCTUnwrap(sema.symbols.parentSymbol(for: chosenSymbol))
-            let ownerSymbol = try XCTUnwrap(sema.symbols.symbol(ownerSymbolID))
-            XCTAssertEqual(ctx.interner.resolve(ownerSymbol.name), "Vec")
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: chosenSymbol))
-            XCTAssertNotNil(signature.receiverType)
-            XCTAssertEqual(sema.bindings.exprTypes[operatorExprID], signature.returnType)
+            let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
+            #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "unaryMinus")
+            let ownerSymbolID = try #require(sema.symbols.parentSymbol(for: chosenSymbol))
+            let ownerSymbol = try #require(sema.symbols.symbol(ownerSymbolID))
+            #expect(ctx.interner.resolve(ownerSymbol.name) == "Vec")
+            let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
+            #expect(signature.receiverType != nil)
+            #expect(sema.bindings.exprTypes[operatorExprID] == signature.returnType)
 
             try BuildKIRPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "useUnary", in: module, interner: ctx.interner)
-            let resolvedCall = try XCTUnwrap(body.first { instruction in
+            let resolvedCall = try #require(body.first { instruction in
                 guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else {
                     return false
                 }
                 return symbol == chosenSymbol
             })
             guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = resolvedCall else {
-                XCTFail("Expected chosen call instruction for useUnary.")
+                Issue.record("Expected chosen call instruction for useUnary.")
                 return
             }
 
-            XCTAssertEqual(callSymbol, chosenSymbol)
-            XCTAssertEqual(ctx.interner.resolve(callee), "unaryMinus")
-            XCTAssertEqual(
-                symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner),
-                ["a"]
-            )
-            XCTAssertFalse(body.contains { instruction in
+            #expect(callSymbol == chosenSymbol)
+            #expect(ctx.interner.resolve(callee) == "unaryMinus")
+            #expect(symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner) == ["a"])
+            #expect(!(body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else {
                     return false
                 }
                 return op == .subtract
-            })
+            }))
         }
     }
 
-    // MARK: - Expression Variants Scenarios
-
-    // MARK: - Reified Type Token Scenarios
-
-    // MARK: - Default Argument Callee-Context Semantics (P5-56)
-
-    // MARK: - Nested Return Propagation (P5-48)
-
-    // MARK: - if/when Control Flow (P5-51)
-
-    // MARK: - Lambda / CallableRef Lowering (P5-20)
-
-    // MARK: - P5-39: vararg call lowering / ABI regression tests
-
-    // MARK: - P5-42: Local function scope registration and KIR generation
 }
+#endif

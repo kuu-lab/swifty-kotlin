@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-TYPE-005: Validates that `kotlin.text.Charsets` is registered
 /// as a synthetic object in the `kotlin.text` package and exposes the expected
@@ -7,7 +8,8 @@ import XCTest
 /// UTF_32, UTF_32BE, UTF_32LE), each with type `kotlin.text.Charset`.
 /// See `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringStubs.swift`
 /// for the registration site.
-final class CharsetsSyntheticObjectTests: XCTestCase {
+@Suite
+struct CharsetsSyntheticObjectTests {
 
     // MARK: - Shared sema fixture
 
@@ -16,38 +18,30 @@ final class CharsetsSyntheticObjectTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
     // MARK: - 1. Charsets object registration
 
-    func testCharsetsIsRegisteredAsObjectInKotlinTextPackage() throws {
+    @Test func testCharsetsIsRegisteredAsObjectInKotlinTextPackage() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "Charsets"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
-            sema.symbols.lookup(fqName: fq),
-            "Expected kotlin.text.Charsets to be registered as a synthetic object"
-        )
-        let info = try XCTUnwrap(sema.symbols.symbol(sym))
-        XCTAssertEqual(info.kind, .object,
-                       "Charsets should be registered with kind=object")
+        let sym = try #require(sema.symbols.lookup(fqName: fq), "Expected kotlin.text.Charsets to be registered as a synthetic object")
+        let info = try #require(sema.symbols.symbol(sym))
+        #expect(info.kind == .object, "Charsets should be registered with kind=object")
     }
 
     // MARK: - 2. Charset class registration
 
-    func testCharsetClassIsRegisteredInKotlinTextPackage() throws {
+    @Test func testCharsetClassIsRegisteredInKotlinTextPackage() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "text", "Charset"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(
-            sema.symbols.lookup(fqName: fq),
-            "Expected kotlin.text.Charset to be registered"
-        )
-        let info = try XCTUnwrap(sema.symbols.symbol(sym))
-        XCTAssertEqual(info.kind, .class,
-                       "Charset should be registered with kind=class")
+        let sym = try #require(sema.symbols.lookup(fqName: fq), "Expected kotlin.text.Charset to be registered")
+        let info = try #require(sema.symbols.symbol(sym))
+        #expect(info.kind == .class, "Charset should be registered with kind=class")
     }
 
     // MARK: - 3. Charset constant properties
@@ -58,24 +52,20 @@ final class CharsetsSyntheticObjectTests: XCTestCase {
         "UTF_32", "UTF_32BE", "UTF_32LE",
     ]
 
-    func testCharsetsExposesAllExpectedConstantProperties() throws {
+    @Test func testCharsetsExposesAllExpectedConstantProperties() throws {
         let (sema, interner) = try makeSema()
         for name in charsetConstants {
             let fq = ["kotlin", "text", "Charsets", name].map { interner.intern($0) }
-            let sym = try XCTUnwrap(
-                sema.symbols.lookup(fqName: fq),
-                "Expected Charsets.\(name) property to be registered"
-            )
-            let info = try XCTUnwrap(sema.symbols.symbol(sym))
-            XCTAssertEqual(info.kind, .property,
-                           "Charsets.\(name) should be registered with kind=property")
+            let sym = try #require(sema.symbols.lookup(fqName: fq), "Expected Charsets.\(name) property to be registered")
+            let info = try #require(sema.symbols.symbol(sym))
+            #expect(info.kind == .property, "Charsets.\(name) should be registered with kind=property")
         }
     }
 
-    func testCharsetsConstantPropertiesHaveCharsetType() throws {
+    @Test func testCharsetsConstantPropertiesHaveCharsetType() throws {
         let (sema, interner) = try makeSema()
         let charsetFQ = ["kotlin", "text", "Charset"].map { interner.intern($0) }
-        let charsetSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: charsetFQ))
+        let charsetSymbol = try #require(sema.symbols.lookup(fqName: charsetFQ))
         let charsetType = sema.types.make(.classType(ClassType(
             classSymbol: charsetSymbol,
             args: [],
@@ -84,19 +74,15 @@ final class CharsetsSyntheticObjectTests: XCTestCase {
 
         for name in charsetConstants {
             let fq = ["kotlin", "text", "Charsets", name].map { interner.intern($0) }
-            let sym = try XCTUnwrap(
-                sema.symbols.lookup(fqName: fq),
-                "Expected Charsets.\(name) to be registered"
-            )
+            let sym = try #require(sema.symbols.lookup(fqName: fq), "Expected Charsets.\(name) to be registered")
             let propType = sema.symbols.propertyType(for: sym)
-            XCTAssertEqual(propType, charsetType,
-                           "Charsets.\(name) should have type kotlin.text.Charset")
+            #expect(propType == charsetType, "Charsets.\(name) should have type kotlin.text.Charset")
         }
     }
 
     // MARK: - 4. Source-level resolution
 
-    func testCharsetsUTF8TypeChecksInSource() throws {
+    @Test func testCharsetsUTF8TypeChecksInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.text.Charsets
 
@@ -104,13 +90,10 @@ final class CharsetsSyntheticObjectTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
-            errors.isEmpty,
-            "Expected Charsets.UTF_8 to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
+        #expect(errors.isEmpty, "Expected Charsets.UTF_8 to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
     }
 
-    func testCharsetsAllConstantsTypeCheckInSource() throws {
+    @Test func testCharsetsAllConstantsTypeCheckInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.text.Charsets
         import kotlin.text.Charset
@@ -127,13 +110,10 @@ final class CharsetsSyntheticObjectTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
-            errors.isEmpty,
-            "Expected all Charsets constants to type-check as kotlin.text.Charset, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
+        #expect(errors.isEmpty, "Expected all Charsets constants to type-check as kotlin.text.Charset, got: \(errors.map { "\($0.code): \($0.message)" })")
     }
 
-    func testCharsetsUsedAsArgumentTypeChecks() throws {
+    @Test func testCharsetsUsedAsArgumentTypeChecks() throws {
         let ctx = makeContextFromSource("""
         import kotlin.text.Charsets
 
@@ -141,9 +121,7 @@ final class CharsetsSyntheticObjectTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
-            errors.isEmpty,
-            "Expected Charsets.UTF_8 as argument to toByteArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
-        )
+        #expect(errors.isEmpty, "Expected Charsets.UTF_8 as argument to toByteArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
     }
 }
+#endif

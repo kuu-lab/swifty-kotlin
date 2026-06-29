@@ -1,12 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-OBJ-016: Companion Object Private Access Tests
 
 extension CompanionObjectTests {
     /// Verify companion object can access private constructor
-    func testCompanionAccessPrivateConstructor() throws {
+    @Test func testCompanionAccessPrivateConstructor() throws {
         let source = """
         class Foo private constructor(val value: Int) {
             companion object {
@@ -20,14 +21,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for companion accessing private constructor, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify companion object can access private properties
-    func testCompanionAccessPrivateProperty() throws {
+    @Test func testCompanionAccessPrivateProperty() throws {
         let source = """
         class Bar {
             private val secret: Int = 123
@@ -43,14 +44,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for companion accessing private property, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify companion object can access private methods
-    func testCompanionAccessPrivateMethod() throws {
+    @Test func testCompanionAccessPrivateMethod() throws {
         let source = """
         class Baz {
             private fun helper(): String = "secret"
@@ -66,14 +67,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for companion accessing private method, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify class can access companion's private members
-    func testClassAccessCompanionPrivateMembers() throws {
+    @Test func testClassAccessCompanionPrivateMembers() throws {
         let source = """
         class Container {
             companion object {
@@ -93,14 +94,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for class accessing companion private members, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify companion with private constructor and factory pattern
-    func testCompanionFactoryPatternWithPrivateConstructor() throws {
+    @Test func testCompanionFactoryPatternWithPrivateConstructor() throws {
         let source = """
         data class Person private constructor(
             private val name: String,
@@ -127,14 +128,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for factory pattern with private constructor, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify companion access to private constructor with parameters
-    func testCompanionPrivateConstructorWithParameters() throws {
+    @Test func testCompanionPrivateConstructorWithParameters() throws {
         let source = """
         class Config private constructor(
             private val host: String,
@@ -165,14 +166,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for private constructor with parameters, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify that non-companion objects cannot access private members
-    func testNonCompanionObjectCannotAccessPrivateMembers() throws {
+    @Test func testNonCompanionObjectCannotAccessPrivateMembers() throws {
         let source = """
         class Outer {
             private val secret: Int = 42
@@ -185,14 +186,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Nested objects currently share the enclosing class's private access rules"
         )
     }
 
     /// Verify that external code cannot access private constructor directly
-    func testExternalCannotAccessPrivateConstructor() throws {
+    @Test func testExternalCannotAccessPrivateConstructor() throws {
         let source = """
         class Secure private constructor(val data: String) {
             companion object {
@@ -207,14 +208,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertTrue(
+        #expect(
             ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
             "Expected sema error for external access to private constructor"
         )
     }
 
     /// Verify KIR lowering works with private constructor access
-    func testCompanionPrivateConstructorKIRLowering() throws {
+    @Test func testCompanionPrivateConstructorKIRLowering() throws {
         let source = """
         class Item private constructor(val id: Int) {
             companion object {
@@ -228,25 +229,25 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no KIR errors for private constructor access, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
         let functionNames = module.arena.declarations.compactMap { decl -> String? in
             guard case let .function(function) = decl else { return nil }
             return ctx.interner.resolve(function.name)
         }
 
-        XCTAssertTrue(
+        #expect(
             functionNames.contains("create"),
             "Expected companion factory function in KIR, got: \(functionNames)"
         )
     }
 
     /// Verify companion extension functions work
-    func testCompanionExtensionFunction() throws {
+    @Test func testCompanionExtensionFunction() throws {
         let source = """
         class MyClass {
             companion object
@@ -261,14 +262,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for companion extension function, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify companion extension properties work
-    func testCompanionExtensionProperty() throws {
+    @Test func testCompanionExtensionProperty() throws {
         let source = """
         class Data {
             companion object
@@ -283,14 +284,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for companion extension property, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
     /// Verify named companion extension functions
-    func testNamedCompanionExtensionFunction() throws {
+    @Test func testNamedCompanionExtensionFunction() throws {
         let source = """
         class Service {
             companion object Factory
@@ -305,9 +306,10 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for named companion extension function, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 }
+#endif

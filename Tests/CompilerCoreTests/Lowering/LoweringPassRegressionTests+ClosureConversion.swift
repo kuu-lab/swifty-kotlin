@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringPassRegressionTests {
 
@@ -8,6 +9,7 @@ extension LoweringPassRegressionTests {
 
     /// Verifies that `<lambda>` marker calls are still rewritten to
     /// `kk_lambda_invoke` for backward compatibility.
+    @Test
     func testClosureConversionRewritesLambdaMarkerToKkLambdaInvoke() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -57,24 +59,25 @@ extension LoweringPassRegressionTests {
             interner: interner
         )
 
-        XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))
+        #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("Expected lowered main function.")
+            Issue.record("Expected lowered main function.")
             return
         }
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_lambda_invoke"),
+        #expect(callees.contains("kk_lambda_invoke"),
             "Expected <lambda> to be rewritten to kk_lambda_invoke")
-        XCTAssertFalse(callees.contains("<lambda>"),
+        #expect(!callees.contains("<lambda>"),
             "Expected <lambda> marker to be removed")
     }
 
     /// Verifies that a lambda with capture parameters gets rewritten to use
     /// a closure object: kk_object_new + kk_array_set for captures, then
     /// kk_closure_invoke_* for the invocation.
+    @Test
     func testClosureConversionSynthesizesClosureObjectForLambdaWithCaptures() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -165,31 +168,31 @@ extension LoweringPassRegressionTests {
             sema: sema
         )
 
-        XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))
+        #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("Expected lowered main function.")
+            Issue.record("Expected lowered main function.")
             return
         }
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
         // Verify closure object allocation.
-        XCTAssertTrue(callees.contains("kk_object_new"),
+        #expect(callees.contains("kk_object_new"),
             "Expected closure object allocation via kk_object_new")
 
         // Verify capture storage.
-        XCTAssertTrue(callees.contains("kk_array_set"),
+        #expect(callees.contains("kk_array_set"),
             "Expected capture storage via kk_array_set")
 
         // Verify the invoke wrapper is called instead of the raw lambda.
         let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
-        XCTAssertTrue(callees.contains(invokeWrapperName),
+        #expect(callees.contains(invokeWrapperName),
             "Expected invoke wrapper \(invokeWrapperName) to be called")
 
         // The original lambda name should no longer appear as a direct call in main.
-        XCTAssertFalse(callees.contains("kk_lambda_42"),
+        #expect(!callees.contains("kk_lambda_42"),
             "Expected direct lambda call to be replaced by closure invoke")
 
         // Verify synthesized declarations were added.
@@ -197,19 +200,20 @@ extension LoweringPassRegressionTests {
             guard case let .function(function) = decl else { return nil }
             return interner.resolve(function.name)
         }
-        XCTAssertTrue(allFunctionNames.contains(invokeWrapperName),
+        #expect(allFunctionNames.contains(invokeWrapperName),
             "Expected invoke wrapper function to be synthesized")
 
         let hasNominalType = module.arena.declarations.contains { decl in
             guard case .nominalType = decl else { return false }
             return true
         }
-        XCTAssertTrue(hasNominalType,
+        #expect(hasNominalType,
             "Expected closure object nominal type to be synthesized")
     }
 
     /// Verifies that lambda functions without captures are NOT rewritten
     /// (no closure object synthesis needed for zero-capture lambdas).
+    @Test
     func testClosureConversionSkipsLambdaWithoutCaptures() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -286,27 +290,28 @@ extension LoweringPassRegressionTests {
             interner: interner
         )
 
-        XCTAssertFalse(pass.shouldRun(module: module, ctx: ctx))
+        #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("Expected lowered main function.")
+            Issue.record("Expected lowered main function.")
             return
         }
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
         // No closure object should be allocated.
-        XCTAssertFalse(callees.contains("kk_object_new"),
+        #expect(!callees.contains("kk_object_new"),
             "Expected no closure object for zero-capture lambda")
 
         // Direct call to the lambda should remain.
-        XCTAssertTrue(callees.contains("kk_lambda_50"),
+        #expect(callees.contains("kk_lambda_50"),
             "Expected direct lambda call to remain for zero-capture lambda")
     }
 
     /// Verifies that the invoke wrapper function correctly loads captures
     /// via kk_array_get_inbounds and forwards to the original lambda.
+    @Test
     func testClosureConversionInvokeWrapperLoadsCaptures() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -391,7 +396,7 @@ extension LoweringPassRegressionTests {
             sema: sema
         )
 
-        XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))
+        #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         // Find the synthesized invoke wrapper.
@@ -401,15 +406,15 @@ extension LoweringPassRegressionTests {
             return interner.resolve(function.name) == invokeWrapperName ? function : nil
         }.first
 
-        let wrapper = try XCTUnwrap(invokeWrapper, "Expected invoke wrapper to be synthesized")
+        let wrapper = try #require(invokeWrapper, "Expected invoke wrapper to be synthesized")
 
         // Wrapper should have params: (closureObj, valueParam).
-        XCTAssertEqual(wrapper.params.count, 2,
+        #expect(wrapper.params.count == 2,
             "Expected invoke wrapper to have 2 params (closureObj + 1 value param)")
 
         // Wrapper body should contain kk_array_get_inbounds to load capture.
         let wrapperCallees = extractCallees(from: wrapper.body, interner: interner)
-        XCTAssertTrue(wrapperCallees.contains("kk_array_get_inbounds"),
+        #expect(wrapperCallees.contains("kk_array_get_inbounds"),
             "Expected invoke wrapper to load captures via kk_array_get_inbounds")
 
         let wrapperCalls = wrapper.body.compactMap { instruction -> (callee: String, canThrow: Bool)? in
@@ -418,15 +423,16 @@ extension LoweringPassRegressionTests {
             }
             return (callee: interner.resolve(callee), canThrow: canThrow)
         }
-        XCTAssertEqual(wrapperCalls.first(where: { $0.callee == "kk_lambda_99" })?.canThrow, false)
+        #expect(wrapperCalls.first(where: { $0.callee == "kk_lambda_99" })?.canThrow == false)
 
         // Wrapper body should call the original lambda.
-        XCTAssertTrue(wrapperCallees.contains("kk_lambda_99"),
+        #expect(wrapperCallees.contains("kk_lambda_99"),
             "Expected invoke wrapper to forward to original lambda")
     }
 
     /// Verifies that captured lambdas are ignored when no matching call site
     /// still passes the full lambda arity.
+    @Test
     func testClosureConversionSkipsCapturedLambdaWithoutMatchingCallSite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -480,17 +486,18 @@ extension LoweringPassRegressionTests {
             interner: interner
         )
 
-        XCTAssertFalse(pass.shouldRun(module: module, ctx: ctx))
+        #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         let synthesizedNames = module.arena.declarations.compactMap { decl -> String? in
             guard case let .function(function) = decl else { return nil }
             return interner.resolve(function.name)
         }
-        XCTAssertFalse(synthesizedNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
+        #expect(!synthesizedNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
     }
 
     /// Verifies that lambdas with very large ExprIDs are still classified correctly.
+    @Test
     func testClosureConversionClassifiesLargeLambdaExprIDSymbols() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -573,20 +580,21 @@ extension LoweringPassRegressionTests {
             sema: sema
         )
 
-        XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))
+        #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("Expected lowered main function.")
+            Issue.record("Expected lowered main function.")
             return
         }
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_closure_invoke_\(lambdaSym.rawValue)"),
+        #expect(callees.contains("kk_closure_invoke_\(lambdaSym.rawValue)"),
             "Expected large-ExprID lambda to be converted")
     }
 
     /// Verifies that throwing lambdas are not converted.
+    @Test
     func testClosureConversionSkipsThrowingLambdaCalls() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -667,14 +675,14 @@ extension LoweringPassRegressionTests {
             interner: interner
         )
 
-        XCTAssertFalse(pass.shouldRun(module: module, ctx: ctx))
+        #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         let functionNames = module.arena.declarations.compactMap { decl -> String? in
             guard case let .function(function) = decl else { return nil }
             return interner.resolve(function.name)
         }
-        XCTAssertFalse(functionNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
+        #expect(!functionNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
     }
 
     // MARK: - CLSR-001: Multiple capture tests
@@ -682,6 +690,7 @@ extension LoweringPassRegressionTests {
     /// Verifies that a lambda with two captures generates a closure object
     /// that stores both captures via two kk_array_set calls, and the invoke
     /// wrapper loads both via two kk_array_get_inbounds calls.
+    @Test
     func testClosureConversionHandlesMultipleCaptures() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -778,28 +787,28 @@ extension LoweringPassRegressionTests {
             sema: sema
         )
 
-        XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))
+        #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("Expected lowered main function.")
+            Issue.record("Expected lowered main function.")
             return
         }
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
         // Verify closure object allocation.
-        XCTAssertTrue(callees.contains("kk_object_new"),
+        #expect(callees.contains("kk_object_new"),
             "Expected closure object allocation")
 
         // Two captures -> two kk_array_set calls.
         let arraySetCount = callees.filter { $0 == "kk_array_set" }.count
-        XCTAssertEqual(arraySetCount, 2,
+        #expect(arraySetCount == 2,
             "Expected two kk_array_set calls for two captures")
 
         // Verify the invoke wrapper is called.
         let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
-        XCTAssertTrue(callees.contains(invokeWrapperName),
+        #expect(callees.contains(invokeWrapperName),
             "Expected invoke wrapper to be called")
 
         // Verify the invoke wrapper loads two captures.
@@ -808,20 +817,21 @@ extension LoweringPassRegressionTests {
             return interner.resolve(function.name) == invokeWrapperName ? function : nil
         }.first
 
-        let wrapper = try XCTUnwrap(invokeWrapper)
+        let wrapper = try #require(invokeWrapper)
         let wrapperCallees = extractCallees(from: wrapper.body, interner: interner)
         let arrayGetCount = wrapperCallees.filter { $0 == "kk_array_get_inbounds" }.count
-        XCTAssertEqual(arrayGetCount, 2,
+        #expect(arrayGetCount == 2,
             "Expected invoke wrapper to load two captures via kk_array_get_inbounds")
 
         // Wrapper params: closureObj + 1 value param = 2.
-        XCTAssertEqual(wrapper.params.count, 2,
+        #expect(wrapper.params.count == 2,
             "Expected invoke wrapper to have 2 params (closureObj + 1 value)")
     }
 
     /// Verifies that the closure conversion pass correctly handles non-throwing
     /// callee registration for closure invoke wrappers, ensuring ABILoweringPass
     /// can identify them without string-prefix coupling.
+    @Test
     func testClosureConversionRegistersNonThrowingCallees() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -911,14 +921,15 @@ extension LoweringPassRegressionTests {
         // Verify that both the invoke wrapper and the lambda target are registered
         // as non-throwing closure callees on the module.
         let invokeWrapperName = interner.intern("kk_closure_invoke_\(lambdaSym.rawValue)")
-        XCTAssertTrue(module.nonThrowingClosureCallees.contains(invokeWrapperName),
+        #expect(module.nonThrowingClosureCallees.contains(invokeWrapperName),
             "Expected invoke wrapper to be registered as non-throwing callee")
-        XCTAssertTrue(module.nonThrowingClosureCallees.contains(lambdaName),
+        #expect(module.nonThrowingClosureCallees.contains(lambdaName),
             "Expected lambda target to be registered as non-throwing callee")
     }
 
     /// Verifies that zero-value-param lambdas with captures are NOT converted
     /// (they represent scope-function lambdas like apply/run).
+    @Test
     func testClosureConversionSkipsZeroValueParamLambdaWithCapture() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -996,12 +1007,13 @@ extension LoweringPassRegressionTests {
         )
 
         // Should NOT run because zero-value-param captures are scope functions.
-        XCTAssertFalse(pass.shouldRun(module: module, ctx: ctx),
+        #expect(!pass.shouldRun(module: module, ctx: ctx),
             "Expected pass to skip zero-value-param lambda with capture (scope function)")
     }
 
     /// Verifies that the invoke wrapper function preserves the isSuspend flag
     /// from the original lambda function.
+    @Test
     func testClosureConversionInvokeWrapperPreservesSuspendFlag() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1094,13 +1106,14 @@ extension LoweringPassRegressionTests {
             return interner.resolve(function.name) == invokeWrapperName ? function : nil
         }.first
 
-        let wrapper = try XCTUnwrap(invokeWrapper, "Expected invoke wrapper")
-        XCTAssertTrue(wrapper.isSuspend,
+        let wrapper = try #require(invokeWrapper, "Expected invoke wrapper")
+        #expect(wrapper.isSuspend,
             "Expected invoke wrapper to preserve isSuspend=true from the original lambda")
     }
 
     /// Verifies that the closure object class ID constant in the lowered
     /// output is non-zero and deterministic (FNV-1a hash based).
+    @Test
     func testClosureConversionClassIDIsNonZero() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1188,7 +1201,7 @@ extension LoweringPassRegressionTests {
         try pass.run(module: module, ctx: ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("Expected lowered main function.")
+            Issue.record("Expected lowered main function.")
             return
         }
 
@@ -1202,11 +1215,12 @@ extension LoweringPassRegressionTests {
             else { return nil }
             return literal
         }
-        XCTAssertEqual(classIDConstants.count, 1,
+        #expect(classIDConstants.count == 1,
             "Expected exactly one class ID constant in lowered main")
         if let classID = classIDConstants.first {
-            XCTAssertGreaterThan(classID, 0,
+            #expect(classID > 0,
                 "Expected class ID to be a positive non-zero value")
         }
     }
 }
+#endif

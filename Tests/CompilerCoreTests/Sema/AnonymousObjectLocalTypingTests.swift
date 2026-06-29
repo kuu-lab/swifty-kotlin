@@ -1,8 +1,10 @@
+#if canImport(Testing)
 import CompilerCore
-import XCTest
+import Testing
 
-final class AnonymousObjectLocalTypingTests: XCTestCase {
-    func testAnonymousObjectBodyProducesLocalNominalTypeAndResolvableProperty() throws {
+@Suite
+struct AnonymousObjectLocalTypingTests {
+    @Test func testAnonymousObjectBodyProducesLocalNominalTypeAndResolvableProperty() throws {
         let source = """
         fun main() {
             val local = object {
@@ -16,20 +18,20 @@ final class AnonymousObjectLocalTypingTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let mainDecl = try XCTUnwrap(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let mainDecl = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
             guard case let .block(statements, _) = mainDecl.body else {
-                XCTFail("Expected block body for main.")
+                Issue.record("Expected block body for main.")
                 return
             }
 
-            let localDeclExprID = try XCTUnwrap(statements.first)
+            let localDeclExprID = try #require(statements.first)
             guard let localDeclExpr = ast.arena.expr(localDeclExprID),
                   case let .localDecl(_, _, _, initializer, _, _) = localDeclExpr,
                   let initializer
             else {
-                XCTFail("Expected local declaration with object literal initializer.")
+                Issue.record("Expected local declaration with object literal initializer.")
                 return
             }
 
@@ -39,47 +41,47 @@ final class AnonymousObjectLocalTypingTests: XCTestCase {
                   let decl = ast.arena.decl(declID),
                   case let .objectDecl(objectDecl) = decl
             else {
-                XCTFail("Expected object literal to retain a synthetic object declaration.")
+                Issue.record("Expected object literal to retain a synthetic object declaration.")
                 return
             }
 
-            XCTAssertEqual(objectDecl.memberProperties.count, 1)
-            let objectSymbol = try XCTUnwrap(sema.bindings.declSymbol(for: declID))
-            XCTAssertNotNil(sema.symbols.symbol(objectSymbol))
+            #expect(objectDecl.memberProperties.count == 1)
+            let objectSymbol = try #require(sema.bindings.declSymbol(for: declID))
+            #expect(sema.symbols.symbol(objectSymbol) != nil)
 
-            let propertyDeclID = try XCTUnwrap(objectDecl.memberProperties.first)
+            let propertyDeclID = try #require(objectDecl.memberProperties.first)
             let propertySymbol = sema.bindings.declSymbol(for: propertyDeclID)
-            XCTAssertNotNil(
-                propertySymbol,
+            #expect(
+                propertySymbol != nil,
                 "Anonymous object property should be bound. Diagnostics: \(renderDiagnostics(ctx))"
             )
 
-            let objectType = try XCTUnwrap(sema.bindings.exprType(for: initializer))
+            let objectType = try #require(sema.bindings.exprType(for: initializer))
             guard case .classType = sema.types.kind(of: objectType) else {
-                XCTFail("Expected anonymous object initializer to infer a nominal class type.")
+                Issue.record("Expected anonymous object initializer to infer a nominal class type.")
                 return
             }
 
-            let memberExprID = try XCTUnwrap(
+            let memberExprID = try #require(
                 findMemberCall(named: "value", in: statements, ast: ast, interner: ctx.interner)
             )
-            let receiverExprID = try XCTUnwrap(memberCallReceiver(for: memberExprID, ast: ast))
-            let receiverType = try XCTUnwrap(
+            let receiverExprID = try #require(memberCallReceiver(for: memberExprID, ast: ast))
+            let receiverType = try #require(
                 sema.bindings.exprType(for: receiverExprID),
                 "Receiver type should be inferred. Diagnostics: \(renderDiagnostics(ctx))"
             )
-            XCTAssertEqual(receiverType, objectType)
+            #expect(receiverType == objectType)
 
             let memberSymbol = sema.bindings.identifierSymbol(for: memberExprID)
-            XCTAssertNotNil(
-                memberSymbol,
+            #expect(
+                memberSymbol != nil,
                 "Member access should resolve to the anonymous object property. Diagnostics: \(renderDiagnostics(ctx))"
             )
-            XCTAssertFalse(ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
         }
     }
 
-    func testAnonymousObjectCanImplementMultipleInterfacesWithoutClassInheritanceDiagnostic() throws {
+    @Test func testAnonymousObjectCanImplementMultipleInterfacesWithoutClassInheritanceDiagnostic() throws {
         let source = """
         interface First
         interface Second
@@ -95,15 +97,15 @@ final class AnonymousObjectLocalTypingTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
             guard let declID = firstObjectDeclID(in: ast)
             else {
-                XCTFail("Expected object literal declaration.")
+                Issue.record("Expected object literal declaration.")
                 return
             }
 
-            let objectSymbol = try XCTUnwrap(sema.bindings.declSymbol(for: declID))
+            let objectSymbol = try #require(sema.bindings.declSymbol(for: declID))
             let directSupertypes = sema.symbols.directSupertypes(for: objectSymbol)
             let supertypeNames = Set(
                 directSupertypes.compactMap { symbolID in
@@ -111,9 +113,9 @@ final class AnonymousObjectLocalTypingTests: XCTestCase {
                 }
             )
 
-            XCTAssertEqual(supertypeNames, ["First", "Second"])
+            #expect(supertypeNames == ["First", "Second"])
             assertNoDiagnostic("KSWIFTK-SEMA-0170", in: ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
         }
     }
 
@@ -227,3 +229,4 @@ final class AnonymousObjectLocalTypingTests: XCTestCase {
         ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
     }
 }
+#endif

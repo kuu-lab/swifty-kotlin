@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension OverloadResolverTests {
-    func testResolveCallAllowsOmittedDefaultArguments() {
+    @Test func testResolveCallAllowsOmittedDefaultArguments() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -49,12 +50,12 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0])
     }
 
-    func testResolveCallSupportsNamedArgumentsAndParameterMapping() {
+    @Test func testResolveCallSupportsNamedArgumentsAndParameterMapping() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -104,12 +105,12 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 1, 1: 0])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 1, 1: 0])
     }
 
-    func testResolveCallSupportsMixedPositionalAndNamedArguments() {
+    @Test func testResolveCallSupportsMixedPositionalAndNamedArguments() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -159,12 +160,12 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 1])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 1])
     }
 
-    func testResolveCallRejectsPositionalArgumentAfterNamedArgument() {
+    @Test func testResolveCallRejectsPositionalArgumentAfterNamedArgument() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -214,11 +215,11 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0002")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
     }
 
-    func testResolveCallSupportsTrailingVarargMapping() {
+    @Test func testResolveCallSupportsTrailingVarargMapping() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -265,12 +266,12 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 1, 2: 1])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 1, 2: 1])
     }
 
-    func testResolveCallSupportsNonTrailingVarargWithNamedTail() {
+    @Test func testResolveCallSupportsNonTrailingVarargWithNamedTail() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -322,12 +323,12 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 0, 2: 1])
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 0, 2: 1])
     }
 
-    func testResolveCallRejectsSpreadArgumentForNonVarargParameter() {
+    @Test func testResolveCallRejectsSpreadArgumentForNonVarargParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -366,11 +367,11 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0002")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
     }
 
-    func testResolveCallAcceptsGenericWithSatisfiedUpperBound() {
+    @Test func testResolveCallAcceptsGenericWithSatisfiedUpperBound() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -413,11 +414,11 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, generic)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == generic)
+        #expect(resolved.diagnostic == nil)
     }
 
-    func testResolveCallRejectsGenericWithViolatedUpperBound() {
+    @Test func testResolveCallRejectsGenericWithViolatedUpperBound() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -460,11 +461,12 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-BOUND")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-BOUND")
     }
 
     // MARK: - Advanced Named Arguments Tests
 
     // Named arguments with 3 parameters reordered out of order.
 }
+#endif

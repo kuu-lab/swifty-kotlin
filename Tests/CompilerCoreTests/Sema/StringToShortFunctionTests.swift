@@ -1,6 +1,6 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-106: `fun String.toShort(): Short` in `kotlin.text`.
 ///
@@ -10,7 +10,8 @@ import XCTest
 ///   `Sources/RuntimeABI/RuntimeABISpec+ABIParity.swift`.
 /// - The extension resolves cleanly from source code on both a parameter
 ///   receiver and a string-literal receiver (Short is widened to Int in ABI).
-final class StringToShortFunctionTests: XCTestCase {
+@Suite
+struct StringToShortFunctionTests {
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
@@ -25,26 +26,27 @@ final class StringToShortFunctionTests: XCTestCase {
         )
     }
 
+    @Test
     func testToShortStubLinksToRuntimeSymbol() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
-            XCTAssertEqual(
-                externalLink(for: "toShort", sema: sema, interner: ctx.interner),
-                "kk_string_toShort_flat",
-                "String.toShort should link to kk_string_toShort_flat"
+            #expect(
+                externalLink(for: "toShort", sema: sema, interner: ctx.interner) == "kk_string_toShort",
+                "String.toShort should link to kk_string_toShort"
             )
 
             let links = externalLinks(for: "toShort", sema: sema, interner: ctx.interner)
-            XCTAssertTrue(
-                links.contains("kk_string_toShort_flat"),
-                "lookupAll for toShort must include kk_string_toShort_flat; got: \(links)"
+            #expect(
+                links.contains("kk_string_toShort"),
+                "lookupAll for toShort must include kk_string_toShort; got: \(links)"
             )
         }
     }
 
+    @Test
     func testToShortResolvesOnStringReceiver() throws {
         let source = """
         fun parse(raw: String): Short {
@@ -58,13 +60,14 @@ final class StringToShortFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected String.toShort to resolve cleanly, got: \(diagnosticSummary)"
             )
         }
     }
 
+    @Test
     func testToShortOnLiteralResolves() throws {
         let source = """
         fun probe(): Int {
@@ -78,8 +81,8 @@ final class StringToShortFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected String.toShort() on a literal to type-check cleanly, got: \(diagnosticSummary)"
             )
         }

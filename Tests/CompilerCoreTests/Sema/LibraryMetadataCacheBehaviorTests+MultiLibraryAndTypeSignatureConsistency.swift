@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LibraryMetadataCacheBehaviorTests {
-    func testMultipleLibrariesAllCached() throws {
+    @Test func testMultipleLibrariesAllCached() throws {
         let fm = FileManager.default
         var libDirs: [String] = []
 
@@ -41,17 +42,17 @@ extension LibraryMetadataCacheBehaviorTests {
 
             // All 3 functions should be imported
             let syntheticFns = symbols.allSymbols().filter { $0.flags.contains(.synthetic) && $0.kind == .function }
-            XCTAssertEqual(syntheticFns.count, 3, "All 3 library functions should be imported")
+            #expect(syntheticFns.count == 3, "All 3 library functions should be imported")
         }
 
-        XCTAssertEqual(cache.manifestCacheCount, 3, "All 3 manifests should be cached")
-        XCTAssertEqual(cache.metadataCacheCount, 3, "All 3 metadata files should be cached")
+        #expect(cache.manifestCacheCount == 3, "All 3 manifests should be cached")
+        #expect(cache.metadataCacheCount == 3, "All 3 metadata files should be cached")
         // All functions share F0<I>, so only 1 distinct signature
-        XCTAssertEqual(cache.signatureCacheCount, 1, "All functions share same signature")
+        #expect(cache.signatureCacheCount == 1, "All functions share same signature")
     }
 
     /// B6: Cached results produce semantically identical TypeIDs as non-cached
-    func testCachedTypeIDsMatchNonCachedTypeIDs() throws {
+    @Test func testCachedTypeIDsMatchNonCachedTypeIDs() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -129,14 +130,14 @@ extension LibraryMetadataCacheBehaviorTests {
         }
 
         // Compare TypeKinds (not raw TypeID values, since those are per-TypeSystem)
-        XCTAssertEqual(noCacheFn1ParamType, cachedFn1ParamType, "fn1 param type should match")
-        XCTAssertEqual(noCacheFn1ReturnType, cachedFn1ReturnType, "fn1 return type should match")
-        XCTAssertEqual(noCacheFn2ParamType, cachedFn2ParamType, "fn2 param type should match")
-        XCTAssertEqual(noCacheFn1ParamType, .primitive(.int, .nonNull))
+        #expect(noCacheFn1ParamType == cachedFn1ParamType, "fn1 param type should match")
+        #expect(noCacheFn1ReturnType == cachedFn1ReturnType, "fn1 return type should match")
+        #expect(noCacheFn2ParamType == cachedFn2ParamType, "fn2 param type should match")
+        #expect(noCacheFn1ParamType == .primitive(.int, .nonNull))
     }
 
     /// B7: Suspend functions work with cache
-    func testSuspendFunctionSignatureCachedCorrectly() throws {
+    @Test func testSuspendFunctionSignatureCachedCorrectly() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -175,25 +176,27 @@ extension LibraryMetadataCacheBehaviorTests {
 
             let fetchSym = symbols.allSymbols().first { interner.resolve($0.name) == "fetch" && $0.kind == .function }
             let processSym = symbols.allSymbols().first { interner.resolve($0.name) == "process" && $0.kind == .function }
-            XCTAssertNotNil(fetchSym)
-            XCTAssertNotNil(processSym)
-            XCTAssertTrue(fetchSym!.flags.contains(.suspendFunction), "fetch should be marked suspend")
-            XCTAssertFalse(processSym!.flags.contains(.suspendFunction), "process should NOT be marked suspend")
+            #expect(fetchSym != nil)
+            #expect(processSym != nil)
+            let fetchIsSuspend = fetchSym!.flags.contains(.suspendFunction)
+            #expect(fetchIsSuspend, "fetch should be marked suspend")
+            let processIsSuspend = processSym!.flags.contains(.suspendFunction)
+            #expect(!processIsSuspend, "process should NOT be marked suspend")
 
             // Verify suspend function signature
             if let fetchID = fetchSym?.id {
                 let sig = symbols.functionSignature(for: fetchID)
-                XCTAssertNotNil(sig)
-                XCTAssertTrue(sig!.isSuspend)
+                #expect(sig != nil)
+                #expect(sig!.isSuspend)
             }
 
             // SF1<I,I> and F1<I,I> should be two distinct signatures
-            XCTAssertEqual(cache.signatureCacheCount, 2, "Suspend and non-suspend signatures should be distinct")
+            #expect(cache.signatureCacheCount == 2, "Suspend and non-suspend signatures should be distinct")
         }
     }
 
     /// B8: Nullable type signatures cached correctly
-    func testNullableTypeSignatureCachedCorrectly() throws {
+    @Test func testNullableTypeSignatureCachedCorrectly() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -232,18 +235,19 @@ extension LibraryMetadataCacheBehaviorTests {
 
             let xSym = symbols.allSymbols().first { interner.resolve($0.name) == "x" && $0.kind == .property }
             let ySym = symbols.allSymbols().first { interner.resolve($0.name) == "y" && $0.kind == .property }
-            XCTAssertNotNil(xSym)
-            XCTAssertNotNil(ySym)
+            #expect(xSym != nil)
+            #expect(ySym != nil)
 
             if let xID = xSym?.id, let xType = symbols.propertyType(for: xID) {
-                XCTAssertEqual(types.kind(of: xType), .primitive(.int, .nullable), "Q<I> should be nullable Int")
+                #expect(types.kind(of: xType) == .primitive(.int, .nullable), "Q<I> should be nullable Int")
             }
             if let yID = ySym?.id, let yType = symbols.propertyType(for: yID) {
-                XCTAssertEqual(types.kind(of: yType), .primitive(.int, .nonNull), "I should be non-null Int")
+                #expect(types.kind(of: yType) == .primitive(.int, .nonNull), "I should be non-null Int")
             }
 
             // Q<I> and I should be two distinct signatures
-            XCTAssertEqual(cache.signatureCacheCount, 2, "Q<I> and I should be distinct cache entries")
+            #expect(cache.signatureCacheCount == 2, "Q<I> and I should be distinct cache entries")
         }
     }
 }
+#endif

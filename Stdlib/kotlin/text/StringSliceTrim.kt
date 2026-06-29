@@ -173,3 +173,26 @@ public fun String.dropLast(n: Int): String {
     }
     return sb.toString()
 }
+
+/**
+ * Returns a string containing characters at the indices in the given [indices] range.
+ *
+ * @throws IndexOutOfBoundsException if any index in [indices] is out of range.
+ */
+public fun String.slice(indices: IntRange): String {
+    if (indices.size == 0) return ""
+    return substring(indices.first, indices.last + 1)
+}
+
+/**
+ * Returns a string containing characters at the specified [indices].
+ *
+ * @throws IndexOutOfBoundsException if any index is out of range.
+ */
+public fun String.slice(indices: Iterable<Int>): String {
+    val sb = StringBuilder()
+    for (i in indices) {
+        sb.append(this[i])
+    }
+    return sb.toString()
+}

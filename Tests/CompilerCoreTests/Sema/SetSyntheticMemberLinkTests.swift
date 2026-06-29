@@ -1,10 +1,11 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Verifies that `Set` binary collection members resolve to the expected
 /// runtime entry points.
-final class SetSyntheticMemberLinkTests: XCTestCase {
+@Suite
+struct SetSyntheticMemberLinkTests {
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "collections", "Set", member].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
@@ -16,13 +17,13 @@ final class SetSyntheticMemberLinkTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             result = (sema, ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testSetBinaryMembersUseCorrectExternalLinks() throws {
+    @Test func testSetBinaryMembersUseCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
@@ -32,15 +33,14 @@ final class SetSyntheticMemberLinkTests: XCTestCase {
         ]
 
         for (member, expectedLink) in expected {
-            XCTAssertEqual(
-                externalLink(for: member, sema: sema, interner: interner),
-                expectedLink,
+            #expect(
+                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
                 "Set.\(member) should link to \(expectedLink)"
             )
         }
     }
 
-    func testSetBinaryMembersResolveInCallExpressions() throws {
+    @Test func testSetBinaryMembersResolveInCallExpressions() throws {
         let source = """
         fun probe(values: Set<Int>, other: List<Int>) {
             val left = values.intersect(other)
@@ -53,8 +53,8 @@ final class SetSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let expectedLinks: [String: String] = [
                 "intersect": "kk_set_intersect",
                 "union": "kk_set_union",
@@ -62,14 +62,13 @@ final class SetSyntheticMemberLinkTests: XCTestCase {
             ]
 
             for (memberName, externalLinkName) in expectedLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
                     "Expected \(memberName) to resolve to \(externalLinkName)"
                 )
             }

@@ -2102,7 +2102,40 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
                 }
+                // If the receiver call has explicit type arguments (e.g. listOf<Int>())
+                // and the explicit element type is a known non-collection, flatten() is
+                // invalid — reject before the type-inference result can mask the error.
+                // This handles cases where kswiftc infers List<Any> despite <Int> being
+                // written explicitly (type-inference gap for empty collection literals).
+                if !isSequenceReceiver,
+                   let receiverExpr = ast.arena.expr(receiverID),
+                   case let .call(_, receiverTypeArgs, _, _) = receiverExpr,
+                   let firstTypeArgID = receiverTypeArgs.first
+                {
+                    let explicitElemType = driver.helpers.resolveTypeRef(firstTypeArgID, ast: ast, sema: sema, interner: interner)
+                    if !isCollectionLikeType(explicitElemType, sema: sema, interner: interner) {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-0024",
+                            "Unresolved member function 'flatten'.",
+                            range: range
+                        )
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                }
                 let extractedInner = getCollectionElementType(collectionElementType, sema: sema, interner: interner)
+                // Reject when the element type is a KNOWN non-collection (e.g. Int).
+                if !isSequenceReceiver && extractedInner == sema.types.anyType
+                    && collectionElementType != sema.types.anyType
+                    && !isCollectionLikeType(collectionElementType, sema: sema, interner: interner) {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "Unresolved member function 'flatten'.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
                 let flattenedElementType = extractedInner != sema.types.anyType
                     ? extractedInner
                     : collectionElementType

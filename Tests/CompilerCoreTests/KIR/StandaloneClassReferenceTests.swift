@@ -1,14 +1,16 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Tests for REFL-002: standalone `T::class` references produce proper KClass
 /// metadata via `kk_kclass_create` instead of falling back to Unit.
-final class StandaloneClassReferenceTests: XCTestCase {
+@Suite @MainActor
+struct StandaloneClassReferenceTests {
 
     /// Standalone `T::class` inside a reified inline function should emit
     /// `kk_kclass_create` in the lowered KIR output after inline expansion.
-    func testStandaloneReifiedClassRefEmitsKClassCreate() throws {
+    @Test func testStandaloneReifiedClassRefEmitsKClassCreate() throws {
         let source = """
         inline fun <reified T> classOf(): Any = T::class
         fun main() {
@@ -21,10 +23,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             // Run through lowering so inline expansion processes T::class.
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for standalone T::class after inline expansion, got: \(callees)"
             )
@@ -33,7 +35,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
 
     /// Standalone `String::class` (concrete/builtin type) should emit
     /// `kk_kclass_create` in the KIR output.
-    func testStandaloneConcreteClassRefEmitsKClassCreate() throws {
+    @Test func testStandaloneConcreteClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
             val kc = String::class
@@ -44,10 +46,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for standalone String::class, got: \(callees)"
             )
@@ -56,7 +58,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
 
     /// Standalone `Int::class` (primitive builtin type) should emit
     /// `kk_kclass_create` in the KIR output.
-    func testStandalonePrimitiveClassRefEmitsKClassCreate() throws {
+    @Test func testStandalonePrimitiveClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
             val kc = Int::class
@@ -67,10 +69,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for standalone Int::class, got: \(callees)"
             )
@@ -79,7 +81,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
 
     /// `T::class.simpleName` (chained) should still use the direct
     /// `kk_type_token_simple_name` path after inline expansion.
-    func testChainedClassRefSimpleNameUsesDirectPath() throws {
+    @Test func testChainedClassRefSimpleNameUsesDirectPath() throws {
         let source = """
         inline fun <reified T> typeNameOf(): String = T::class.simpleName ?: "unknown"
         fun main() = println(typeNameOf<Int>())
@@ -88,22 +90,22 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToLowering(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_type_token_simple_name"),
                 "Chained T::class.simpleName should use kk_type_token_simple_name, got: \(callees)"
             )
-            XCTAssertFalse(
-                callees.contains("kk_kclass_create"),
+            #expect(
+                !(callees.contains("kk_kclass_create")),
                 "Chained T::class.simpleName should NOT emit kk_kclass_create, got: \(callees)"
             )
         }
     }
 
     /// User-defined class `MyClass::class` should emit `kk_kclass_create`.
-    func testStandaloneUserClassRefEmitsKClassCreate() throws {
+    @Test func testStandaloneUserClassRefEmitsKClassCreate() throws {
         let source = """
         class MyClass
         fun main() {
@@ -115,17 +117,17 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for standalone MyClass::class, got: \(callees)"
             )
         }
     }
 
-    func testFindAssociatedObjectLowersToRuntimeCall() throws {
+    @Test func testFindAssociatedObjectLowersToRuntimeCall() throws {
         let source = """
         import kotlin.reflect.ExperimentalAssociatedObjects
         import kotlin.reflect.findAssociatedObject
@@ -143,10 +145,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_find_associated_object"),
                 "Expected findAssociatedObject to lower to kk_kclass_find_associated_object, got: \(callees)"
             )
@@ -156,7 +158,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
     // MARK: - REFL-002 Additional tests
 
     /// `this::class` inside a class method should emit `kk_kclass_create`.
-    func testThisClassRefEmitsKClassCreate() throws {
+    @Test func testThisClassRefEmitsKClassCreate() throws {
         let source = """
         class Foo {
             fun getKClass(): Any = this::class
@@ -170,12 +172,12 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             // Check that classRefTargetType was bound for the this::class expr
             // by looking for kk_kclass_create in the Foo.getKClass body.
             let body = try findKIRFunctionBody(named: "getKClass", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for this::class, got: \(callees)"
             )
@@ -183,7 +185,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
     }
 
     /// `Long::class` should emit `kk_kclass_create` with a non-zero type token.
-    func testStandaloneLongClassRefEmitsKClassCreate() throws {
+    @Test func testStandaloneLongClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
             val kc = Long::class
@@ -194,10 +196,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for standalone Long::class, got: \(callees)"
             )
@@ -205,7 +207,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
     }
 
     /// `Double::class` should emit `kk_kclass_create`.
-    func testStandaloneDoubleClassRefEmitsKClassCreate() throws {
+    @Test func testStandaloneDoubleClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
             val kc = Double::class
@@ -216,10 +218,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for standalone Double::class, got: \(callees)"
             )
@@ -227,7 +229,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
     }
 
     /// `Boolean::class` should emit `kk_kclass_create`.
-    func testStandaloneBooleanClassRefEmitsKClassCreate() throws {
+    @Test func testStandaloneBooleanClassRefEmitsKClassCreate() throws {
         let source = """
         fun main() {
             val kc = Boolean::class
@@ -238,10 +240,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_kclass_create"),
                 "Expected kk_kclass_create for standalone Boolean::class, got: \(callees)"
             )
@@ -249,45 +251,45 @@ final class StandaloneClassReferenceTests: XCTestCase {
     }
 
     /// RuntimeTypeCheckToken should encode Long as a distinct (non-zero) base.
-    func testRuntimeTypeCheckTokenEncodesLong() {
+    @Test func testRuntimeTypeCheckTokenEncodesLong() {
         let (sema, _, types, interner) = makeSemaModule()
         let longType = types.make(.primitive(.long, .nonNull))
         let encoded = RuntimeTypeCheckToken.encode(type: longType, sema: sema, interner: interner)
         // longBase = 11
-        XCTAssertEqual(encoded & 0xFF, 11, "Long should encode with base 11, got \(encoded & 0xFF)")
-        XCTAssertNotEqual(encoded, 0, "Long token must not be unknownBase (0)")
+        #expect(encoded & 0xFF == 11, "Long should encode with base 11, got \(encoded & 0xFF)")
+        #expect(encoded != 0, "Long token must not be unknownBase (0)")
     }
 
     /// RuntimeTypeCheckToken should encode Double as a distinct base.
-    func testRuntimeTypeCheckTokenEncodesDouble() {
+    @Test func testRuntimeTypeCheckTokenEncodesDouble() {
         let (sema, _, types, interner) = makeSemaModule()
         let doubleType = types.make(.primitive(.double, .nonNull))
         let encoded = RuntimeTypeCheckToken.encode(type: doubleType, sema: sema, interner: interner)
         // doubleBase = 12
-        XCTAssertEqual(encoded & 0xFF, 12, "Double should encode with base 12, got \(encoded & 0xFF)")
+        #expect(encoded & 0xFF == 12, "Double should encode with base 12, got \(encoded & 0xFF)")
     }
 
     /// RuntimeTypeCheckToken should encode Float as a distinct base.
-    func testRuntimeTypeCheckTokenEncodesFloat() {
+    @Test func testRuntimeTypeCheckTokenEncodesFloat() {
         let (sema, _, types, interner) = makeSemaModule()
         let floatType = types.make(.primitive(.float, .nonNull))
         let encoded = RuntimeTypeCheckToken.encode(type: floatType, sema: sema, interner: interner)
         // floatBase = 13
-        XCTAssertEqual(encoded & 0xFF, 13, "Float should encode with base 13, got \(encoded & 0xFF)")
+        #expect(encoded & 0xFF == 13, "Float should encode with base 13, got \(encoded & 0xFF)")
     }
 
     /// RuntimeTypeCheckToken should encode Char as a distinct base.
-    func testRuntimeTypeCheckTokenEncodesChar() {
+    @Test func testRuntimeTypeCheckTokenEncodesChar() {
         let (sema, _, types, interner) = makeSemaModule()
         let charType = types.make(.primitive(.char, .nonNull))
         let encoded = RuntimeTypeCheckToken.encode(type: charType, sema: sema, interner: interner)
         // charBase = 14
-        XCTAssertEqual(encoded & 0xFF, 14, "Char should encode with base 14, got \(encoded & 0xFF)")
+        #expect(encoded & 0xFF == 14, "Char should encode with base 14, got \(encoded & 0xFF)")
     }
 
     /// KIR result type for a standalone `Int::class` should carry a KClass type
     /// rather than falling back to Any.
-    func testKIRResultTypeIsKClassNotAny() throws {
+    @Test func testKIRResultTypeIsKClassNotAny() throws {
         let source = """
         fun main() {
             val kc = Int::class
@@ -298,7 +300,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             // Find the kk_kclass_create call and check its result type.
             for instruction in body {
@@ -306,7 +308,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
                 if ctx.interner.resolve(callee) == "kk_kclass_create" {
                     guard let resultID = result,
                           let resultType = module.arena.exprType(resultID) else {
-                        XCTFail("kk_kclass_create result has no stored type")
+                        Issue.record("kk_kclass_create result has no stored type")
                         return
                     }
                     // The result type should be KClass<Int>, not Any.
@@ -314,15 +316,15 @@ final class StandaloneClassReferenceTests: XCTestCase {
                         // Success — type is KClass<T>.
                         return
                     }
-                    XCTFail("Expected KClass type for kk_kclass_create result, got type kind: \(ctx.sema!.types.kind(of: resultType))")
+                    Issue.record("Expected KClass type for kk_kclass_create result, got type kind: \(ctx.sema!.types.kind(of: resultType))")
                     return
                 }
             }
-            XCTFail("kk_kclass_create call not found in main body")
+            Issue.record("kk_kclass_create call not found in main body")
         }
     }
 
-    func testDirectKClassCastEmitsThrowingRuntimeCall() throws {
+    @Test func testDirectKClassCastEmitsThrowingRuntimeCall() throws {
         let source = """
         fun castString(value: Any?): String = String::class.cast(value)
         """
@@ -330,9 +332,9 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "castString", in: module, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 body.contains { instruction in
                     guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
                     return ctx.interner.resolve(callee) == "kk_kclass_cast" && canThrow
@@ -342,7 +344,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
         }
     }
 
-    func testKClassCastViaLocalAndParameterEmitRuntimeCall() throws {
+    @Test func testKClassCastViaLocalAndParameterEmitRuntimeCall() throws {
         let source = """
         import kotlin.reflect.KClass
 
@@ -357,10 +359,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             for functionName in ["castViaLocal", "castWithClass"] {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-                XCTAssertTrue(
+                #expect(
                     body.contains { instruction in
                         guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
                         return ctx.interner.resolve(callee) == "kk_kclass_cast" && canThrow
@@ -371,7 +373,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
         }
     }
 
-    func testDirectKClassSafeCastEmitsNonThrowingRuntimeCall() throws {
+    @Test func testDirectKClassSafeCastEmitsNonThrowingRuntimeCall() throws {
         let source = """
         fun safeCastString(value: Any?): String? = String::class.safeCast(value)
         """
@@ -379,9 +381,9 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "safeCastString", in: module, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 body.contains { instruction in
                     guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
                     return ctx.interner.resolve(callee) == "kk_kclass_safeCast" && !canThrow
@@ -391,7 +393,7 @@ final class StandaloneClassReferenceTests: XCTestCase {
         }
     }
 
-    func testKClassSafeCastViaLocalAndParameterEmitRuntimeCall() throws {
+    @Test func testKClassSafeCastViaLocalAndParameterEmitRuntimeCall() throws {
         let source = """
         import kotlin.reflect.KClass
 
@@ -406,10 +408,10 @@ final class StandaloneClassReferenceTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             for functionName in ["safeCastViaLocal", "safeCastWithClass"] {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-                XCTAssertTrue(
+                #expect(
                     body.contains { instruction in
                         guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return false }
                         return ctx.interner.resolve(callee) == "kk_kclass_safeCast" && !canThrow
@@ -420,3 +422,4 @@ final class StandaloneClassReferenceTests: XCTestCase {
         }
     }
 }
+#endif

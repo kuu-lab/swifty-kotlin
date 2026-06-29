@@ -1,10 +1,12 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-110: Validates that `kotlin.text.CharSequence.trim` resolves
 /// through Sema for both the no-arg overload and the predicate-based overload.
 /// Runtime link names involved: `kk_string_trim_flat`, `kk_string_trim_predicate_flat`.
-final class StringTrimFunctionTests: XCTestCase {
+@Suite
+struct StringTrimFunctionTests {
+    @Test
     func testTrimFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun trimDefault(s: String): String {
@@ -17,7 +19,7 @@ final class StringTrimFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected trim to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

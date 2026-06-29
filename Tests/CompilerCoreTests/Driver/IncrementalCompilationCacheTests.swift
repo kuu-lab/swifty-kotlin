@@ -1,54 +1,53 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class IncrementalCompilationCacheTests: XCTestCase {
-    private var tempDir: String!
+@Suite
+struct IncrementalCompilationCacheTests {
+    private var tempDir: String
 
-    override func setUp() {
-        super.setUp()
+    init() {
         tempDir = NSTemporaryDirectory() + "IncrementalCacheTest_\(UUID().uuidString)"
-    }
-
-    override func tearDown() {
-        if let dir = tempDir {
-            try? FileManager.default.removeItem(atPath: dir)
-        }
-        super.tearDown()
     }
 
     // MARK: - Init
 
+    @Test
     func testInitSetsPath() {
         let cache = IncrementalCompilationCache(cachePath: "/some/path")
-        XCTAssertEqual(cache.cachePath, "/some/path")
+        #expect(cache.cachePath == "/some/path")
     }
 
     // MARK: - hasPreviousCache
 
+    @Test
     func testHasPreviousCacheReturnsFalseInitially() {
         let cache = IncrementalCompilationCache(cachePath: tempDir)
-        XCTAssertFalse(cache.hasPreviousCache)
+        #expect(!(cache.hasPreviousCache))
     }
 
     // MARK: - dependencyGraph
 
+    @Test
     func testDependencyGraphIsNilInitially() {
         let cache = IncrementalCompilationCache(cachePath: tempDir)
-        XCTAssertNil(cache.dependencyGraph)
+        #expect(cache.dependencyGraph == nil)
     }
 
     // MARK: - loadPreviousState with no files
 
+    @Test
     func testLoadPreviousStateWithNoCacheDir() {
         let cache = IncrementalCompilationCache(cachePath: tempDir)
         cache.loadPreviousState()
-        XCTAssertFalse(cache.hasPreviousCache)
-        XCTAssertNil(cache.dependencyGraph)
+        #expect(!(cache.hasPreviousCache))
+        #expect(cache.dependencyGraph == nil)
     }
 
     // MARK: - Save and load round-trip
 
+    @Test
     func testSaveAndLoadRoundTrip() throws {
         let cache = IncrementalCompilationCache(cachePath: tempDir)
 
@@ -68,12 +67,13 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         // Load into a new cache instance
         let cache2 = IncrementalCompilationCache(cachePath: tempDir)
         cache2.loadPreviousState()
-        XCTAssertTrue(cache2.hasPreviousCache)
-        XCTAssertNotNil(cache2.dependencyGraph)
+        #expect(cache2.hasPreviousCache)
+        #expect(cache2.dependencyGraph != nil)
     }
 
     // MARK: - changedFiles
 
+    @Test
     func testChangedFilesDetectsNewFile() throws {
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
@@ -84,9 +84,10 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         // No previous state loaded — all files are new
         cache.computeCurrentFingerprints(for: [sourceFile])
         let changed = cache.changedFiles(allPaths: [sourceFile])
-        XCTAssertTrue(changed.contains(sourceFile))
+        #expect(changed.contains(sourceFile))
     }
 
+    @Test
     func testChangedFilesDetectsContentChange() throws {
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
@@ -111,9 +112,10 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         cache2.loadPreviousState()
         cache2.computeCurrentFingerprints(for: [sourceFile])
         let changed = cache2.changedFiles(allPaths: [sourceFile])
-        XCTAssertTrue(changed.contains(sourceFile))
+        #expect(changed.contains(sourceFile))
     }
 
+    @Test
     func testChangedFilesDetectsContentChangeWhenMTimeIsUnchanged() throws {
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
@@ -123,7 +125,7 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         let cache1 = IncrementalCompilationCache(cachePath: tempDir)
         cache1.computeCurrentFingerprints(for: [sourceFile])
         cache1.saveState(dependencyGraph: DependencyGraph())
-        let originalMTime = try XCTUnwrap(
+        let originalMTime = try #require(
             FileManager.default.attributesOfItem(atPath: sourceFile)[.modificationDate] as? Date
         )
 
@@ -134,9 +136,10 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         cache2.loadPreviousState()
         cache2.computeCurrentFingerprints(for: [sourceFile])
         let changed = cache2.changedFiles(allPaths: [sourceFile])
-        XCTAssertTrue(changed.contains(sourceFile))
+        #expect(changed.contains(sourceFile))
     }
 
+    @Test
     func testChangedFilesDetectsRemovedFile() throws {
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
@@ -156,17 +159,19 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         cache2.computeCurrentFingerprints(for: [fileA])
         let changed = cache2.changedFiles(allPaths: [fileA])
         // fileB was in previous build but not in current — should be in changed
-        XCTAssertTrue(changed.contains(fileB))
+        #expect(changed.contains(fileB))
     }
 
     // MARK: - recompilationSet
 
+    @Test
     func testRecompilationSetReturnsNilWithoutPreviousCache() {
         let cache = IncrementalCompilationCache(cachePath: tempDir)
         let result = cache.recompilationSet(allPaths: ["/a.kt"])
-        XCTAssertNil(result)
+        #expect(result == nil)
     }
 
+    @Test
     func testRecompilationSetReturnsNilWithoutDependencyGraph() throws {
         // Save state with fingerprints but corrupt the deps.json
         let sourceDir = tempDir + "/src"
@@ -185,9 +190,10 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         cache2.loadPreviousState()
         cache2.computeCurrentFingerprints(for: [sourceFile])
         let result = cache2.recompilationSet(allPaths: [sourceFile])
-        XCTAssertNil(result)
+        #expect(result == nil)
     }
 
+    @Test
     func testRecompilationSetReturnsEmptyWhenNothingChanged() throws {
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
@@ -206,12 +212,13 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         cache2.loadPreviousState()
         cache2.computeCurrentFingerprints(for: [sourceFile])
         let result = cache2.recompilationSet(allPaths: [sourceFile])
-        XCTAssertNotNil(result)
-        XCTAssertTrue(try XCTUnwrap(result?.isEmpty))
+        #expect(result != nil)
+        #expect(try #require(result?.isEmpty))
     }
 
     // MARK: - loadPreviousState with unsupported manifest version
 
+    @Test
     func testLoadPreviousStateIgnoresUnsupportedManifestVersion() throws {
         try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         let manifest = "{\"version\": 999, \"fingerprints\": []}"
@@ -219,11 +226,12 @@ final class IncrementalCompilationCacheTests: XCTestCase {
 
         let cache = IncrementalCompilationCache(cachePath: tempDir)
         cache.loadPreviousState()
-        XCTAssertFalse(cache.hasPreviousCache)
+        #expect(!(cache.hasPreviousCache))
     }
 
     // MARK: - computeCurrentFingerprints with SourceManager
 
+    @Test
     func testComputeCurrentFingerprintsWithSourceManager() throws {
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
@@ -237,9 +245,10 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         cache.computeCurrentFingerprints(for: [sourceFile], sourceManager: sm)
         // File should be considered new (no previous cache)
         let changed = cache.changedFiles(allPaths: [sourceFile])
-        XCTAssertTrue(changed.contains(sourceFile))
+        #expect(changed.contains(sourceFile))
     }
 
+    @Test
     func testComputeCurrentFingerprintsFallsBackToFileSystemWhenNotInSourceManager() throws {
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
@@ -252,6 +261,7 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         let cache = IncrementalCompilationCache(cachePath: tempDir)
         cache.computeCurrentFingerprints(for: [sourceFile], sourceManager: sm)
         let changed = cache.changedFiles(allPaths: [sourceFile])
-        XCTAssertTrue(changed.contains(sourceFile))
+        #expect(changed.contains(sourceFile))
     }
 }
+#endif

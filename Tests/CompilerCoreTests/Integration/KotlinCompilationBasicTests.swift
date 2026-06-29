@@ -1,15 +1,16 @@
+#if canImport(Testing)
 import Foundation
-import XCTest
+import Testing
 
-final class KotlinCompilationBasicTests: XCTestCase {
-    func testCompile_function_expressionBody() throws {
+@Suite struct KotlinCompilationBasicTests {
+    @Test func testCompile_function_expressionBody() throws {
         try assertKotlinCompilesToKIR("""
         fun add(a: Int, b: Int) = a + b
         fun main() = add(1, 2)
         """)
     }
 
-    func testCompile_function_blockBody() throws {
+    @Test func testCompile_function_blockBody() throws {
         try assertKotlinCompilesToKIR("""
         fun greet(name: String): String {
             val msg = "Hello, " + name
@@ -19,7 +20,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_function_unitReturn() throws {
+    @Test func testCompile_function_unitReturn() throws {
         try assertKotlinCompilesToKIR("""
         fun doNothing() {
         }
@@ -27,7 +28,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_function_multipleParameters() throws {
+    @Test func testCompile_function_multipleParameters() throws {
         try assertKotlinCompilesToKIR("""
         fun compute(a: Int, b: Int, c: Int): Int {
             return a * b + c
@@ -36,7 +37,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_function_recursion() throws {
+    @Test func testCompile_function_recursion() throws {
         try assertKotlinCompilesToKIR("""
         fun factorial(n: Int): Int {
             if (n <= 1) return 1
@@ -46,7 +47,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_variable_valAndVar() throws {
+    @Test func testCompile_variable_valAndVar() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val x = 10
@@ -56,7 +57,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_variable_typeInference() throws {
+    @Test func testCompile_variable_typeInference() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello"
@@ -67,7 +68,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_variable_explicitTypes() throws {
+    @Test func testCompile_variable_explicitTypes() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val x: Int = 10
@@ -78,7 +79,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_concatenation() throws {
+    @Test func testCompile_string_concatenation() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val a = "Hello"
@@ -88,7 +89,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_template() throws {
+    @Test func testCompile_string_template() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val name = "Kotlin"
@@ -98,7 +99,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_templateExpression() throws {
+    @Test func testCompile_string_templateExpression() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val x = 10
@@ -108,7 +109,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_rawString() throws {
+    @Test func testCompile_string_rawString() throws {
         try assertKotlinCompilesToKIR(#"""
         fun main() {
             val text = """
@@ -119,7 +120,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """#)
     }
 
-    func testCompile_controlFlow_ifElse() throws {
+    @Test func testCompile_controlFlow_ifElse() throws {
         try assertKotlinCompilesToKIR("""
         fun max(a: Int, b: Int): Int {
             return if (a > b) a else b
@@ -128,14 +129,14 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_ifExpression() throws {
+    @Test func testCompile_controlFlow_ifExpression() throws {
         try assertKotlinCompilesToKIR("""
         fun classify(n: Int) = if (n > 0) "positive" else if (n < 0) "negative" else "zero"
         fun main() { classify(-1) }
         """)
     }
 
-    func testCompile_controlFlow_whenStatement() throws {
+    @Test func testCompile_controlFlow_whenStatement() throws {
         try assertKotlinCompilesToKIR("""
         fun describe(x: Int): String {
             return when (x) {
@@ -149,7 +150,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_whenMultiCondition() throws {
+    @Test func testCompile_controlFlow_whenMultiCondition() throws {
         try assertKotlinCompilesToKIR("""
         fun isWeekend(day: String): Boolean {
             return when (day) {
@@ -161,7 +162,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_whenWithoutArg() throws {
+    @Test func testCompile_controlFlow_whenWithoutArg() throws {
         try assertKotlinCompilesToKIR("""
         fun classify(n: Int): String {
             return when {
@@ -174,7 +175,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_forLoop() throws {
+    @Test func testCompile_controlFlow_forLoop() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             var sum = 0
@@ -185,7 +186,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_whileLoop() throws {
+    @Test func testCompile_controlFlow_whileLoop() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             var i = 0
@@ -198,7 +199,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_doWhileLoop() throws {
+    @Test func testCompile_controlFlow_doWhileLoop() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             var i = 0
@@ -209,7 +210,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_labeledBreak() throws {
+    @Test func testCompile_controlFlow_labeledBreak() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             var found = false
@@ -225,7 +226,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_controlFlow_labeledContinue() throws {
+    @Test func testCompile_controlFlow_labeledContinue() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             var count = 0
@@ -239,7 +240,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_numericTypes() throws {
+    @Test func testCompile_numericTypes() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val b: Byte = 1
@@ -252,7 +253,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_bitwiseOperators() throws {
+    @Test func testCompile_bitwiseOperators() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val x = 0xFF
@@ -265,7 +266,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_charArithmetic() throws {
+    @Test func testCompile_charArithmetic() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val c = 'A'
@@ -275,7 +276,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_booleanLogic() throws {
+    @Test func testCompile_booleanLogic() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val a = true
@@ -287,7 +288,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_intRange_constructor_and_properties() throws {
+    @Test func testCompile_intRange_constructor_and_properties() throws {
         try assertKotlinCompilesToKIR("""
         import kotlin.ranges.IntRange
 
@@ -308,7 +309,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_range_hof_complete() throws {
+    @Test func testCompile_range_hof_complete() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             println((1..5).toList())
@@ -364,7 +365,7 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 
-    func testCompile_sequence_runningFoldIndexed() throws {
+    @Test func testCompile_sequence_runningFoldIndexed() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val ints = listOf(1, 2, 3).asSequence()
@@ -378,3 +379,4 @@ final class KotlinCompilationBasicTests: XCTestCase {
         """)
     }
 }
+#endif

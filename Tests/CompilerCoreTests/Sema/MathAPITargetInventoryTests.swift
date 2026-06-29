@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class MathAPITargetInventoryTests: XCTestCase {
+@Suite
+struct MathAPITargetInventoryTests {
     private static let targetSignatureList: [String] =
         [
             "val Double.absoluteValue: Double",
@@ -167,13 +169,13 @@ final class MathAPITargetInventoryTests: XCTestCase {
         "roundHalfUp", "roundHalfDown", "roundHalfEven", "roundUnnecessary",
     ]
 
-    func testTargetInventoryHasExpectedShape() {
-        XCTAssertEqual(Self.targetSignatureList.count, Self.targetSignatures.count)
-        XCTAssertEqual(Self.targetSignatures.count, 104)
-        XCTAssertEqual(Self.targetSignatures.filter { $0.hasPrefix("val ") }.count, 12)
+    @Test func testTargetInventoryHasExpectedShape() {
+        #expect(Self.targetSignatureList.count == Self.targetSignatures.count)
+        #expect(Self.targetSignatures.count == 104)
+        #expect(Self.targetSignatures.filter { $0.hasPrefix("val ") }.count == 12)
     }
 
-    func testCurrentSyntheticMathNamesAreOfficialTargets() throws {
+    @Test func testCurrentSyntheticMathNamesAreOfficialTargets() throws {
         let (sema, interner) = try makeSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         let currentNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
@@ -186,43 +188,44 @@ final class MathAPITargetInventoryTests: XCTestCase {
             return interner.resolve(symbol.name)
         })
 
-        XCTAssertEqual(currentNames.subtracting(Self.targetNames).sorted(), [])
+        #expect(currentNames.subtracting(Self.targetNames).sorted() == [])
     }
 
-    func testUnofficialRoundingHelpersAreNotPublished() throws {
+    @Test func testUnofficialRoundingHelpersAreNotPublished() throws {
         let (sema, interner) = try makeSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for name in Self.unofficialRoundingHelperNames.sorted() {
             let fqName = mathPrefix + [interner.intern(name)]
-            XCTAssertTrue(
-                sema.symbols.lookupAll(fqName: fqName).isEmpty,
+            let v = sema.symbols.lookupAll(fqName: fqName).isEmpty
+            #expect(v,
                 "\(name) should not be published as kotlin.math surface"
             )
         }
     }
 
-    func testImplementedInventoryEntriesResolveToSyntheticLinks() throws {
+    @Test func testImplementedInventoryEntriesResolveToSyntheticLinks() throws {
         let (sema, interner) = try makeSema()
         let mathPrefix = ["kotlin", "math"].map { interner.intern($0) }
         for (signature, expectedLink) in Self.implementedLinksBySignature {
             let name = Self.declarationName(signature)
             let symbols = sema.symbols.lookupAll(fqName: mathPrefix + [interner.intern(name)])
             let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            XCTAssertTrue(
+            #expect(
                 links.contains(expectedLink),
                 "Expected \(signature) to resolve to \(expectedLink), got \(links.sorted())"
             )
         }
     }
 
-    func testKnownGapsCoverEveryUnimplementedTargetSignature() {
+    @Test func testKnownGapsCoverEveryUnimplementedTargetSignature() {
         let implemented = Set(Self.implementedLinksBySignature.keys)
         let gaps = Self.knownGapSignaturesByTodo.values.reduce(into: Set<String>()) { result, signatures in
             result.formUnion(signatures)
         }
 
-        XCTAssertEqual(Self.targetSignatures.subtracting(implemented), gaps)
-        XCTAssertTrue(Self.knownGapSignaturesByTodo.keys.allSatisfy { $0.hasPrefix("STDLIB-MATH-") })
+        #expect(Self.targetSignatures.subtracting(implemented) == gaps)
+        let v = Self.knownGapSignaturesByTodo.keys.allSatisfy { $0.hasPrefix("STDLIB-MATH-") }
+        #expect(v)
     }
 
     private static var targetNames: Set<String> {
@@ -265,8 +268,9 @@ final class MathAPITargetInventoryTests: XCTestCase {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            result = try (#require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 }
+#endif

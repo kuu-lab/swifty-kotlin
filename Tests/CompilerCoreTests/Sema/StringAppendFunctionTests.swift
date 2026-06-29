@@ -1,9 +1,10 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-003: Validates `append` on StringBuilder and Appendable.
-final class StringAppendFunctionTests: XCTestCase {
-    func testStringBuilderTypedAppendOverloadsResolveAndLink() throws {
+@Suite
+struct StringAppendFunctionTests {
+    @Test func testStringBuilderTypedAppendOverloadsResolveAndLink() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -23,13 +24,13 @@ final class StringAppendFunctionTests: XCTestCase {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected append overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
 
         let interner = ctx.interner
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let appendSymbols = sema.symbols.lookupAll(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
@@ -46,9 +47,9 @@ final class StringAppendFunctionTests: XCTestCase {
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [parameterType]
             }
-            XCTAssertNotNil(overload, "Expected StringBuilder.append overload for \(parameterType)")
+            #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
             if let overload {
-                XCTAssertNotNil(sema.symbols.externalLinkName(for: overload))
+                #expect(sema.symbols.externalLinkName(for: overload) != nil)
             }
         }
 
@@ -66,14 +67,14 @@ final class StringAppendFunctionTests: XCTestCase {
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [parameterType]
             }
-            XCTAssertNotNil(overload, "Expected StringBuilder.append overload for \(parameterType)")
+            #expect(overload != nil, "Expected StringBuilder.append overload for \(parameterType)")
             if let overload {
-                XCTAssertEqual(sema.symbols.externalLinkName(for: overload), expectedLink)
+                #expect(sema.symbols.externalLinkName(for: overload) == expectedLink)
             }
         }
     }
 
-    func testAppendableAppendOverloadsResolveAndLink() throws {
+    @Test func testAppendableAppendOverloadsResolveAndLink() throws {
         let ctx = makeContextFromSource("""
         import kotlin.text.Appendable
 
@@ -87,13 +88,13 @@ final class StringAppendFunctionTests: XCTestCase {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected Appendable.append overloads to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
 
         let interner = ctx.interner
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let appendSymbols = sema.symbols.lookupAll(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
@@ -101,7 +102,7 @@ final class StringAppendFunctionTests: XCTestCase {
             interner.intern("append"),
         ])
 
-        XCTAssertTrue(
+        #expect(
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes == [sema.types.charType]
@@ -109,7 +110,7 @@ final class StringAppendFunctionTests: XCTestCase {
             },
             "Expected Appendable.append(Char) to link to kk_string_builder_append_char"
         )
-        XCTAssertTrue(
+        #expect(
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes.count == 1
@@ -117,7 +118,7 @@ final class StringAppendFunctionTests: XCTestCase {
             },
             "Expected Appendable.append(CharSequence?) to link to kk_string_builder_append_obj"
         )
-        XCTAssertTrue(
+        #expect(
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes.count == 3

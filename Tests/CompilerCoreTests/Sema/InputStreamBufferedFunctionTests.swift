@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-003: Validates that `InputStream.buffered(bufferSize)` resolves
 /// through Sema for the `java.io.InputStream` receiver and produces a
@@ -8,10 +9,12 @@ import XCTest
 ///
 /// The runtime link names exercised here are `kk_input_stream_buffered_default`
 /// (zero-arg overload) and `kk_input_stream_buffered` (bufferSize overload).
-final class InputStreamBufferedFunctionTests: XCTestCase {
+@Suite
+struct InputStreamBufferedFunctionTests {
 
     // MARK: - Zero-arg overload
 
+    @Test
     func testInputStreamBufferedNoArgsResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.BufferedInputStream
@@ -25,7 +28,7 @@ final class InputStreamBufferedFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected InputStream.buffered() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -33,6 +36,7 @@ final class InputStreamBufferedFunctionTests: XCTestCase {
 
     // MARK: - bufferSize overload
 
+    @Test
     func testInputStreamBufferedWithBufferSizeResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.BufferedInputStream
@@ -46,7 +50,7 @@ final class InputStreamBufferedFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected InputStream.buffered(bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -54,6 +58,7 @@ final class InputStreamBufferedFunctionTests: XCTestCase {
 
     // MARK: - Returned BufferedInputStream usable as InputStream
 
+    @Test
     func testBufferedInputStreamFlowsThroughInputStreamSurface() throws {
         // BufferedInputStream extends InputStream, so all read/skip/available/close
         // methods on InputStream remain callable via the buffered handle, and
@@ -79,9 +84,10 @@ final class InputStreamBufferedFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected BufferedInputStream to be usable as an InputStream, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
+#endif

@@ -1,41 +1,40 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCEnumSurfaceTests: XCTestCase {
-    func testCEnumInterfaceSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropCEnumSurfaceTests {
+    @Test func testCEnumInterfaceSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CEnum surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CEnum surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPackage = ["kotlinx", "cinterop"].map { interner.intern($0) }
-        let cEnumSymbol = try XCTUnwrap(
+        let cEnumSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPackage + [interner.intern("CEnum")])
         )
-        let valueSymbol = try XCTUnwrap(
+        let valueSymbol = try #require(
             sema.symbols.lookup(fqName: cinteropPackage + [interner.intern("CEnum"), interner.intern("value")])
         )
         let deprecated = sema.symbols.annotations(for: cEnumSymbol).first {
             $0.annotationFQName == "kotlin.Deprecated"
         }
 
-        XCTAssertEqual(sema.symbols.symbol(cEnumSymbol)?.kind, .interface)
-        XCTAssertEqual(sema.symbols.propertyType(for: cEnumSymbol), sema.types.make(.classType(ClassType(
+        #expect(sema.symbols.symbol(cEnumSymbol)?.kind == .interface)
+        #expect(sema.symbols.propertyType(for: cEnumSymbol) == sema.types.make(.classType(ClassType(
             classSymbol: cEnumSymbol,
             args: [],
             nullability: .nonNull
         ))))
-        XCTAssertNotNil(deprecated)
-        XCTAssertEqual(deprecated?.arguments, ["message = \"Will be removed.\""])
-        XCTAssertEqual(sema.symbols.symbol(valueSymbol)?.kind, .property)
-        XCTAssertEqual(sema.symbols.propertyType(for: valueSymbol), sema.types.anyType)
-        XCTAssertTrue(sema.symbols.symbol(valueSymbol)?.flags.contains(.abstractType) == true)
+        #expect(deprecated != nil)
+        #expect(deprecated?.arguments == ["message = \"Will be removed.\""])
+        #expect(sema.symbols.symbol(valueSymbol)?.kind == .property)
+        #expect(sema.symbols.propertyType(for: valueSymbol) == sema.types.anyType)
+        #expect(sema.symbols.symbol(valueSymbol)?.flags.contains(.abstractType) == true)
     }
 
-    func testCEnumValuePropertyResolvesInSource() throws {
+    @Test func testCEnumValuePropertyResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CEnum
 
@@ -46,9 +45,7 @@ final class NativeCInteropCEnumSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CEnum.value to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected CEnum.value to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

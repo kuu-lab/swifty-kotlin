@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// Tests for interface default methods (CLASS-003 / P5-113).
 ///
@@ -10,10 +11,10 @@ import XCTest
 /// 4. Correctly overridden when a concrete class provides its own implementation
 /// 5. Lowered to KIR without errors
 /// 6. Dispatched correctly through itable when receiver is interface-typed
-final class InterfaceDefaultMethodTests: XCTestCase {
+@Suite struct InterfaceDefaultMethodTests {
     // MARK: - Sema: default methods are not abstract
 
-    func testInterfaceDefaultMethodNotMarkedAbstract() throws {
+    @Test func testInterfaceDefaultMethodNotMarkedAbstract() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -22,19 +23,19 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
 
         // The greet function should NOT have the abstractType flag
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let greetSymbols = sema.symbols.allSymbols().filter {
             $0.kind == .function && ctx.interner.resolve($0.name) == "greet"
         }
-        XCTAssertEqual(greetSymbols.count, 1)
-        XCTAssertFalse(greetSymbols[0].flags.contains(.abstractType),
+        #expect(greetSymbols.count == 1)
+        #expect(!(greetSymbols[0].flags.contains(.abstractType)),
                        "Interface default method should not be marked abstract")
     }
 
-    func testInterfaceAbstractMethodIsMarkedAbstract() throws {
+    @Test func testInterfaceAbstractMethodIsMarkedAbstract() throws {
         let source = """
         interface Greeter {
             fun greet(): String
@@ -43,20 +44,20 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let greetSymbols = sema.symbols.allSymbols().filter {
             $0.kind == .function && ctx.interner.resolve($0.name) == "greet"
         }
-        XCTAssertEqual(greetSymbols.count, 1)
-        XCTAssertTrue(greetSymbols[0].flags.contains(.abstractType),
+        #expect(greetSymbols.count == 1)
+        #expect(greetSymbols[0].flags.contains(.abstractType),
                       "Interface method without body should be marked abstract")
     }
 
     // MARK: - Sema: concrete class inherits default method without error
 
-    func testConcreteClassInheritsDefaultMethodWithoutOverride() throws {
+    @Test func testConcreteClassInheritsDefaultMethodWithoutOverride() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -68,10 +69,10 @@ final class InterfaceDefaultMethodTests: XCTestCase {
 
         // No abstract override error: default method satisfies the requirement
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testConcreteClassMustOverrideAbstractInterfaceMethod() throws {
+    @Test func testConcreteClassMustOverrideAbstractInterfaceMethod() throws {
         let source = """
         interface Greeter {
             fun greet(): String
@@ -85,7 +86,7 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testConcreteClassOverridesDefaultMethod() throws {
+    @Test func testConcreteClassOverridesDefaultMethod() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -98,12 +99,12 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         try runSema(ctx)
 
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
     // MARK: - Sema: mixed abstract and default methods
 
-    func testInterfaceWithMixedAbstractAndDefaultMethods() throws {
+    @Test func testInterfaceWithMixedAbstractAndDefaultMethods() throws {
         let source = """
         interface Animal {
             fun name(): String
@@ -118,10 +119,10 @@ final class InterfaceDefaultMethodTests: XCTestCase {
 
         // Dog overrides name() (abstract) and inherits sound() (default)
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testMixedMethodsMissingAbstractOverrideErrors() throws {
+    @Test func testMixedMethodsMissingAbstractOverrideErrors() throws {
         let source = """
         interface Animal {
             fun name(): String
@@ -138,7 +139,7 @@ final class InterfaceDefaultMethodTests: XCTestCase {
 
     // MARK: - Sema: multiple interfaces with default methods
 
-    func testClassImplementsMultipleInterfacesWithDefaults() throws {
+    @Test func testClassImplementsMultipleInterfacesWithDefaults() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -152,12 +153,12 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         try runSema(ctx)
 
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
     // MARK: - Sema: default method with block body
 
-    func testDefaultMethodWithBlockBody() throws {
+    @Test func testDefaultMethodWithBlockBody() throws {
         let source = """
         interface Calculator {
             fun add(a: Int, b: Int): Int {
@@ -170,12 +171,12 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         try runSema(ctx)
 
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
     // MARK: - Sema: member call resolution on implementing class
 
-    func testDefaultMethodCallableOnImplementingClass() throws {
+    @Test func testDefaultMethodCallableOnImplementingClass() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -190,11 +191,11 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(errors.isEmpty,
+        #expect(errors.isEmpty,
                       "Calling inherited default method should not produce errors. Got: \(errors.map(\.message))")
     }
 
-    func testDefaultMethodCallableOnInterfaceTypedVariable() throws {
+    @Test func testDefaultMethodCallableOnInterfaceTypedVariable() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -209,13 +210,13 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(errors.isEmpty,
+        #expect(errors.isEmpty,
                       "Calling default method on interface-typed var should not error. Got: \(errors.map(\.message))")
     }
 
     // MARK: - KIR: default method lowering
 
-    func testInterfaceDefaultMethodKIREmission() throws {
+    @Test func testInterfaceDefaultMethodKIREmission() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -228,13 +229,13 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
                        "KIR lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        let module = try XCTUnwrap(ctx.kir)
-        XCTAssertGreaterThanOrEqual(module.functionCount, 1)
+        let module = try #require(ctx.kir)
+        #expect(module.functionCount >= 1)
     }
 
-    func testOverriddenDefaultMethodKIREmission() throws {
+    @Test func testOverriddenDefaultMethodKIREmission() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -249,13 +250,13 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
                        "KIR lowering with override should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
     }
 
     // MARK: - KIR: full pipeline lowering
 
-    func testDefaultMethodFullPipelineLowering() throws {
+    @Test func testDefaultMethodFullPipelineLowering() throws {
         let source = """
         interface Greeter {
             fun greet(): String = "Hello"
@@ -272,11 +273,11 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
                        "Full pipeline lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
     }
 
-    func testMixedMethodsFullPipelineLowering() throws {
+    @Test func testMixedMethodsFullPipelineLowering() throws {
         let source = """
         interface Animal {
             fun name(): String
@@ -295,13 +296,13 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         try runToLowering(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(errors.isEmpty,
+        #expect(errors.isEmpty,
                       "Mixed abstract+default pipeline should succeed. Got: \(errors.map(\.message))")
     }
 
     // MARK: - Interface Properties Tests
 
-    func testInterfaceAbstractProperty() throws {
+    @Test func testInterfaceAbstractProperty() throws {
         let source = """
         interface TestInterface {
             val abstractProperty: String
@@ -315,10 +316,10 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testInterfaceConcreteProperty() throws {
+    @Test func testInterfaceConcreteProperty() throws {
         let source = """
         interface TestInterface {
             val concreteProperty: String = "default"
@@ -329,10 +330,10 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testInterfaceComputedProperty() throws {
+    @Test func testInterfaceComputedProperty() throws {
         let source = """
         interface TestInterface {
             val computedProperty: String
@@ -346,12 +347,12 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
     // MARK: - Super Call Tests
 
-    func testSuperQualifiedCall() throws {
+    @Test func testSuperQualifiedCall() throws {
         let source = """
         interface A {
             fun method(): String = "A"
@@ -369,10 +370,10 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testDiamondConflictResolutionUsesFullSignature() throws {
+    @Test func testDiamondConflictResolutionUsesFullSignature() throws {
         let source = """
         interface Left {
             fun method(value: Int): String = "LeftInt"
@@ -385,11 +386,11 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" }))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testConcreteSuperclassDefaultBeatsInterfaceConflict() throws {
+    @Test func testConcreteSuperclassDefaultBeatsInterfaceConflict() throws {
         let source = """
         open class Base {
             open fun method(): String = "Base"
@@ -405,11 +406,11 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" }))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity() throws {
+    @Test func testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity() throws {
         let source = """
         open class Base {
             open fun method(): String = "Base"
@@ -428,11 +429,11 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" }))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testSignatureAwareInheritedOverloadsResolveCalls() throws {
+    @Test func testSignatureAwareInheritedOverloadsResolveCalls() throws {
         let source = """
         interface Left {
             fun method(value: Int): String = "LeftInt"
@@ -450,13 +451,13 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" }))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
     // MARK: - Complex Interface Inheritance Tests
 
-    func testComplexInterfaceInheritance() throws {
+    @Test func testComplexInterfaceInheritance() throws {
         let source = """
         interface Base {
             fun baseMethod(): String = "Base"
@@ -477,6 +478,7 @@ final class InterfaceDefaultMethodTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 }
+#endif

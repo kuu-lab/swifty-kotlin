@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension OverloadResolverTests {
-    func testResolveCallExtensionFunctionWithGenericParam() {
+    @Test func testResolveCallExtensionFunctionWithGenericParam() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -36,15 +37,15 @@ extension OverloadResolverTests {
             implicitReceiverType: stringType,
             ctx: ctx
         )
-        XCTAssertEqual(resolved.chosenCallee, ext)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments.count, 1)
+        #expect(resolved.chosenCallee == ext)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments.count == 1)
     }
 
     // MARK: - Advanced Multiple Type Parameters Tests
 
     /// Multiple type params where one violates its bound.
-    func testResolveCallMultipleTypeParamsOneViolatesBound() {
+    @Test func testResolveCallMultipleTypeParamsOneViolatesBound() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -76,12 +77,12 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-BOUND")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-BOUND")
     }
 
     /// Multiple type params with expected return type constraint.
-    func testResolveCallMultipleTypeParamsWithExpectedReturnType() {
+    @Test func testResolveCallMultipleTypeParamsWithExpectedReturnType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -115,13 +116,13 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: boolType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: boolType, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments.count, 2)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments.count == 2)
     }
 
     /// Multiple type params where return type constraint conflicts with argument types.
-    func testResolveCallMultipleTypeParamsReturnTypeConflict() {
+    @Test func testResolveCallMultipleTypeParamsReturnTypeConflict() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -152,14 +153,14 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: boolType, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertNotNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic != nil)
     }
 
     // MARK: - Advanced Most Specific Overload Selection Tests
 
     /// Three candidates, one is most specific (Int < Any, String < Any).
-    func testResolveCallMostSpecificFromThreeCandidates() {
+    @Test func testResolveCallMostSpecificFromThreeCandidates() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -192,12 +193,12 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn1, fn2, fn3], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn2)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn2)
+        #expect(resolved.diagnostic == nil)
     }
 
     /// Multi-parameter most specific selection.
-    func testResolveCallMostSpecificMultipleParameters() {
+    @Test func testResolveCallMostSpecificMultipleParameters() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -224,12 +225,12 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType), CallArg(type: boolType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn1, fn2], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, fn2)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn2)
+        #expect(resolved.diagnostic == nil)
     }
 
     /// Three truly ambiguous candidates → ambiguous diagnostic.
-    func testResolveCallAmbiguousAmongThreeCandidates() {
+    @Test func testResolveCallAmbiguousAmongThreeCandidates() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -258,13 +259,13 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn1, fn2, fn3], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0003")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0003")
     }
 
     /// Generic candidate instantiated to same types as concrete → ambiguous
     /// (resolver compares instantiated parameter types, not generic vs concrete).
-    func testResolveCallGenericVsConcreteWithSameInstantiatedTypesIsAmbiguous() {
+    @Test func testResolveCallGenericVsConcreteWithSameInstantiatedTypesIsAmbiguous() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -300,13 +301,13 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [genericFn, concreteFn], call: call, expectedType: nil, ctx: ctx)
-        XCTAssertEqual(resolved.chosenCallee, concreteFn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments.count, 0)
+        #expect(resolved.chosenCallee == concreteFn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments.count == 0)
     }
 
     /// Most specific selection with incompatible parameter counts yields no winner.
-    func testResolveCallMostSpecificDifferentArityCandidates() {
+    @Test func testResolveCallMostSpecificDifferentArityCandidates() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -345,13 +346,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn1, fn2], call: call, expectedType: nil, ctx: ctx)
         // Both match, isMoreSpecific requires same count → ambiguous
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0003")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0003")
     }
 
     // MARK: - P5-39: positional args after named args for vararg
 
-    func testResolveCallAcceptsPositionalArgsAfterNamedArgForVarargParameter() {
+    @Test func testResolveCallAcceptsPositionalArgsAfterNamedArgForVarargParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -404,13 +405,13 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
         // arg 0 → param 0 (named "a"), args 1,2 → param 1 (vararg "b")
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 1, 2: 1])
+        #expect(resolved.parameterMapping == [0: 0, 1: 1, 2: 1])
     }
 
-    func testResolveCallRejectsPositionalAfterNamedArgForNonVarargParameter() {
+    @Test func testResolveCallRejectsPositionalAfterNamedArgForNonVarargParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -462,7 +463,8 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0002")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
     }
 }
+#endif

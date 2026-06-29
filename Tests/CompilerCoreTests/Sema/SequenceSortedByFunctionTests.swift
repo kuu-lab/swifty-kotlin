@@ -1,11 +1,12 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-111: Validates that `kotlin.sequences.Sequence<T>.sortedBy`
 /// resolves through Sema and is wired to the runtime bridge.
 /// Runtime link name: `kk_sequence_sortedBy`.
-final class SequenceSortedByFunctionTests: XCTestCase {
-    func testSequenceSortedByFunctionResolvesInSource() throws {
+@Suite
+struct SequenceSortedByFunctionTests {
+    @Test func testSequenceSortedByFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun sortByLength(values: Sequence<String>): Sequence<String> {
             return values.sortedBy { it.length }
@@ -17,19 +18,19 @@ final class SequenceSortedByFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected Sequence.sortedBy to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let memberFQName = ["kotlin", "sequences", "Sequence", "sortedBy"]
             .map { ctx.interner.intern($0) }
         let links = Set(
             sema.symbols.lookupAll(fqName: memberFQName)
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_sequence_sortedBy"),
             "Expected Sequence.sortedBy to link to kk_sequence_sortedBy, got: \(links)"
         )

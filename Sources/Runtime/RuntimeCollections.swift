@@ -482,14 +482,6 @@ public func kk_set_to_mutable_set(_ setRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
 }
 
-@_cdecl("kk_js_readonly_set_toMutableSet")
-public func kk_js_readonly_set_toMutableSet(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []))
-    }
-    return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
-}
-
 // MARK: - List intersect / union / subtract / toHashSet (STDLIB-510)
 
 @_cdecl("kk_list_intersect")
@@ -1084,7 +1076,9 @@ public func kk_list_plus_collection(_ listRaw: Int, _ otherRaw: Int) -> Int {
 
 @_cdecl("kk_list_minus_element")
 public func kk_list_minus_element(_ listRaw: Int, _ element: Int) -> Int {
-    let elements = runtimeCollectionElements(from: listRaw) ?? runtimeArrayBox(from: listRaw)?.elements ?? []
+    let elements = runtimeIterableElements(from: listRaw)
+        ?? runtimeArrayBox(from: listRaw)?.elements
+        ?? []
     var result = elements
     if let index = result.firstIndex(where: { runtimeValuesEqual($0, element) }) {
         result.remove(at: index)

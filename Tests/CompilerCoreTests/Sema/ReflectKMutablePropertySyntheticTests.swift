@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectKMutablePropertySyntheticTests: XCTestCase {
+@Suite
+struct ReflectKMutablePropertySyntheticTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner) {
@@ -10,43 +12,42 @@ final class ReflectKMutablePropertySyntheticTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected KMutableProperty surface to resolve cleanly, got: \(diagnostics)")
-            result = try (XCTUnwrap(ctx.sema), ctx.interner)
+            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KMutableProperty surface to resolve cleanly, got: \(diagnostics)"))
+            result = try (try #require(ctx.sema), ctx.interner)
         }
-        return try XCTUnwrap(result)
+        return try #require(result)
     }
 
-    func testKMutablePropertySurfaceIsRegistered() throws {
+    @Test func testKMutablePropertySurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
-        let kPropertySymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kPropertySymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KProperty")]
         ))
-        let kMutablePropertySymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kMutablePropertySymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty")]
         ))
 
-        let kMutablePropertyInfo = try XCTUnwrap(sema.symbols.symbol(kMutablePropertySymbol))
-        XCTAssertEqual(kMutablePropertyInfo.kind, .interface)
-        XCTAssertTrue(kMutablePropertyInfo.flags.contains(.synthetic))
+        let kMutablePropertyInfo = try #require(sema.symbols.symbol(kMutablePropertySymbol))
+        #expect(kMutablePropertyInfo.kind == .interface)
+        #expect(kMutablePropertyInfo.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutablePropertySymbol)
-        XCTAssertEqual(typeParams.count, 1)
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: kMutablePropertySymbol), [.invariant])
+        #expect(typeParams.count == 1)
+        #expect(sema.types.nominalTypeParameterVariances(for: kMutablePropertySymbol) == [.invariant])
 
         let valueType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParams[0],
             nullability: .nonNull
         )))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: kMutablePropertySymbol).contains(kPropertySymbol))
-        XCTAssertEqual(
-            sema.symbols.supertypeTypeArgs(for: kMutablePropertySymbol, supertype: kPropertySymbol),
-            [.invariant(valueType)]
+        #expect(sema.symbols.directSupertypes(for: kMutablePropertySymbol).contains(kPropertySymbol))
+        #expect(
+            sema.symbols.supertypeTypeArgs(for: kMutablePropertySymbol, supertype: kPropertySymbol) == [.invariant(valueType)]
         )
     }
 
-    func testKMutablePropertyTypeReferencesResolveInSource() throws {
+    @Test func testKMutablePropertyTypeReferencesResolveInSource() throws {
         let source = """
         import kotlin.reflect.KMutableProperty
 
@@ -56,47 +57,47 @@ final class ReflectKMutablePropertySyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 
-    func testKMutablePropertySetterNestedTypeIsRegistered() throws {
+    @Test func testKMutablePropertySetterNestedTypeIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
-        let kMutablePropertySymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kMutablePropertySymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty")]
         ))
-        let setterSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let setterSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty"), interner.intern("Setter")]
         ))
 
-        let setterInfo = try XCTUnwrap(sema.symbols.symbol(setterSymbol))
-        XCTAssertEqual(setterInfo.kind, .interface)
-        XCTAssertTrue(setterInfo.flags.contains(.synthetic))
+        let setterInfo = try #require(sema.symbols.symbol(setterSymbol))
+        #expect(setterInfo.kind == .interface)
+        #expect(setterInfo.flags.contains(.synthetic))
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: setterSymbol)
-        XCTAssertEqual(typeParams.count, 1)
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: setterSymbol), [.invariant])
+        #expect(typeParams.count == 1)
+        #expect(sema.types.nominalTypeParameterVariances(for: setterSymbol) == [.invariant])
 
         // Setter should be a child of KMutableProperty.
-        XCTAssertEqual(sema.symbols.parentSymbol(for: setterSymbol), kMutablePropertySymbol)
+        #expect(sema.symbols.parentSymbol(for: setterSymbol) == kMutablePropertySymbol)
     }
 
-    func testKMutablePropertySetterPropertyIsRegistered() throws {
+    @Test func testKMutablePropertySetterPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
-        let kMutablePropertySymbol = try XCTUnwrap(sema.symbols.lookup(
+        let kMutablePropertySymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty")]
         ))
-        let setterSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let setterSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty"), interner.intern("Setter")]
         ))
 
-        let setterPropSymbol = try XCTUnwrap(sema.symbols.lookup(
+        let setterPropSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KMutableProperty"), interner.intern("setter")]
         ))
-        let setterPropInfo = try XCTUnwrap(sema.symbols.symbol(setterPropSymbol))
-        XCTAssertEqual(setterPropInfo.kind, .property)
-        XCTAssertTrue(setterPropInfo.flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: setterPropSymbol), kMutablePropertySymbol)
+        let setterPropInfo = try #require(sema.symbols.symbol(setterPropSymbol))
+        #expect(setterPropInfo.kind == .property)
+        #expect(setterPropInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: setterPropSymbol) == kMutablePropertySymbol)
 
         let typeParams = sema.types.nominalTypeParameterSymbols(for: kMutablePropertySymbol)
         let valueType = sema.types.make(.typeParam(TypeParamType(
@@ -108,10 +109,10 @@ final class ReflectKMutablePropertySyntheticTests: XCTestCase {
             args: [.invariant(valueType)],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sema.symbols.propertyType(for: setterPropSymbol), expectedSetterType)
+        #expect(sema.symbols.propertyType(for: setterPropSymbol) == expectedSetterType)
     }
 
-    func testKMutablePropertySetterAccessResolvesInSource() throws {
+    @Test func testKMutablePropertySetterAccessResolvesInSource() throws {
         let source = """
         import kotlin.reflect.KMutableProperty
 
@@ -121,3 +122,4 @@ final class ReflectKMutablePropertySyntheticTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 }
+#endif

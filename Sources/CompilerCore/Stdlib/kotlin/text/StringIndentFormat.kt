@@ -1,5 +1,7 @@
 package kotlin.text
 
+import kswiftk.internal.*
+
 // String indent and format functions migrated from Swift Runtime
 // MIGRATION-TEXT-006
 
@@ -7,7 +9,7 @@ private fun String.splitIntoLines(): List<String> {
     val src = replace("\r\n", "\n").replace("\r", "\n")
     val result = mutableListOf<String>()
     var start = 0
-    while (start < src.length) {
+    while (start < __string_struct_get_length(src)) {
         val idx = src.indexOf("\n", start)
         if (idx == -1) {
             result.add(src.substring(start))
@@ -49,7 +51,7 @@ private fun trimBlankEdges(lines: List<String>): List<String> {
  */
 public fun String.trimIndent(): String {
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     var minIndent = -1
     for (line in lines) {
         if (!line.isBlank()) {
@@ -77,17 +79,18 @@ public fun String.trimIndent(): String {
  * and removes the first and the last lines if they are blank.
  */
 public fun String.trimMargin(marginPrefix: String = "|"): String {
+    require(!marginPrefix.isBlank()) { "marginPrefix must be non-blank string." }
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
         if (!first) sb.append('\n')
         var i = 0
-        while (i < line.length && (line[i] == ' ' || line[i] == '\t')) i++
+        while (i < __string_struct_get_length(line) && (line[i] == ' ' || line[i] == '\t')) i++
         val trimmedLeading = line.substring(i)
         if (trimmedLeading.startsWith(marginPrefix)) {
-            sb.append(trimmedLeading.substring(marginPrefix.length))
+            sb.append(trimmedLeading.substring(__string_struct_get_length(marginPrefix)))
         } else {
             sb.append(line)
         }
@@ -101,7 +104,7 @@ public fun String.trimMargin(marginPrefix: String = "|"): String {
  */
 public fun String.prependIndent(indent: String = "    "): String {
     val lines = splitIntoLines()
-    if (lines.isEmpty()) return this
+    if (lines.size == 0) return this
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
@@ -118,7 +121,7 @@ public fun String.prependIndent(indent: String = "    "): String {
  */
 public fun String.replaceIndent(newIndent: String = ""): String {
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     var minIndent = -1
     for (line in lines) {
         if (!line.isBlank()) {
@@ -151,155 +154,21 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
         throw IllegalArgumentException("marginPrefix must be non-blank string.")
     }
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
         if (!first) sb.append('\n')
         var i = 0
-        while (i < line.length && (line[i] == ' ' || line[i] == '\t')) i++
+        while (i < __string_struct_get_length(line) && (line[i] == ' ' || line[i] == '\t')) i++
         val trimmedLeading = line.substring(i)
         if (trimmedLeading.startsWith(marginPrefix)) {
             sb.append(newIndent)
-            sb.append(trimmedLeading.substring(marginPrefix.length))
+            sb.append(trimmedLeading.substring(__string_struct_get_length(marginPrefix)))
         } else {
             sb.append(line)
         }
         first = false
-    }
-    return sb.toString()
-}
-
-private fun digitValue(c: Char): Int {
-    return when (c) {
-        '0' -> 0
-        '1' -> 1
-        '2' -> 2
-        '3' -> 3
-        '4' -> 4
-        '5' -> 5
-        '6' -> 6
-        '7' -> 7
-        '8' -> 8
-        '9' -> 9
-        else -> -1
-    }
-}
-
-private fun appendPadded(sb: StringBuilder, value: String, width: Int, leftAlign: Boolean, zeroPad: Boolean) {
-    val padding = width - value.length
-    if (padding <= 0) {
-        sb.append(value)
-        return
-    }
-    val padChar = if (zeroPad && !leftAlign) '0' else ' '
-    if (leftAlign) {
-        sb.append(value)
-        var p = 0
-        while (p < padding) {
-            sb.append(' ')
-            p++
-        }
-    } else {
-        var p = 0
-        while (p < padding) {
-            sb.append(padChar)
-            p++
-        }
-        sb.append(value)
-    }
-}
-
-/**
- * Uses this string as a format string and returns a string obtained by substituting
- * the specified arguments, using the default locale.
- */
-public fun String.format(vararg args: Any?): String {
-    val argList = mutableListOf<Any?>()
-    for (a in args) argList.add(a)
-    val sb = StringBuilder()
-    var i = 0
-    var argIndex = 0
-    while (i < length) {
-        val c = this[i]
-        if (c != '%') {
-            sb.append(c)
-            i++
-            continue
-        }
-        i++
-        if (i >= length) {
-            sb.append('%')
-            break
-        }
-        var leftAlign = false
-        var zeroPad = false
-        var width = 0
-        if (this[i] == '-') {
-            leftAlign = true
-            i++
-        }
-        if (i < length && this[i] == '0' && digitValue(this[i]) == 0) {
-            zeroPad = true
-            i++
-        }
-        while (i < length && digitValue(this[i]) != -1) {
-            width = width * 10 + digitValue(this[i])
-            i++
-        }
-        if (i < length && this[i] == '.') {
-            i++
-            while (i < length && digitValue(this[i]) != -1) i++
-        }
-        if (i >= length) {
-            sb.append('%')
-            break
-        }
-        val spec = this[i]
-        i++
-        when (spec) {
-            '%' -> sb.append('%')
-            'n' -> sb.append('\n')
-            's' -> {
-                val value = if (argIndex < argList.size) (argList[argIndex]?.toString() ?: "null") else ""
-                argIndex++
-                appendPadded(sb, value, width, leftAlign, false)
-            }
-            'S' -> {
-                val value = if (argIndex < argList.size) (argList[argIndex]?.toString() ?: "null") else ""
-                argIndex++
-                appendPadded(sb, value.uppercase(), width, leftAlign, false)
-            }
-            'd' -> {
-                val value = if (argIndex < argList.size) (argList[argIndex]?.toString() ?: "0") else "0"
-                argIndex++
-                appendPadded(sb, value, width, leftAlign, zeroPad)
-            }
-            'f' -> {
-                val value = if (argIndex < argList.size) (argList[argIndex]?.toString() ?: "0.0") else "0.0"
-                argIndex++
-                appendPadded(sb, value, width, leftAlign, zeroPad)
-            }
-            'b' -> {
-                val value = if (argIndex < argList.size) (argList[argIndex]?.toString() ?: "false") else "false"
-                argIndex++
-                appendPadded(sb, value, width, leftAlign, false)
-            }
-            'B' -> {
-                val value = if (argIndex < argList.size) (argList[argIndex]?.toString() ?: "false") else "false"
-                argIndex++
-                appendPadded(sb, value.uppercase(), width, leftAlign, false)
-            }
-            'c', 'C' -> {
-                val value = if (argIndex < argList.size) (argList[argIndex]?.toString() ?: "") else ""
-                argIndex++
-                appendPadded(sb, value, width, leftAlign, false)
-            }
-            else -> {
-                sb.append('%')
-                sb.append(spec)
-            }
-        }
     }
     return sb.toString()
 }

@@ -1,11 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 @testable import LSPServer
-import XCTest
+import Testing
 
-final class AnalyzerTests: XCTestCase {
+@Suite("LSP.Analyzer")
+struct AnalyzerTests {
     private let uri = "file:///tmp/LSPAnalyzer.kt"
 
-    func testAnalyzeValidProgramProducesAST() {
+    @Test
+    func analyzeValidProgramProducesAST() {
         let source = """
         fun greet(name: String): String {
             return "Hello, " + name
@@ -13,14 +16,15 @@ final class AnalyzerTests: XCTestCase {
         """
         let analysis = Analyzer().analyze(uri: uri, text: source)
 
-        XCTAssertNotNil(analysis.context.ast, "Frontend should build an AST for valid input")
-        XCTAssertNotNil(analysis.fileID, "The analyzed document should be registered in the source manager")
+        #expect(analysis.context.ast != nil, "Frontend should build an AST for valid input")
+        #expect(analysis.fileID != nil, "The analyzed document should be registered in the source manager")
 
         let errors = analysis.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(errors.isEmpty, "Valid program should not produce error diagnostics: \(errors)")
+        #expect(errors.isEmpty, "Valid program should not produce error diagnostics: \(errors)")
     }
 
-    func testAnalyzeReportsDiagnosticsForBrokenProgram() {
+    @Test
+    func analyzeReportsDiagnosticsForBrokenProgram() {
         // Unterminated declaration / garbage tokens guarantee parse diagnostics.
         let source = """
         fun broken( {
@@ -30,25 +34,28 @@ final class AnalyzerTests: XCTestCase {
         let analysis = Analyzer().analyze(uri: uri, text: source)
         let diagnostics = DiagnosticsFeature.lspDiagnostics(for: analysis)
 
-        XCTAssertFalse(diagnostics.isEmpty, "Malformed program should produce diagnostics")
+        #expect(!diagnostics.isEmpty, "Malformed program should produce diagnostics")
         for diagnostic in diagnostics {
-            XCTAssertEqual(diagnostic.source, "kswiftk")
-            XCTAssertNotNil(diagnostic.severity, "Each diagnostic should carry an LSP severity")
-            XCTAssertNotNil(diagnostic.code, "Each diagnostic should carry a KSWIFTK code")
+            #expect(diagnostic.source == "kswiftk")
+            #expect(diagnostic.severity != nil, "Each diagnostic should carry an LSP severity")
+            #expect(diagnostic.code != nil, "Each diagnostic should carry a KSWIFTK code")
         }
     }
 
-    func testRemoveDropsCachedAnalysis() {
+    @Test
+    func removeDropsCachedAnalysis() {
         let analyzer = Analyzer()
         _ = analyzer.analyze(uri: uri, text: "fun main() {}")
-        XCTAssertNotNil(analyzer.analysis(for: uri))
+        #expect(analyzer.analysis(for: uri) != nil)
         analyzer.remove(uri: uri)
-        XCTAssertNil(analyzer.analysis(for: uri))
+        #expect(analyzer.analysis(for: uri) == nil)
     }
 
-    func testDocumentURIRoundTrip() {
+    @Test
+    func documentURIRoundTrip() {
         let path = "/tmp/some dir/Foo.kt"
         let uri = DocumentURI.uri(fromPath: path)
-        XCTAssertEqual(DocumentURI.path(fromURI: uri), path)
+        #expect(DocumentURI.path(fromURI: uri) == path)
     }
 }
+#endif

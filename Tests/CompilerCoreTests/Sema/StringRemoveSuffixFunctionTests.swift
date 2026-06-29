@@ -1,11 +1,12 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-052: Validates that `kotlin.text.CharSequence.removeSuffix(suffix)`
 /// resolves through Sema for `String` / `CharSequence` receivers. String overloads
 /// use the flattened runtime ABI.
-final class StringRemoveSuffixFunctionTests: XCTestCase {
-    func testRemoveSuffixFunctionResolvesInSource() throws {
+@Suite
+struct StringRemoveSuffixFunctionTests {
+    @Test func testRemoveSuffixFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripSuffix(s: String): String {
             return s.removeSuffix("World")
@@ -33,7 +34,7 @@ final class StringRemoveSuffixFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected removeSuffix to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

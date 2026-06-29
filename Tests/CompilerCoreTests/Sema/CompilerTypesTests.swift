@@ -1,17 +1,20 @@
-@testable import CompilerCore
+#if canImport(Testing)
 import Foundation
+@testable import CompilerCore
+import Testing
 import XCTest
 
-final class CompilerTypesTests: XCTestCase {
-    func testTargetTripleStoreValues() {
+@Suite
+struct CompilerTypesTests {
+    @Test func testTargetTripleStoreValues() {
         let triple = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: "14.0")
-        XCTAssertEqual(triple.arch, "arm64")
-        XCTAssertEqual(triple.vendor, "apple")
-        XCTAssertEqual(triple.os, "macosx")
-        XCTAssertEqual(triple.osVersion, "14.0")
+        #expect(triple.arch == "arm64")
+        #expect(triple.vendor == "apple")
+        #expect(triple.os == "macosx")
+        #expect(triple.osVersion == "14.0")
     }
 
-    func testCompilerOptionsDefaultArguments() {
+    @Test func testCompilerOptionsDefaultArguments() {
         let options = CompilerOptions(
             moduleName: "DefaultModule",
             inputs: ["input.kt"],
@@ -20,24 +23,24 @@ final class CompilerTypesTests: XCTestCase {
             target: TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
         )
 
-        XCTAssertEqual(options.moduleName, "DefaultModule")
-        XCTAssertEqual(options.inputs, ["input.kt"])
-        XCTAssertEqual(options.outputPath, "out.o")
-        XCTAssertEqual(options.emit, .object)
-        XCTAssertEqual(options.searchPaths, [])
+        #expect(options.moduleName == "DefaultModule")
+        #expect(options.inputs == ["input.kt"])
+        #expect(options.outputPath == "out.o")
         XCTAssertEqual(options.stdlibSearchPaths, [])
         XCTAssertTrue(options.includeStdlib)
         XCTAssertEqual(options.effectiveSearchPaths, [])
-        XCTAssertEqual(options.libraryPaths, [])
-        XCTAssertEqual(options.linkLibraries, [])
-        XCTAssertEqual(options.optLevel, .O0)
-        XCTAssertFalse(options.debugInfo)
-        XCTAssertEqual(options.frontendFlags, [])
-        XCTAssertEqual(options.irFlags, [])
-        XCTAssertEqual(options.runtimeFlags, [])
+        #expect(options.emit == .object)
+        #expect(options.searchPaths == [])
+        #expect(options.libraryPaths == [])
+        #expect(options.linkLibraries == [])
+        #expect(options.optLevel == .O0)
+        #expect(!(options.debugInfo))
+        #expect(options.frontendFlags == [])
+        #expect(options.irFlags == [])
+        #expect(options.runtimeFlags == [])
     }
 
-    func testCompilerOptionsDebugInfoPropertyAndInit() {
+    @Test func testCompilerOptionsDebugInfoPropertyAndInit() {
         let target = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
 
         var options = CompilerOptions(
@@ -48,13 +51,13 @@ final class CompilerTypesTests: XCTestCase {
             target: target,
             debugInfo: true
         )
-        XCTAssertTrue(options.debugInfo)
+        #expect(options.debugInfo)
 
         options.debugInfo = false
-        XCTAssertFalse(options.debugInfo)
+        #expect(!(options.debugInfo))
     }
 
-    func testCompilerOptionsCustomArgumentsAndEnums() {
+    @Test func testCompilerOptionsCustomArgumentsAndEnums() {
         let target = TargetTriple(arch: "x86_64", vendor: "pc", os: "linux", osVersion: "6")
         let options = CompilerOptions(
             moduleName: "CustomModule",
@@ -73,28 +76,28 @@ final class CompilerTypesTests: XCTestCase {
             runtimeFlags: ["-XruntimeA"]
         )
 
-        XCTAssertEqual(options.target, target)
-        XCTAssertEqual(options.optLevel, .O3)
-        XCTAssertTrue(options.debugInfo)
-        XCTAssertEqual(options.searchPaths, ["/opt/include"])
+        #expect(options.target == target)
+        #expect(options.optLevel == .O3)
+        #expect(options.debugInfo)
+        #expect(options.searchPaths == ["/opt/include"])
         XCTAssertEqual(options.stdlibSearchPaths, ["/opt/stdlib"])
         XCTAssertEqual(options.effectiveSearchPaths, ["/opt/stdlib", "/opt/include"])
-        XCTAssertEqual(options.libraryPaths, ["/opt/lib"])
-        XCTAssertEqual(options.linkLibraries, ["m", "pthread"])
-        XCTAssertEqual(options.frontendFlags, ["-XfrontendA"])
-        XCTAssertEqual(options.irFlags, ["-XirA"])
-        XCTAssertEqual(options.runtimeFlags, ["-XruntimeA"])
+        #expect(options.libraryPaths == ["/opt/lib"])
+        #expect(options.linkLibraries == ["m", "pthread"])
+        #expect(options.frontendFlags == ["-XfrontendA"])
+        #expect(options.irFlags == ["-XirA"])
+        #expect(options.runtimeFlags == ["-XruntimeA"])
     }
 
-    func testTargetTripleWithNilOsVersion() {
+    @Test func testTargetTripleWithNilOsVersion() {
         let triple = TargetTriple(arch: "x86_64", vendor: "unknown", os: "linux", osVersion: nil)
-        XCTAssertEqual(triple.arch, "x86_64")
-        XCTAssertEqual(triple.vendor, "unknown")
-        XCTAssertEqual(triple.os, "linux")
-        XCTAssertNil(triple.osVersion)
+        #expect(triple.arch == "x86_64")
+        #expect(triple.vendor == "unknown")
+        #expect(triple.os == "linux")
+        #expect(triple.osVersion == nil)
     }
 
-    func testCompilerOptionsDebugInfoPropertyGetAndSet() {
+    @Test func testCompilerOptionsDebugInfoPropertyGetAndSet() {
         let target = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
         var options = CompilerOptions(
             moduleName: "M",
@@ -104,12 +107,12 @@ final class CompilerTypesTests: XCTestCase {
             target: target,
             debugInfo: false
         )
-        XCTAssertFalse(options.debugInfo)
+        #expect(!(options.debugInfo))
         options.debugInfo = true
-        XCTAssertTrue(options.debugInfo)
+        #expect(options.debugInfo)
     }
 
-    func testInitWithDebugInfo() {
+    @Test func testInitWithDebugInfo() {
         let target = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
         let options = CompilerOptions(
             moduleName: "ModuleWithDebug",
@@ -126,22 +129,22 @@ final class CompilerTypesTests: XCTestCase {
             irFlags: ["-Xi"],
             runtimeFlags: ["-Xr"]
         )
-        XCTAssertEqual(options.moduleName, "ModuleWithDebug")
-        XCTAssertEqual(options.inputs, ["b.kt"])
-        XCTAssertEqual(options.outputPath, "out2")
-        XCTAssertEqual(options.emit, .executable)
-        XCTAssertEqual(options.searchPaths, ["/sp"])
-        XCTAssertEqual(options.libraryPaths, ["/lp"])
-        XCTAssertEqual(options.linkLibraries, ["z"])
-        XCTAssertEqual(options.target, target)
-        XCTAssertEqual(options.optLevel, .O2)
-        XCTAssertTrue(options.debugInfo)
-        XCTAssertEqual(options.frontendFlags, ["-Xf"])
-        XCTAssertEqual(options.irFlags, ["-Xi"])
-        XCTAssertEqual(options.runtimeFlags, ["-Xr"])
+        #expect(options.moduleName == "ModuleWithDebug")
+        #expect(options.inputs == ["b.kt"])
+        #expect(options.outputPath == "out2")
+        #expect(options.emit == .executable)
+        #expect(options.searchPaths == ["/sp"])
+        #expect(options.libraryPaths == ["/lp"])
+        #expect(options.linkLibraries == ["z"])
+        #expect(options.target == target)
+        #expect(options.optLevel == .O2)
+        #expect(options.debugInfo)
+        #expect(options.frontendFlags == ["-Xf"])
+        #expect(options.irFlags == ["-Xi"])
+        #expect(options.runtimeFlags == ["-Xr"])
     }
 
-    func testInitWithDebugInfoDefaultArguments() {
+    @Test func testInitWithDebugInfoDefaultArguments() {
         let options = CompilerOptions(
             moduleName: "M2",
             inputs: ["b.kt"],
@@ -150,33 +153,33 @@ final class CompilerTypesTests: XCTestCase {
             target: TargetTriple(arch: "x86_64", vendor: "pc", os: "linux", osVersion: nil),
             debugInfo: false
         )
-        XCTAssertEqual(options.moduleName, "M2")
-        XCTAssertEqual(options.emit, .llvmIR)
-        XCTAssertFalse(options.debugInfo)
-        XCTAssertEqual(options.searchPaths, [])
+        #expect(options.moduleName == "M2")
+        #expect(options.emit == .llvmIR)
+        #expect(!(options.debugInfo))
+        #expect(options.searchPaths == [])
         XCTAssertEqual(options.stdlibSearchPaths, [])
         XCTAssertEqual(options.effectiveSearchPaths, [])
-        XCTAssertEqual(options.libraryPaths, [])
-        XCTAssertEqual(options.linkLibraries, [])
-        XCTAssertEqual(options.optLevel, .O0)
-        XCTAssertEqual(options.frontendFlags, [])
-        XCTAssertEqual(options.irFlags, [])
-        XCTAssertEqual(options.runtimeFlags, [])
+        #expect(options.libraryPaths == [])
+        #expect(options.linkLibraries == [])
+        #expect(options.optLevel == .O0)
+        #expect(options.frontendFlags == [])
+        #expect(options.irFlags == [])
+        #expect(options.runtimeFlags == [])
     }
 
-    func testOptimizationLevelEquality() {
-        XCTAssertNotEqual(OptimizationLevel.O0, OptimizationLevel.O3)
+    @Test func testOptimizationLevelEquality() {
+        #expect(OptimizationLevel.O0 != OptimizationLevel.O3)
     }
 
-    func testTargetTripleEquality() {
+    @Test func testTargetTripleEquality() {
         let t1 = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: "14.0")
         let t2 = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: "14.0")
         let t3 = TargetTriple(arch: "x86_64", vendor: "apple", os: "macosx", osVersion: "14.0")
-        XCTAssertEqual(t1, t2)
-        XCTAssertNotEqual(t1, t3)
+        #expect(t1 == t2)
+        #expect(t1 != t3)
     }
 
-    func testCompilerOptionsEquality() {
+    @Test func testCompilerOptionsEquality() {
         let target = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
         let o1 = CompilerOptions(
             moduleName: "M", inputs: ["a.kt"], outputPath: "out",
@@ -190,8 +193,8 @@ final class CompilerTypesTests: XCTestCase {
             moduleName: "N", inputs: ["a.kt"], outputPath: "out",
             emit: .object, target: target
         )
-        XCTAssertEqual(o1, o2)
-        XCTAssertNotEqual(o1, o3)
+        #expect(o1 == o2)
+        #expect(o1 != o3)
     }
 
     func testCompilerOptionsCanDisableStdlibSearchPaths() {
@@ -224,20 +227,21 @@ final class CompilerTypesTests: XCTestCase {
         XCTAssertEqual(paths, [dir.standardizedFileURL.path])
     }
 
-    func testHostDefaultTargetTripleMatchesCompileArchitecture() {
+    @Test func testHostDefaultTargetTripleMatchesCompileArchitecture() {
         let host = TargetTriple.hostDefault()
         #if arch(arm64)
-            XCTAssertEqual(host.arch, "arm64")
+            #expect(host.arch == "arm64")
         #elseif arch(x86_64)
-            XCTAssertEqual(host.arch, "x86_64")
+            #expect(host.arch == "x86_64")
         #endif
         #if os(Linux)
-            XCTAssertEqual(host.vendor, "unknown")
-            XCTAssertEqual(host.os, "linux-gnu")
+            #expect(host.vendor == "unknown")
+            #expect(host.os == "linux-gnu")
         #else
-            XCTAssertEqual(host.vendor, "apple")
-            XCTAssertEqual(host.os, "macosx")
+            #expect(host.vendor == "apple")
+            #expect(host.os == "macosx")
         #endif
-        XCTAssertNil(host.osVersion)
+        #expect(host.osVersion == nil)
     }
 }
+#endif
