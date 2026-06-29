@@ -33,8 +33,14 @@ let package = Package(
         ),
         .target(
             name: "CompilerCore",
-            dependencies: ["CLLVM", "RuntimeABI"],
-            resources: [.process("Stdlib")]
+            dependencies: ["RuntimeABI"],
+            resources: [
+                .copy("Stdlib"),
+            ]
+        ),
+        .target(
+            name: "CompilerBackend",
+            dependencies: ["CLLVM", "CompilerCore", "RuntimeABI"]
         ),
         .target(
             name: "GoldenHarnessSupport",
@@ -56,7 +62,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "KSwiftKCLI",
-            dependencies: ["CompilerCore"]
+            dependencies: ["CompilerCore", "CompilerBackend"]
         ),
         .target(
             name: "LSPServer",
@@ -82,6 +88,11 @@ let package = Package(
                 "GoldenCases",
                 "Integration/ClassDelegationSmokeTest.kt",
             ]
+        ),
+        .testTarget(
+            name: "CompilerBackendTests",
+            dependencies: ["CompilerBackend", "CompilerCore"],
+            path: "Tests/CompilerBackendTests"
         ),
         .testTarget(
             name: "RuntimeTests",

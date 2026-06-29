@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class AbstractClassErrorTests: XCTestCase {
-    func testError_abstractClassInstantiation() throws {
+@Suite struct AbstractClassErrorTests {
+    @Test func testError_abstractClassInstantiation() throws {
         let source = """
         abstract class Shape {
             abstract fun area(): Double
@@ -17,7 +18,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_abstractFunctionWithBody() throws {
+    @Test func testError_abstractFunctionWithBody() throws {
         let source = """
         abstract class Base {
             abstract fun test() { println("error") }  // Error: abstract function cannot have body
@@ -28,7 +29,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_abstractPropertyWithInitializer() throws {
+    @Test func testError_abstractPropertyWithInitializer() throws {
         let source = """
         abstract class Base {
             abstract val prop: String = "error"  // Error: abstract property cannot have initializer
@@ -39,7 +40,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_abstractPrivateMember() throws {
+    @Test func testError_abstractPrivateMember() throws {
         let source = """
         abstract class Base {
             private abstract fun test()  // Error: abstract member cannot be private
@@ -50,7 +51,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_abstractFinalConflict() throws {
+    @Test func testError_abstractFinalConflict() throws {
         let source = """
         abstract final class Base  // Error: class cannot be both abstract and final
         """
@@ -59,7 +60,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_sealedFinalConflict() throws {
+    @Test func testError_sealedFinalConflict() throws {
         let source = """
         sealed final class Base  // Error: class cannot be both sealed and final
         """
@@ -68,7 +69,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_missingAbstractOverride() throws {
+    @Test func testError_missingAbstractOverride() throws {
         let source = """
         abstract class Base {
             abstract fun test()
@@ -82,7 +83,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_abstractPropertyWithBackingField() throws {
+    @Test func testError_abstractPropertyWithBackingField() throws {
         let source = """
         abstract class Base {
             abstract var prop: String
@@ -94,7 +95,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testError_abstractPropertyWithDelegate() throws {
+    @Test func testError_abstractPropertyWithDelegate() throws {
         let source = """
         abstract class Base {
             abstract val prop: String by lazy { "error" }  // Error: abstract property cannot have delegate
@@ -105,7 +106,7 @@ final class AbstractClassErrorTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
     }
 
-    func testWarning_emptyAbstractClass() throws {
+    @Test func testWarning_emptyAbstractClass() throws {
         let source = """
         abstract class EmptyAbstract {
             fun someMethod() {}  // Warning: abstract class has no abstract members
@@ -114,6 +115,7 @@ final class AbstractClassErrorTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        XCTAssertEqual(ctx.diagnostics.diagnostics.first?.severity, .warning)
+        #expect(ctx.diagnostics.diagnostics.first?.severity == .warning)
     }
 }
+#endif

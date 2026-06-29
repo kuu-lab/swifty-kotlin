@@ -1,23 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropStringWcstrPropertyTests: XCTestCase {
-    func testStringWcstrPropertySurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropStringWcstrPropertyTests {
+    @Test func testStringWcstrPropertySurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected String.wcstr surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected String.wcstr surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -36,25 +33,25 @@ final class NativeCInteropStringWcstrPropertyTests: XCTestCase {
             nullability: .nonNull
         )))
         let propertyFQName = cinteropPkg + [interner.intern("wcstr")]
-        let propertySymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: propertyFQName).first { symbolID in
+        let propertySymbol = try #require(sema.symbols.lookupAll(fqName: propertyFQName).first { symbolID in
             sema.symbols.symbol(symbolID)?.kind == .property
                 && sema.symbols.extensionPropertyReceiverType(for: symbolID) == sema.types.stringType
         })
-        let getterSymbol = try XCTUnwrap(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
-        let getterSignature = try XCTUnwrap(sema.symbols.functionSignature(for: getterSymbol))
-        let flags = try XCTUnwrap(sema.symbols.symbol(propertySymbol)?.flags)
+        let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+        let getterSignature = try #require(sema.symbols.functionSignature(for: getterSymbol))
+        let flags = try #require(sema.symbols.symbol(propertySymbol)?.flags)
 
-        XCTAssertTrue(flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: propertySymbol), sema.symbols.lookup(fqName: cinteropPkg))
-        XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), expectedPropertyType)
-        XCTAssertEqual(getterSignature.receiverType, sema.types.stringType)
-        XCTAssertEqual(getterSignature.parameterTypes, [])
-        XCTAssertEqual(getterSignature.returnType, expectedPropertyType)
-        XCTAssertEqual(sema.symbols.parentSymbol(for: getterSymbol), propertySymbol)
-        XCTAssertEqual(sema.symbols.accessorOwnerProperty(for: getterSymbol), propertySymbol)
+        #expect(flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: propertySymbol) == sema.symbols.lookup(fqName: cinteropPkg))
+        #expect(sema.symbols.propertyType(for: propertySymbol) == expectedPropertyType)
+        #expect(getterSignature.receiverType == sema.types.stringType)
+        #expect(getterSignature.parameterTypes == [])
+        #expect(getterSignature.returnType == expectedPropertyType)
+        #expect(sema.symbols.parentSymbol(for: getterSymbol) == propertySymbol)
+        #expect(sema.symbols.accessorOwnerProperty(for: getterSymbol) == propertySymbol)
     }
 
-    func testStringWcstrPropertyResolvesInSource() throws {
+    @Test func testStringWcstrPropertyResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.wcstr
 
@@ -64,9 +61,7 @@ final class NativeCInteropStringWcstrPropertyTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected String.wcstr to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected String.wcstr to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

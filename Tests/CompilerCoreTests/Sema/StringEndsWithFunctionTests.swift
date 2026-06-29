@@ -1,11 +1,12 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-015: Validates that `CharSequence.endsWith(suffix)` resolves
 /// through Sema for `String` receivers, dispatching to the runtime link name
 /// `kk_string_endsWith`.
-final class StringEndsWithFunctionTests: XCTestCase {
-    func testEndsWithFunctionResolvesInSource() throws {
+@Suite
+struct StringEndsWithFunctionTests {
+    @Test func testEndsWithFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stringEndsWithSuffix(s: String): Boolean {
             return s.endsWith("lin")
@@ -25,7 +26,7 @@ final class StringEndsWithFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected endsWith to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

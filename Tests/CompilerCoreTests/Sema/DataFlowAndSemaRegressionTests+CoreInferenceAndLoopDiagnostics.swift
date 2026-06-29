@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - DataFlow + Sema Regression Tests
 
@@ -9,7 +10,7 @@ import XCTest
 //          TypeCheck/TypeCheckSemaPhase.swift (51.4%)
 
 extension DataFlowAndSemaRegressionTests {
-    func testContinueOutsideLoopEmitsDiagnostic() throws {
+    @Test func testContinueOutsideLoopEmitsDiagnostic() throws {
         let source = """
         fun main(): Int {
             continue
@@ -25,7 +26,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: unresolved reference
 
-    func testUnresolvedReferenceEmitsDiagnostic() throws {
+    @Test func testUnresolvedReferenceEmitsDiagnostic() throws {
         let source = """
         fun main(): Int = unknownVar
         """
@@ -38,7 +39,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: unresolved function
 
-    func testUnresolvedFunctionEmitsDiagnostic() throws {
+    @Test func testUnresolvedFunctionEmitsDiagnostic() throws {
         let source = """
         fun main(): Int = unknownFunc(42)
         """
@@ -51,7 +52,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: local function
 
-    func testLocalFunctionDeclarationInference() throws {
+    @Test func testLocalFunctionDeclarationInference() throws {
         let source = """
         fun main(): Int {
             fun add(a: Int, b: Int): Int = a + b
@@ -61,12 +62,13 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testSuspendLocalFunctionDeclarationInference() throws {
+    @Test func testSuspendLocalFunctionDeclarationInference() throws {
         let source = """
         suspend fun delayed(v: Int): Int = v
 
@@ -78,14 +80,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: array access and assign
 
-    func testArrayAccessAndAssignInference() throws {
+    @Test func testArrayAccessAndAssignInference() throws {
         let source = """
         fun main(): Int {
             val arr = IntArray(3)
@@ -96,14 +99,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: for loop with loop variable
 
-    func testForLoopInfersElementType() throws {
+    @Test func testForLoopInfersElementType() throws {
         let source = """
         fun main(): Int {
             val arr = IntArray(3)
@@ -117,52 +121,56 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: binary type promotion
 
-    func testBinaryOperatorTypePromotionLong() throws {
+    @Test func testBinaryOperatorTypePromotionLong() throws {
         let source = """
         fun main(): Long = 1L + 2
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testBinaryOperatorTypePromotionDouble() throws {
+    @Test func testBinaryOperatorTypePromotionDouble() throws {
         let source = """
         fun main(): Double = 1.0 + 2.0
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testBinaryOperatorTypePromotionFloat() throws {
+    @Test func testBinaryOperatorTypePromotionFloat() throws {
         let source = """
         fun main(): Float = 1.5f + 2.5f
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: string template
 
-    func testStringTemplateInference() throws {
+    @Test func testStringTemplateInference() throws {
         let source = """
         fun main(): String {
             val name = "World"
@@ -172,14 +180,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: if expression with else
 
-    func testIfExpressionWithElseInfersLUB() throws {
+    @Test func testIfExpressionWithElseInfersLUB() throws {
         let source = """
         fun pick(flag: Boolean): Int {
             val x = if (flag) 1 else 2
@@ -190,14 +199,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: if expression without else infers Unit
 
-    func testIfExpressionWithoutElseInfersUnit() throws {
+    @Test func testIfExpressionWithoutElseInfersUnit() throws {
         let source = """
         fun doSomething(flag: Boolean) {
             if (flag) println("yes")
@@ -207,28 +217,30 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: null reference
 
-    func testNullLiteralInference() throws {
+    @Test func testNullLiteralInference() throws {
         let source = """
         fun main(): Any? = null
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: while loop
 
-    func testWhileLoopInference() throws {
+    @Test func testWhileLoopInference() throws {
         let source = """
         fun main(): Int {
             var i = 0
@@ -241,14 +253,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: rangeTo operator
 
-    func testRangeToOperatorInference() throws {
+    @Test func testRangeToOperatorInference() throws {
         let source = """
         fun main() {
             val r = 1..10
@@ -257,14 +270,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: local assign to unresolved variable
 
-    func testLocalAssignToUnresolvedVariableEmitsDiagnostic() throws {
+    @Test func testLocalAssignToUnresolvedVariableEmitsDiagnostic() throws {
         let source = """
         fun main() {
             noSuchVar = 42
@@ -279,7 +293,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: when without else (boolean exhaustive)
 
-    func testWhenBooleanExhaustive() throws {
+    @Test func testWhenBooleanExhaustive() throws {
         let source = """
         fun desc(flag: Boolean): String = when (flag) {
             true -> "yes"
@@ -290,14 +304,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - HeaderCollection: property with type annotation
 
-    func testPropertyTypeAnnotationResolves() throws {
+    @Test func testPropertyTypeAnnotationResolves() throws {
         let source = """
         val count: Int = 0
         val name: String = "test"
@@ -307,16 +322,17 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let countSym = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "count" && symbol.kind == .property
             }
-            XCTAssertNotNil(countSym)
+            #expect(countSym != nil)
             if let sym = countSym {
-                XCTAssertNotNil(sema.symbols.propertyType(for: sym.id))
+                #expect(sema.symbols.propertyType(for: sym.id) != nil)
             }
         }
     }
 
     // MARK: - HeaderCollection: function with type parameters and upper bounds
 }
+#endif

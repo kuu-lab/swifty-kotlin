@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Negative tests to ensure the array-erase heuristic (which previously typed
 /// collection HOF results as `Any`) is not reintroduced.
@@ -10,18 +11,19 @@ import XCTest
 /// producing a type-mismatch diagnostic.  If the array-erase heuristic is ever
 /// re-introduced, these calls would either fail to resolve or silently erase
 /// the result type — which the golden tests would also catch.
-final class ArrayEraseHeuristicNegativeTests: XCTestCase {
+@Suite
+struct ArrayEraseHeuristicNegativeTests {
 
     // MARK: - HOF stub existence (symbol table)
 
     /// Verify that all target HOF members are registered as synthetic stubs,
     /// so they cannot be silently removed without test breakage.
-    func testCollectionHOFSyntheticStubsExist() throws {
+    @Test func testCollectionHOFSyntheticStubsExist() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let listFQ: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -38,8 +40,8 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
                 let symbolID = sema.symbols.lookup(
                     fqName: listFQ + [ctx.interner.intern(memberName)]
                 )
-                XCTAssertNotNil(
-                    symbolID,
+                #expect(
+                    symbolID != nil,
                     "Expected synthetic List member '\(memberName)' to be registered"
                 )
             }
@@ -49,7 +51,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     // MARK: - HOF call resolution (no type-mismatch diagnostic)
 
     /// mapIndexed call on List<String> must resolve without type error.
-    func testMapIndexedCallResolvesWithoutTypeError() throws {
+    @Test func testMapIndexedCallResolvesWithoutTypeError() throws {
         let source = """
         fun test(values: List<String>) {
             values.mapIndexed { index, item -> item.length }
@@ -63,7 +65,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     }
 
     /// flatMap call on List<String> must resolve without type error.
-    func testFlatMapCallResolvesWithoutTypeError() throws {
+    @Test func testFlatMapCallResolvesWithoutTypeError() throws {
         let source = """
         fun test(values: List<String>) {
             values.flatMap { listOf(it) }
@@ -77,7 +79,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     }
 
     /// associate call on List<String> must resolve without type error.
-    func testAssociateCallResolvesWithoutTypeError() throws {
+    @Test func testAssociateCallResolvesWithoutTypeError() throws {
         let source = """
         fun test(values: List<String>) {
             values.associate { it to it.length }
@@ -91,7 +93,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     }
 
     /// associateBy call on List<String> must resolve without type error.
-    func testAssociateByCallResolvesWithoutTypeError() throws {
+    @Test func testAssociateByCallResolvesWithoutTypeError() throws {
         let source = """
         fun test(values: List<String>) {
             values.associateBy { it.first() }
@@ -105,7 +107,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     }
 
     /// associateWith call on List<String> must resolve without type error.
-    func testAssociateWithCallResolvesWithoutTypeError() throws {
+    @Test func testAssociateWithCallResolvesWithoutTypeError() throws {
         let source = """
         fun test(values: List<String>) {
             values.associateWith { it.length }
@@ -119,7 +121,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     }
 
     /// groupBy call on List<String> must resolve without type error.
-    func testGroupByCallResolvesWithoutTypeError() throws {
+    @Test func testGroupByCallResolvesWithoutTypeError() throws {
         let source = """
         fun test(values: List<String>) {
             values.groupBy { it.length }
@@ -133,7 +135,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     }
 
     /// partition call on List<String> must resolve without type error.
-    func testPartitionCallResolvesWithoutTypeError() throws {
+    @Test func testPartitionCallResolvesWithoutTypeError() throws {
         let source = """
         fun test(values: List<String>) {
             values.partition { it.length > 3 }
@@ -149,7 +151,7 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
     // MARK: - listOf() type preservation
 
     /// Verify that listOf(1, 2, 3) is typed as a collection (not erased to Any).
-    func testListOfIntIsNotErasedToAny() throws {
+    @Test func testListOfIntIsNotErasedToAny() throws {
         let source = """
         fun test() {
             val x = listOf(1, 2, 3)
@@ -165,3 +167,4 @@ final class ArrayEraseHeuristicNegativeTests: XCTestCase {
         }
     }
 }
+#endif

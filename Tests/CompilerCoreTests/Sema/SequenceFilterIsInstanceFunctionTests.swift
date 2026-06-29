@@ -1,10 +1,11 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-026: Validates that `Sequence<*>.filterIsInstance<R>()` resolves
 /// through Sema and lowers to the synthetic runtime callee `kk_sequence_filterIsInstance`.
-final class SequenceFilterIsInstanceFunctionTests: XCTestCase {
-    func testFilterIsInstanceFunctionResolvesInSource() throws {
+@Suite
+struct SequenceFilterIsInstanceFunctionTests {
+    @Test func testFilterIsInstanceFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun intsOnly(values: Sequence<Any>): Sequence<Int> {
             return values.filterIsInstance<Int>()
@@ -17,9 +18,9 @@ final class SequenceFilterIsInstanceFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
-            "Expected Sequence.filterIsInstance to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            Comment(rawValue: "Expected Sequence.filterIsInstance to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
         )
     }
 }

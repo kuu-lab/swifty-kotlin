@@ -1,9 +1,10 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class SequenceFindLastFunctionTests: XCTestCase {
-    func testSequenceFindLastInfersNullableElementType() throws {
+@Suite
+struct SequenceFindLastFunctionTests {
+    @Test func testSequenceFindLastInfersNullableElementType() throws {
         let source = """
         fun probe(values: Sequence<Int>) {
             val result: Int? = values.findLast { it > 1 }
@@ -15,21 +16,20 @@ final class SequenceFindLastFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
-                "Expected findLast to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+                Comment(rawValue: "Expected findLast to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "findLast"
             })
 
-            XCTAssertEqual(
-                sema.bindings.exprType(for: callExpr),
-                sema.types.makeNullable(sema.types.intType)
+            #expect(
+                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.intType)
             )
 
             let fqName = [
@@ -38,9 +38,10 @@ final class SequenceFindLastFunctionTests: XCTestCase {
                 ctx.interner.intern("Sequence"),
                 ctx.interner.intern("findLast"),
             ]
-            XCTAssertTrue(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+            let v = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
                 sema.symbols.externalLinkName(for: candidate) == "kk_sequence_findLast"
-            })
+            }
+            #expect(v)
         }
     }
 }

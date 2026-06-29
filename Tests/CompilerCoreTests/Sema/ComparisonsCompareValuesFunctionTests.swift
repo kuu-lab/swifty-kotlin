@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ComparisonsCompareValuesFunctionTests: XCTestCase {
-    func testCompareValuesFunctionResolvesInSource() throws {
+@Suite
+struct ComparisonsCompareValuesFunctionTests {
+    @Test func testCompareValuesFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.compareValues
 
@@ -11,6 +13,7 @@ final class ComparisonsCompareValuesFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

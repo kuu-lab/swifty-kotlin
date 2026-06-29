@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension KIRLowererPart2CoverageTests {
-    func testControlFlowLowererPart2CatchBindingAndLegacyTypeResolution() {
+    @Test func testControlFlowLowererPart2CatchBindingAndLegacyTypeResolution() {
         let fixture = makeDirectKIRFixture()
         let range = makeRange()
 
@@ -26,8 +27,8 @@ extension KIRLowererPart2CoverageTests {
             sema: fixture.sema,
             interner: fixture.interner
         )
-        XCTAssertEqual(resolvedExisting.parameterSymbol, boundSymbol)
-        XCTAssertEqual(resolvedExisting.parameterType, boundType)
+        #expect(resolvedExisting.parameterSymbol == boundSymbol)
+        #expect(resolvedExisting.parameterType == boundType)
 
         let fallbackExprID = fixture.astArena.appendExpr(.intLiteral(1, range))
         let fallbackClause = CatchClause(
@@ -44,16 +45,15 @@ extension KIRLowererPart2CoverageTests {
             sema: fixture.sema,
             interner: fixture.interner
         )
-        XCTAssertEqual(resolvedFallback.parameterSymbol, fallbackSymbol)
-        XCTAssertEqual(fixture.types.kind(of: resolvedFallback.parameterType), .primitive(.long, .nonNull))
+        #expect(resolvedFallback.parameterSymbol == fallbackSymbol)
+        #expect(fixture.types.kind(of: resolvedFallback.parameterType) == .primitive(.long, .nonNull))
 
-        XCTAssertEqual(
+        #expect(
             fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
                 nil,
                 sema: fixture.sema,
                 interner: fixture.interner
-            ),
-            fixture.types.anyType
+            ) == fixture.types.anyType
         )
 
         let builtinNames = [
@@ -71,7 +71,7 @@ extension KIRLowererPart2CoverageTests {
                 sema: fixture.sema,
                 interner: fixture.interner
             )
-            XCTAssertEqual(fixture.types.kind(of: resolved), expectedKind)
+            #expect(fixture.types.kind(of: resolved) == expectedKind)
         }
 
         let classSymbol = defineSymbol(in: fixture, kind: .class, fqName: ["CustomThrowable"])
@@ -80,8 +80,8 @@ extension KIRLowererPart2CoverageTests {
             sema: fixture.sema,
             interner: fixture.interner
         )
-        XCTAssertEqual(
-            fixture.types.kind(of: resolvedClass),
+        #expect(
+            fixture.types.kind(of: resolvedClass) ==
             .classType(ClassType(classSymbol: classSymbol, args: [], nullability: .nonNull))
         )
 
@@ -90,17 +90,17 @@ extension KIRLowererPart2CoverageTests {
             sema: fixture.sema,
             interner: fixture.interner
         )
-        XCTAssertEqual(unresolvedType, fixture.types.errorType)
+        #expect(unresolvedType == fixture.types.errorType)
 
-        XCTAssertTrue(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.anyType, sema: fixture.sema))
-        XCTAssertTrue(
+        #expect(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.anyType, sema: fixture.sema))
+        #expect(
             fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.nullableAnyType, sema: fixture.sema)
         )
-        XCTAssertTrue(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.errorType, sema: fixture.sema))
-        XCTAssertFalse(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.intType, sema: fixture.sema))
+        #expect(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.errorType, sema: fixture.sema))
+        #expect(!(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.intType, sema: fixture.sema)))
     }
 
-    func testControlFlowLowererPart2ForwardersEmitInstructions() {
+    @Test func testControlFlowLowererPart2ForwardersEmitInstructions() {
         let fixture = makeDirectKIRFixture()
         let range = makeRange()
 
@@ -166,7 +166,7 @@ extension KIRLowererPart2CoverageTests {
             arena: fixture.kirArena,
             emit: &emitted
         )
-        XCTAssertTrue(emitted.instructions.contains { instruction in
+        #expect(emitted.instructions.contains { instruction in
             guard case .jumpIfNotNull = instruction else { return false }
             return true
         })
@@ -190,11 +190,11 @@ extension KIRLowererPart2CoverageTests {
             emit: &emitted
         )
 
-        XCTAssertTrue(emitted.instructions.contains { instruction in
+        #expect(emitted.instructions.contains { instruction in
             if case .label = instruction { return true }
             return false
         })
-        XCTAssertTrue(emitted.instructions.contains { instruction in
+        #expect(emitted.instructions.contains { instruction in
             if case .call = instruction { return true }
             return false
         })
@@ -203,7 +203,7 @@ extension KIRLowererPart2CoverageTests {
         lowered.instructions.append(.nop)
     }
 
-    func testCallLowererPart2LowersClassNameMemberValuesAsDirectSymbolRefs() {
+    @Test func testCallLowererPart2LowersClassNameMemberValuesAsDirectSymbolRefs() {
         let fixture = makeDirectKIRFixture()
         let range = makeRange()
 
@@ -238,18 +238,18 @@ extension KIRLowererPart2CoverageTests {
             propertyConstantInitializers: [:],
             instructions: &enumInstructions
         )
-        XCTAssertTrue(enumInstructions.contains { instruction in
+        #expect(enumInstructions.contains { instruction in
             if case let .constValue(_, .symbolRef(symbol)) = instruction {
                 return symbol == redSym
             }
             return false
         })
-        XCTAssertFalse(enumInstructions.contains { instruction in
+        #expect(!(enumInstructions.contains { instruction in
             if case .call = instruction {
                 return true
             }
             return false
-        })
+        }))
 
         let exprSym = defineSymbol(in: fixture, kind: .class, fqName: ["Expr"])
         let exprType = fixture.types.make(
@@ -285,17 +285,18 @@ extension KIRLowererPart2CoverageTests {
             propertyConstantInitializers: [:],
             instructions: &objectInstructions
         )
-        XCTAssertTrue(objectInstructions.contains { instruction in
+        #expect(objectInstructions.contains { instruction in
             if case let .constValue(_, .symbolRef(symbol)) = instruction {
                 return symbol == nestedObjectSym
             }
             return false
         })
-        XCTAssertFalse(objectInstructions.contains { instruction in
+        #expect(!(objectInstructions.contains { instruction in
             if case .call = instruction {
                 return true
             }
             return false
-        })
+        }))
     }
 }
+#endif

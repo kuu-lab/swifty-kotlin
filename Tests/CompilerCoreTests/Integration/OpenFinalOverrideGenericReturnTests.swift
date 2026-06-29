@@ -1,9 +1,10 @@
-import XCTest
+#if canImport(Testing)
+import Testing
 @testable import CompilerCore
 
-final class OpenFinalOverrideGenericReturnTests: XCTestCase {
+@Suite struct OpenFinalOverrideGenericReturnTests {
 
-    func testWidenedGenericListOverrideIsRejected() throws {
+    @Test func testWidenedGenericListOverrideIsRejected() throws {
         let source = """
         open class ListProvider<T> {
             open fun items(): List<T> = emptyList()
@@ -17,7 +18,7 @@ final class OpenFinalOverrideGenericReturnTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: ctx)
     }
 
-    func testCovariantGenericListOverrideIsAccepted() throws {
+    @Test func testCovariantGenericListOverrideIsAccepted() throws {
         let source = """
         open class ListProvider<T> {
             open fun items(): List<T> = emptyList()
@@ -29,10 +30,10 @@ final class OpenFinalOverrideGenericReturnTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: ctx)
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 
-    func testWidenedTypeParameterReturnOverrideIsRejected() throws {
+    @Test func testWidenedTypeParameterReturnOverrideIsRejected() throws {
         let source = """
         open class ValueHolder<T> {
             open fun value(): T = throw RuntimeException()
@@ -46,3 +47,4 @@ final class OpenFinalOverrideGenericReturnTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: ctx)
     }
 }
+#endif

@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 // MARK: - STDLIB-NATIVE-CONCURRENT-001: kotlin.native.concurrent API inventory
 
-final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
+@Suite
+struct NativeConcurrentAPISurfaceInventoryTests {
     private struct TopLevelEntry: Hashable {
         let name: String
         let kind: SymbolKind
@@ -48,6 +50,17 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
 
     private static let packagePath = ["kotlin", "native", "concurrent"]
 
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test
     func testTargetInventoryHasExpectedShape() {
         // Structural invariants only — no magic totals. A previous version asserted exact
         // sizes (`== 31`, `== 28`, `== 3`) which forced every PR adding/promoting a stub
@@ -56,29 +69,30 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
         let targetNames = Set(targetEntries.map(\.name))
 
         // Each TopLevelEntry must have a unique name (no two entries share a `name`).
-        XCTAssertEqual(targetEntries.count, targetNames.count)
-        XCTAssertEqual(targetEntries.count, 31)
-        XCTAssertEqual(Self.implementedTopLevelEntries.count, 31)
-        XCTAssertEqual(Self.knownGapTopLevelEntries.count, 0)
+        #expect(targetEntries.count == targetNames.count)
+        #expect(targetEntries.count == 31)
+        #expect(Self.implementedTopLevelEntries.count == 31)
+        #expect(Self.knownGapTopLevelEntries.count == 0)
     }
 
+    @Test
     func testImplementedTopLevelEntriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let package = Self.packagePath.map { interner.intern($0) }
 
         for entry in Self.implementedTopLevelEntries {
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: package + [interner.intern(entry.name)]),
                 "\(entry.name) should be registered in kotlin.native.concurrent"
             )
-            XCTAssertEqual(
-                sema.symbols.symbol(symbol)?.kind,
-                entry.kind,
+            #expect(
+                sema.symbols.symbol(symbol)?.kind == entry.kind,
                 "\(entry.name) should be registered as \(entry.kind)"
             )
         }
     }
 
+    @Test
     func testCurrentPublishedTopLevelNamesStayWithinInventory() throws {
         let (sema, interner) = try makeSema()
         let package = Self.packagePath.map { interner.intern($0) }
@@ -93,24 +107,27 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
             return interner.resolve(symbol.name)
         })
 
-        XCTAssertEqual(currentNames.subtracting(targetNames), [])
+        #expect(currentNames.subtracting(targetNames) == [])
     }
 
+    @Test
     func testKnownGapEntriesRemainAbsentUntilTheirTodoIsImplemented() throws {
         let (sema, interner) = try makeSema()
         let package = Self.packagePath.map { interner.intern($0) }
 
         for entry in Self.knownGapTopLevelEntries {
             let symbols = sema.symbols.lookupAll(fqName: package + [interner.intern(entry.name)])
-            XCTAssertTrue(
+            #expect(
                 symbols.isEmpty,
                 "\(entry.name) is tracked by \(entry.todo ?? "unknown TODO") and should update this inventory when implemented"
             )
         }
     }
 
+    @Test
     func testKnownGapTodosAreNativeConcurrentItems() {
         let todos = Set(Self.knownGapTopLevelEntries.compactMap(\.todo))
-        XCTAssertEqual(todos, [])
+        #expect(todos == [])
     }
 }
+#endif

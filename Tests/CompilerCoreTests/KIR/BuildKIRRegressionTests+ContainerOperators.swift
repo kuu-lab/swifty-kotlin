@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testBuildKIRUsesCustomContainerOperatorsForIndexedContainsAndRangeTo() throws {
+    @Test func testBuildKIRUsesCustomContainerOperatorsForIndexedContainsAndRangeTo() throws {
         let source = """
         class Bucket(private val values: MutableList<Int>) {
             operator fun get(index: Int): Int = values[index]
@@ -23,19 +24,19 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "use", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("get"), "Expected custom get call, got: \(callees)")
-            XCTAssertTrue(callees.contains("set"), "Expected custom set call, got: \(callees)")
-            XCTAssertTrue(callees.contains("contains"), "Expected custom contains call, got: \(callees)")
-            XCTAssertTrue(callees.contains("rangeTo"), "Expected custom rangeTo call, got: \(callees)")
-            XCTAssertFalse(callees.contains("kk_op_rangeTo"), "Custom rangeTo should not lower to kk_op_rangeTo, got: \(callees)")
+            #expect(callees.contains("get"), "Expected custom get call, got: \(callees)")
+            #expect(callees.contains("set"), "Expected custom set call, got: \(callees)")
+            #expect(callees.contains("contains"), "Expected custom contains call, got: \(callees)")
+            #expect(callees.contains("rangeTo"), "Expected custom rangeTo call, got: \(callees)")
+            #expect(!(callees.contains("kk_op_rangeTo")), "Custom rangeTo should not lower to kk_op_rangeTo, got: \(callees)")
         }
     }
 
-    func testBuildKIRUsesCustomIteratorOperatorsInForLoops() throws {
+    @Test func testBuildKIRUsesCustomIteratorOperatorsInForLoops() throws {
         let source = """
         class Entry(val first: Int, val second: Int) {
             operator fun component1(): Int = first
@@ -65,18 +66,19 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("iterator"), "Expected custom iterator call, got: \(callees)")
-            XCTAssertTrue(callees.contains("hasNext"), "Expected custom hasNext call, got: \(callees)")
-            XCTAssertTrue(callees.contains("next"), "Expected custom next call, got: \(callees)")
-            XCTAssertTrue(callees.contains("component1"), "Expected destructuring component1 call, got: \(callees)")
-            XCTAssertTrue(callees.contains("component2"), "Expected destructuring component2 call, got: \(callees)")
-            XCTAssertFalse(callees.contains("kk_range_iterator"), "Custom iterator loop should not use kk_range_iterator, got: \(callees)")
-            XCTAssertFalse(callees.contains("kk_range_hasNext"), "Custom iterator loop should not use kk_range_hasNext, got: \(callees)")
-            XCTAssertFalse(callees.contains("kk_range_next"), "Custom iterator loop should not use kk_range_next, got: \(callees)")
+            #expect(callees.contains("iterator"), "Expected custom iterator call, got: \(callees)")
+            #expect(callees.contains("hasNext"), "Expected custom hasNext call, got: \(callees)")
+            #expect(callees.contains("next"), "Expected custom next call, got: \(callees)")
+            #expect(callees.contains("component1"), "Expected destructuring component1 call, got: \(callees)")
+            #expect(callees.contains("component2"), "Expected destructuring component2 call, got: \(callees)")
+            #expect(!(callees.contains("kk_range_iterator")), "Custom iterator loop should not use kk_range_iterator, got: \(callees)")
+            #expect(!(callees.contains("kk_range_hasNext")), "Custom iterator loop should not use kk_range_hasNext, got: \(callees)")
+            #expect(!(callees.contains("kk_range_next")), "Custom iterator loop should not use kk_range_next, got: \(callees)")
         }
     }
 }
+#endif

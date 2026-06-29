@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testBuildKIRObjectLiteralArgumentIsNotLoweredToUnitPlaceholder() throws {
+    @Test func testBuildKIRObjectLiteralArgumentIsNotLoweredToUnitPlaceholder() throws {
         let source = """
         interface I
         fun consume(value: I): I = value
@@ -17,27 +18,27 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let consumeCall = try XCTUnwrap(mainBody.first { instruction in
+            let consumeCall = try #require(mainBody.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
                 return ctx.interner.resolve(callee) == "consume"
             })
             guard case let .call(_, _, arguments, _, _, _, _, _) = consumeCall else {
-                XCTFail("Expected call instruction for consume(instance).")
+                Issue.record("Expected call instruction for consume(instance).")
                 return
             }
-            let objectArgument = try XCTUnwrap(arguments.first)
-            let objectArgumentExpr = try XCTUnwrap(module.arena.expr(objectArgument))
+            let objectArgument = try #require(arguments.first)
+            let objectArgumentExpr = try #require(module.arena.expr(objectArgument))
             if case .unit = objectArgumentExpr {
-                XCTFail("object literal must not be lowered to .unit placeholder at call sites.")
+                Issue.record("object literal must not be lowered to .unit placeholder at call sites.")
             }
         }
     }
 
-    func testBuildKIRLowersLambdaLiteralToGeneratedCallableAndPrependsCapturesOnCall() throws {
+    @Test func testBuildKIRLowersLambdaLiteralToGeneratedCallableAndPrependsCapturesOnCall() throws {
         let source = """
         fun main(): Int {
             val base = 40
@@ -50,9 +51,9 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let lambdaCall = try XCTUnwrap(mainBody.first { instruction in
+            let lambdaCall = try #require(mainBody.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
@@ -60,24 +61,24 @@ extension BuildKIRRegressionTests {
             })
 
             guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = lambdaCall else {
-                XCTFail("Expected lowered lambda call in main.")
+                Issue.record("Expected lowered lambda call in main.")
                 return
             }
-            XCTAssertNotNil(callSymbol)
-            XCTAssertTrue(ctx.interner.resolve(callee).hasPrefix("kk_function_value_adapter_"))
-            XCTAssertEqual(arguments.count, 2, "Closure-backed callable-value calls should pass closure object plus explicit args.")
+            #expect(callSymbol != nil)
+            #expect(ctx.interner.resolve(callee).hasPrefix("kk_function_value_adapter_"))
+            #expect(arguments.count == 2, "Closure-backed callable-value calls should pass closure object plus explicit args.")
             if case .unit? = module.arena.expr(arguments[0]) {
-                XCTFail("Expected first lambda call argument to be a closure object reference.")
+                Issue.record("Expected first lambda call argument to be a closure object reference.")
                 return
             }
             guard case .intLiteral(2)? = module.arena.expr(arguments[1]) else {
-                XCTFail("Expected second lambda call argument to be the explicit call argument.")
+                Issue.record("Expected second lambda call argument to be the explicit call argument.")
                 return
             }
             let callNames = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_object_new"))
-            XCTAssertTrue(callNames.contains("kk_array_set"))
-            XCTAssertTrue(callNames.contains("kk_function_create_1"))
+            #expect(callNames.contains("kk_object_new"))
+            #expect(callNames.contains("kk_array_set"))
+            #expect(callNames.contains("kk_function_create_1"))
 
             let generatedLambdaFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl,
@@ -87,16 +88,16 @@ extension BuildKIRRegressionTests {
                 }
                 return function
             }
-            XCTAssertFalse(generatedLambdaFunctions.isEmpty)
+            #expect(!(generatedLambdaFunctions.isEmpty))
             if let generatedSymbol = callSymbol,
                let generatedFunction = generatedLambdaFunctions.first(where: { $0.symbol == generatedSymbol })
             {
-                XCTAssertEqual(generatedFunction.params.count, 2, "capture + elem")
+                #expect(generatedFunction.params.count == 2, "capture + elem")
             }
         }
     }
 
-    func testBuildKIRCollectionHOFLambdaStillReceivesClosureParameter() throws {
+    @Test func testBuildKIRCollectionHOFLambdaStillReceivesClosureParameter() throws {
         let source = """
         fun main(): Int {
             val values = listOf(1, 2, 3)
@@ -108,7 +109,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let generatedLambdaFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl,
                       ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
@@ -118,13 +119,13 @@ extension BuildKIRRegressionTests {
                 return function
             }
             // Find the user's HOF lambda (2 params: closure + elem), not the bundled stdlib's require lambda
-            let generatedFunction = try XCTUnwrap(generatedLambdaFunctions.last)
-            XCTAssertEqual(generatedFunction.params.count, 2, "closure + elem")
-            XCTAssertEqual(generatedFunction.params.first?.type, ctx.sema?.types.intType)
+            let generatedFunction = try #require(generatedLambdaFunctions.last)
+            #expect(generatedFunction.params.count == 2, "closure + elem")
+            #expect(generatedFunction.params.first?.type == ctx.sema?.types.intType)
         }
     }
 
-    func testBuildKIRWorkerExecuteExpandsProducerAndJobLambdas() throws {
+    @Test func testBuildKIRWorkerExecuteExpandsProducerAndJobLambdas() throws {
         let source = """
         import kotlin.native.concurrent.TransferMode
         import kotlin.native.concurrent.Worker
@@ -139,7 +140,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let probeBody = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callSummaries = probeBody.compactMap { instruction -> String? in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
@@ -147,7 +148,7 @@ extension BuildKIRRegressionTests {
                 }
                 return "\(ctx.interner.resolve(callee)):\(arguments.count)"
             }.joined(separator: ", ")
-            let executeCall = try XCTUnwrap(probeBody.first { instruction in
+            let executeCall = try #require(probeBody.first { instruction in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
                     return false
                 }
@@ -155,18 +156,17 @@ extension BuildKIRRegressionTests {
             }, "Expected kk_worker_execute with 6 args; calls: \(callSummaries)")
 
             guard case let .call(_, _, arguments, _, _, _, _, _) = executeCall else {
-                XCTFail("Expected Worker.execute to lower to kk_worker_execute.")
+                Issue.record("Expected Worker.execute to lower to kk_worker_execute.")
                 return
             }
-            XCTAssertEqual(
-                arguments.count,
-                6,
+            #expect(
+                arguments.count == 6,
                 "Worker.execute ABI should be worker, mode, producer fn/closure, job fn/closure."
             )
         }
     }
 
-    func testBuildKIRCallableValueCallRespectsParameterMappingBeforePrependingCaptures() throws {
+    @Test func testBuildKIRCallableValueCallRespectsParameterMappingBeforePrependingCaptures() throws {
         let source = """
         fun main(): Int {
             val base = 100
@@ -179,9 +179,9 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let addCallExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let addCallExprID = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExprID, _, _, _) = expr,
                       let calleeExpr = ast.arena.expr(calleeExprID),
                       case let .nameRef(calleeName, _) = calleeExpr
@@ -190,7 +190,7 @@ extension BuildKIRRegressionTests {
                 }
                 return ctx.interner.resolve(calleeName) == "add"
             })
-            let existingBinding = try XCTUnwrap(sema.bindings.callableValueCalls[addCallExprID])
+            let existingBinding = try #require(sema.bindings.callableValueCalls[addCallExprID])
             sema.bindings.bindCallableValueCall(
                 addCallExprID,
                 binding: CallableValueCallBinding(
@@ -202,9 +202,9 @@ extension BuildKIRRegressionTests {
 
             try BuildKIRPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let lambdaCall = try XCTUnwrap(mainBody.first { instruction in
+            let lambdaCall = try #require(mainBody.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
@@ -212,42 +212,42 @@ extension BuildKIRRegressionTests {
             })
 
             guard case let .call(_, _, arguments, _, _, _, _, _) = lambdaCall else {
-                XCTFail("Expected callable-value call to lowered lambda target.")
+                Issue.record("Expected callable-value call to lowered lambda target.")
                 return
             }
-            XCTAssertEqual(arguments.count, 3)
+            #expect(arguments.count == 3)
             if case .unit? = module.arena.expr(arguments[0]) {
-                XCTFail("Expected closure object argument at index 0.")
+                Issue.record("Expected closure object argument at index 0.")
                 return
             }
             guard case .intLiteral(2)? = module.arena.expr(arguments[1]) else {
-                XCTFail("Expected parameter mapping to reorder explicit args before call emission.")
+                Issue.record("Expected parameter mapping to reorder explicit args before call emission.")
                 return
             }
             guard case .intLiteral(1)? = module.arena.expr(arguments[2]) else {
-                XCTFail("Expected reordered second parameter argument.")
+                Issue.record("Expected reordered second parameter argument.")
                 return
             }
         }
     }
 
-    func testSyntheticLambdaSymbolGenerationNeverUsesZeroOrInvalidSentinel() {
+    @Test func testSyntheticLambdaSymbolGenerationNeverUsesZeroOrInvalidSentinel() {
         let loweringCtx = KIRLoweringContext()
         let zeroExprSymbol = loweringCtx.syntheticLambdaSymbol(for: ExprID(rawValue: 0))
         let maxExprSymbol = loweringCtx.syntheticLambdaSymbol(for: ExprID(rawValue: Int32.max))
 
-        XCTAssertEqual(zeroExprSymbol, loweringCtx.syntheticLambdaSymbol(for: ExprID(rawValue: 0)))
-        XCTAssertLessThan(zeroExprSymbol.rawValue, 0)
-        XCTAssertNotEqual(zeroExprSymbol.rawValue, 0)
-        XCTAssertNotEqual(zeroExprSymbol, .invalid)
+        #expect(zeroExprSymbol == loweringCtx.syntheticLambdaSymbol(for: ExprID(rawValue: 0)))
+        #expect(zeroExprSymbol.rawValue < 0)
+        #expect(zeroExprSymbol.rawValue != 0)
+        #expect(zeroExprSymbol != .invalid)
 
-        XCTAssertLessThan(maxExprSymbol.rawValue, 0)
-        XCTAssertNotEqual(maxExprSymbol.rawValue, 0)
-        XCTAssertNotEqual(maxExprSymbol, .invalid)
-        XCTAssertNotEqual(maxExprSymbol, zeroExprSymbol)
+        #expect(maxExprSymbol.rawValue < 0)
+        #expect(maxExprSymbol.rawValue != 0)
+        #expect(maxExprSymbol != .invalid)
+        #expect(maxExprSymbol != zeroExprSymbol)
     }
 
-    func testBuildKIRLowersCallableRefToCallableSymbolValue() throws {
+    @Test func testBuildKIRLowersCallableRefToCallableSymbolValue() throws {
         let source = """
         fun inc(x: Int): Int = x + 1
         fun main(): Int {
@@ -260,14 +260,14 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let module = try XCTUnwrap(ctx.kir)
-            let incSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+            let sema = try #require(ctx.sema)
+            let module = try #require(ctx.kir)
+            let incSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
                 symbol.kind == .function && ctx.interner.resolve(symbol.name) == "inc"
             })?.id)
 
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let incCall = try XCTUnwrap(mainBody.first { instruction in
+            let incCall = try #require(mainBody.first { instruction in
                 guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else {
                     return false
                 }
@@ -275,20 +275,20 @@ extension BuildKIRRegressionTests {
             })
 
             guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = incCall else {
-                XCTFail("Expected callable reference call to inc.")
+                Issue.record("Expected callable reference call to inc.")
                 return
             }
-            XCTAssertEqual(callSymbol, incSymbol)
-            XCTAssertEqual(ctx.interner.resolve(callee), "inc")
-            XCTAssertEqual(arguments.count, 1)
+            #expect(callSymbol == incSymbol)
+            #expect(ctx.interner.resolve(callee) == "inc")
+            #expect(arguments.count == 1)
             guard case .intLiteral(2)? = module.arena.expr(arguments[0]) else {
-                XCTFail("Expected callable reference call to forward the explicit argument.")
+                Issue.record("Expected callable reference call to forward the explicit argument.")
                 return
             }
         }
     }
 
-    func testBuildKIRPrependsBoundCallableRefReceiverAsCaptureArgument() throws {
+    @Test func testBuildKIRPrependsBoundCallableRefReceiverAsCaptureArgument() throws {
         let source = """
         class Box {
             fun plus(x: Int): Int = x
@@ -303,16 +303,16 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let module = try XCTUnwrap(ctx.kir)
-            let plusSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+            let sema = try #require(ctx.sema)
+            let module = try #require(ctx.kir)
+            let plusSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
                 symbol.kind == .function && ctx.interner.resolve(symbol.name) == "plus"
             })?.id)
 
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             // REFL-003: After callable ref tagging, look for the plus call
             // by either symbol match or callee name match.
-            let plusCall = try XCTUnwrap(mainBody.first { instruction in
+            let plusCall = try #require(mainBody.first { instruction in
                 guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
@@ -320,20 +320,20 @@ extension BuildKIRRegressionTests {
             })
 
             guard case let .call(_, callee, arguments, _, _, _, _, _) = plusCall else {
-                XCTFail("Expected bound callable reference to lower to plus call.")
+                Issue.record("Expected bound callable reference to lower to plus call.")
                 return
             }
-            XCTAssertEqual(ctx.interner.resolve(callee), "plus")
-            XCTAssertEqual(arguments.count, 2)
+            #expect(ctx.interner.resolve(callee) == "plus")
+            #expect(arguments.count == 2)
             guard case let .symbolRef(receiverSymbol)? = module.arena.expr(arguments[0]),
                   let receiver = sema.symbols.symbol(receiverSymbol)
             else {
-                XCTFail("Expected first argument to be captured receiver symbol.")
+                Issue.record("Expected first argument to be captured receiver symbol.")
                 return
             }
-            XCTAssertEqual(ctx.interner.resolve(receiver.name), "box")
+            #expect(ctx.interner.resolve(receiver.name) == "box")
             guard case .intLiteral(7)? = module.arena.expr(arguments[1]) else {
-                XCTFail("Expected second argument to be call-site argument.")
+                Issue.record("Expected second argument to be call-site argument.")
                 return
             }
         }
@@ -341,3 +341,4 @@ extension BuildKIRRegressionTests {
 
     // MARK: - P5-39: vararg call lowering / ABI regression tests
 }
+#endif

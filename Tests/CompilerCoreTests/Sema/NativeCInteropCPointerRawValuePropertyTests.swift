@@ -1,22 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCPointerRawValuePropertyTests: XCTestCase {
-    func testCPointerRawValuePropertySurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropCPointerRawValuePropertyTests {
+    @Test func testCPointerRawValuePropertySurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer.rawValue surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer.rawValue surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + [interner.intern(name)]),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + [interner.intern(name)])
+            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let cPointerSymbol = try cinteropSymbol("CPointer")
@@ -25,18 +22,18 @@ final class NativeCInteropCPointerRawValuePropertyTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let cPointerFQName = try XCTUnwrap(sema.symbols.symbol(cPointerSymbol)?.fqName)
-        let rawValueSymbol = try XCTUnwrap(
+        let cPointerFQName = try #require(sema.symbols.symbol(cPointerSymbol)?.fqName)
+        let rawValueSymbol = try #require(
             sema.symbols.lookup(fqName: cPointerFQName + [interner.intern("rawValue")]),
             "CPointer.rawValue must be registered"
         )
 
-        XCTAssertEqual(sema.symbols.symbol(rawValueSymbol)?.kind, .property)
-        XCTAssertEqual(sema.symbols.parentSymbol(for: rawValueSymbol), cPointerSymbol)
-        XCTAssertEqual(sema.symbols.propertyType(for: rawValueSymbol), nativePtrType)
+        #expect(sema.symbols.symbol(rawValueSymbol)?.kind == .property)
+        #expect(sema.symbols.parentSymbol(for: rawValueSymbol) == cPointerSymbol)
+        #expect(sema.symbols.propertyType(for: rawValueSymbol) == nativePtrType)
     }
 
-    func testCPointerRawValuePropertyResolvesInSource() throws {
+    @Test func testCPointerRawValuePropertyResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointed
         import kotlinx.cinterop.CPointer
@@ -48,9 +45,7 @@ final class NativeCInteropCPointerRawValuePropertyTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer.rawValue to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer.rawValue to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

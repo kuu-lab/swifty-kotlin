@@ -1,5 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Foundation
+import Testing
 
 /// STDLIB-IO-FN-004: Validates that `buffered()` and `buffered(bufferSize)` resolve
 /// through Sema for the `java.io.OutputStream` receiver. The runtime is wired through
@@ -10,7 +12,9 @@ import XCTest
 /// Runtime link names involved:
 ///   - `kk_output_stream_buffered`
 ///   - `kk_output_stream_buffered_sized`
-final class OutputStreamBufferedFunctionTests: XCTestCase {
+@Suite
+struct OutputStreamBufferedFunctionTests {
+    @Test
     func testOutputStreamBufferedFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
@@ -40,9 +44,10 @@ final class OutputStreamBufferedFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected OutputStream.buffered() and buffered(bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
+#endif

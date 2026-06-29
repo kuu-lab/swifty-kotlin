@@ -1,7 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class Base64SyntheticSurfaceTests: XCTestCase {
+@Suite
+struct Base64SyntheticSurfaceTests {
     private func makeSema(
         source: String = "fun noop() {}"
     ) throws -> (SemaModule, StringInterner, ASTModule) {
@@ -9,20 +11,24 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Base64 surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
-            result = try (XCTUnwrap(ctx.sema), ctx.interner, XCTUnwrap(ctx.ast))
+            result = try (
+                #require(ctx.sema),
+                ctx.interner,
+                #require(ctx.ast)
+            )
         }
-        return try XCTUnwrap(
+        return try #require(
             result,
             "makeSema failed: semantic context was not created for source: \(source)"
         )
     }
 
     private func base64Symbol(sema: SemaModule, interner: StringInterner) throws -> SymbolID {
-        try XCTUnwrap(sema.symbols.lookup(fqName: [
+        try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
@@ -31,7 +37,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
     }
 
     private func byteArrayType(sema: SemaModule, interner: StringInterner) throws -> TypeID {
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let symbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("ByteArray"),
         ]))
@@ -43,7 +49,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
     }
 
     private func paddingOptionType(sema: SemaModule, interner: StringInterner) throws -> TypeID {
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let symbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
@@ -57,31 +63,32 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
         )))
     }
 
-    func testBase64VariantObjectsAreRegisteredAsBase64Subtypes() throws {
+    @Test func testBase64VariantObjectsAreRegisteredAsBase64Subtypes() throws {
         let (sema, interner, _) = try makeSema()
         let base64 = try base64Symbol(sema: sema, interner: interner)
 
         for variant in ["Default", "UrlSafe", "Mime", "Pem"] {
-            let variantSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let variantSymbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
                 interner.intern("encoding"),
                 interner.intern("Base64"),
                 interner.intern(variant),
             ]), "Base64.\(variant) must be registered")
-            let symbol = try XCTUnwrap(sema.symbols.symbol(variantSymbol))
-            XCTAssertEqual(symbol.kind, .object)
-            XCTAssertEqual(sema.symbols.parentSymbol(for: variantSymbol), base64)
-            XCTAssertTrue(
-                sema.symbols.directSupertypes(for: variantSymbol).contains(base64),
+            let symbol = try #require(sema.symbols.symbol(variantSymbol))
+            #expect(symbol.kind == .object)
+            #expect(sema.symbols.parentSymbol(for: variantSymbol) == base64)
+            let v0 = sema.symbols.directSupertypes(for: variantSymbol).contains(base64)
+            #expect(
+                v0,
                 "Base64.\(variant) must inherit Base64"
             )
         }
     }
 
-    func testBase64PaddingOptionEnumEntriesAreRegistered() throws {
+    @Test func testBase64PaddingOptionEnumEntriesAreRegistered() throws {
         let (sema, interner, _) = try makeSema()
-        let paddingOption = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let paddingOption = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
@@ -91,7 +98,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
         let enumType = try paddingOptionType(sema: sema, interner: interner)
 
         for entry in ["PRESENT", "ABSENT", "PRESENT_OPTIONAL", "ABSENT_OPTIONAL"] {
-            let entrySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let entrySymbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
                 interner.intern("encoding"),
@@ -99,12 +106,12 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
                 interner.intern("PaddingOption"),
                 interner.intern(entry),
             ]), "Base64.PaddingOption.\(entry) must be registered")
-            XCTAssertEqual(sema.symbols.parentSymbol(for: entrySymbol), paddingOption)
-            XCTAssertEqual(sema.symbols.propertyType(for: entrySymbol), enumType)
+            #expect(sema.symbols.parentSymbol(for: entrySymbol) == paddingOption)
+            #expect(sema.symbols.propertyType(for: entrySymbol) == enumType)
         }
     }
 
-    func testBase64VariantExpressionsTypeCheckAsBase64() throws {
+    @Test func testBase64VariantExpressionsTypeCheckAsBase64() throws {
         let source = """
         import kotlin.io.encoding.Base64
 
@@ -122,7 +129,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
         )))
 
         for variant in ["Default", "UrlSafe", "Mime", "Pem"] {
-            let variantSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let variantSymbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
                 interner.intern("encoding"),
@@ -134,14 +141,14 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
                 args: [],
                 nullability: .nonNull
             )))
-            XCTAssertTrue(
+            #expect(
                 sema.types.isSubtype(variantType, base64Type),
                 "Base64.\(variant) must be assignable to Base64"
             )
         }
     }
 
-    func testBase64EncodeDecodeMemberLinksAreRegistered() throws {
+    @Test func testBase64EncodeDecodeMemberLinksAreRegistered() throws {
         let (sema, interner, _) = try makeSema()
         let base64 = try base64Symbol(sema: sema, interner: interner)
         let base64Type = sema.types.make(.classType(ClassType(
@@ -152,79 +159,77 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
         let byteArray = try byteArrayType(sema: sema, interner: interner)
         let paddingOption = try paddingOptionType(sema: sema, interner: interner)
 
-        let encode = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let encode = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
             interner.intern("Base64"),
             interner.intern("encode"),
         ]))
-        let encodeSignature = try XCTUnwrap(sema.symbols.functionSignature(for: encode))
-        XCTAssertEqual(encodeSignature.receiverType, base64Type)
-        XCTAssertEqual(encodeSignature.parameterTypes, [byteArray])
-        XCTAssertEqual(encodeSignature.returnType, sema.types.stringType)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: encode), "kk_base64_encode_default")
+        let encodeSignature = try #require(sema.symbols.functionSignature(for: encode))
+        #expect(encodeSignature.receiverType == base64Type)
+        #expect(encodeSignature.parameterTypes == [byteArray])
+        #expect(encodeSignature.returnType == sema.types.stringType)
+        #expect(sema.symbols.externalLinkName(for: encode) == "kk_base64_encode_default")
 
-        let decode = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let decode = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
             interner.intern("Base64"),
             interner.intern("decode"),
         ]))
-        let decodeSignature = try XCTUnwrap(sema.symbols.functionSignature(for: decode))
-        XCTAssertEqual(decodeSignature.receiverType, base64Type)
-        XCTAssertEqual(decodeSignature.parameterTypes, [sema.types.stringType])
-        XCTAssertEqual(decodeSignature.returnType, byteArray)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: decode), "kk_base64_decode_default")
+        let decodeSignature = try #require(sema.symbols.functionSignature(for: decode))
+        #expect(decodeSignature.receiverType == base64Type)
+        #expect(decodeSignature.parameterTypes == [sema.types.stringType])
+        #expect(decodeSignature.returnType == byteArray)
+        #expect(sema.symbols.externalLinkName(for: decode) == "kk_base64_decode_default")
 
-        let encodeToByteArray = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let encodeToByteArray = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
             interner.intern("Base64"),
             interner.intern("encodeToByteArray"),
         ]))
-        let encodeToByteArraySignature = try XCTUnwrap(sema.symbols.functionSignature(for: encodeToByteArray))
-        XCTAssertEqual(encodeToByteArraySignature.receiverType, base64Type)
-        XCTAssertEqual(encodeToByteArraySignature.parameterTypes, [byteArray])
-        XCTAssertEqual(encodeToByteArraySignature.returnType, byteArray)
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: encodeToByteArray),
-            "kk_base64_encodeToByteArray_default"
+        let encodeToByteArraySignature = try #require(sema.symbols.functionSignature(for: encodeToByteArray))
+        #expect(encodeToByteArraySignature.receiverType == base64Type)
+        #expect(encodeToByteArraySignature.parameterTypes == [byteArray])
+        #expect(encodeToByteArraySignature.returnType == byteArray)
+        #expect(
+            sema.symbols.externalLinkName(for: encodeToByteArray) == "kk_base64_encodeToByteArray_default"
         )
 
-        let decodeFromByteArray = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let decodeFromByteArray = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
             interner.intern("Base64"),
             interner.intern("decodeFromByteArray"),
         ]))
-        let decodeFromByteArraySignature = try XCTUnwrap(sema.symbols.functionSignature(for: decodeFromByteArray))
-        XCTAssertEqual(decodeFromByteArraySignature.receiverType, base64Type)
-        XCTAssertEqual(decodeFromByteArraySignature.parameterTypes, [byteArray])
-        XCTAssertEqual(decodeFromByteArraySignature.returnType, byteArray)
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: decodeFromByteArray),
-            "kk_base64_decodeFromByteArray_default"
+        let decodeFromByteArraySignature = try #require(sema.symbols.functionSignature(for: decodeFromByteArray))
+        #expect(decodeFromByteArraySignature.receiverType == base64Type)
+        #expect(decodeFromByteArraySignature.parameterTypes == [byteArray])
+        #expect(decodeFromByteArraySignature.returnType == byteArray)
+        #expect(
+            sema.symbols.externalLinkName(for: decodeFromByteArray) == "kk_base64_decodeFromByteArray_default"
         )
 
-        let withPadding = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let withPadding = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("io"),
             interner.intern("encoding"),
             interner.intern("Base64"),
             interner.intern("withPadding"),
         ]))
-        let withPaddingSignature = try XCTUnwrap(sema.symbols.functionSignature(for: withPadding))
-        XCTAssertEqual(withPaddingSignature.receiverType, base64Type)
-        XCTAssertEqual(withPaddingSignature.parameterTypes, [paddingOption])
-        XCTAssertEqual(withPaddingSignature.returnType, base64Type)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: withPadding), "kk_base64_withPadding_instance")
+        let withPaddingSignature = try #require(sema.symbols.functionSignature(for: withPadding))
+        #expect(withPaddingSignature.receiverType == base64Type)
+        #expect(withPaddingSignature.parameterTypes == [paddingOption])
+        #expect(withPaddingSignature.returnType == base64Type)
+        #expect(sema.symbols.externalLinkName(for: withPadding) == "kk_base64_withPadding_instance")
     }
 
-    func testBase64EncodeDecodeCallsTypeCheckOnVariants() throws {
+    @Test func testBase64EncodeDecodeCallsTypeCheckOnVariants() throws {
         let source = """
         import kotlin.io.encoding.Base64
         import kotlin.io.encoding.ExperimentalEncodingApi
@@ -254,7 +259,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
         """
 
         let (sema, interner, ast) = try makeSema(source: source)
-        let defaultBase64Symbol = try XCTUnwrap(
+        let defaultBase64Symbol = try #require(
             sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
@@ -268,7 +273,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let urlSafeBase64Symbol = try XCTUnwrap(
+        let urlSafeBase64Symbol = try #require(
             sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
@@ -282,7 +287,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let defaultEncode = try XCTUnwrap(
+        let defaultEncode = try #require(
             sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
@@ -293,7 +298,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             ]),
             "Expected Base64.Default.encode to be registered"
         )
-        let defaultDecode = try XCTUnwrap(
+        let defaultDecode = try #require(
             sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
@@ -304,7 +309,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             ]),
             "Expected Base64.Default.decode to be registered"
         )
-        let urlSafeEncode = try XCTUnwrap(
+        let urlSafeEncode = try #require(
             sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("io"),
@@ -316,7 +321,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             "Expected Base64.UrlSafe.encode to be registered"
         )
 
-        let defaultEncodeCall = try XCTUnwrap(
+        let defaultEncodeCall = try #require(
             firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(receiver, callee, _, _, _) = expr else { return false }
                 return sema.bindings.exprTypes[receiver] == defaultBase64Type
@@ -324,7 +329,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             },
             "Expected Base64.Default.encode call in AST"
         )
-        let defaultDecodeCall = try XCTUnwrap(
+        let defaultDecodeCall = try #require(
             firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(receiver, callee, _, _, _) = expr else { return false }
                 return sema.bindings.exprTypes[receiver] == defaultBase64Type
@@ -332,7 +337,7 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             },
             "Expected Base64.Default.decode call in AST"
         )
-        let urlSafeEncodeCall = try XCTUnwrap(
+        let urlSafeEncodeCall = try #require(
             firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(receiver, callee, _, _, _) = expr else { return false }
                 return sema.bindings.exprTypes[receiver] == urlSafeBase64Type
@@ -341,35 +346,30 @@ final class Base64SyntheticSurfaceTests: XCTestCase {
             "Expected Base64.UrlSafe.encode call in AST"
         )
 
-        XCTAssertEqual(
-            try XCTUnwrap(sema.bindings.callBinding(for: defaultEncodeCall)?.chosenCallee),
-            defaultEncode,
+        #expect(
+            try #require(sema.bindings.callBinding(for: defaultEncodeCall)?.chosenCallee) == defaultEncode,
             "Base64.Default.encode must resolve to the default encode member"
         )
-        XCTAssertEqual(
-            sema.bindings.exprTypes[defaultEncodeCall],
-            sema.types.stringType,
+        #expect(
+            sema.bindings.exprTypes[defaultEncodeCall] == sema.types.stringType,
             "Base64.Default.encode should return String"
         )
-        XCTAssertEqual(
-            try XCTUnwrap(sema.bindings.callBinding(for: defaultDecodeCall)?.chosenCallee),
-            defaultDecode,
+        #expect(
+            try #require(sema.bindings.callBinding(for: defaultDecodeCall)?.chosenCallee) == defaultDecode,
             "Base64.Default.decode must resolve to the default decode member"
         )
-        XCTAssertEqual(
-            sema.bindings.exprTypes[defaultDecodeCall],
-            try byteArrayType(sema: sema, interner: interner),
+        #expect(
+            sema.bindings.exprTypes[defaultDecodeCall] == (try byteArrayType(sema: sema, interner: interner)),
             "Base64.Default.decode should return ByteArray"
         )
-        XCTAssertEqual(
-            try XCTUnwrap(sema.bindings.callBinding(for: urlSafeEncodeCall)?.chosenCallee),
-            urlSafeEncode,
+        #expect(
+            try #require(sema.bindings.callBinding(for: urlSafeEncodeCall)?.chosenCallee) == urlSafeEncode,
             "Base64.UrlSafe.encode must resolve to the url-safe encode member"
         )
-        XCTAssertEqual(
-            sema.bindings.exprTypes[urlSafeEncodeCall],
-            sema.types.stringType,
+        #expect(
+            sema.bindings.exprTypes[urlSafeEncodeCall] == sema.types.stringType,
             "Base64.UrlSafe.encode should return String"
         )
     }
 }
+#endif

@@ -1,27 +1,32 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class PhaseTimerTests: XCTestCase {
+@Suite
+struct PhaseTimerTests {
     // MARK: - PhaseRecord
 
+    @Test
     func testPhaseRecordDurationNanos() {
         let record = PhaseTimer.PhaseRecord(
             name: "Lex",
             startTime: 1000,
             endTime: 5000
         )
-        XCTAssertEqual(record.durationNanos, 4000)
+        #expect(record.durationNanos == 4000)
     }
 
+    @Test
     func testPhaseRecordDurationMs() {
         let record = PhaseTimer.PhaseRecord(
             name: "Lex",
             startTime: 0,
             endTime: 2_000_000
         )
-        XCTAssertEqual(record.durationMs, 2.0, accuracy: 0.001)
+        #expect(abs(record.durationMs - 2.0) <= 0.001)
     }
 
+    @Test
     func testPhaseRecordSubRecords() {
         let sub = PhaseTimer.PhaseRecord(name: "clang", startTime: 100, endTime: 200)
         let record = PhaseTimer.PhaseRecord(
@@ -30,26 +35,29 @@ final class PhaseTimerTests: XCTestCase {
             endTime: 1000,
             subRecords: [sub]
         )
-        XCTAssertEqual(record.subRecords.count, 1)
-        XCTAssertEqual(record.subRecords[0].name, "clang")
+        #expect(record.subRecords.count == 1)
+        #expect(record.subRecords[0].name == "clang")
     }
 
     // MARK: - Recording phases
 
+    @Test
     func testBeginEndPhaseRecordsEntry() {
         let timer = PhaseTimer()
         timer.beginPhase("TestPhase")
         timer.endPhase()
-        XCTAssertEqual(timer.phaseRecords.count, 1)
-        XCTAssertEqual(timer.phaseRecords[0].name, "TestPhase")
+        #expect(timer.phaseRecords.count == 1)
+        #expect(timer.phaseRecords[0].name == "TestPhase")
     }
 
+    @Test
     func testEndPhaseWithoutBeginIsNoOp() {
         let timer = PhaseTimer()
         timer.endPhase()
-        XCTAssertEqual(timer.phaseRecords.count, 0)
+        #expect(timer.phaseRecords.count == 0)
     }
 
+    @Test
     func testMultiplePhasesRecorded() {
         let timer = PhaseTimer()
         timer.beginPhase("Lex")
@@ -58,24 +66,26 @@ final class PhaseTimerTests: XCTestCase {
         timer.endPhase()
         timer.beginPhase("Sema")
         timer.endPhase()
-        XCTAssertEqual(timer.phaseRecords.count, 3)
-        XCTAssertEqual(timer.phaseRecords.map(\.name), ["Lex", "Parse", "Sema"])
+        #expect(timer.phaseRecords.count == 3)
+        #expect(timer.phaseRecords.map(\.name) == ["Lex", "Parse", "Sema"])
     }
 
+    @Test
     func testRecordSubPhase() {
         let timer = PhaseTimer()
         timer.beginPhase("Link")
         timer.recordSubPhase("clang", startTime: 100, endTime: 500)
         timer.recordSubPhase("ld", startTime: 500, endTime: 900)
         timer.endPhase()
-        XCTAssertEqual(timer.phaseRecords.count, 1)
-        XCTAssertEqual(timer.phaseRecords[0].subRecords.count, 2)
-        XCTAssertEqual(timer.phaseRecords[0].subRecords[0].name, "clang")
-        XCTAssertEqual(timer.phaseRecords[0].subRecords[1].name, "ld")
+        #expect(timer.phaseRecords.count == 1)
+        #expect(timer.phaseRecords[0].subRecords.count == 2)
+        #expect(timer.phaseRecords[0].subRecords[0].name == "clang")
+        #expect(timer.phaseRecords[0].subRecords[1].name == "ld")
     }
 
     // MARK: - totalNanos / totalMs
 
+    @Test
     func testTotalNanosAndMs() {
         let timer = PhaseTimer()
         timer.beginPhase("A")
@@ -83,18 +93,20 @@ final class PhaseTimerTests: XCTestCase {
         timer.beginPhase("B")
         timer.endPhase()
         // totalNanos should be sum of all durations
-        XCTAssertTrue(timer.totalNanos > 0)
-        XCTAssertTrue(timer.totalMs >= 0)
+        #expect(timer.totalNanos > 0)
+        #expect(timer.totalMs >= 0)
     }
 
+    @Test
     func testTotalNanosEmptyIsZero() {
         let timer = PhaseTimer()
-        XCTAssertEqual(timer.totalNanos, 0)
-        XCTAssertEqual(timer.totalMs, 0)
+        #expect(timer.totalNanos == 0)
+        #expect(timer.totalMs == 0)
     }
 
     // MARK: - printSummary
 
+    @Test
     func testPrintSummaryDoesNotCrash() {
         let timer = PhaseTimer()
         timer.beginPhase("Lex")
@@ -106,3 +118,4 @@ final class PhaseTimerTests: XCTestCase {
         timer.printSummary()
     }
 }
+#endif

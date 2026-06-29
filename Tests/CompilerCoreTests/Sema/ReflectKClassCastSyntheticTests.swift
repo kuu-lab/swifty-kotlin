@@ -1,31 +1,47 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ReflectKClassCastSyntheticTests: XCTestCase {
-    func testKClassCastSyntheticStubLinksToRuntimeABI() throws {
+@Suite
+struct ReflectKClassCastSyntheticTests {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "Expected KClass.cast source to type-check, got: \(ctx.diagnostics.diagnostics)")
+            )
+            result = try (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test func testKClassCastSyntheticStubLinksToRuntimeABI() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "reflect", "KClass", "cast"].map { interner.intern($0) }
-        let castSymbol = try XCTUnwrap(
+        let castSymbol = try #require(
             sema.symbols.lookupAll(fqName: fqName).first { symbolID in
                 sema.symbols.externalLinkName(for: symbolID) == "kk_kclass_cast"
             },
             "Expected kotlin.reflect.KClass.cast to link to kk_kclass_cast"
         )
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: castSymbol))
+        let signature = try #require(sema.symbols.functionSignature(for: castSymbol))
 
-        XCTAssertTrue(signature.canThrow)
-        XCTAssertEqual(signature.parameterTypes, [sema.types.nullableAnyType])
-        XCTAssertEqual(signature.classTypeParameterCount, 1)
-        XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-        XCTAssertEqual(signature.valueParameterSymbols.count, 1)
+        #expect(signature.canThrow)
+        #expect(signature.parameterTypes == [sema.types.nullableAnyType])
+        #expect(signature.classTypeParameterCount == 1)
+        #expect(signature.typeParameterSymbols.count == 1)
+        #expect(signature.valueParameterSymbols.count == 1)
         if case .typeParam = sema.types.kind(of: signature.returnType) {
             // Expected: KClass<T>.cast(value) returns T.
         } else {
-            XCTFail("Expected KClass.cast return type to be the receiver type parameter")
+            Issue.record("Expected KClass.cast return type to be the receiver type parameter")
         }
     }
 
-    func testKClassCastInfersReceiverArgumentReturnTypes() throws {
+    @Test func testKClassCastInfersReceiverArgumentReturnTypes() throws {
         let source = """
         import kotlin.reflect.KClass
 
@@ -41,21 +57,21 @@ final class ReflectKClassCastSyntheticTests: XCTestCase {
         let (sema, interner) = try makeSema(source: source)
 
         for functionName in ["castString", "castViaLocal"] {
-            let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [interner.intern(functionName)]))
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            XCTAssertEqual(
-                signature.returnType,
-                sema.types.stringType,
-                "\(functionName) should infer String from KClass<String>.cast"
+            let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(functionName)]))
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(
+                signature.returnType == sema.types.stringType,
+                Comment(rawValue: "\(functionName) should infer String from KClass<String>.cast")
             )
         }
 
-        let genericSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [interner.intern("castWithClass")]))
-        let genericSignature = try XCTUnwrap(sema.symbols.functionSignature(for: genericSymbol))
+        let genericSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("castWithClass")]))
+        let genericSignature = try #require(sema.symbols.functionSignature(for: genericSymbol))
         if case .typeParam = sema.types.kind(of: genericSignature.returnType) {
             // Expected: generic KClass<T>.cast preserves T.
         } else {
-            XCTFail("Expected generic KClass.cast wrapper to return T")
+            Issue.record("Expected generic KClass.cast wrapper to return T")
         }
     }
 }
+#endif

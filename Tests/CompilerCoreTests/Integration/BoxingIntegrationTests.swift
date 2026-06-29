@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class BoxingIntegrationTests: XCTestCase {
-    func testPairTripleBoxingSurgicalFix() throws {
+@Suite struct BoxingIntegrationTests {
+    @Test func testPairTripleBoxingSurgicalFix() throws {
         let source = """
         fun test() {
             val p = Pair(1, "one")
@@ -14,7 +15,7 @@ final class BoxingIntegrationTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        let module: KIRModule = try XCTUnwrap(ctx.kir)
+        let module: KIRModule = try #require(ctx.kir)
         let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
 
         let boxingCalls = testFunc.body.filter { instruction in
@@ -25,10 +26,10 @@ final class BoxingIntegrationTests: XCTestCase {
         }
 
         // We expect at least 4 boxing calls: 1 for Pair(1, ...), 2 for Triple(2, 3, ...), 1 for 4 to ...
-        XCTAssertGreaterThanOrEqual(boxingCalls.count, 4, "Should have boxed primitive arguments for Pair and Triple. Found \(boxingCalls.count)")
+        #expect(boxingCalls.count >= 4, "Should have boxed primitive arguments for Pair and Triple. Found \(boxingCalls.count)")
     }
 
-    func testMutableListAddBoxesPrimitiveElement() throws {
+    @Test func testMutableListAddBoxesPrimitiveElement() throws {
         let source = """
         fun test(list: MutableList<Int>) {
             list.add(1)
@@ -38,7 +39,7 @@ final class BoxingIntegrationTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        let module: KIRModule = try XCTUnwrap(ctx.kir)
+        let module: KIRModule = try #require(ctx.kir)
         let testFunc: KIRFunction = try findKIRFunction(named: "test", in: module, interner: ctx.interner)
 
         let boxingCalls = testFunc.body.filter { instruction in
@@ -56,6 +57,7 @@ final class BoxingIntegrationTests: XCTestCase {
         // (false == 0 collides with the null sentinel) and Double/Float (the bit
         // pattern is misread as an Int). See
         // CodegenBackendIntegrationTests.testPrimitiveArgumentBoxedWhenAddedToMutableCollections.
-        XCTAssertEqual(boxingCalls.count, 1, "MutableList.add should box its primitive argument. Found \(boxingCalls.count)")
+        #expect(boxingCalls.count == 1, "MutableList.add should box its primitive argument. Found \(boxingCalls.count)")
     }
 }
+#endif

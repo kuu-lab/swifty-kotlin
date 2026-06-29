@@ -1,7 +1,9 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class StringTrimStartFunctionTests: XCTestCase {
+@Suite
+struct StringTrimStartFunctionTests {
+    @Test
     func testTrimStartNoArgResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripLeadingWhitespace(s: String): String {
@@ -9,9 +11,10 @@ final class StringTrimStartFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
     func testTrimStartWithPredicateResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripLeadingX(s: String): String {
@@ -19,6 +22,6 @@ final class StringTrimStartFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }

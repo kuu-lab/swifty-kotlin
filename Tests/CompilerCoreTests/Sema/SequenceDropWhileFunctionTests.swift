@@ -1,12 +1,13 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-019: Validates that `dropWhile` resolves through Sema for the
 /// `kotlin.sequences.Sequence<T>` receiver wired through the standard sequence
 /// HOF infrastructure.
 /// Runtime link name involved: `kk_sequence_dropWhile`.
-final class SequenceDropWhileFunctionTests: XCTestCase {
-    func testDropWhileFunctionResolvesInSource() throws {
+@Suite
+struct SequenceDropWhileFunctionTests {
+    @Test func testDropWhileFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun tail(values: Sequence<Int>): Sequence<Int> {
             return values.dropWhile { value -> value < 3 }
@@ -25,9 +26,9 @@ final class SequenceDropWhileFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
-            "Expected Sequence.dropWhile to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            Comment(rawValue: "Expected Sequence.dropWhile to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
         )
     }
 }

@@ -1,9 +1,10 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class SequenceFirstNotNullOfSemaTests: XCTestCase {
-    func testSequenceFirstNotNullOfResolvesToRuntimeABIAndNonNullResult() throws {
+@Suite
+struct SequenceFirstNotNullOfSemaTests {
+    @Test func testSequenceFirstNotNullOfResolvesToRuntimeABIAndNonNullResult() throws {
         let source = """
         fun probe(values: Sequence<Int>) {
             val result: String = values.firstNotNullOf { if (it > 1) "hit" else null }
@@ -15,14 +16,14 @@ final class SequenceFirstNotNullOfSemaTests: XCTestCase {
             try runSema(ctx)
 
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
-                "Expected firstNotNullOf to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                Comment(rawValue: "Expected firstNotNullOf to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "firstNotNullOf"
             }, "Expected firstNotNullOf member call")
@@ -31,11 +32,11 @@ final class SequenceFirstNotNullOfSemaTests: XCTestCase {
             ].map(ctx.interner.intern)
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
 
-            XCTAssertTrue(
+            #expect(
                 sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_firstNotNullOf" },
                 "Expected Sequence.firstNotNullOf synthetic member to link to kk_sequence_firstNotNullOf"
             )
-            XCTAssertEqual(sema.bindings.exprType(for: callExpr), sema.types.stringType)
+            #expect(sema.bindings.exprType(for: callExpr) == sema.types.stringType)
         }
     }
 }

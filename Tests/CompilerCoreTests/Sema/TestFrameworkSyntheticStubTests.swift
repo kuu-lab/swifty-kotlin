@@ -1,8 +1,19 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class TestFrameworkSyntheticStubTests: XCTestCase {
+@Suite
+struct TestFrameworkSyntheticStubTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (#require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
     private func externalLinks(
         for member: String,
         sema: SemaModule,
@@ -13,20 +24,22 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
         return symbols.compactMap { sema.symbols.externalLinkName(for: $0) }
     }
 
+    @Test
     func testTestAnnotationsAreRegisteredAsAnnotationClasses() throws {
         let (sema, interner) = try makeSema()
 
         for name in ["Test", "Before", "After"] {
             let fq = ["kotlin", "test", name].map { interner.intern($0) }
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: fq),
                 "Expected kotlin.test.\(name) to be registered"
             )
-            let resolved = try XCTUnwrap(sema.symbols.symbol(symbol))
-            XCTAssertEqual(resolved.kind, .annotationClass)
+            let resolved = try #require(sema.symbols.symbol(symbol))
+            #expect(resolved.kind == .annotationClass)
         }
     }
 
+    @Test
     func testAssertionStubsExposeAllExpectedExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -39,7 +52,7 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
         for (member, links) in expected {
             let actualLinks = Set(externalLinks(for: member, sema: sema, interner: interner))
             for link in links {
-                XCTAssertTrue(
+                #expect(
                     actualLinks.contains(link),
                     "kotlin.test.\(member) should expose \(link)"
                 )
@@ -47,6 +60,7 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
         }
     }
 
+    @Test
     func testAssertionsAndAnnotationsResolveInSource() throws {
         let source = """
         import kotlin.test.After
@@ -77,8 +91,8 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedLinks: [String: String] = [
                 "assertEquals": "kk_test_assertEquals",
@@ -87,7 +101,7 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
             ]
 
             for (memberName, expectedLinkName) in expectedLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else {
@@ -96,13 +110,12 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
                     return ctx.interner.resolve(calleeName) == memberName
                 }, "Expected call to \(memberName) in AST")
 
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected \(memberName) to resolve"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLinkName
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == expectedLinkName
                 )
             }
         }
@@ -117,16 +130,18 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
         return sema.symbols.lookupAll(fqName: fq)
     }
 
+    @Test
     func testSyntheticAnnotationsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         for annotationName in ["Test", "Before", "After"] {
             let symbols = lookupTestSymbols(sema: sema, interner: interner, name: annotationName)
-            let symbol = try XCTUnwrap(symbols.first, "Expected kotlin.test.\(annotationName)")
-            XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .annotationClass)
+            let symbol = try #require(symbols.first, "Expected kotlin.test.\(annotationName)")
+            #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
         }
     }
 
+    @Test
     func testSyntheticAssertionStubsHaveExpectedLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -146,8 +161,8 @@ final class TestFrameworkSyntheticStubTests: XCTestCase {
                 return sig.parameterTypes.count == entry.arity
                     && sig.returnType == sema.types.unitType
             }
-            let symbol = try XCTUnwrap(matching, "Expected kotlin.test.\(entry.name) with arity \(entry.arity)")
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), entry.link)
+            let symbol = try #require(matching, "Expected kotlin.test.\(entry.name) with arity \(entry.arity)")
+            #expect(sema.symbols.externalLinkName(for: symbol) == entry.link)
         }
     }
 

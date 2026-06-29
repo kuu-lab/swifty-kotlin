@@ -2115,6 +2115,40 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-068: String.slice(IntRange) / String.slice(Iterable<Int>) ---
+        // IntRange is represented as intType at the ABI level; Iterable<Int> uses List<out Int>.
+        // KIR lowering distinguishes the two via isRangeExpr on the argument.
+        let listOfIntTypeForSlice = makeListType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: intType
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "slice",
+            externalLinkName: "kk_string_slice_range",
+            receiverType: stringType,
+            parameters: [
+                ("indices", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "slice",
+            externalLinkName: "kk_string_slice_iterable",
+            receiverType: stringType,
+            parameters: [
+                ("indices", listOfIntTypeForSlice, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-189: String HOF (filter, map, count, any, all, none) ---
         let charToBoolType = types.make(.functionType(FunctionType(
             params: [charType],
@@ -2435,6 +2469,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-046: CharSequence.reduce(operation) ---
+        registerSyntheticStringExtensionFunction(
+            named: "reduce",
+            externalLinkName: "kk_string_reduce",
+            receiverType: charSequenceType,
+            parameters: [("operation", charCharToCharType, false, false)],
+            returnType: charType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-FN-049: CharSequence.reduceOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceOrNull",
@@ -2560,6 +2607,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
         // --- STDLIB-TEXT-FN-040: CharSequence.onEachIndexed(action: (Int, Char) -> Unit): S ---
         registerSyntheticStringExtensionFunction(
             named: "onEachIndexed",
@@ -3554,64 +3602,6 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
-
-        // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // --- STDLIB-316: String/CharSequence.zipWithNext ---
 

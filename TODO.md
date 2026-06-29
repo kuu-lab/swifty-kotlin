@@ -24,12 +24,8 @@
 #### kotlin.text プロパティの実装
 
 #### kotlin.text 関数の実装
-- [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-049: `reduceOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-053: `removeSurrounding` 関数の実装
-- [ ] STDLIB-TEXT-FN-068: `slice` 関数の実装
-- [ ] STDLIB-TEXT-FN-085: `toBigInteger` 関数の実装
 
 #### kotlin.time 型の実装
 
@@ -46,9 +42,6 @@
 #### kotlin.comparisons 関数の実装
 - [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
-- [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
-- [ ] STDLIB-COMP-FN-038: `minOf` 関数の実装（Float版、2引数）
-- [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-040: `minOf` 関数の実装（Float版、vararg）
 - [ ] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-046: `minOf` 関数の実装（Long版、vararg）
@@ -138,7 +131,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeRandom.swift` (38 @_cdecl)
 > 移行先: `Stdlib/kotlin/random/Random.kt`
 
-- [ ] MIGRATION-RANDOM-001: `Random` クラス API を Kotlin source に移行する（`nextInt`, `nextLong`, `nextDouble`, `nextFloat`, `nextBoolean`, `nextBytes` — PRNG ステート管理はブリッジに委譲）
 
 ### Phase M8: kotlin.time / Duration
 > 移行元: `Sources/Runtime/RuntimeDuration.swift` (61 @_cdecl)
@@ -150,7 +142,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeFileIO.swift` (144 @_cdecl)
 > 移行先: `Stdlib/kotlin/io/`
 
-- [ ] MIGRATION-IO-001: File 読み書き関数を Kotlin source に移行する（`readText`, `writeText`, `readBytes`, `writeBytes`, `appendText`, `appendBytes`）
 
 ### Phase M10: kotlin.io.encoding
 > 移行元: `Sources/Runtime/RuntimeBase64.swift` (26), `RuntimeHexFormat.swift` (18)
@@ -188,7 +179,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeAtomic.swift` (97 @_cdecl)
 > 移行先: `Stdlib/kotlin/concurrent/atomics/`
 
-- [ ] MIGRATION-ATOMIC-001: `AtomicInt` / `AtomicLong` / `AtomicRef` の API を Kotlin source に移行する（`get`, `set`, `getAndSet`, `compareAndSet`, `incrementAndGet`, `decrementAndGet`, `addAndGet` — CAS 操作はブリッジに委譲）
 
 ### Phase M17: kotlin.collections Set/Map 基本操作
 > 移行元: `Sources/Runtime/RuntimeSetAndMap.swift` (53 @_cdecl)
@@ -242,10 +232,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-072: JS Fun stub削除（`HeaderHelpers+SyntheticJsFunStubs.swift`）
 - [ ] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
 - [ ] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
-- [ ] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
-- [ ] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
-- [ ] CLEANUP-STUB-075: JS BigIntToLong stub削除（`HeaderHelpers+SyntheticJsBigIntToLongStubs.swift`）
-- [ ] CLEANUP-STUB-076: JS BigInt stub削除（`HeaderHelpers+SyntheticJsBigIntStubs.swift`）
 - [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
 - [ ] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
 - [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
@@ -273,7 +259,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 Kotlin 公式 stdlib ドキュメントと実行時挙動を突き合わせて確認した結果を順次記録する。`[x]` は本リポジトリで修正済み、`[ ]` は未対応の残課題。検証は Swift Foundation の `CharacterSet` / `Unicode.Scalar.Properties` の実挙動を実機で確認した上で判断している。
 
 ### kotlin.text Char（2026-05-31 検証）
-- [ ] DOCPARITY-CHAR-006: `Char.digitToIntOrNull(radix)` のランタイム/配線が無い（無 radix 版 `kk_char_digitToIntOrNull` のみ）。公式には `fun Char.digitToIntOrNull(radix: Int): Int?` が存在するため、`kk_char_digitToInt_radix` の非例外版を追加し synthetic stub を配線する。
 
 ## Kotlin 挙動 parity（kotlinc 2.3.10 比較で発見した差分）
 
@@ -451,14 +436,9 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### Runtime: 未到達 `@_cdecl` エクスポート（関数単位）
 - [ ] DEADCODE-003: Flow/Channel 系 12 件を削除する — `kk_callback_flow_await_close` / `kk_callback_flow_create`、`kk_channel_flow_create` / `kk_channel_flow_send` / `kk_channel_flow_try_send`、`kk_channel_pipeline_drain`、`kk_channel_send_suspending`、`kk_broadcast_channel_close` / `create` / `send` / `subscribe` / `unsubscribe`（主に `RuntimeCoroutineChannel.swift` / `RuntimeCoroutineFlow.swift`）
-- [ ] DEADCODE-004: リフレクション系 32 件を削除する — `kk_kconstructor_*` 全 12 件、`kk_kclass_get_field_count` / `get_instance_size_words` / `get_qualified_name` / `get_simple_name` / `get_superclass_name` / `is_data_class` / `is_sealed_class` / `is_value_class`、`kk_kproperty_get` / `set` / `stub_get_value` / `stub_getter` / `stub_set_getter` / `stub_set_setter` / `stub_set_value` / `stub_setter`、`kk_callable_ref_call_0..3`（主に `RuntimeReflection.swift`（55 件中 22 件）と `RuntimeDelegates.swift`。KClass/KProperty の生きている経路は別名で配線済み）
 - [ ] DEADCODE-005: `__string_*` ブリッジ 12 件を削除する — `__string_removePrefix` / `removeRange` / `removeRange_range` / `removeSuffix` / `removeSurrounding` / `removeSurrounding_pair` / `replace` / `replaceFirst` / `replaceRange` / `replace_char` / `replace_char_ignoreCase` / `replace_ignoreCase`（`RuntimeStringStdlib.swift`。同機能は `kk_string_*` 側が配線済みで `__` 版は .kt からも参照ゼロ。RF-RT-003 の「`__` ブリッジ降格」方針との整合を確認の上で削除）
-- [ ] DEADCODE-007: HTTP/Network 系 6 件を削除する — `kk_http_client_clearAuthentication` / `get_async` / `post` / `setBasicAuth` / `setDefaultHeader`、`kk_http_response_contentType`（`RuntimeNetwork.swift`。HTTP 面全体がターゲット外だが、他の `kk_http_*` は Sema stub から emit されるため、まず未到達 6 件のみ。残りは DEADCODE-012 の棚卸しで判定）
-- [ ] DEADCODE-009: Array HOF 8 件を削除する — `kk_array_filterIndexed` / `filterNot` / `filterNotNull` / `first` / `firstOrNull` / `last` / `lastOrNull` / `mapIndexed`（`RuntimeCollectionHOFArray.swift`。Array 受信者のこれらは `StdlibSurfaceSpec.collectionHOF*` テーブルにも載っておらず別経路で lowering される）
-- [ ] DEADCODE-010: 数値・GC・その他散在 24 件を削除する — `kk_double_coerceAtLeast_range` / `coerceAtMost_range`、`kk_float_coerceAtLeast_range` / `coerceAtMost_range`、`kk_long_coerceAtLeast_range` / `coerceAtMost_range`、`kk_math_e` / `kk_math_pi`、`kk_char_get` / `kk_char_plus`、`kk_clock_gettime_realtime`、`kk_mem_scope_alloc` / `enter` / `exit`、`kk_native_alloc_bytes` / `heap_alloc` / `heap_free`、`kk_panic`、`kk_write_barrier`、`kk_hexformat_prefix` / `suffix`、`kk_timedvalue_toString`、`kk_path_equals`、`kk_sequence_builder_yieldAll_iterator`（`yieldAll` 3 オーバーロードは全て無印 `kk_sequence_builder_yieldAll` に束縛済み）
 
 ### CompilerCore / LSPServer / RuntimeABI: 参照ゼロの Swift シンボル
-- [ ] DEADCODE-011: 参照ゼロの Swift 宣言 7 件を削除する — `StdlibSurfaceSpec.collectionHOFRuntimeLinkNames(ownerKind:)`（`Sources/RuntimeABI/StdlibSurfaceSpec.swift:127`、単数形 `collectionHOFRuntimeLinkName` のみ使用）、`DocumentStore.allURIs()`（`Sources/LSPServer/DocumentStore.swift:67`）、`PositionResolver.enclosingDecl(at:)`（`Sources/LSPServer/PositionResolver.swift:39`）、`runtimeParallelStreamElements(from:)`（`Sources/Runtime/RuntimeParallel.swift:50`）、ネスト関数 `buildBoolCondition`（`Sources/CompilerCore/Codegen/NativeEmitter+FunctionEmission.swift:331`）、`runtimeRetainObjectHandle` と `typealias ComparatorLambda`（`Sources/Runtime/RuntimeCollectionHelpers.swift:525-528`）
 
 ### テストのみ参照（fiction 棚卸し — 配線するか、テストごと削除するか）
 - [ ] DEADCODE-013: テストのみ参照の Swift シンボル約 20 件を棚卸しする — `PhaseTimer.exportTSV` / `exportJSON`、`KotlinParser.canStartTypeArguments`、`KotlinLanguageVersion` / `CompilerVersion`（`CompilerTypes.swift`、製品コードから未使用）、`BlockScope` / `validateExpectActualLinks` / `setTypeParameterUpperBound` / `hasContractReturnsNotNull`（`SemanticsModels.swift`）、`smartCastTypeForWhenSubjectCase`、DataFlow の `invalidateVariable` / `narrowToNonNull`、`IncrementalCompilationCache.clearCache`、`SemaCacheContext.invalidateScope`、`FileFingerprint.mtimeUnchanged`、`DependencyGraph.clearFile`、`RuntimeMetadataCodec` / `compilerPluginMetadata`（`RuntimeMetadata.swift`）、`RuntimeReflectionMetadataDecoder`、`completeCancellationIfNeeded`（`RuntimeCoroutine.swift:962`）、`runtimeDetectMemoryLeak`、`RuntimeABIExterns.externDecl`。意図的シーム（`Driver.runForTesting` / `RuntimeABISpec.generateCHeader` / `GoldenHarnessAPI.loadCasesOrCrash` / `renderInSubprocess`）は対象外
@@ -474,3 +454,30 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 - [ ] RF-DEAD-001: 完全到達不能の `kk_*` ランタイム関数 102 個を削除する（CompilerCore から静的にも動的（文字列補間 25 プレフィックス・`StdlibSurfaceSpec` 表駆動）にも emit されず、Tests・Runtime 内部・`Stdlib/*.kt` からの参照もゼロ）。内訳: SLF4J 互換ロギング 28 / リフレクション（`kk_kclass_*` / `kk_kconstructor_*` / `kk_kproperty_*` / `kk_callable_ref_*`）32 / coroutines・Flow 19 / 配列 HOF 取り残し 8 / java.time・JS Date ブリッジ 5 / HTTP 2 / その他（`kk_math_pi` / `kk_char_plus` 等）8。カテゴリ単位の分割 PR 推奨
 - [ ] RF-DEAD-004: dead-code 検出を `Scripts/dead_code_audit.sh` としてスクリプト化する（`docs/dead-code-audit.md` の再現コマンドを移植。動的補間プレフィックス・`StdlibSurfaceSpec` 表駆動経路・テスト参照の除外を含む。RF-GOV-004 の四半期 audit で再利用）
+
+---
+
+## コード共通化タスク（REFACT: 2026-06-28 調査）
+
+> 調査方法: KIR 層・Lowering 層・Sema 層・テスト層を横断して重複パターンを抽出。
+> 優先度は影響ファイル数と「新 primitive 型追加時の修正箇所数」で決定。
+> 完了ゲートは全テスト + golden + `diff_kotlinc.sh` green。
+
+### HIGH: 影響大（多数ファイル or バグ温床）
+
+- [ ] REFACT-001: primitive boxing/unboxing の switch 表を一元化する — `kk_box_int` / `kk_unbox_*` 等のマッピングが `CallLowerer.swift`・`LambdaLowerer.swift`・`ABILoweringPass+BoxingRules.swift`・`CollectionLiteralLoweringPass+FactoryPredicates.swift`・`CollectionLiteralLoweringPass+CallRewriteIteratorBridge.swift` の 6 箇所に独立実装されている。`BoxingCalleeTable` のような共有構造体に集約し、新 primitive 型追加時の修正箇所を 1 箇所にする
+- [ ] REFACT-002: `ensureSyntheticPackage` ウォークパスヘルパーを共通化する — `SyntheticPackageRegistration.swift` の正規実装 `ensureSyntheticPackageHierarchy` がバイト単位で `HeaderHelpers+SyntheticMathStubs.swift` と `HeaderHelpers+SyntheticRandomStubs.swift` にコピーされている。`HeaderHelpers+SyntheticTODOAndIOStubs.swift` のリーフ版も含め、全 3 箇所を正規実装の呼び出しに置き換える
+- [ ] REFACT-003: synthetic 拡張関数の登録ボイラープレートを共通化する — symbol 定義 → パラメータループ → `setFunctionSignature` の一連の処理が `HeaderHelpers+SyntheticStringRegistrationHelpers.swift`・`+SyntheticSequenceRegistrationHelpers`・`+SyntheticMutableListStubs`・`+SyntheticMathStubs`・`+SyntheticPathStubs+SymbolRegistration` の 5 ファイルで 60〜90 行ずつ重複している。共有ファイルに `registerSyntheticFunctionStub(...)` フリー関数を定義して各ヘルパーから呼び出す
+- [ ] REFACT-004: `KIRArena.appendTemporary(type:)` メソッドを追加する — `arena.appendExpr(.temporary(Int32(arena.expressions.count)), type:)` という 2 ステップのイディオムが 41 ファイル・約 249 箇所に散在している。`KIRArena` に `appendTemporary(type:) -> KIRExpression` を追加して ID 採番を一元化し、全呼び出し側を置き換える
+- [ ] REFACT-005: `resolveClassTypeSymbol` ヘルパーを共通化する — `guard case let .classType(...) = sema.types.kind(of: sema.types.makeNonNullable(...))` という 3 行ガードが 61 ファイルに散在している。`func resolveClassTypeSymbol(_ type: TypeID, sema: SemaModule) -> (ClassType, Symbol)?` のような共有ヘルパーを定義して置き換える
+
+### MEDIUM: 局所的だが改善余地あり
+
+- [ ] REFACT-006: boxing callee 名の文字列リテラルを単一の正規ソースに集約する — `ABILoweringPass.swift`・`ABILoweringPass+NonThrowingPrimitive.swift`・`CollectionLiteralLoweringPass+LookupTables.swift`・`CallLowerer.swift` の 4 箇所に `kk_box_*` / `kk_unbox_*` の interned 名リストが個別定義されている。`ABILoweringPass` の静的セットを正規ソースにして他の箇所はそれを参照する
+- [ ] REFACT-007: `assertKotlinCompilesToKIR` と `assertKotlinSourcesToKIR` の重複ボディを共通ヘルパーに抽出する — `CompilationTestHelpers.swift` 内の 2 関数が `withTemporaryFile` vs `withTemporaryFiles` の違いだけで約 35 行同一の本体を持つ。`inputs: [String]` を受け取るプライベートヘルパーに共通部分を抽出する
+- [ ] REFACT-008: テストの `module.arena.declarations.compactMap { guard case .function ... }` を共通ヘルパーに切り出す — 20+ テストファイルが `findAllKIRFunctions(in:)` 相当の処理をインラインで実装している。既存の `findKIRFunction(named:in:interner:)` と並置する形でテスト共有ファイルに追加し、重複する約 64 箇所を置き換える
+- [ ] REFACT-009: boxing/unboxing call を emit する 3 行パターンを共通ヘルパーに抽出する — `appendExpr` + `instructions.append(.call(symbol: nil, canThrow: false, ...))` の組み合わせが `CallLowerer.swift`・`LambdaLowerer.swift`・`ABILoweringPass+BoxingRules.swift`・`CollectionLiteralLoweringPass+FactoryPredicates.swift` 等 12 箇所以上に重複している。`emitNonThrowingCall(callee:arg:resultType:arena:into:)` のようなヘルパーに集約する
+
+### LOW: 軽微な冗長
+
+- [ ] REFACT-010: `BuildASTPhase+TypeParsing.swift` の `isTypeLikeNameToken` 転送ラッパーを削除する — 本体が `TypeRefParserCore.isTypeLikeNameToken(kind)` 1 行の転送のみで、`TypeRefParserCore` の静的メソッドを直接呼ぶよう呼び出し元を書き換えて本ファイルのラッパーを削除する

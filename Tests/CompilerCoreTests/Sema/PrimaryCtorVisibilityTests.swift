@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class PrimaryCtorVisibilityTests: XCTestCase {
-    func testPrimaryConstructorUsesExplicitVisibilityModifiers() throws {
+@Suite
+struct PrimaryCtorVisibilityTests {
+    @Test func testPrimaryConstructorUsesExplicitVisibilityModifiers() throws {
         let source = """
         package test
 
@@ -18,27 +20,24 @@ final class PrimaryCtorVisibilityTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "CtorVis")
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertEqual(
-                constructorVisibility(["test", "Hidden"], symbols: sema.symbols, interner: ctx.interner),
-                .private
+            let sema = try #require(ctx.sema)
+            #expect(
+                constructorVisibility(["test", "Hidden"], symbols: sema.symbols, interner: ctx.interner) == .private
             )
-            XCTAssertEqual(
-                constructorVisibility(["test", "SealedHidden"], symbols: sema.symbols, interner: ctx.interner),
-                .private
+            #expect(
+                constructorVisibility(["test", "SealedHidden"], symbols: sema.symbols, interner: ctx.interner) == .private
             )
-            XCTAssertEqual(
-                constructorVisibility(["test", "Outer", "Nested"], symbols: sema.symbols, interner: ctx.interner),
-                .private
+            #expect(
+                constructorVisibility(["test", "Outer", "Nested"], symbols: sema.symbols, interner: ctx.interner) == .private
             )
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
-    func testInvalidExplicitTypeArgumentsOnStringFormatReportResolutionError() throws {
+    @Test func testInvalidExplicitTypeArgumentsOnStringFormatReportResolutionError() throws {
         let source = """
         fun main() {
             val text = "%s".format<String>("age")
@@ -68,3 +67,4 @@ final class PrimaryCtorVisibilityTests: XCTestCase {
         return symbol.visibility
     }
 }
+#endif

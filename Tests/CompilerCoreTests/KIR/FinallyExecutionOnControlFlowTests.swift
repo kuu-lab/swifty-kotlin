@@ -1,9 +1,15 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class FinallyExecutionOnControlFlowTests: XCTestCase {
+/// CODE-001: Regression tests ensuring `finally` blocks execute on
+/// `return`, `break`, and `continue` inside try-finally.
+@Suite @MainActor
+struct FinallyExecutionOnControlFlowTests {
 
-    func testReturnInsideTryFinallyInlinesFinallyBeforeReturn() throws {
+    // MARK: - return inside try-finally
+
+    @Test func testReturnInsideTryFinallyInlinesFinallyBeforeReturn() throws {
         let source = """
         fun cleanup(): Unit {}
         fun compute(): Int {
@@ -18,9 +24,11 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
+            // The `return 42` path should call cleanup() *before* the returnValue
+            // instruction. Find all cleanup calls and all returnValue instructions.
             let cleanupCallIndices = body.indices.filter { index in
                 guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
                 return ctx.interner.resolve(callee) == "cleanup"
@@ -30,28 +38,30 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                 return false
             }
 
-            XCTAssertGreaterThanOrEqual(
-                cleanupCallIndices.count, 1,
+            // There should be at least one cleanup call inlined before a return.
+            #expect(
+                cleanupCallIndices.count >= 1,
                 "Expected at least one inlined cleanup() call for finally block"
             )
-            XCTAssertGreaterThanOrEqual(
-                returnValueIndices.count, 1,
+            #expect(
+                returnValueIndices.count >= 1,
                 "Expected at least one returnValue instruction"
             )
 
+            // At least one cleanup call should appear before a returnValue instruction.
             let hasCleanupBeforeReturn = cleanupCallIndices.contains { cleanupIndex in
                 returnValueIndices.contains { returnIndex in
                     cleanupIndex < returnIndex
                 }
             }
-            XCTAssertTrue(
+            #expect(
                 hasCleanupBeforeReturn,
                 "finally block (cleanup()) must execute before returnValue"
             )
         }
     }
 
-    func testReturnUnitInsideTryFinallyInlinesFinallyBeforeReturn() throws {
+    @Test func testReturnUnitInsideTryFinallyInlinesFinallyBeforeReturn() throws {
         let source = """
         fun cleanup(): Unit {}
         fun doWork(): Unit {
@@ -66,7 +76,7 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "doWork", in: module, interner: ctx.interner)
 
             let cleanupCallIndices = body.indices.filter { index in
@@ -78,8 +88,8 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                 return false
             }
 
-            XCTAssertGreaterThanOrEqual(
-                cleanupCallIndices.count, 1,
+            #expect(
+                cleanupCallIndices.count >= 1,
                 "Expected at least one inlined cleanup() for finally on return unit"
             )
 
@@ -88,14 +98,16 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                     cleanupIndex < returnIndex
                 }
             }
-            XCTAssertTrue(
+            #expect(
                 hasCleanupBeforeReturn,
                 "finally block (cleanup()) must execute before returnUnit"
             )
         }
     }
 
-    func testBreakInsideTryFinallyInlinesFinallyBeforeBreak() throws {
+    // MARK: - break inside try-finally
+
+    @Test func testBreakInsideTryFinallyInlinesFinallyBeforeBreak() throws {
         let source = """
         fun cleanup(): Unit {}
         fun loopWithBreak(): Unit {
@@ -112,7 +124,7 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "loopWithBreak", in: module, interner: ctx.interner)
 
             // Find the first label defined in the body (the while-condition label).
@@ -136,12 +148,12 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                 return target != conditionLabel
             }
 
-            XCTAssertGreaterThanOrEqual(
-                cleanupCallIndices.count, 1,
+            #expect(
+                cleanupCallIndices.count >= 1,
                 "Expected at least one inlined cleanup() call for finally block on break"
             )
-            XCTAssertGreaterThanOrEqual(
-                breakJumpIndices.count, 1,
+            #expect(
+                breakJumpIndices.count >= 1,
                 "Expected at least one jump instruction for break"
             )
 
@@ -154,14 +166,16 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                     cleanupIndex < jumpIndex
                 }
             }
-            XCTAssertTrue(
+            #expect(
                 hasCleanupBeforeBreakJump,
                 "finally block (cleanup()) must execute before the break jump"
             )
         }
     }
 
-    func testContinueInsideTryFinallyInlinesFinallyBeforeContinue() throws {
+    // MARK: - continue inside try-finally
+
+    @Test func testContinueInsideTryFinallyInlinesFinallyBeforeContinue() throws {
         let source = """
         fun cleanup(): Unit {}
         fun counter(): Boolean = false
@@ -179,7 +193,7 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "loopWithContinue", in: module, interner: ctx.interner)
 
             // Identify the continue target label: in a while loop the continue
@@ -215,12 +229,12 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                 }
             }
 
-            XCTAssertGreaterThanOrEqual(
-                cleanupCallIndices.count, 1,
+            #expect(
+                cleanupCallIndices.count >= 1,
                 "Expected at least one inlined cleanup() call for finally block on continue"
             )
-            XCTAssertGreaterThanOrEqual(
-                continueJumpIndices.count, 1,
+            #expect(
+                continueJumpIndices.count >= 1,
                 "Expected at least one jump instruction for continue"
             )
 
@@ -233,54 +247,56 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
                     cleanupIndex < jumpIndex
                 }
             }
-            XCTAssertTrue(
+            #expect(
                 hasCleanupBeforeContinueJump,
                 "finally block (cleanup()) must execute before the continue jump"
             )
         }
     }
 
-    func testFinallyBlockStackPushPopSymmetry() {
+    // MARK: - Context stack push/pop
+
+    @Test func testFinallyBlockStackPushPopSymmetry() {
         let ctx = KIRLoweringContext()
-        XCTAssertTrue(ctx.enclosingFinallyBlocks().isEmpty)
+        #expect(ctx.enclosingFinallyBlocks().isEmpty)
 
         let expr1 = ExprID(rawValue: 100)
         let expr2 = ExprID(rawValue: 200)
         ctx.pushFinallyBlock(expr1)
         ctx.pushFinallyBlock(expr2)
-        XCTAssertEqual(ctx.enclosingFinallyBlocks().count, 2)
+        #expect(ctx.enclosingFinallyBlocks().count == 2)
 
         let popped = ctx.popFinallyBlock()
-        XCTAssertEqual(popped, expr2)
-        XCTAssertEqual(ctx.enclosingFinallyBlocks().count, 1)
+        #expect(popped == expr2)
+        #expect(ctx.enclosingFinallyBlocks().count == 1)
 
         let popped2 = ctx.popFinallyBlock()
-        XCTAssertEqual(popped2, expr1)
-        XCTAssertTrue(ctx.enclosingFinallyBlocks().isEmpty)
+        #expect(popped2 == expr1)
+        #expect(ctx.enclosingFinallyBlocks().isEmpty)
     }
 
-    func testResetScopeForFunctionClearsFinallyBlockStack() {
+    @Test func testResetScopeForFunctionClearsFinallyBlockStack() {
         let ctx = KIRLoweringContext()
         ctx.pushFinallyBlock(ExprID(rawValue: 50))
         ctx.resetScopeForFunction()
-        XCTAssertTrue(ctx.enclosingFinallyBlocks().isEmpty)
+        #expect(ctx.enclosingFinallyBlocks().isEmpty)
     }
 
-    func testScopeSaveRestorePreservesFinallyBlockStack() {
+    @Test func testScopeSaveRestorePreservesFinallyBlockStack() {
         let ctx = KIRLoweringContext()
         let expr1 = ExprID(rawValue: 42)
         ctx.pushFinallyBlock(expr1)
 
         let snapshot = ctx.saveScope()
         ctx.resetScopeForFunction()
-        XCTAssertTrue(ctx.enclosingFinallyBlocks().isEmpty)
+        #expect(ctx.enclosingFinallyBlocks().isEmpty)
 
         ctx.restoreScope(snapshot)
-        XCTAssertEqual(ctx.enclosingFinallyBlocks().count, 1)
-        XCTAssertEqual(ctx.enclosingFinallyBlocks().first, expr1)
+        #expect(ctx.enclosingFinallyBlocks().count == 1)
+        #expect(ctx.enclosingFinallyBlocks().first == expr1)
     }
 
-    func testFinallyBlockScopeFilteringSkipsInnerTryForBreak() {
+    @Test func testFinallyBlockScopeFilteringSkipsInnerTryForBreak() {
         // Simulates: while { try { break } finally { cleanup() } }
         // The finally was pushed AFTER the loop, so break exits the try scope
         // and should inline the finally block.
@@ -290,13 +306,13 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
 
         let targetDepth = ctx.breakTargetLoopDepth(for: nil)
         let blocks = ctx.enclosingFinallyBlocksForBreakOrContinue(targetLoopDepth: targetDepth)
-        XCTAssertEqual(blocks.count, 1, "break exiting try scope should inline the finally block")
+        #expect(blocks.count == 1, "break exiting try scope should inline the finally block")
 
         ctx.popFinallyBlock()
         ctx.popLoopControl()
     }
 
-    func testFinallyBlockScopeFilteringSkipsWhenLoopInsideTry() {
+    @Test func testFinallyBlockScopeFilteringSkipsWhenLoopInsideTry() {
         // Simulates: try { while { break } } finally { cleanup() }
         // The finally was pushed BEFORE the loop, so break stays within
         // the try scope and should NOT inline the finally block.
@@ -306,9 +322,10 @@ final class FinallyExecutionOnControlFlowTests: XCTestCase {
 
         let targetDepth = ctx.breakTargetLoopDepth(for: nil)
         let blocks = ctx.enclosingFinallyBlocksForBreakOrContinue(targetLoopDepth: targetDepth)
-        XCTAssertEqual(blocks.count, 0, "break inside try scope should NOT inline the finally block")
+        #expect(blocks.count == 0, "break inside try scope should NOT inline the finally block")
 
         ctx.popLoopControl()
         ctx.popFinallyBlock()
     }
 }
+#endif

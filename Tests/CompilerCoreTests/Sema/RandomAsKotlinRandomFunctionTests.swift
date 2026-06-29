@@ -6,25 +6,38 @@
 /// `kotlin.random.Random` as its return type. It is linked to the runtime
 /// entry `kk_random_asKotlinRandom`.
 
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class RandomAsKotlinRandomFunctionTests: XCTestCase {
+@Suite
+struct RandomAsKotlinRandomFunctionTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try #require(result)
+    }
+
     /// `asKotlinRandom` lives at `kotlin.random.asKotlinRandom` (top-level
     /// extension), not as a member of `java.util.Random`.
-    func testAsKotlinRandomIsRegisteredAsTopLevelExtension() throws {
+    @Test func testAsKotlinRandomIsRegisteredAsTopLevelExtension() throws {
         let (sema, interner) = try makeSema()
 
         let fq = ["kotlin", "random", "asKotlinRandom"].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(candidates.isEmpty,
-                       "asKotlinRandom must be registered as a top-level extension in kotlin.random")
+        #expect(!candidates.isEmpty,
+                "asKotlinRandom must be registered as a top-level extension in kotlin.random")
     }
 
     /// The registered overload accepts no value parameters and links to
     /// `kk_random_asKotlinRandom`.
-    func testAsKotlinRandomLinksToRuntimeStub() throws {
+    @Test func testAsKotlinRandomLinksToRuntimeStub() throws {
         let (sema, interner) = try makeSema()
 
         let fq = ["kotlin", "random", "asKotlinRandom"].map { interner.intern($0) }
@@ -33,21 +46,20 @@ final class RandomAsKotlinRandomFunctionTests: XCTestCase {
         let arity0 = candidates.first { id in
             sema.symbols.functionSignature(for: id)?.parameterTypes.isEmpty == true
         }
-        let candidateSym = try XCTUnwrap(arity0,
-                                         "asKotlinRandom must expose an arity-0 (value parameters) overload")
-        XCTAssertEqual(sema.symbols.externalLinkName(for: candidateSym),
-                       "kk_random_asKotlinRandom",
-                       "asKotlinRandom must link to kk_random_asKotlinRandom")
+        let candidateSym = try #require(arity0,
+                                        "asKotlinRandom must expose an arity-0 (value parameters) overload")
+        #expect(sema.symbols.externalLinkName(for: candidateSym) == "kk_random_asKotlinRandom",
+                "asKotlinRandom must link to kk_random_asKotlinRandom")
     }
 
     /// The receiver type must be `java.util.Random` so that
     /// `JavaRandom(42).asKotlinRandom()` resolves through the extension.
-    func testAsKotlinRandomReceiverIsJavaUtilRandom() throws {
+    @Test func testAsKotlinRandomReceiverIsJavaUtilRandom() throws {
         let (sema, interner) = try makeSema()
 
         let javaRandomFQ = ["java", "util", "Random"].map { interner.intern($0) }
-        let javaRandomSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: javaRandomFQ),
-                                             "java.util.Random shim must be registered")
+        let javaRandomSymbol = try #require(sema.symbols.lookup(fqName: javaRandomFQ),
+                                            "java.util.Random shim must be registered")
         let expectedReceiver = sema.types.make(.classType(ClassType(
             classSymbol: javaRandomSymbol,
             args: [],
@@ -59,18 +71,18 @@ final class RandomAsKotlinRandomFunctionTests: XCTestCase {
         let asKotlinRandom = candidates.first { id in
             sema.symbols.functionSignature(for: id)?.receiverType == expectedReceiver
         }
-        XCTAssertNotNil(asKotlinRandom,
-                        "asKotlinRandom must have java.util.Random as its receiver type")
+        #expect(asKotlinRandom != nil,
+                "asKotlinRandom must have java.util.Random as its receiver type")
     }
 
     /// The return type must be `kotlin.random.Random` (the standard library
     /// Random type, not the synthetic `java.util.Random` shim).
-    func testAsKotlinRandomReturnsKotlinRandom() throws {
+    @Test func testAsKotlinRandomReturnsKotlinRandom() throws {
         let (sema, interner) = try makeSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
-        let randomSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: randomFQ),
-                                         "kotlin.random.Random must be registered")
+        let randomSymbol = try #require(sema.symbols.lookup(fqName: randomFQ),
+                                        "kotlin.random.Random must be registered")
         let expectedReturn = sema.types.make(.classType(ClassType(
             classSymbol: randomSymbol,
             args: [],
@@ -82,23 +94,24 @@ final class RandomAsKotlinRandomFunctionTests: XCTestCase {
         let asKotlinRandom = candidates.first { id in
             sema.symbols.functionSignature(for: id)?.returnType == expectedReturn
         }
-        XCTAssertNotNil(asKotlinRandom,
-                        "asKotlinRandom must return kotlin.random.Random")
+        #expect(asKotlinRandom != nil,
+                "asKotlinRandom must return kotlin.random.Random")
     }
 
     /// The synthetic `java.util.Random` shim must expose a seeded constructor that
     /// allows user code such as `JavaRandom(42).asKotlinRandom()` to resolve.
-    func testJavaUtilRandomShimHasConstructorsForAsKotlinRandomCallSites() throws {
+    @Test func testJavaUtilRandomShimHasConstructorsForAsKotlinRandomCallSites() throws {
         let (sema, interner) = try makeSema()
 
         let initFQ = ["java", "util", "Random", "<init>"].map { interner.intern($0) }
         let ctors = sema.symbols.lookupAll(fqName: initFQ)
-        XCTAssertFalse(ctors.isEmpty, "java.util.Random must expose synthetic constructors")
+        #expect(!ctors.isEmpty, "java.util.Random must expose synthetic constructors")
 
         let arities = ctors.compactMap { id -> Int? in
             sema.symbols.functionSignature(for: id).map { $0.parameterTypes.count }
         }
-        XCTAssertTrue(arities.contains(1),
-                      "java.util.Random must expose a seeded constructor")
+        #expect(arities.contains(1),
+                "java.util.Random must expose a seeded constructor")
     }
 }
+#endif

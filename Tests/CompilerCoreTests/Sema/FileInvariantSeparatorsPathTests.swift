@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-PROP-003: File.invariantSeparatorsPath
 //
@@ -11,11 +12,12 @@ import XCTest
 //   public val File.invariantSeparatorsPath: String
 //     get() = if (File.separatorChar != '/') path.replace(File.separatorChar, '/') else path
 
-final class FileInvariantSeparatorsPathTests: XCTestCase {
+@Suite
+struct FileInvariantSeparatorsPathTests {
 
     // MARK: - Resolves with explicit import
 
-    func testFileInvariantSeparatorsPathWithExplicitImportResolves() throws {
+    @Test func testFileInvariantSeparatorsPathWithExplicitImportResolves() throws {
         let source = """
         import java.io.File
         import kotlin.io.invariantSeparatorsPath
@@ -28,8 +30,8 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "File.invariantSeparatorsPath in kotlin.io should resolve as String: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -37,7 +39,7 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
 
     // MARK: - Returned value typed as String
 
-    func testFileInvariantSeparatorsPathReturnsString() throws {
+    @Test func testFileInvariantSeparatorsPathReturnsString() throws {
         let source = """
         import java.io.File
         import kotlin.io.invariantSeparatorsPath
@@ -51,8 +53,8 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "File.invariantSeparatorsPath should type as String, allowing .length use: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -60,7 +62,7 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
 
     // MARK: - Inline File construction
 
-    func testFileInvariantSeparatorsPathOnFreshlyConstructedFile() throws {
+    @Test func testFileInvariantSeparatorsPathOnFreshlyConstructedFile() throws {
         let source = """
         import java.io.File
         import kotlin.io.invariantSeparatorsPath
@@ -74,8 +76,8 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "File(...).invariantSeparatorsPath should compile end-to-end through Sema: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
@@ -83,7 +85,7 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
 
     // MARK: - External link name is registered on the synthetic symbol
 
-    func testFileInvariantSeparatorsPathExternalLinkNameIsRegistered() throws {
+    @Test func testFileInvariantSeparatorsPathExternalLinkNameIsRegistered() throws {
         let source = """
         import java.io.File
         import kotlin.io.invariantSeparatorsPath
@@ -96,11 +98,11 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let fileSymbol = try XCTUnwrap(
+            let fileSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
             )
             let fileType = types.make(.classType(ClassType(
@@ -110,18 +112,18 @@ final class FileInvariantSeparatorsPathTests: XCTestCase {
             let candidates = symbols.lookupAll(
                 fqName: ["kotlin", "io", "invariantSeparatorsPath"].map(interner.intern)
             )
-            let property = try XCTUnwrap(candidates.first { symbolID in
+            let property = try #require(candidates.first { symbolID in
                 guard symbols.symbol(symbolID)?.kind == .property else {
                     return false
                 }
                 return symbols.extensionPropertyReceiverType(for: symbolID) == fileType
             })
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: property),
-                "kk_file_invariantSeparatorsPath"
+            #expect(
+                symbols.externalLinkName(for: property) == "kk_file_invariantSeparatorsPath"
             )
-            XCTAssertEqual(symbols.propertyType(for: property), types.stringType)
+            #expect(symbols.propertyType(for: property) == types.stringType)
         }
     }
 }
+#endif

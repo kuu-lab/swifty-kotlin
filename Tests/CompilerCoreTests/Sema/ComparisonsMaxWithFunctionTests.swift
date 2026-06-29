@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-COMP-FN-027: kotlin.comparisons.maxWith (3-arg comparator form).
 ///
@@ -7,8 +8,9 @@ import XCTest
 /// `fun <T> maxWith(comparator: Comparator<in T>, a: T, b: T): T`
 /// is registered as a synthetic stub in the kotlin.comparisons package and
 /// resolves cleanly from user source code.
-final class ComparisonsMaxWithFunctionTests: XCTestCase {
-    func testMaxWithFunctionResolvesInSource() throws {
+@Suite
+struct ComparisonsMaxWithFunctionTests {
+    @Test func testMaxWithFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.comparisons.maxWith
         import kotlin.comparisons.naturalOrder
@@ -18,6 +20,7 @@ final class ComparisonsMaxWithFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

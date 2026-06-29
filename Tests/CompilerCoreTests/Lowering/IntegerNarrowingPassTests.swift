@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class IntegerNarrowingPassTests: XCTestCase {
+@Suite
+struct IntegerNarrowingPassTests {
     private func makeKIRContext(interner: StringInterner, sema: SemaModule?) -> KIRContext {
         let options = CompilerOptions(
             moduleName: "IntNarrowTest",
@@ -55,6 +57,7 @@ final class IntegerNarrowingPassTests: XCTestCase {
 
     // MARK: - Arithmetic narrowing
 
+    @Test
     func testIntAdditionResultIsNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -74,25 +77,26 @@ final class IntegerNarrowingPassTests: XCTestCase {
         )
         let ctx = makeKIRContext(interner: interner, sema: sema)
 
-        XCTAssertTrue(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
+        #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
         let lowered = body(declID, module)
         // Expect: kk_op_add -> temp, then kk_int_narrow(temp) -> result.
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
-            return XCTFail("Expected arithmetic call to be preserved")
+            Issue.record("Expected arithmetic call to be preserved"); return
         }
-        XCTAssertEqual(interner.resolve(addCallee), "kk_op_add")
-        XCTAssertNotEqual(addResult, result, "Arithmetic result should be redirected to a temporary")
+        #expect(interner.resolve(addCallee) == "kk_op_add")
+        #expect(addResult != result, "Arithmetic result should be redirected to a temporary")
 
         guard case let .call(_, narrowCallee, narrowArgs, narrowResult, _, _, _, _) = lowered[1] else {
-            return XCTFail("Expected a narrowing call after the arithmetic call")
+            Issue.record("Expected a narrowing call after the arithmetic call"); return
         }
-        XCTAssertEqual(interner.resolve(narrowCallee), "kk_int_narrow")
-        XCTAssertEqual(narrowArgs, [addResult])
-        XCTAssertEqual(narrowResult, result, "Narrowing must write back to the original result id")
+        #expect(interner.resolve(narrowCallee) == "kk_int_narrow")
+        #expect(narrowArgs == [addResult])
+        #expect(narrowResult == result, "Narrowing must write back to the original result id")
     }
 
+    @Test
     func testLongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -121,16 +125,17 @@ final class IntegerNarrowingPassTests: XCTestCase {
             }
             return false
         }.count
-        XCTAssertEqual(narrowCount, 0, "Long arithmetic must not be narrowed to 32 bits")
+        #expect(narrowCount == 0, "Long arithmetic must not be narrowed to 32 bits")
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
-            return XCTFail("Expected the long add call to be preserved")
+            Issue.record("Expected the long add call to be preserved"); return
         }
-        XCTAssertEqual(interner.resolve(addCallee), "kk_op_add")
-        XCTAssertEqual(addResult, result)
+        #expect(interner.resolve(addCallee) == "kk_op_add")
+        #expect(addResult == result)
     }
 
     // MARK: - Shift rewriting
 
+    @Test
     func testIntShiftLeftIsRewrittenToWidthAwareVariant() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -154,13 +159,14 @@ final class IntegerNarrowingPassTests: XCTestCase {
 
         let lowered = body(declID, module)
         guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
-            return XCTFail("Expected the shift call to be present")
+            Issue.record("Expected the shift call to be present"); return
         }
-        XCTAssertEqual(interner.resolve(callee), "kk_op_ishl", "Int shl must use the 32-bit-aware variant")
-        XCTAssertEqual(args, [value, distance], "Shift operands must be preserved")
-        XCTAssertEqual(shiftResult, result, "Shift result id must be preserved (rename only)")
+        #expect(interner.resolve(callee) == "kk_op_ishl", "Int shl must use the 32-bit-aware variant")
+        #expect(args == [value, distance], "Shift operands must be preserved")
+        #expect(shiftResult == result, "Shift result id must be preserved (rename only)")
     }
 
+    @Test
     func testLongShiftLeftUsesSixBitMaskedVariantWithoutNarrowing() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -185,22 +191,23 @@ final class IntegerNarrowingPassTests: XCTestCase {
 
         let lowered = body(declID, module)
         guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
-            return XCTFail("Expected the shift call to be present")
+            Issue.record("Expected the shift call to be present"); return
         }
         // Long shl uses the 64-bit variant (masks the distance to 6 bits) so
         // distances >= 64 are well defined, but the result is NOT narrowed to 32 bits.
-        XCTAssertEqual(interner.resolve(callee), "kk_op_lshl", "Long shl must use the 64-bit-aware variant")
-        XCTAssertEqual(args, [value, distance])
-        XCTAssertEqual(shiftResult, result)
+        #expect(interner.resolve(callee) == "kk_op_lshl", "Long shl must use the 64-bit-aware variant")
+        #expect(args == [value, distance])
+        #expect(shiftResult == result)
         let narrowCount = lowered.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                 return interner.resolve(callee) == "kk_int_narrow"
             }
             return false
         }.count
-        XCTAssertEqual(narrowCount, 0, "Long shift result must not be narrowed to 32 bits")
+        #expect(narrowCount == 0, "Long shift result must not be narrowed to 32 bits")
     }
 
+    @Test
     func testUIntAdditionResultIsNarrowedToUInt() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -220,24 +227,25 @@ final class IntegerNarrowingPassTests: XCTestCase {
         )
         let ctx = makeKIRContext(interner: interner, sema: sema)
 
-        XCTAssertTrue(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
+        #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
         let lowered = body(declID, module)
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
-            return XCTFail("Expected arithmetic call to be preserved")
+            Issue.record("Expected arithmetic call to be preserved"); return
         }
-        XCTAssertEqual(interner.resolve(addCallee), "kk_op_add")
-        XCTAssertNotEqual(addResult, result, "Arithmetic result should be redirected to a temporary")
+        #expect(interner.resolve(addCallee) == "kk_op_add")
+        #expect(addResult != result, "Arithmetic result should be redirected to a temporary")
 
         guard case let .call(_, narrowCallee, narrowArgs, narrowResult, _, _, _, _) = lowered[1] else {
-            return XCTFail("Expected a narrowing call after the arithmetic call")
+            Issue.record("Expected a narrowing call after the arithmetic call"); return
         }
-        XCTAssertEqual(interner.resolve(narrowCallee), "kk_uint_narrow")
-        XCTAssertEqual(narrowArgs, [addResult])
-        XCTAssertEqual(narrowResult, result, "Narrowing must write back to the original result id")
+        #expect(interner.resolve(narrowCallee) == "kk_uint_narrow")
+        #expect(narrowArgs == [addResult])
+        #expect(narrowResult == result, "Narrowing must write back to the original result id")
     }
 
+    @Test
     func testULongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -267,16 +275,17 @@ final class IntegerNarrowingPassTests: XCTestCase {
             }
             return false
         }.count
-        XCTAssertEqual(narrowCount, 0, "ULong arithmetic must not be narrowed to 32 or 64 bits")
+        #expect(narrowCount == 0, "ULong arithmetic must not be narrowed to 32 or 64 bits")
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
-            return XCTFail("Expected the ulong add call to be preserved")
+            Issue.record("Expected the ulong add call to be preserved"); return
         }
-        XCTAssertEqual(interner.resolve(addCallee), "kk_op_add")
-        XCTAssertEqual(addResult, result)
+        #expect(interner.resolve(addCallee) == "kk_op_add")
+        #expect(addResult == result)
     }
 
     // MARK: - shouldRun
 
+    @Test
     func testShouldRunReturnsFalseWithoutRelevantCallees() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -292,9 +301,10 @@ final class IntegerNarrowingPassTests: XCTestCase {
             arena: arena
         )
         let ctx = makeKIRContext(interner: interner, sema: sema)
-        XCTAssertFalse(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
+        #expect(!IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
     }
 
+    @Test
     func testShouldRunReturnsFalseWithoutSema() {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -310,6 +320,7 @@ final class IntegerNarrowingPassTests: XCTestCase {
             arena: arena
         )
         let ctx = makeKIRContext(interner: interner, sema: nil)
-        XCTAssertFalse(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx), "Pass requires sema type info")
+        #expect(!IntegerNarrowingPass().shouldRun(module: module, ctx: ctx), "Pass requires sema type info")
     }
 }
+#endif

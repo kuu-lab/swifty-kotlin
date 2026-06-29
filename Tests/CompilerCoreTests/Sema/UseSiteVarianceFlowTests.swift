@@ -1,8 +1,10 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class UseSiteVarianceFlowTests: XCTestCase {
+@Suite
+struct UseSiteVarianceFlowTests {
+    @Test
     func testOutProjectionBlocksWriteAndPreservesReadType() throws {
         let source = """
         class E
@@ -22,20 +24,21 @@ final class UseSiteVarianceFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let getCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let getCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "get"
             })
-            XCTAssertEqual(sema.bindings.exprType(for: getCall), sema.types.anyType)
+            #expect(sema.bindings.exprType(for: getCall) == sema.types.anyType)
 
             assertHasDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         }
     }
 
+    @Test
     func testStarProjectionReadsAsNullableAnyAndBlocksWrite() throws {
         let source = """
         class E
@@ -55,14 +58,14 @@ final class UseSiteVarianceFlowTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let getCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let getCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "get"
             })
-            XCTAssertEqual(sema.bindings.exprType(for: getCall), sema.types.nullableAnyType)
+            #expect(sema.bindings.exprType(for: getCall) == sema.types.nullableAnyType)
 
             assertHasDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)

@@ -1,12 +1,13 @@
 // STDLIB-UUID-FN-002: putUuid / uuid(at:) KIR lowering regression tests.
 // Verifies that ByteArray.putUuid and ByteArray.uuid(at:) lower to their
 // respective runtime callees (kk_byteArray_putUuid, kk_byteArray_uuid).
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testByteArrayPutUuidLowersToRuntimeCallee() throws {
+    @Test func testByteArrayPutUuidLowersToRuntimeCallee() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
@@ -22,18 +23,18 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "writeUuid", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_byteArray_putUuid"),
                 "ByteArray.putUuid must lower to kk_byteArray_putUuid; found callees: \(callees)"
             )
         }
     }
 
-    func testByteArrayUuidAtLowersToRuntimeCallee() throws {
+    @Test func testByteArrayUuidAtLowersToRuntimeCallee() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
@@ -49,18 +50,18 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "readUuid", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_byteArray_uuid"),
                 "ByteArray.uuid(at:) must lower to kk_byteArray_uuid; found callees: \(callees)"
             )
         }
     }
 
-    func testByteArrayPutUuidAndUuidAtRoundTripLowersCorrectly() throws {
+    @Test func testByteArrayPutUuidAndUuidAtRoundTripLowersCorrectly() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
@@ -79,18 +80,19 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "roundTrip", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_byteArray_putUuid"),
                 "round-trip: putUuid must lower to kk_byteArray_putUuid"
             )
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_byteArray_uuid"),
                 "round-trip: uuid(at:) must lower to kk_byteArray_uuid"
             )
         }
     }
 }
+#endif

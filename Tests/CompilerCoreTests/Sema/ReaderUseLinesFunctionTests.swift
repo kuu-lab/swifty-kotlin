@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-IO-FN-040: Reader.useLines { lines -> T }
 //
@@ -10,11 +11,12 @@ import XCTest
 // `useLines`) compiles and type-checks against the same `(List<String>) -> T`
 // surface as `File.useLines`.
 
-final class ReaderUseLinesFunctionTests: XCTestCase {
+@Suite
+struct ReaderUseLinesFunctionTests {
 
     // MARK: - Direct useLines call resolves and infers the block return type
 
-    func testBufferedReaderUseLinesReturnsListThroughBlock() throws {
+    @Test func testBufferedReaderUseLinesReturnsListThroughBlock() throws {
         let source = """
         import java.io.File
 
@@ -29,16 +31,16 @@ final class ReaderUseLinesFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "BufferedReader.useLines should resolve with List<String> lambda parameter: \(ctx.diagnostics.diagnostics.map(\.message))"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "BufferedReader.useLines should resolve with List<String> lambda parameter: \(ctx.diagnostics.diagnostics.map(\.message))")
             )
         }
     }
 
     // MARK: - Block accesses List<String> members on the parameter
 
-    func testBufferedReaderUseLinesBlockSeesListMembers() throws {
+    @Test func testBufferedReaderUseLinesBlockSeesListMembers() throws {
         let source = """
         import java.io.File
 
@@ -56,16 +58,16 @@ final class ReaderUseLinesFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "useLines lambda parameter should expose List<String> members: \(ctx.diagnostics.diagnostics.map(\.message))"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "useLines lambda parameter should expose List<String> members: \(ctx.diagnostics.diagnostics.map(\.message))")
             )
         }
     }
 
     // MARK: - Return type follows the block, supporting non-String results
 
-    func testBufferedReaderUseLinesPropagatesBlockReturnType() throws {
+    @Test func testBufferedReaderUseLinesPropagatesBlockReturnType() throws {
         let source = """
         import java.io.File
 
@@ -84,10 +86,11 @@ final class ReaderUseLinesFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "useLines block return type should flow back to the call site: \(ctx.diagnostics.diagnostics.map(\.message))"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "useLines block return type should flow back to the call site: \(ctx.diagnostics.diagnostics.map(\.message))")
             )
         }
     }
 }
+#endif

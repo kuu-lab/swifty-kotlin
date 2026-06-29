@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension OverloadResolverTests {
-    func testResolveCallPrefersNonNullReceiverExtensionOverNullable() {
+    @Test func testResolveCallPrefersNonNullReceiverExtensionOverNullable() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -46,11 +47,11 @@ extension OverloadResolverTests {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, nonNullExt)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == nonNullExt)
+        #expect(resolved.diagnostic == nil)
     }
 
-    func testResolveCallExtensionFunctionWithParameters() {
+    @Test func testResolveCallExtensionFunctionWithParameters() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -81,8 +82,9 @@ extension OverloadResolverTests {
             implicitReceiverType: stringType,
             ctx: ctx
         )
-        XCTAssertEqual(resolved.chosenCallee, ext)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 1])
+        #expect(resolved.chosenCallee == ext)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 1])
     }
 }
+#endif

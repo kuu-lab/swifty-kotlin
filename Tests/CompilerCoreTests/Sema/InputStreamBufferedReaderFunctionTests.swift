@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-007: Validates that `InputStream.bufferedReader(charset)` —
 /// the `kotlin.io` top-level extension on `java.io.InputStream` — resolves
@@ -10,9 +11,10 @@ import XCTest
 ///
 /// Runtime link names involved: `kk_input_stream_bufferedReader`,
 /// `kk_buffered_reader_readLine`, `kk_buffered_reader_close`.
-final class InputStreamBufferedReaderFunctionTests: XCTestCase {
+@Suite
+struct InputStreamBufferedReaderFunctionTests {
 
-    func testInputStreamBufferedReaderResolvesWithDefaultCharset() throws {
+    @Test func testInputStreamBufferedReaderResolvesWithDefaultCharset() throws {
         let ctx = makeContextFromSource("""
         import java.io.ByteArrayInputStream
         import java.io.BufferedReader
@@ -28,13 +30,13 @@ final class InputStreamBufferedReaderFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "InputStream.bufferedReader() with default charset should type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testInputStreamBufferedReaderResolvesWithExplicitCharset() throws {
+    @Test func testInputStreamBufferedReaderResolvesWithExplicitCharset() throws {
         let ctx = makeContextFromSource("""
         import java.io.ByteArrayInputStream
         import java.io.BufferedReader
@@ -49,20 +51,21 @@ final class InputStreamBufferedReaderFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "InputStream.bufferedReader(Charsets.UTF_8) should type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testInputStreamBufferedReaderSignatureIsExtensionOnInputStream() throws {
+    @Test func testInputStreamBufferedReaderSignatureIsExtensionOnInputStream() throws {
         let ctx = makeContextFromSource("""
         fun probe() {}
         """)
         try runSema(ctx)
 
         guard let sema = ctx.sema else {
-            return XCTFail("Sema module unavailable after runSema")
+            Issue.record("Sema module unavailable after runSema")
+            return
         }
         let symbols = sema.symbols
         let types = sema.types
@@ -86,10 +89,12 @@ final class InputStreamBufferedReaderFunctionTests: XCTestCase {
             interner.intern("BufferedReader"),
         ]
         guard let inputStreamSymbol = symbols.lookup(fqName: inputStreamFQName) else {
-            return XCTFail("InputStream class symbol not registered")
+            Issue.record("InputStream class symbol not registered")
+            return
         }
         guard let bufferedReaderSymbol = symbols.lookup(fqName: bufferedReaderClassFQName) else {
-            return XCTFail("BufferedReader class symbol not registered")
+            Issue.record("BufferedReader class symbol not registered")
+            return
         }
 
         let inputStreamType = types.make(.classType(ClassType(
@@ -108,24 +113,25 @@ final class InputStreamBufferedReaderFunctionTests: XCTestCase {
         }
 
         guard let functionSymbol = matching else {
-            return XCTFail(
+            Issue.record(
                 "kotlin.io.bufferedReader extension on InputStream not registered (found \(candidates.count) candidate(s))"
             )
+            return
         }
 
-        XCTAssertEqual(
-            symbols.externalLinkName(for: functionSymbol),
-            "kk_input_stream_bufferedReader",
+        #expect(
+            symbols.externalLinkName(for: functionSymbol) == "kk_input_stream_bufferedReader",
             "InputStream.bufferedReader must link to kk_input_stream_bufferedReader"
         )
 
         guard let signature = symbols.functionSignature(for: functionSymbol) else {
-            return XCTFail("Function signature unavailable")
+            Issue.record("Function signature unavailable")
+            return
         }
-        XCTAssertEqual(
-            signature.valueParameterHasDefaultValues,
-            [true],
+        #expect(
+            signature.valueParameterHasDefaultValues == [true],
             "InputStream.bufferedReader's charset parameter must carry a default value"
         )
     }
 }
+#endif

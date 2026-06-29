@@ -1,17 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ASTModelsTests: XCTestCase {
+@Suite
+struct ASTModelsTests {
+    @Test
     func testIDInitializersSupportDefaultAndExplicitValues() {
-        XCTAssertEqual(ASTNodeID(), .invalid)
-        XCTAssertEqual(ExprID(), .invalid)
-        XCTAssertEqual(TypeRefID(), .invalid)
+        #expect(ASTNodeID() == .invalid)
+        #expect(ExprID() == .invalid)
+        #expect(TypeRefID() == .invalid)
 
-        XCTAssertEqual(ASTNodeID(rawValue: 10).rawValue, 10)
-        XCTAssertEqual(ExprID(rawValue: 11).rawValue, 11)
-        XCTAssertEqual(TypeRefID(rawValue: 12).rawValue, 12)
+        #expect(ASTNodeID(rawValue: 10).rawValue == 10)
+        #expect(ExprID(rawValue: 11).rawValue == 11)
+        #expect(TypeRefID(rawValue: 12).rawValue == 12)
     }
 
+    @Test
     func testFunDeclInitializerAppliesDefaults() {
         let interner = StringInterner()
         let name = interner.intern("run")
@@ -21,26 +25,28 @@ final class ASTModelsTests: XCTestCase {
             modifiers: [.public]
         )
 
-        XCTAssertEqual(decl.name, name)
-        XCTAssertTrue(decl.typeParams.isEmpty)
-        XCTAssertNil(decl.receiverType)
-        XCTAssertTrue(decl.valueParams.isEmpty)
-        XCTAssertNil(decl.returnType)
-        XCTAssertEqual(decl.body, .unit)
-        XCTAssertFalse(decl.isSuspend)
-        XCTAssertFalse(decl.isInline)
+        #expect(decl.name == name)
+        #expect(decl.typeParams.isEmpty)
+        #expect(decl.receiverType == nil)
+        #expect(decl.valueParams.isEmpty)
+        #expect(decl.returnType == nil)
+        #expect(decl.body == .unit)
+        #expect(!(decl.isSuspend))
+        #expect(!(decl.isInline))
     }
 
+    @Test
     func testModifiersOptionSetComposition() {
         let modifiers: Modifiers = [.public, .inline, .operator, .tailrec]
 
-        XCTAssertTrue(modifiers.contains(.public))
-        XCTAssertTrue(modifiers.contains(.inline))
-        XCTAssertTrue(modifiers.contains(.operator))
-        XCTAssertTrue(modifiers.contains(.tailrec))
-        XCTAssertFalse(modifiers.contains(.private))
+        #expect(modifiers.contains(.public))
+        #expect(modifiers.contains(.inline))
+        #expect(modifiers.contains(.operator))
+        #expect(modifiers.contains(.tailrec))
+        #expect(!(modifiers.contains(.private)))
     }
 
+    @Test
     func testASTArenaAppendLookupAndDeclarationSnapshot() {
         let interner = StringInterner()
         let name = interner.intern("C")
@@ -62,57 +68,59 @@ final class ASTModelsTests: XCTestCase {
         )
         let propertyID = arena.appendDecl(.propertyDecl(propertyDecl))
 
-        XCTAssertEqual(classID.rawValue, 0)
-        XCTAssertEqual(propertyID.rawValue, 1)
-        XCTAssertNotNil(arena.decl(classID))
-        XCTAssertNotNil(arena.decl(propertyID))
-        XCTAssertNil(arena.decl(DeclID(rawValue: -1)))
-        XCTAssertNil(arena.decl(DeclID(rawValue: 999)))
-        XCTAssertEqual(arena.declarations().count, 2)
+        #expect(classID.rawValue == 0)
+        #expect(propertyID.rawValue == 1)
+        #expect(arena.decl(classID) != nil)
+        #expect(arena.decl(propertyID) != nil)
+        #expect(arena.decl(DeclID(rawValue: -1)) == nil)
+        #expect(arena.decl(DeclID(rawValue: 999)) == nil)
+        #expect(arena.declarations().count == 2)
 
         let typeRefID = arena.appendTypeRef(.named(path: [interner.intern("Int")], args: [], nullable: false))
-        XCTAssertEqual(typeRefID.rawValue, 0)
-        XCTAssertNotNil(arena.typeRef(typeRefID))
-        XCTAssertNil(arena.typeRef(TypeRefID(rawValue: 999)))
+        #expect(typeRefID.rawValue == 0)
+        #expect(arena.typeRef(typeRefID) != nil)
+        #expect(arena.typeRef(TypeRefID(rawValue: 999)) == nil)
     }
 
+    @Test
     func testDeclModelStructInitializers() {
         let interner = StringInterner()
         let range = makeRange(start: 5, end: 9)
         let typeRef = TypeRefID(rawValue: 4)
 
         let objectDecl = ObjectDecl(range: range, name: interner.intern("Name"), modifiers: [.public])
-        XCTAssertEqual(objectDecl.name, interner.intern("Name"))
+        #expect(objectDecl.name == interner.intern("Name"))
 
         let typeAliasDecl = TypeAliasDecl(range: range, name: interner.intern("Alias"), modifiers: [.internal])
-        XCTAssertEqual(typeAliasDecl.modifiers, [.internal])
+        #expect(typeAliasDecl.modifiers == [.internal])
 
         let enumEntryDecl = EnumEntryDecl(range: range, name: interner.intern("Entry"))
-        XCTAssertEqual(enumEntryDecl.range, range)
+        #expect(enumEntryDecl.range == range)
 
         let importDecl = ImportDecl(
             range: range,
             path: [interner.intern("kotlin"), interner.intern("collections")],
             alias: nil
         )
-        XCTAssertEqual(importDecl.path.count, 2)
-        XCTAssertNil(importDecl.alias)
+        #expect(importDecl.path.count == 2)
+        #expect(importDecl.alias == nil)
 
         let aliasedImport = ImportDecl(
             range: range,
             path: [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")],
             alias: interner.intern("KList")
         )
-        XCTAssertEqual(aliasedImport.alias, interner.intern("KList"))
-        XCTAssertEqual(aliasedImport.path.count, 3)
+        #expect(aliasedImport.alias == interner.intern("KList"))
+        #expect(aliasedImport.path.count == 3)
 
         let typeParam = TypeParamDecl(name: interner.intern("T"), upperBounds: [])
-        XCTAssertEqual(typeParam.name, interner.intern("T"))
+        #expect(typeParam.name == interner.intern("T"))
 
         let valueParam = ValueParamDecl(name: interner.intern("value"), type: typeRef)
-        XCTAssertEqual(valueParam.type, typeRef)
+        #expect(valueParam.type == typeRef)
     }
 
+    @Test
     func testASTFileInitializer() {
         let interner = StringInterner()
         let range = makeRange(start: 5, end: 9)
@@ -129,12 +137,13 @@ final class ASTModelsTests: XCTestCase {
             topLevelDecls: [DeclID(rawValue: 0)],
             scriptBody: []
         )
-        XCTAssertEqual(file.fileID, FileID(rawValue: 1))
-        XCTAssertEqual(file.packageFQName.count, 1)
-        XCTAssertEqual(file.imports.count, 1)
-        XCTAssertEqual(file.topLevelDecls.count, 1)
+        #expect(file.fileID == FileID(rawValue: 1))
+        #expect(file.packageFQName.count == 1)
+        #expect(file.imports.count == 1)
+        #expect(file.topLevelDecls.count == 1)
     }
 
+    @Test
     func testASTModuleFullAndCompactInitializers() {
         let interner = StringInterner()
         let file = ASTFile(
@@ -147,16 +156,17 @@ final class ASTModelsTests: XCTestCase {
 
         let fullArena = ASTArena()
         let fullModule = ASTModule(files: [file], arena: fullArena, declarationCount: 7, tokenCount: 13)
-        XCTAssertEqual(fullModule.files.count, 1)
-        XCTAssertEqual(fullModule.declarationCount, 7)
-        XCTAssertEqual(fullModule.tokenCount, 13)
+        #expect(fullModule.files.count == 1)
+        #expect(fullModule.declarationCount == 7)
+        #expect(fullModule.tokenCount == 13)
 
         let compactModule = ASTModule(declarationCount: 2, tokenCount: 3)
-        XCTAssertTrue(compactModule.files.isEmpty)
-        XCTAssertEqual(compactModule.declarationCount, 2)
-        XCTAssertEqual(compactModule.tokenCount, 3)
+        #expect(compactModule.files.isEmpty)
+        #expect(compactModule.declarationCount == 2)
+        #expect(compactModule.tokenCount == 3)
     }
 
+    @Test
     func testExprRangeReturnsRangeForAllExprCases() {
         let interner = StringInterner()
         let arena = ASTArena()
@@ -303,16 +313,18 @@ final class ASTModelsTests: XCTestCase {
 
         for (index, exprCase) in cases.enumerated() {
             let id = arena.appendExpr(exprCase)
-            XCTAssertEqual(arena.exprRange(id), range, "Expr case at index \(index) failed")
+            #expect(arena.exprRange(id) == range, "Expr case at index \(index) failed")
         }
     }
 
+    @Test
     func testExprRangeReturnsNilForInvalidID() {
         let arena = ASTArena()
-        XCTAssertNil(arena.exprRange(ExprID(rawValue: -1)))
-        XCTAssertNil(arena.exprRange(ExprID(rawValue: 999)))
+        #expect(arena.exprRange(ExprID(rawValue: -1)) == nil)
+        #expect(arena.exprRange(ExprID(rawValue: 999)) == nil)
     }
 
+    @Test
     func testSortedFilesReturnsByFileID() {
         let arena = ASTArena()
         let file0 = ASTFile(fileID: FileID(rawValue: 2), packageFQName: [], imports: [], topLevelDecls: [], scriptBody: [])
@@ -320,27 +332,40 @@ final class ASTModelsTests: XCTestCase {
         let file2 = ASTFile(fileID: FileID(rawValue: 1), packageFQName: [], imports: [], topLevelDecls: [], scriptBody: [])
         let module = ASTModule(files: [file0, file1, file2], arena: arena, declarationCount: 0, tokenCount: 0)
         let sorted = module.sortedFiles
-        XCTAssertEqual(sorted[0].fileID, FileID(rawValue: 0))
-        XCTAssertEqual(sorted[1].fileID, FileID(rawValue: 1))
-        XCTAssertEqual(sorted[2].fileID, FileID(rawValue: 2))
+        #expect(sorted[0].fileID == FileID(rawValue: 0))
+        #expect(sorted[1].fileID == FileID(rawValue: 1))
+        #expect(sorted[2].fileID == FileID(rawValue: 2))
     }
 
+    @Test
     func testTypeRefFunctionTypeLookup() {
         let arena = ASTArena()
         let paramTypeRef = arena.appendTypeRef(.named(path: [], args: [], nullable: false))
         let returnTypeRef = arena.appendTypeRef(.named(path: [], args: [], nullable: false))
         let funcTypeID = arena.appendTypeRef(.functionType(contextReceivers: [], receiver: nil, params: [paramTypeRef], returnType: returnTypeRef, isSuspend: true, nullable: false))
         if case let .functionType(contextReceivers, _, params, ret, suspend, nullable) = arena.typeRef(funcTypeID) {
-            XCTAssertTrue(contextReceivers.isEmpty)
-            XCTAssertEqual(params.count, 1)
-            XCTAssertEqual(ret, returnTypeRef)
-            XCTAssertTrue(suspend)
-            XCTAssertFalse(nullable)
+            #expect(contextReceivers.isEmpty)
+            #expect(params.count == 1)
+            #expect(ret == returnTypeRef)
+            #expect(suspend)
+            #expect(!(nullable))
         } else {
-            XCTFail("Expected .functionType")
+            Issue.record("Expected .functionType")
         }
     }
 
+    @Test
+    func testTypeArgRefCases() {
+        let typeRef = TypeRefID(rawValue: 0)
+        let invariant = TypeArgRef.invariant(typeRef)
+        let outArg = TypeArgRef.out(typeRef)
+        let inArg = TypeArgRef.in(typeRef)
+        let star = TypeArgRef.star
+        #expect(invariant != star)
+        #expect(outArg != inArg)
+    }
+
+    @Test
     func testPropertyAccessorDeclSetterWithExprBody() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)
@@ -348,15 +373,16 @@ final class ASTModelsTests: XCTestCase {
         let name = interner.intern("x")
 
         let setter = PropertyAccessorDecl(range: range, kind: .setter, parameterName: name, body: .expr(exprID, range))
-        XCTAssertEqual(setter.kind, .setter)
-        XCTAssertEqual(setter.parameterName, name)
+        #expect(setter.kind == .setter)
+        #expect(setter.parameterName == name)
         if case let .expr(expr, _) = setter.body {
-            XCTAssertEqual(expr, exprID)
+            #expect(expr == exprID)
         } else {
-            XCTFail("Expected .expr body")
+            Issue.record("Expected .expr body")
         }
     }
 
+    @Test
     func testPropertyDeclWithAllFields() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)
@@ -370,12 +396,13 @@ final class ASTModelsTests: XCTestCase {
             range: range, name: name, modifiers: [.public], type: typeRef,
             isVar: true, initializer: exprID, getter: getter, setter: setter, delegateExpression: exprID
         )
-        XCTAssertTrue(propDecl.isVar)
-        XCTAssertEqual(propDecl.getter?.kind, .getter)
-        XCTAssertEqual(propDecl.setter?.kind, .setter)
-        XCTAssertEqual(propDecl.delegateExpression, exprID)
+        #expect(propDecl.isVar)
+        #expect(propDecl.getter?.kind == .getter)
+        #expect(propDecl.setter?.kind == .setter)
+        #expect(propDecl.delegateExpression == exprID)
     }
 
+    @Test
     func testValueParamDeclWithDefaultAndVararg() {
         let interner = StringInterner()
         let typeRef = TypeRefID(rawValue: 0)
@@ -383,22 +410,24 @@ final class ASTModelsTests: XCTestCase {
         let name = interner.intern("x")
 
         let param = ValueParamDecl(name: name, type: typeRef, hasDefaultValue: true, isVararg: true, defaultValue: exprID)
-        XCTAssertTrue(param.hasDefaultValue)
-        XCTAssertTrue(param.isVararg)
-        XCTAssertEqual(param.defaultValue, exprID)
+        #expect(param.hasDefaultValue)
+        #expect(param.isVararg)
+        #expect(param.defaultValue == exprID)
     }
 
+    @Test
     func testTypeParamDeclWithVarianceAndBound() {
         let interner = StringInterner()
         let typeRef = TypeRefID(rawValue: 0)
         let name = interner.intern("x")
 
         let typeParam = TypeParamDecl(name: name, variance: .out, isReified: true, upperBound: typeRef)
-        XCTAssertEqual(typeParam.variance, .out)
-        XCTAssertTrue(typeParam.isReified)
-        XCTAssertEqual(typeParam.upperBound, typeRef)
+        #expect(typeParam.variance == .out)
+        #expect(typeParam.isReified)
+        #expect(typeParam.upperBound == typeRef)
     }
 
+    @Test
     func testFunDeclWithAllExplicitFields() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)
@@ -413,13 +442,14 @@ final class ASTModelsTests: XCTestCase {
             typeParams: [typeParam], receiverType: typeRef, valueParams: [param],
             returnType: typeRef, body: .block([exprID], range), isSuspend: true, isInline: true
         )
-        XCTAssertTrue(funDecl.isSuspend)
-        XCTAssertTrue(funDecl.isInline)
-        XCTAssertEqual(funDecl.receiverType, typeRef)
-        XCTAssertEqual(funDecl.returnType, typeRef)
-        XCTAssertEqual(funDecl.typeParams.count, 1)
+        #expect(funDecl.isSuspend)
+        #expect(funDecl.isInline)
+        #expect(funDecl.receiverType == typeRef)
+        #expect(funDecl.returnType == typeRef)
+        #expect(funDecl.typeParams.count == 1)
     }
 
+    @Test
     func testInterfaceDeclWithTypeParamsAndSuperTypes() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)
@@ -428,16 +458,17 @@ final class ASTModelsTests: XCTestCase {
 
         let typeParam = TypeParamDecl(name: name, variance: .out, isReified: true, upperBound: typeRef)
         let alias = TypeAliasDecl(range: range, name: name, modifiers: [], typeParams: [typeParam], underlyingType: typeRef)
-        XCTAssertEqual(alias.underlyingType, typeRef)
+        #expect(alias.underlyingType == typeRef)
         let iface = InterfaceDecl(
             range: range, name: name, modifiers: [],
             typeParams: [typeParam], superTypes: [typeRef], nestedTypeAliases: [alias]
         )
-        XCTAssertEqual(iface.typeParams.count, 1)
-        XCTAssertEqual(iface.superTypes.count, 1)
-        XCTAssertEqual(iface.nestedTypeAliases.count, 1)
+        #expect(iface.typeParams.count == 1)
+        #expect(iface.superTypes.count == 1)
+        #expect(iface.nestedTypeAliases.count == 1)
     }
 
+    @Test
     func testWhenBranchCallArgumentAndCatchClauseInit() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)
@@ -445,13 +476,17 @@ final class ASTModelsTests: XCTestCase {
         let name = interner.intern("x")
 
         let branch = WhenBranch(conditions: [exprID], body: exprID, range: range)
-        XCTAssertEqual(branch.conditions.first, exprID)
+        #expect(branch.conditions.first == exprID)
         let callArg = CallArgument(label: name, isSpread: true, expr: exprID)
-        XCTAssertEqual(callArg.label, name)
-        XCTAssertTrue(callArg.isSpread)
+        #expect(callArg.label == name)
+        #expect(callArg.isSpread)
         let catchClause = CatchClause(paramName: name, paramTypeName: name, body: exprID, range: range)
-        XCTAssertEqual(catchClause.paramName, name)
-        XCTAssertEqual(catchClause.paramTypeName, name)
+        #expect(catchClause.paramName == name)
+        #expect(catchClause.paramTypeName == name)
     }
 
+    // MARK: - Expr variants
+
+    // MARK: - ASTArena expr() method
 }
+#endif

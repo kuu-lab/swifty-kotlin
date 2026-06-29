@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-015: Validates that `File.copyTo(target, overwrite, bufferSize)`
 /// resolves through Sema for the `java.io.File` receiver and produces a `File`.
@@ -16,11 +17,12 @@ import XCTest
 ///     ): File
 ///
 /// Declared in the `kotlin.io` package.
-final class FileCopyToFunctionTests: XCTestCase {
+@Suite
+struct FileCopyToFunctionTests {
 
     // MARK: - Single-argument overload (defaults for overwrite and bufferSize)
 
-    func testFileCopyToWithJustTargetResolves() throws {
+    @Test func testFileCopyToWithJustTargetResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
         import kotlin.io.copyTo
@@ -29,7 +31,7 @@ final class FileCopyToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected File.copyTo(target) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -37,7 +39,7 @@ final class FileCopyToFunctionTests: XCTestCase {
 
     // MARK: - Two-argument overload (overwrite supplied)
 
-    func testFileCopyToWithOverwriteFlagResolves() throws {
+    @Test func testFileCopyToWithOverwriteFlagResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
         import kotlin.io.copyTo
@@ -46,7 +48,7 @@ final class FileCopyToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected File.copyTo(target, overwrite) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -54,7 +56,7 @@ final class FileCopyToFunctionTests: XCTestCase {
 
     // MARK: - Three-argument overload (all parameters supplied)
 
-    func testFileCopyToWithAllArgumentsResolves() throws {
+    @Test func testFileCopyToWithAllArgumentsResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
         import kotlin.io.copyTo
@@ -63,7 +65,7 @@ final class FileCopyToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected File.copyTo(target, overwrite, bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -71,7 +73,7 @@ final class FileCopyToFunctionTests: XCTestCase {
 
     // MARK: - Named arguments via default values
 
-    func testFileCopyToWithNamedBufferSizeResolves() throws {
+    @Test func testFileCopyToWithNamedBufferSizeResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
         import kotlin.io.copyTo
@@ -81,7 +83,7 @@ final class FileCopyToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected File.copyTo with named bufferSize to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -89,7 +91,7 @@ final class FileCopyToFunctionTests: XCTestCase {
 
     // MARK: - Sema surface inspection
 
-    func testFileCopyToExtensionFunctionSurfaceIsRegistered() throws {
+    @Test func testFileCopyToExtensionFunctionSurfaceIsRegistered() throws {
         let source = """
         import java.io.File
         import kotlin.io.copyTo
@@ -100,17 +102,17 @@ final class FileCopyToFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "File.copyTo extension function in kotlin.io should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let fileSymbol = try XCTUnwrap(
+            let fileSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
             )
             let fileType = types.make(.classType(ClassType(
@@ -120,7 +122,7 @@ final class FileCopyToFunctionTests: XCTestCase {
             let copyToCandidates = symbols.lookupAll(
                 fqName: ["kotlin", "io", "copyTo"].map(interner.intern)
             )
-            let copyTo = try XCTUnwrap(copyToCandidates.first { symbolID in
+            let copyTo = try #require(copyToCandidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -129,14 +131,14 @@ final class FileCopyToFunctionTests: XCTestCase {
                     && signature.returnType == fileType
             })
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: copyTo),
-                "kk_file_copyTo"
+            #expect(
+                symbols.externalLinkName(for: copyTo) == "kk_file_copyTo"
             )
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: copyTo))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, true, true])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, false])
+            let signature = try #require(symbols.functionSignature(for: copyTo))
+            #expect(signature.valueParameterHasDefaultValues == [false, true, true])
+            #expect(signature.valueParameterIsVararg == [false, false, false])
         }
     }
 }
+#endif

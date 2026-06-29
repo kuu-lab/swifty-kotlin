@@ -1,12 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-PROP-016: Validates that `kotlin.text.isTitleCase` resolves
 /// through Sema as a Char extension (Kotlin spec defines it as
 /// `fun Char.isTitleCase(): Boolean`). The runtime link name involved is
 /// `kk_char_isTitleCase`.
-final class CharIsTitleCaseFunctionTests: XCTestCase {
-    func testIsTitleCaseResolvesOnCharLiteralReceiver() throws {
+@Suite
+struct CharIsTitleCaseFunctionTests {
+    @Test func testIsTitleCaseResolvesOnCharLiteralReceiver() throws {
         let ctx = makeContextFromSource("""
         fun isTitleOfLiteral(): Boolean {
             return 'A'.isTitleCase()
@@ -14,13 +16,13 @@ final class CharIsTitleCaseFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected isTitleCase to type-check on a Char literal, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testIsTitleCaseResolvesOnCharParameterReceiver() throws {
+    @Test func testIsTitleCaseResolvesOnCharParameterReceiver() throws {
         let ctx = makeContextFromSource("""
         fun isTitle(ch: Char): Boolean {
             return ch.isTitleCase()
@@ -28,16 +30,16 @@ final class CharIsTitleCaseFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected isTitleCase to type-check on a Char parameter, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testIsTitleCaseLinksToCorrectRuntimeSymbol() throws {
+    @Test func testIsTitleCaseLinksToCorrectRuntimeSymbol() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let fq = ["kotlin", "text", "isTitleCase"].map { ctx.interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
         let charReceiverSymbol = candidates.first { symbolID in
@@ -48,10 +50,11 @@ final class CharIsTitleCaseFunctionTests: XCTestCase {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == sema.types.booleanType
         }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             charReceiverSymbol,
             "Char.isTitleCase() synthetic stub should be registered"
         )
-        XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_char_isTitleCase")
+        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_char_isTitleCase")
     }
 }
+#endif

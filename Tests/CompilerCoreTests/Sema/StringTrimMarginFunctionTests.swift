@@ -1,7 +1,9 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class StringTrimMarginFunctionTests: XCTestCase {
+@Suite
+struct StringTrimMarginFunctionTests {
+    @Test
     func testTrimMarginNoArgResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripDefaultMargin(s: String): String {
@@ -9,9 +11,10 @@ final class StringTrimMarginFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
     func testTrimMarginWithCustomPrefixResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripGreaterThanMargin(s: String): String {
@@ -19,6 +22,6 @@ final class StringTrimMarginFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }

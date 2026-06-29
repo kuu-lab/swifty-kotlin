@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 func assertHasDiagnostic(
     _ code: String,
@@ -8,7 +9,7 @@ func assertHasDiagnostic(
     line: UInt = #line
 ) {
     let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
-    XCTAssertTrue(found, "Expected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))", file: file, line: line)
+    #expect(found, "Expected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
 }
 
 func assertNoDiagnostic(
@@ -18,7 +19,7 @@ func assertNoDiagnostic(
     line: UInt = #line
 ) {
     let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
-    XCTAssertFalse(found, "Unexpected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))", file: file, line: line)
+    #expect(!(found), "Unexpected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
 }
 
 func assertDiagnosticCount(
@@ -29,5 +30,6 @@ func assertDiagnosticCount(
     line: UInt = #line
 ) {
     let count = ctx.diagnostics.diagnostics.filter { $0.code == code }.count
-    XCTAssertEqual(count, expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))", file: file, line: line)
+    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
 }
+#endif

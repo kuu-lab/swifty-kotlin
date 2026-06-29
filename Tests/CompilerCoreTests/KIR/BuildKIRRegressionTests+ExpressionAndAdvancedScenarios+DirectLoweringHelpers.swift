@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 struct KIRDirectLoweringFixture {
     let interner: StringInterner
@@ -137,3 +138,4 @@ func appendSafeMemberExprWithoutType(
         )
     )
 }
+#endif

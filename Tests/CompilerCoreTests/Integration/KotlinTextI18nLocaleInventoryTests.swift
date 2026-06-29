@@ -1,11 +1,40 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Foundation
+import Testing
 
-final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
+// MARK: - STDLIB-I18N-COMMON-001: kotlin.text / common formatting and locale inventory
+//
+// This file documents which Kotlin common-scope i18n / locale APIs are implemented
+// in the KSwiftK runtime and which are absent (gaps).
+//
+// Implemented (common scope):
+//   - String.lowercase()                   -> bundled Kotlin source
+//   - String.uppercase()                   -> bundled Kotlin source
+//   - String.lowercase(Locale)             -> bundled Kotlin wrapper + kk_string_lowercase_locale
+//   - String.uppercase(Locale)             -> bundled Kotlin wrapper + kk_string_uppercase_locale
+//   - String.compareTo(String, Locale)     → kk_string_compareTo_locale
+//   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
+//   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
+//   - String.toIntOrNull(radix)            → kk_string_toIntOrNull_radix
+//   - String.format(format, vararg args)   → kk_string_format  (platform fmt, no locale overload)
+//   - String.Companion.format(locale, format, vararg args) → kk_string_format_locale
+//   - Char.uppercase()                     → kk_char_uppercase  (returns String per Kotlin spec)
+//   - Char.uppercase(Locale)               → kk_char_uppercase_locale
+//   - Char.lowercase()                     → kk_char_lowercase  (returns String per Kotlin spec)
+//   - Char.lowercase(Locale)               → kk_char_lowercase_locale
+//   - Char.titlecase()                     → kk_char_titlecase
+//   - Char.directionality                  → kk_char_directionality  (CharDirectionality enum)
+//
+// Gaps (absent in common scope):
+//   - String.format(locale, vararg args)  — locale-parameterised receiver overload absent
+//   - NumberFormat (java.text) is JVM/platform only, not common multiplatform
+
+@Suite struct KotlinTextI18nLocaleInventoryTests {
 
     // MARK: - String.lowercase() / String.uppercase() — no locale (common)
 
-    func testStringLowercaseNoLocale() throws {
+    @Test func testStringLowercaseNoLocale() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "Hello WORLD"
@@ -15,7 +44,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringUppercaseNoLocale() throws {
+    @Test func testStringUppercaseNoLocale() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello world"
@@ -27,7 +56,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - String.lowercase(Locale) / String.uppercase(Locale)
 
-    func testStringLowercaseWithLocale_enUS() throws {
+    @Test func testStringLowercaseWithLocale_enUS() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -40,7 +69,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringUppercaseWithLocale_enUS() throws {
+    @Test func testStringUppercaseWithLocale_enUS() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -53,7 +82,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringLowercaseWithLocale_trTR() throws {
+    @Test func testStringLowercaseWithLocale_trTR() throws {
         // Turkish locale: dotted-I (I) lowercases to 'i' in tr-TR context
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
@@ -66,7 +95,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringUppercaseWithLocale_trTR() throws {
+    @Test func testStringUppercaseWithLocale_trTR() throws {
         // Turkish locale: 'i' uppercases to 'I' with locale context
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
@@ -81,7 +110,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - String.compareTo with Locale
 
-    func testStringCompareToWithLocale() throws {
+    @Test func testStringCompareToWithLocale() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -95,7 +124,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - String.toInt(radix) — throwing variant
 
-    func testStringToIntRadix2() throws {
+    @Test func testStringToIntRadix2() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val n = "1010".toInt(2)
@@ -104,7 +133,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringToIntRadix16() throws {
+    @Test func testStringToIntRadix16() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val n = "ff".toInt(16)
@@ -113,7 +142,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringToIntRadixInvalidThrows() throws {
+    @Test func testStringToIntRadixInvalidThrows() throws {
         // radix outside 2..36 must throw IllegalArgumentException
         try assertKotlinCompilesToKIR("""
         fun main() {
@@ -126,7 +155,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringToIntRadixBadInputThrows() throws {
+    @Test func testStringToIntRadixBadInputThrows() throws {
         // input not representable in given radix must throw NumberFormatException
         try assertKotlinCompilesToKIR("""
         fun main() {
@@ -141,7 +170,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - String.toIntOrNull() / String.toIntOrNull(radix)
 
-    func testStringToIntOrNullValid() throws {
+    @Test func testStringToIntOrNullValid() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val n: Int? = "42".toIntOrNull()
@@ -150,7 +179,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringToIntOrNullInvalid() throws {
+    @Test func testStringToIntOrNullInvalid() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val n: Int? = "not_a_number".toIntOrNull()
@@ -159,7 +188,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringToIntOrNullRadixValid() throws {
+    @Test func testStringToIntOrNullRadixValid() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val n: Int? = "ff".toIntOrNull(16)
@@ -168,7 +197,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringToIntOrNullRadixInvalid() throws {
+    @Test func testStringToIntOrNullRadixInvalid() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val n: Int? = "xz".toIntOrNull(16)
@@ -179,7 +208,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - String.format (no-locale overload — implemented)
 
-    func testStringFormatNoLocale() throws {
+    @Test func testStringFormatNoLocale() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result = String.format("Hello, %s! You are %d years old.", "Alice", 30)
@@ -188,7 +217,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringFormatFloatSpecifier() throws {
+    @Test func testStringFormatFloatSpecifier() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result = String.format("Pi is approximately %.2f", 3.14159)
@@ -197,7 +226,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testStringCompanionFormatLocaleSpecifier() throws {
+    @Test func testStringCompanionFormatLocaleSpecifier() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -211,7 +240,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - Char.uppercase() / Char.lowercase() — no locale (common)
 
-    func testCharUppercaseNoLocale() throws {
+    @Test func testCharUppercaseNoLocale() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val c = 'a'
@@ -221,7 +250,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testCharUppercaseWithLocale_trTR() throws {
+    @Test func testCharUppercaseWithLocale_trTR() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -233,7 +262,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testCharLowercaseNoLocale() throws {
+    @Test func testCharLowercaseNoLocale() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val c = 'Z'
@@ -243,7 +272,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testCharLowercaseWithLocale_trTR() throws {
+    @Test func testCharLowercaseWithLocale_trTR() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -255,7 +284,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testCharTitlecase() throws {
+    @Test func testCharTitlecase() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val c = 'a'
@@ -267,7 +296,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - Char classification helpers used in i18n context
 
-    func testCharIsUpperCase() throws {
+    @Test func testCharIsUpperCase() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result = 'A'.isUpperCase()
@@ -276,7 +305,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testCharIsLowerCase() throws {
+    @Test func testCharIsLowerCase() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result = 'a'.isLowerCase()
@@ -285,7 +314,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testCharDirectionalityEnumSurface() throws {
+    @Test func testCharDirectionalityEnumSurface() throws {
         try assertKotlinCompilesToKIR("""
         import kotlin.text.CharDirectionality
 
@@ -298,7 +327,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
     // MARK: - Locale construction edge cases
 
-    func testLocaleByIdentifier() throws {
+    @Test func testLocaleByIdentifier() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -310,7 +339,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testLocaleByLanguageAndCountry() throws {
+    @Test func testLocaleByLanguageAndCountry() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -322,7 +351,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testLocaleGetDefault() throws {
+    @Test func testLocaleGetDefault() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -333,7 +362,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testLocaleSetDefault() throws {
+    @Test func testLocaleSetDefault() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -346,7 +375,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testLocaleDisplayLanguage() throws {
+    @Test func testLocaleDisplayLanguage() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -357,7 +386,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testLocaleEquality() throws {
+    @Test func testLocaleEquality() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -370,7 +399,7 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 
-    func testLocaleHashCode() throws {
+    @Test func testLocaleHashCode() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -382,3 +411,4 @@ final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
         """)
     }
 }
+#endif
