@@ -1,11 +1,12 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-036: Validates that `CharSequence.lineSequence()` resolves
 /// through Sema for `String` / `CharSequence` receivers, dispatches to the
 /// runtime helper `kk_string_lineSequence`, and is classified as non-throwing.
-final class StringLineSequenceFunctionTests: XCTestCase {
+@Suite
+struct StringLineSequenceFunctionTests {
     private func allMemberCallExprIDs(
         named member: String,
         in ast: ASTModule,
@@ -24,7 +25,7 @@ final class StringLineSequenceFunctionTests: XCTestCase {
     }
 
     /// Sema should resolve `String.lineSequence()` cleanly without errors.
-    func testLineSequenceOnStringResolves() throws {
+    @Test func testLineSequenceOnStringResolves() throws {
         let source = """
         fun splitText(s: String) {
             for (line in s.lineSequence()) {
@@ -38,23 +39,23 @@ final class StringLineSequenceFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected lineSequence to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let callIDs = allMemberCallExprIDs(
                 named: "lineSequence",
                 in: ast,
                 interner: ctx.interner
             )
-            XCTAssertEqual(callIDs.count, 1, "Expected exactly one lineSequence call")
+            #expect(callIDs.count == 1, "Expected exactly one lineSequence call")
         }
     }
 
     /// String literal receivers should also resolve through Sema.
-    func testLineSequenceOnLiteralResolves() throws {
+    @Test func testLineSequenceOnLiteralResolves() throws {
         let source = """
         fun dump() {
             val items = "a\\nb\\nc".lineSequence()
@@ -69,8 +70,8 @@ final class StringLineSequenceFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected literal lineSequence to resolve cleanly, got: \(diagnosticSummary)"
             )
         }
@@ -79,7 +80,7 @@ final class StringLineSequenceFunctionTests: XCTestCase {
     /// Chaining `lineSequence().toList()` should be type-checked without errors,
     /// ensuring the synthetic Sequence<String> return type bridges to standard
     /// sequence operations.
-    func testLineSequenceChainsWithToList() throws {
+    @Test func testLineSequenceChainsWithToList() throws {
         let source = """
         fun gather(s: String): List<String> {
             return s.lineSequence().toList()
@@ -91,8 +92,8 @@ final class StringLineSequenceFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Expected lineSequence().toList() chain to resolve cleanly, got: \(diagnosticSummary)"
             )
         }
@@ -100,7 +101,7 @@ final class StringLineSequenceFunctionTests: XCTestCase {
 
     /// The lowered KIR should call the runtime helper `kk_string_lineSequence`,
     /// and the call must be classified as non-throwing.
-    func testLineSequenceLowersToRuntimeHelperNonThrowing() throws {
+    @Test func testLineSequenceLowersToRuntimeHelperNonThrowing() throws {
         let source = """
         fun main() {
             val text = "a\\nb\\nc"
@@ -114,19 +115,19 @@ final class StringLineSequenceFunctionTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(
                 named: "main",
                 in: module,
                 interner: ctx.interner
             )
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let lineSequenceFlags = try XCTUnwrap(
+            let lineSequenceFlags = try #require(
                 throwFlags["kk_string_lineSequence"],
                 "Expected kk_string_lineSequence calls to appear in main()"
             )
-            XCTAssertEqual(lineSequenceFlags.count, 1)
-            XCTAssertTrue(
+            #expect(lineSequenceFlags.count == 1)
+            #expect(
                 lineSequenceFlags.allSatisfy { $0 == false },
                 "lineSequence should be classified as non-throwing"
             )

@@ -1,6 +1,6 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-TEXT-TYPE-012: kotlin.text.RegexOption enum
 //
@@ -16,9 +16,20 @@ import XCTest
 // `RegexAPISurfaceInventoryTests`. This file focuses purely on the enum
 // declaration shape and member resolution.
 
-final class RegexOptionEnumTests: XCTestCase {
+@Suite
+struct RegexOptionEnumTests {
 
     // MARK: Helpers
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
@@ -45,61 +56,58 @@ final class RegexOptionEnumTests: XCTestCase {
 
     // MARK: - Enum class declaration shape
 
-    func testRegexOptionIsRegisteredAsEnumClass() throws {
+    @Test func testRegexOptionIsRegisteredAsEnumClass() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "kotlin.text.RegexOption must be registered as a synthetic symbol"
         )
-        XCTAssertEqual(
-            sema.symbols.symbol(symbol)?.kind,
-            .enumClass,
+        #expect(
+            sema.symbols.symbol(symbol)?.kind == .enumClass,
             "RegexOption must be registered as enumClass (not regular class)"
         )
     }
 
-    func testRegexOptionIsParentedToKotlinTextPackage() throws {
+    @Test func testRegexOptionIsParentedToKotlinTextPackage() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
 
-        let parent = try XCTUnwrap(
+        let parent = try #require(
             sema.symbols.parentSymbol(for: symbol),
             "RegexOption must be parented to the kotlin.text package symbol"
         )
-        let parentInfo = try XCTUnwrap(sema.symbols.symbol(parent))
-        XCTAssertEqual(parentInfo.kind, .package)
-        XCTAssertEqual(
-            parentInfo.fqName.map { interner.resolve($0) },
-            ["kotlin", "text"],
+        let parentInfo = try #require(sema.symbols.symbol(parent))
+        #expect(parentInfo.kind == .package)
+        #expect(
+            parentInfo.fqName.map { interner.resolve($0) } == ["kotlin", "text"],
             "RegexOption's parent must be the kotlin.text package"
         )
     }
 
     // MARK: - Enum entries
 
-    func testAllSevenRegexOptionEntriesAreRegisteredAsFields() throws {
+    @Test func testAllSevenRegexOptionEntriesAreRegisteredAsFields() throws {
         let (sema, interner) = try makeSema()
         for entry in Self.allEntries {
             let fqName = ["kotlin", "text", "RegexOption", entry].map { interner.intern($0) }
-            let symbol = try XCTUnwrap(
+            let symbol = try #require(
                 sema.symbols.lookup(fqName: fqName),
                 "RegexOption.\(entry) must be present in the symbol table"
             )
-            XCTAssertEqual(
-                sema.symbols.symbol(symbol)?.kind,
-                .field,
+            #expect(
+                sema.symbols.symbol(symbol)?.kind == .field,
                 "RegexOption.\(entry) must be registered as field (enum entry)"
             )
         }
     }
 
-    func testRegexOptionEntryPropertyTypesAreEnumType() throws {
+    @Test func testRegexOptionEntryPropertyTypesAreEnumType() throws {
         let (sema, interner) = try makeSema()
 
         let enumFQName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
-        let enumSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: enumFQName))
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
         let expectedType = sema.types.make(.classType(ClassType(
             classSymbol: enumSymbol,
             args: [],
@@ -108,36 +116,34 @@ final class RegexOptionEnumTests: XCTestCase {
 
         for entry in Self.allEntries {
             let fqName = enumFQName + [interner.intern(entry)]
-            let entrySymbol = try XCTUnwrap(
+            let entrySymbol = try #require(
                 sema.symbols.lookup(fqName: fqName),
                 "RegexOption.\(entry) must exist"
             )
-            XCTAssertEqual(
-                sema.symbols.propertyType(for: entrySymbol),
-                expectedType,
+            #expect(
+                sema.symbols.propertyType(for: entrySymbol) == expectedType,
                 "RegexOption.\(entry) propertyType must equal RegexOption (so member resolution works)"
             )
         }
     }
 
-    func testRegexOptionEntriesAreParentedToEnumClass() throws {
+    @Test func testRegexOptionEntriesAreParentedToEnumClass() throws {
         let (sema, interner) = try makeSema()
 
         let enumFQName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
-        let enumSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: enumFQName))
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
 
         for entry in Self.allEntries {
             let fqName = enumFQName + [interner.intern(entry)]
-            let entrySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-            XCTAssertEqual(
-                sema.symbols.parentSymbol(for: entrySymbol),
-                enumSymbol,
+            let entrySymbol = try #require(sema.symbols.lookup(fqName: fqName))
+            #expect(
+                sema.symbols.parentSymbol(for: entrySymbol) == enumSymbol,
                 "RegexOption.\(entry) must be parented to the RegexOption enum class"
             )
         }
     }
 
-    func testRegexOptionDoesNotRegisterUnexpectedEntries() throws {
+    @Test func testRegexOptionDoesNotRegisterUnexpectedEntries() throws {
         let (sema, interner) = try makeSema()
         let enumFQName = ["kotlin", "text", "RegexOption"].map { interner.intern($0) }
         let children = sema.symbols.children(ofFQName: enumFQName)
@@ -149,16 +155,15 @@ final class RegexOptionEnumTests: XCTestCase {
                 return info.fqName.last.map { interner.resolve($0) }
             }
         )
-        XCTAssertEqual(
-            fieldNames,
-            Set(Self.allEntries),
+        #expect(
+            fieldNames == Set(Self.allEntries),
             "RegexOption enum entries must exactly match the Kotlin stdlib spec"
         )
     }
 
     // MARK: - Member resolution in source
 
-    func testRegexOptionMemberAccessResolves() throws {
+    @Test func testRegexOptionMemberAccessResolves() throws {
         let source = """
         import kotlin.text.RegexOption
 
@@ -172,14 +177,14 @@ final class RegexOptionEnumTests: XCTestCase {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        let v = errors.map { "\($0.code): \($0.message)" }
+        #expect(
             errors.isEmpty,
-            "Expected every RegexOption entry to resolve cleanly, got: "
-                + "\(errors.map { "\($0.code): \($0.message)" })"
+            Comment(rawValue: "Expected every RegexOption entry to resolve cleanly, got: \(v)")
         )
     }
 
-    func testRegexOptionPassesThroughRegexConstructor() throws {
+    @Test func testRegexOptionPassesThroughRegexConstructor() throws {
         // Round-trip: confirm that an entry can flow into the
         // `Regex(String, RegexOption)` overload registered alongside the enum.
         let source = """
@@ -190,10 +195,10 @@ final class RegexOptionEnumTests: XCTestCase {
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        let v = errors.map { "\($0.code): \($0.message)" }
+        #expect(
             errors.isEmpty,
-            "Regex(String, RegexOption) must resolve cleanly, got: "
-                + "\(errors.map { "\($0.code): \($0.message)" })"
+            Comment(rawValue: "Regex(String, RegexOption) must resolve cleanly, got: \(v)")
         )
     }
 }

@@ -1,8 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class RangeRandomSyntheticLinkTests: XCTestCase {
+@Suite
+struct RangeRandomSyntheticLinkTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try #require(result)
+    }
+
     private func assertRandomOrNullOverloads(
         typeName: String,
         noArgLink: String,
@@ -14,40 +27,39 @@ final class RangeRandomSyntheticLinkTests: XCTestCase {
     ) {
         let fq = ["kotlin", "ranges", typeName, "randomOrNull"].map { interner.intern($0) }
         let symbols = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(symbols.isEmpty, "\(typeName).randomOrNull must be registered")
+        #expect(!(symbols.isEmpty), Comment(rawValue: "\(typeName).randomOrNull must be registered"))
 
         let noArg = symbols.first {
             sema.symbols.functionSignature(for: $0)?.parameterTypes.isEmpty == true
         }
-        XCTAssertNotNil(noArg, "\(typeName).randomOrNull() overload missing")
+        #expect(noArg != nil, Comment(rawValue: "\(typeName).randomOrNull() overload missing"))
         if let noArg {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: noArg), noArgLink)
+            #expect(sema.symbols.externalLinkName(for: noArg) == noArgLink)
             guard let sig = sema.symbols.functionSignature(for: noArg) else {
-                XCTFail("\(typeName).randomOrNull() has no signature")
+                Issue.record(Comment(rawValue: "\(typeName).randomOrNull() has no signature"))
                 return
             }
-            XCTAssertEqual(sig.returnType, sema.types.makeNullable(expectedElementType))
+            #expect(sig.returnType == sema.types.makeNullable(expectedElementType))
         }
 
         let seeded = symbols.first {
             sema.symbols.functionSignature(for: $0)?.parameterTypes.count == 1
         }
-        XCTAssertNotNil(seeded, "\(typeName).randomOrNull(random: Random) overload missing")
+        #expect(seeded != nil, Comment(rawValue: "\(typeName).randomOrNull(random: Random) overload missing"))
         if let seeded {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: seeded), randomLink)
+            #expect(sema.symbols.externalLinkName(for: seeded) == randomLink)
             guard let sig = sema.symbols.functionSignature(for: seeded) else {
-                XCTFail("\(typeName).randomOrNull(random: Random) has no signature")
+                Issue.record(Comment(rawValue: "\(typeName).randomOrNull(random: Random) has no signature"))
                 return
             }
-            XCTAssertEqual(sig.returnType, sema.types.makeNullable(expectedElementType))
+            #expect(sig.returnType == sema.types.makeNullable(expectedElementType))
             guard case .classType(let classType) = sema.types.kind(of: sig.parameterTypes[0]) else {
-                XCTFail("\(typeName).randomOrNull(random: Random) parameter is not a class type")
+                Issue.record(Comment(rawValue: "\(typeName).randomOrNull(random: Random) parameter is not a class type"))
                 return
             }
-            XCTAssertEqual(
-                classType.classSymbol,
-                randomSymbol,
-                "\(typeName).randomOrNull(random: Random) must take kotlin.random.Random"
+            #expect(
+                classType.classSymbol == randomSymbol,
+                Comment(rawValue: "\(typeName).randomOrNull(random: Random) must take kotlin.random.Random")
             )
         }
     }
@@ -63,45 +75,44 @@ final class RangeRandomSyntheticLinkTests: XCTestCase {
     ) {
         let fq = ["kotlin", "ranges", typeName, "random"].map { interner.intern($0) }
         let symbols = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(symbols.isEmpty, "\(typeName).random must be registered")
+        #expect(!(symbols.isEmpty), Comment(rawValue: "\(typeName).random must be registered"))
 
         let noArg = symbols.first {
             sema.symbols.functionSignature(for: $0)?.parameterTypes.isEmpty == true
         }
-        XCTAssertNotNil(noArg, "\(typeName).random() overload missing")
+        #expect(noArg != nil, Comment(rawValue: "\(typeName).random() overload missing"))
         if let noArg {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: noArg), noArgLink)
-            XCTAssertEqual(sema.symbols.functionSignature(for: noArg)?.returnType, expectedElementType)
+            #expect(sema.symbols.externalLinkName(for: noArg) == noArgLink)
+            #expect(sema.symbols.functionSignature(for: noArg)?.returnType == expectedElementType)
         }
 
         let seeded = symbols.first {
             sema.symbols.functionSignature(for: $0)?.parameterTypes.count == 1
         }
-        XCTAssertNotNil(seeded, "\(typeName).random(random: Random) overload missing")
+        #expect(seeded != nil, Comment(rawValue: "\(typeName).random(random: Random) overload missing"))
         if let seeded {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: seeded), randomLink)
+            #expect(sema.symbols.externalLinkName(for: seeded) == randomLink)
             guard let sig = sema.symbols.functionSignature(for: seeded) else {
-                XCTFail("\(typeName).random(random: Random) has no signature")
+                Issue.record(Comment(rawValue: "\(typeName).random(random: Random) has no signature"))
                 return
             }
-            XCTAssertEqual(sig.returnType, expectedElementType)
+            #expect(sig.returnType == expectedElementType)
             guard case .classType(let classType) = sema.types.kind(of: sig.parameterTypes[0]) else {
-                XCTFail("\(typeName).random(random: Random) parameter is not a class type")
+                Issue.record(Comment(rawValue: "\(typeName).random(random: Random) parameter is not a class type"))
                 return
             }
-            XCTAssertEqual(
-                classType.classSymbol,
-                randomSymbol,
-                "\(typeName).random(random: Random) must take kotlin.random.Random"
+            #expect(
+                classType.classSymbol == randomSymbol,
+                Comment(rawValue: "\(typeName).random(random: Random) must take kotlin.random.Random")
             )
         }
     }
 
-    func testRangeRandomOrNullOverloadsAreRegistered() throws {
+    @Test func testRangeRandomOrNullOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
-        let randomSymbol = try XCTUnwrap(
+        let randomSymbol = try #require(
             sema.symbols.lookup(fqName: randomFQ),
             "kotlin.random.Random must be registered"
         )
@@ -153,11 +164,11 @@ final class RangeRandomSyntheticLinkTests: XCTestCase {
         )
     }
 
-    func testRangeRandomOverloadsAreRegistered() throws {
+    @Test func testRangeRandomOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
-        let randomSymbol = try XCTUnwrap(
+        let randomSymbol = try #require(
             sema.symbols.lookup(fqName: randomFQ),
             "kotlin.random.Random must be registered"
         )
@@ -209,3 +220,4 @@ final class RangeRandomSyntheticLinkTests: XCTestCase {
         )
     }
 }
+#endif

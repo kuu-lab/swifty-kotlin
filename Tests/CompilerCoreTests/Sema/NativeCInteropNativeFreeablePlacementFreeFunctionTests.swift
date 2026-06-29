@@ -1,23 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropNativeFreeablePlacementFreeFunctionTests: XCTestCase {
-    func testNativeFreeablePlacementFreePointedFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropNativeFreeablePlacementFreeFunctionTests {
+    @Test func testNativeFreeablePlacementFreePointedFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected NativeFreeablePlacement.free(pointed) surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected NativeFreeablePlacement.free(pointed) surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
 
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + path.map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -33,7 +30,7 @@ final class NativeCInteropNativeFreeablePlacementFreeFunctionTests: XCTestCase {
         let nativeFreeablePlacementType = try cinteropType("NativeFreeablePlacement")
         let nativePointedType = try cinteropType("NativePointed")
         let freeFQName = cinteropPkg + [interner.intern("free")]
-        let freeSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: freeFQName).first { symbolID in
+        let freeSymbol = try #require(sema.symbols.lookupAll(fqName: freeFQName).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
@@ -41,19 +38,19 @@ final class NativeCInteropNativeFreeablePlacementFreeFunctionTests: XCTestCase {
                 && signature.parameterTypes == [nativePointedType]
                 && signature.returnType == sema.types.unitType
         })
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: freeSymbol))
-        let parameterSymbol = try XCTUnwrap(signature.valueParameterSymbols.first)
-        let flags = try XCTUnwrap(sema.symbols.symbol(freeSymbol)?.flags)
+        let signature = try #require(sema.symbols.functionSignature(for: freeSymbol))
+        let parameterSymbol = try #require(signature.valueParameterSymbols.first)
+        let flags = try #require(sema.symbols.symbol(freeSymbol)?.flags)
 
-        XCTAssertTrue(flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: freeSymbol), sema.symbols.lookup(fqName: cinteropPkg))
-        XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
-        XCTAssertEqual(signature.valueParameterIsVararg, [false])
-        XCTAssertEqual(sema.symbols.symbol(parameterSymbol)?.name, interner.intern("pointed"))
-        XCTAssertEqual(sema.symbols.propertyType(for: parameterSymbol), nativePointedType)
+        #expect(flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: freeSymbol) == sema.symbols.lookup(fqName: cinteropPkg))
+        #expect(signature.valueParameterHasDefaultValues == [false])
+        #expect(signature.valueParameterIsVararg == [false])
+        #expect(sema.symbols.symbol(parameterSymbol)?.name == interner.intern("pointed"))
+        #expect(sema.symbols.propertyType(for: parameterSymbol) == nativePointedType)
     }
 
-    func testNativeFreeablePlacementFreePointedFunctionResolvesInSource() throws {
+    @Test func testNativeFreeablePlacementFreePointedFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.NativeFreeablePlacement
         import kotlinx.cinterop.NativePointed
@@ -65,9 +62,7 @@ final class NativeCInteropNativeFreeablePlacementFreeFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected NativeFreeablePlacement.free(pointed) to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected NativeFreeablePlacement.free(pointed) to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

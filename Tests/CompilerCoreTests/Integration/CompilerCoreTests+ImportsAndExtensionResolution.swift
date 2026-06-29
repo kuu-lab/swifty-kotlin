@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension CompilerCoreTests {
-    func testCallRejectsSpreadForNonVarargParameter() throws {
+    @Test func testCallRejectsSpreadForNonVarargParameter() throws {
         let source = """
         fun take(x: Int) = x
         fun use() = take(*1)
@@ -14,7 +15,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testSemaAllowsOverloadedTopLevelFunctionsWithoutDuplicateDiagnostic() throws {
+    @Test func testSemaAllowsOverloadedTopLevelFunctionsWithoutDuplicateDiagnostic() throws {
         let source = """
         fun pick(x: Int) = x
         fun pick(x: String) = x
@@ -27,7 +28,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testInferredExpressionBodyReturnTypeCanFlowIntoTypedCall() throws {
+    @Test func testInferredExpressionBodyReturnTypeCanFlowIntoTypedCall() throws {
         let source = """
         fun foo() = 1
         fun takesInt(a: Int) = a
@@ -39,62 +40,62 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testBuildASTParsesExtensionFunctionReceiverType() throws {
+    @Test func testBuildASTParsesExtensionFunctionReceiverType() throws {
         let source = """
         fun String.echo(): String = this
         """
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let firstFile = try XCTUnwrap(ast.files.first)
-        let firstDeclID = try XCTUnwrap(firstFile.topLevelDecls.first)
-        let decl = try XCTUnwrap(ast.arena.decl(firstDeclID))
+        let ast = try #require(ctx.ast)
+        let firstFile = try #require(ast.files.first)
+        let firstDeclID = try #require(firstFile.topLevelDecls.first)
+        let decl = try #require(ast.arena.decl(firstDeclID))
         guard case let .funDecl(funDecl) = decl else {
-            XCTFail("Expected function declaration")
+            Issue.record("Expected function declaration")
             return
         }
 
-        XCTAssertNotEqual(funDecl.name, .invalid)
-        let receiverTypeID = try XCTUnwrap(funDecl.receiverType)
-        let receiverType = try XCTUnwrap(ast.arena.typeRef(receiverTypeID))
+        #expect(funDecl.name != .invalid)
+        let receiverTypeID = try #require(funDecl.receiverType)
+        let receiverType = try #require(ast.arena.typeRef(receiverTypeID))
         if case let .named(path, _, nullable) = receiverType {
-            XCTAssertFalse(nullable)
-            XCTAssertEqual(path.count, 1)
-            XCTAssertEqual(ctx.interner.resolve(path[0]), "String")
+            #expect(!(nullable))
+            #expect(path.count == 1)
+            #expect(ctx.interner.resolve(path[0]) == "String")
         } else {
-            XCTFail("Expected named receiver type")
+            Issue.record("Expected named receiver type")
         }
     }
 
-    func testBuildASTParsesNullableExtensionFunctionReceiverType() throws {
+    @Test func testBuildASTParsesNullableExtensionFunctionReceiverType() throws {
         let source = """
         fun String?.echoNullable(): String = this ?: ""
         """
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let firstFile = try XCTUnwrap(ast.files.first)
-        let firstDeclID = try XCTUnwrap(firstFile.topLevelDecls.first)
-        let decl = try XCTUnwrap(ast.arena.decl(firstDeclID))
+        let ast = try #require(ctx.ast)
+        let firstFile = try #require(ast.files.first)
+        let firstDeclID = try #require(firstFile.topLevelDecls.first)
+        let decl = try #require(ast.arena.decl(firstDeclID))
         guard case let .funDecl(funDecl) = decl else {
-            XCTFail("Expected function declaration")
+            Issue.record("Expected function declaration")
             return
         }
 
-        let receiverTypeID = try XCTUnwrap(funDecl.receiverType)
-        let receiverType = try XCTUnwrap(ast.arena.typeRef(receiverTypeID))
+        let receiverTypeID = try #require(funDecl.receiverType)
+        let receiverType = try #require(ast.arena.typeRef(receiverTypeID))
         if case let .named(path, _, nullable) = receiverType {
-            XCTAssertTrue(nullable)
-            XCTAssertEqual(path.count, 1)
-            XCTAssertEqual(ctx.interner.resolve(path[0]), "String")
+            #expect(nullable)
+            #expect(path.count == 1)
+            #expect(ctx.interner.resolve(path[0]) == "String")
         } else {
-            XCTFail("Expected named receiver type")
+            Issue.record("Expected named receiver type")
         }
     }
 
-    func testSemaResolvesNullableReceiverExtensionWithoutSafeCall() throws {
+    @Test func testSemaResolvesNullableReceiverExtensionWithoutSafeCall() throws {
         let source = """
         fun String?.isNullOrEmpty(): Boolean = this == null || this.length == 0
 
@@ -113,28 +114,28 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
-    func testBuildASTParsesClassTypeParameterVariance() throws {
+    @Test func testBuildASTParsesClassTypeParameterVariance() throws {
         let source = """
         class Box<out T, in U, V>
         """
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let firstFile = try XCTUnwrap(ast.files.first)
-        let firstDeclID = try XCTUnwrap(firstFile.topLevelDecls.first)
-        let decl = try XCTUnwrap(ast.arena.decl(firstDeclID))
+        let ast = try #require(ctx.ast)
+        let firstFile = try #require(ast.files.first)
+        let firstDeclID = try #require(firstFile.topLevelDecls.first)
+        let decl = try #require(ast.arena.decl(firstDeclID))
         guard case let .classDecl(classDecl) = decl else {
-            XCTFail("Expected class declaration")
+            Issue.record("Expected class declaration")
             return
         }
 
-        XCTAssertEqual(classDecl.typeParams.count, 3)
-        XCTAssertEqual(classDecl.typeParams.map(\.variance), [.out, .in, .invariant])
-        XCTAssertEqual(classDecl.typeParams.map { ctx.interner.resolve($0.name) }, ["T", "U", "V"])
+        #expect(classDecl.typeParams.count == 3)
+        #expect(classDecl.typeParams.map(\.variance) == [.out, .in, .invariant])
+        #expect(classDecl.typeParams.map { ctx.interner.resolve($0.name) } == ["T", "U", "V"])
     }
 
-    func testSemaResolvesUnqualifiedExtensionCallWithImplicitReceiver() throws {
+    @Test func testSemaResolvesUnqualifiedExtensionCallWithImplicitReceiver() throws {
         let source = """
         fun String.ext() = 1
         fun String.wrap() = ext()
@@ -145,7 +146,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testGenericIdentityFunctionIsInferredAtCallSite() throws {
+    @Test func testGenericIdentityFunctionIsInferredAtCallSite() throws {
         let source = """
         fun <T> id(x: T): T = x
         fun takesInt(a: Int) = a
@@ -157,7 +158,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testGenericConstraintFailureReportsTypeDiagnostic() throws {
+    @Test func testGenericConstraintFailureReportsTypeDiagnostic() throws {
         let source = """
         fun <T> id(x: T): T = x
         fun bad(): Boolean = id(1)
@@ -169,7 +170,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testSemaResolvesTopLevelFunctionAcrossFilesInSamePackage() throws {
+    @Test func testSemaResolvesTopLevelFunctionAcrossFilesInSamePackage() throws {
         let sources = [
             """
             package demo
@@ -186,7 +187,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testSemaResolvesExplicitImportAcrossPackages() throws {
+    @Test func testSemaResolvesExplicitImportAcrossPackages() throws {
         let sources = [
             """
             package lib
@@ -204,7 +205,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testExplicitImportWinsOverDefaultImportForSameName() throws {
+    @Test func testExplicitImportWinsOverDefaultImportForSameName() throws {
         let sources = [
             """
             package kotlin.io
@@ -223,17 +224,17 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSources(sources)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let useSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let sema = try #require(ctx.sema)
+        let useSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use"
         })?.id)
-        let useSignature = try XCTUnwrap(sema.symbols.functionSignature(for: useSymbol))
-        XCTAssertNotEqual(useSignature.returnType, sema.types.errorType)
+        let useSignature = try #require(sema.symbols.functionSignature(for: useSymbol))
+        #expect(useSignature.returnType != sema.types.errorType)
 
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
     }
 
-    func testImportAliasWildcardDiagnostic() throws {
+    @Test func testImportAliasWildcardDiagnostic() throws {
         let sources = [
             """
             package lib
@@ -251,7 +252,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
     }
 
-    func testImportAliasDuplicateDiagnostic() throws {
+    @Test func testImportAliasDuplicateDiagnostic() throws {
         let sources = [
             """
             package lib
@@ -271,7 +272,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testImportAliasUnresolvedPathDiagnostic() throws {
+    @Test func testImportAliasUnresolvedPathDiagnostic() throws {
         let source = """
         package app
         import nonexistent.Thing as X
@@ -283,7 +284,7 @@ extension CompilerCoreTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testImportAliasResolvesAcrossPackages() throws {
+    @Test func testImportAliasResolvesAcrossPackages() throws {
         let sources = [
             """
             package lib
@@ -301,7 +302,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testImportAliasReturnTypeIsInferred() throws {
+    @Test func testImportAliasReturnTypeIsInferred() throws {
         let sources = [
             """
             package lib
@@ -316,16 +317,16 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSources(sources)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        let useSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+        let sema = try #require(ctx.sema)
+        let useSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .function && ctx.interner.resolve(symbol.name) == "use"
         })?.id)
-        let useSignature = try XCTUnwrap(sema.symbols.functionSignature(for: useSymbol))
-        XCTAssertNotEqual(useSignature.returnType, sema.types.errorType)
+        let useSignature = try #require(sema.symbols.functionSignature(for: useSymbol))
+        #expect(useSignature.returnType != sema.types.errorType)
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testImportAliasMultipleDistinctAliasesInSameFile() throws {
+    @Test func testImportAliasMultipleDistinctAliasesInSameFile() throws {
         let sources = [
             """
             package lib
@@ -346,7 +347,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 
-    func testImportAliasCoexistsWithNonAliasedImport() throws {
+    @Test func testImportAliasCoexistsWithNonAliasedImport() throws {
         let sources = [
             """
             package lib
@@ -366,7 +367,7 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testImportAliasEmptyAliasNameIsIgnored() throws {
+    @Test func testImportAliasEmptyAliasNameIsIgnored() throws {
         let source = """
         package app
         import kotlin.io.println as
@@ -380,3 +381,4 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
     }
 }
+#endif

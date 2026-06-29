@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testUuidParseHexDashOrNullLowersToRuntimeCallee() throws {
+    @Test func testUuidParseHexDashOrNullLowersToRuntimeCallee() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
@@ -18,14 +19,15 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_uuid_parseHexDashOrNull"),
                 "Expected Uuid.parseHexDashOrNull runtime call"
             )
         }
     }
 }
+#endif

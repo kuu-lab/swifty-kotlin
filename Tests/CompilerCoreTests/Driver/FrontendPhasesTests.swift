@@ -1,73 +1,82 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class FrontendPhasesTests: XCTestCase {
+@Suite
+struct FrontendPhasesTests {
     // MARK: - LoadSourcesPhase
 
+    @Test
     func testLoadSourcesWithNoInputsEmitsDiagnosticAndThrows() {
         let ctx = makeCompilationContext(inputs: [])
-        XCTAssertThrowsError(try LoadSourcesPhase().run(ctx), "LoadSourcesPhase should throw when no inputs")
+        #expect(throws: (any Error).self, "LoadSourcesPhase should throw when no inputs") { try LoadSourcesPhase().run(ctx) }
         assertHasDiagnostic("KSWIFTK-SOURCE-0001", in: ctx)
     }
 
+    @Test
     func testLoadSourcesWithMissingFileEmitsDiagnosticAndThrows() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("kt")
             .path
         let ctx = makeCompilationContext(inputs: [missingPath])
-        XCTAssertThrowsError(try LoadSourcesPhase().run(ctx), "LoadSourcesPhase should throw for missing file")
+        #expect(throws: (any Error).self, "LoadSourcesPhase should throw for missing file") { try LoadSourcesPhase().run(ctx) }
         assertHasDiagnostic("KSWIFTK-SOURCE-0002", in: ctx)
     }
 
+    @Test
     func testLoadSourcesWithValidFileSucceeds() throws {
         try withTemporaryFile(contents: "fun main() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
-            XCTAssertNoThrow(try LoadSourcesPhase().run(ctx))
-            XCTAssertFalse(ctx.diagnostics.hasError, "No errors expected for valid input file")
-            XCTAssertFalse(ctx.sourceManager.fileIDs().isEmpty, "Source manager should have loaded the file")
+            #expect(throws: Never.self) { try LoadSourcesPhase().run(ctx) }
+            #expect(!(ctx.diagnostics.hasError), "No errors expected for valid input file")
+            #expect(!(ctx.sourceManager.fileIDs().isEmpty), "Source manager should have loaded the file")
         }
     }
 
+    @Test
     func testLoadSourcesSkipsDuplicatePaths() throws {
         try withTemporaryFile(contents: "fun main() {}") { path in
             let ctx = makeCompilationContext(inputs: [path, path])
-            XCTAssertNoThrow(try LoadSourcesPhase().run(ctx))
+            #expect(throws: Never.self) { try LoadSourcesPhase().run(ctx) }
             // File should be loaded only once — verify by loading a single file and comparing
             let singleCtx = makeCompilationContext(inputs: [path])
-            XCTAssertNoThrow(try LoadSourcesPhase().run(singleCtx))
-            XCTAssertEqual(ctx.sourceManager.fileIDs().count, singleCtx.sourceManager.fileIDs().count,
-                           "Duplicate paths should be loaded only once (+ bundled stdlib)")
+            #expect(throws: Never.self) { try LoadSourcesPhase().run(singleCtx) }
+            #expect(ctx.sourceManager.fileIDs().count == singleCtx.sourceManager.fileIDs().count, "Duplicate paths should be loaded only once (+ bundled stdlib)")
         }
     }
 
     // MARK: - LexPhase
 
+    @Test
     func testLexPhasePopulatesTokens() throws {
         let source = "fun main() { println(42) }"
         let ctx = makeContextFromSource(source)
-        XCTAssertNoThrow(try LexPhase().run(ctx))
-        XCTAssertFalse(ctx.tokens.isEmpty, "LexPhase should populate ctx.tokens")
+        #expect(throws: Never.self) { try LexPhase().run(ctx) }
+        #expect(!(ctx.tokens.isEmpty), "LexPhase should populate ctx.tokens")
     }
 
+    @Test
     func testLexPhasePopulatesTokensByFile() throws {
         let source = "fun main() {}"
         let ctx = makeContextFromSource(source)
-        XCTAssertNoThrow(try LexPhase().run(ctx))
-        let (_, fileTokens) = try XCTUnwrap(ctx.tokensByFile.first)
-        XCTAssertFalse(fileTokens.isEmpty, "LexPhase should populate per-file tokens")
+        #expect(throws: Never.self) { try LexPhase().run(ctx) }
+        let (_, fileTokens) = try #require(ctx.tokensByFile.first)
+        #expect(!(fileTokens.isEmpty), "LexPhase should populate per-file tokens")
     }
 
+    @Test
     func testLexPhaseProducesEOFTokenLast() throws {
         let source = "val x = 1"
         let ctx = makeContextFromSource(source)
-        XCTAssertNoThrow(try LexPhase().run(ctx))
-        XCTAssertFalse(ctx.tokens.isEmpty)
+        #expect(throws: Never.self) { try LexPhase().run(ctx) }
+        #expect(!(ctx.tokens.isEmpty))
         let fileTokens = ctx.tokensByFile.first?.1
-        XCTAssertEqual(fileTokens?.last?.kind, .eof, "Last token in file should be EOF")
+        #expect(fileTokens?.last?.kind == .eof, "Last token in file should be EOF")
     }
 
+    @Test
     func testIncrementalFrontendLexesParsesAndBuildsOnlyRecompiledFiles() throws {
         try withTemporaryFiles(contents: [
             "fun kept(): String = \"kept\"",
@@ -75,9 +84,7 @@ final class FrontendPhasesTests: XCTestCase {
         ]) { paths in
             let initialCtx = makeCompilationContext(inputs: paths)
             try runFrontend(initialCtx)
-            let cachedState = try XCTUnwrap(
-                IncrementalFrontendState(context: initialCtx, buildConfigurationHash: "test")
-            )
+            let cachedState = try #require(IncrementalFrontendState(context: initialCtx, buildConfigurationHash: "test"))
 
             try "fun newChanged(): String = kept()".write(toFile: paths[1], atomically: true, encoding: .utf8)
 
@@ -90,16 +97,16 @@ final class FrontendPhasesTests: XCTestCase {
             try LexPhase().run(incrementalCtx)
             // FileIDs 0-7 = bundled stdlib (6 auto-loaded + 2 residual), FileID 8 = kept, FileID 9 = changed
             let changedFileID = FileID(rawValue: Int32(incrementalCtx.sourceManager.fileIDs().count - 1))
-            XCTAssertEqual(incrementalCtx.tokensByFile.map(\.0), [changedFileID])
+            #expect(incrementalCtx.tokensByFile.map(\.0) == [changedFileID])
 
             try ParsePhase().run(incrementalCtx)
-            XCTAssertEqual(incrementalCtx.syntaxTrees.map(\.0), [changedFileID])
+            #expect(incrementalCtx.syntaxTrees.map(\.0) == [changedFileID])
 
             try BuildASTPhase().run(incrementalCtx)
-            let ast = try XCTUnwrap(incrementalCtx.ast)
+            let ast = try #require(incrementalCtx.ast)
             let allFileIDs = (0 ..< incrementalCtx.sourceManager.fileIDs().count).map { FileID(rawValue: Int32($0)) }
-            XCTAssertEqual(ast.files.map(\.fileID), allFileIDs)
-            XCTAssertEqual(Set(ast.activeDeclsByFileRawID.keys), Set(allFileIDs.map(\.rawValue)))
+            #expect(ast.files.map(\.fileID) == allFileIDs)
+            #expect(Set(ast.activeDeclsByFileRawID.keys) == Set(allFileIDs.map(\.rawValue)))
 
             let topLevelNames = ast.files.flatMap(\.topLevelDecls).compactMap { declID -> String? in
                 guard let decl = ast.arena.decl(declID), case let .funDecl(funDecl) = decl else {
@@ -107,34 +114,37 @@ final class FrontendPhasesTests: XCTestCase {
                 }
                 return incrementalCtx.interner.resolve(funDecl.name)
             }
-            XCTAssertTrue(topLevelNames.contains("kept"))
-            XCTAssertTrue(topLevelNames.contains("newChanged"))
-            XCTAssertFalse(topLevelNames.contains("oldChanged"))
+            #expect(topLevelNames.contains("kept"))
+            #expect(topLevelNames.contains("newChanged"))
+            #expect(!(topLevelNames.contains("oldChanged")))
 
             try SemaPhase().run(incrementalCtx)
-            XCTAssertFalse(incrementalCtx.diagnostics.hasError)
+            #expect(!(incrementalCtx.diagnostics.hasError))
         }
     }
 
     // MARK: - ParsePhase
 
+    @Test
     func testParsePhasePopulatesSyntaxTrees() throws {
         let source = "fun main() {}"
         let ctx = makeContextFromSource(source)
         try LexPhase().run(ctx)
-        XCTAssertNoThrow(try ParsePhase().run(ctx))
-        XCTAssertFalse(ctx.syntaxTrees.isEmpty, "ParsePhase should populate syntaxTrees")
+        #expect(throws: Never.self) { try ParsePhase().run(ctx) }
+        #expect(!(ctx.syntaxTrees.isEmpty), "ParsePhase should populate syntaxTrees")
     }
 
+    @Test
     func testParsePhasePopulatesSyntaxArenaPerFile() throws {
         let source = "fun main() {}"
         let ctx = makeContextFromSource(source)
         try LexPhase().run(ctx)
-        XCTAssertNoThrow(try ParsePhase().run(ctx))
-        let (_, arena, root) = try XCTUnwrap(ctx.syntaxTrees.first)
-        XCTAssertEqual(arena.node(root).kind, .kotlinFile, "ParsePhase should store each file's SyntaxArena and root")
+        #expect(throws: Never.self) { try ParsePhase().run(ctx) }
+        let (_, arena, root) = try #require(ctx.syntaxTrees.first)
+        #expect(arena.node(root).kind == .kotlinFile, "ParsePhase should store each file's SyntaxArena and root")
     }
 
+    @Test
     func testParsePhaseHandlesValidDeclarations() throws {
         let source = """
         class Foo {
@@ -143,21 +153,23 @@ final class FrontendPhasesTests: XCTestCase {
         """
         let ctx = makeContextFromSource(source)
         try LexPhase().run(ctx)
-        XCTAssertNoThrow(try ParsePhase().run(ctx))
-        XCTAssertFalse(ctx.diagnostics.hasError, "Valid Kotlin source should parse without errors")
+        #expect(throws: Never.self) { try ParsePhase().run(ctx) }
+        #expect(!(ctx.diagnostics.hasError), "Valid Kotlin source should parse without errors")
     }
 
     // MARK: - BuildASTPhase
 
+    @Test
     func testBuildASTProducesASTModule() throws {
         let source = "fun main() {}"
         let ctx = makeContextFromSource(source)
         try LexPhase().run(ctx)
         try ParsePhase().run(ctx)
-        XCTAssertNoThrow(try BuildASTPhase().run(ctx))
-        XCTAssertNotNil(ctx.ast, "BuildASTPhase should produce an ASTModule in ctx.ast")
+        #expect(throws: Never.self) { try BuildASTPhase().run(ctx) }
+        #expect(ctx.ast != nil, "BuildASTPhase should produce an ASTModule in ctx.ast")
     }
 
+    @Test
     func testBuildASTPopulatesTopLevelDecls() throws {
         let source = """
         fun foo() {}
@@ -167,23 +179,25 @@ final class FrontendPhasesTests: XCTestCase {
         try LexPhase().run(ctx)
         try ParsePhase().run(ctx)
         try BuildASTPhase().run(ctx)
-        let ast = try XCTUnwrap(ctx.ast)
+        let ast = try #require(ctx.ast)
         let totalDecls = ast.sortedFiles.reduce(0) { $0 + $1.topLevelDecls.count }
-        XCTAssertGreaterThanOrEqual(totalDecls, 2, "Should have at least 2 top-level declarations")
+        #expect(totalDecls >= 2, "Should have at least 2 top-level declarations")
     }
 
+    @Test
     func testBuildASTHandlesScriptMode() throws {
         let source = "val x = 42"
         let ctx = makeContextFromSource(source)
         try LexPhase().run(ctx)
         try ParsePhase().run(ctx)
         // Script mode may produce diagnostics but should not crash
-        XCTAssertNoThrow(try BuildASTPhase().run(ctx))
-        XCTAssertNotNil(ctx.ast, "BuildASTPhase should produce an ASTModule even for script-mode source")
+        #expect(throws: Never.self) { try BuildASTPhase().run(ctx) }
+        #expect(ctx.ast != nil, "BuildASTPhase should produce an ASTModule even for script-mode source")
     }
 
     // MARK: - Full frontend pipeline
 
+    @Test
     func testFullFrontendPipelineSucceeds() throws {
         let source = """
         fun add(a: Int, b: Int): Int = a + b
@@ -192,8 +206,9 @@ final class FrontendPhasesTests: XCTestCase {
         }
         """
         let ctx = makeContextFromSource(source)
-        XCTAssertNoThrow(try runFrontend(ctx))
-        XCTAssertNotNil(ctx.ast, "Full frontend pipeline should produce an ASTModule")
-        XCTAssertFalse(ctx.diagnostics.hasError, "Valid Kotlin source should not produce errors")
+        #expect(throws: Never.self) { try runFrontend(ctx) }
+        #expect(ctx.ast != nil, "Full frontend pipeline should produce an ASTModule")
+        #expect(!(ctx.diagnostics.hasError), "Valid Kotlin source should not produce errors")
     }
 }
+#endif

@@ -1,8 +1,11 @@
+#if canImport(Testing)
 @testable import LSPServer
-import XCTest
+import Testing
 
-final class ServerFlowTests: XCTestCase {
-    func testInitializeShutdownAndDiagnosticsLifecycle() {
+@Suite("LSP.ServerFlow")
+struct ServerFlowTests {
+    @Test
+    func initializeShutdownAndDiagnosticsLifecycle() {
         let uri = "file:///tmp/LSPServerFlow.kt"
         let source = "fun main() {\n    val x: Int = 1\n}\n"
 
@@ -23,29 +26,33 @@ final class ServerFlowTests: XCTestCase {
         let server = Server(connection: connection)
 
         let exitCode = server.run()
-        XCTAssertEqual(exitCode, 0, "shutdown followed by exit should yield exit code 0")
+        #expect(exitCode == 0, "shutdown followed by exit should yield exit code 0")
 
         let sent = LSPTestSupport.decodeMessages(from: output)
 
+        // initialize response carries server capabilities.
         let initializeResponse = sent.first { ($0["id"] as? Int) == 1 }
-        XCTAssertNotNil(initializeResponse)
+        #expect(initializeResponse != nil, "Expected an initialize response")
         if let result = initializeResponse?["result"] as? [String: Any],
            let capabilities = result["capabilities"] as? [String: Any]
         {
-            XCTAssertEqual(capabilities["hoverProvider"] as? Bool, true)
-            XCTAssertEqual(capabilities["definitionProvider"] as? Bool, true)
-            XCTAssertEqual(capabilities["documentSymbolProvider"] as? Bool, true)
+            #expect((capabilities["hoverProvider"] as? Bool) == true)
+            #expect((capabilities["definitionProvider"] as? Bool) == true)
+            #expect((capabilities["documentSymbolProvider"] as? Bool) == true)
         } else {
-            XCTFail("initialize result should contain capabilities")
+            Issue.record("initialize result should contain capabilities")
         }
 
+        // A publishDiagnostics notification is emitted for the opened document.
         let publish = sent.first { ($0["method"] as? String) == "textDocument/publishDiagnostics" }
-        XCTAssertNotNil(publish)
+        #expect(publish != nil, "Expected a publishDiagnostics notification")
         if let params = publish?["params"] as? [String: Any] {
-            XCTAssertEqual(params["uri"] as? String, uri)
-            XCTAssertNotNil(params["diagnostics"])
+            #expect((params["uri"] as? String) == uri)
+            #expect(params["diagnostics"] != nil)
         }
 
-        XCTAssertTrue(sent.contains { ($0["id"] as? Int) == 2 })
+        // shutdown response present.
+        #expect(sent.contains { ($0["id"] as? Int) == 2 }, "Expected a shutdown response")
     }
 }
+#endif

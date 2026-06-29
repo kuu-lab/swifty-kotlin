@@ -1,9 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NominalLayoutTests: XCTestCase {
+@Suite
+struct NominalLayoutTests {
     // MARK: - Basic Init
 
+    @Test
     func testNominalLayoutMinimalInit() {
         let layout = NominalLayout(
             objectHeaderWords: 2,
@@ -13,19 +16,20 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: nil
         )
-        XCTAssertEqual(layout.objectHeaderWords, 2)
-        XCTAssertEqual(layout.instanceFieldCount, 0)
-        XCTAssertEqual(layout.instanceSizeWords, 2)
-        XCTAssertTrue(layout.fieldOffsets.isEmpty)
-        XCTAssertTrue(layout.vtableSlots.isEmpty)
-        XCTAssertTrue(layout.itableSlots.isEmpty)
-        XCTAssertEqual(layout.vtableSize, 0)
-        XCTAssertEqual(layout.itableSize, 0)
-        XCTAssertNil(layout.superClass)
+        #expect(layout.objectHeaderWords == 2)
+        #expect(layout.instanceFieldCount == 0)
+        #expect(layout.instanceSizeWords == 2)
+        #expect(layout.fieldOffsets.isEmpty)
+        #expect(layout.vtableSlots.isEmpty)
+        #expect(layout.itableSlots.isEmpty)
+        #expect(layout.vtableSize == 0)
+        #expect(layout.itableSize == 0)
+        #expect(layout.superClass == nil)
     }
 
     // MARK: - Field Count Inference
 
+    @Test
     func testFieldCountInferredFromFieldOffsets() {
         let sym1 = SymbolID(rawValue: 0)
         let sym2 = SymbolID(rawValue: 1)
@@ -38,9 +42,10 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: nil
         )
-        XCTAssertEqual(layout.instanceFieldCount, 2)
+        #expect(layout.instanceFieldCount == 2)
     }
 
+    @Test
     func testFieldCountUsesMaxOfDeclaredAndInferred() {
         let sym1 = SymbolID(rawValue: 0)
         let layout = NominalLayout(
@@ -52,11 +57,12 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: nil
         )
-        XCTAssertEqual(layout.instanceFieldCount, 5)
+        #expect(layout.instanceFieldCount == 5)
     }
 
     // MARK: - Instance Size Inference
 
+    @Test
     func testInstanceSizeInferredFromFieldOffsets() {
         let sym1 = SymbolID(rawValue: 0)
         let layout = NominalLayout(
@@ -70,9 +76,10 @@ final class NominalLayoutTests: XCTestCase {
         )
         // inferredInstanceSizeWords = max(0, max(fieldOffsets.values) + 1) = 5
         // final = max(max(0, 5), 2 + 1) = 5
-        XCTAssertEqual(layout.instanceSizeWords, 5)
+        #expect(layout.instanceSizeWords == 5)
     }
 
+    @Test
     func testInstanceSizeUsesHeaderPlusFieldCount() {
         let sym1 = SymbolID(rawValue: 0)
         let sym2 = SymbolID(rawValue: 1)
@@ -89,9 +96,10 @@ final class NominalLayoutTests: XCTestCase {
         // inferredFieldCount = 3
         // inferredInstanceSizeWords = max(0, 4 + 1) = 5
         // final = max(max(0, 5), 2 + 3) = 5
-        XCTAssertEqual(layout.instanceSizeWords, 5)
+        #expect(layout.instanceSizeWords == 5)
     }
 
+    @Test
     func testInstanceSizeUsesMaxOfAllSources() {
         let layout = NominalLayout(
             objectHeaderWords: 2,
@@ -101,9 +109,10 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: nil
         )
-        XCTAssertEqual(layout.instanceSizeWords, 10)
+        #expect(layout.instanceSizeWords == 10)
     }
 
+    @Test
     func testInstanceSizeWithEmptyFieldOffsetsUsesHeaderMinusOne() {
         let layout = NominalLayout(
             objectHeaderWords: 4,
@@ -116,11 +125,12 @@ final class NominalLayoutTests: XCTestCase {
         )
         // inferredInstanceSizeWords = max(0, (nil ?? (4-1)) + 1) = 4
         // final = max(max(0, 4), 4 + 0) = 4
-        XCTAssertEqual(layout.instanceSizeWords, 4)
+        #expect(layout.instanceSizeWords == 4)
     }
 
     // MARK: - Vtable / Itable Size Inference
 
+    @Test
     func testVtableSizeInferredFromSlots() {
         let sym1 = SymbolID(rawValue: 0)
         let sym2 = SymbolID(rawValue: 1)
@@ -133,9 +143,10 @@ final class NominalLayoutTests: XCTestCase {
             superClass: nil
         )
         // inferredVtableSize = max(vtableSlots.values) + 1 = 3 + 1 = 4
-        XCTAssertEqual(layout.vtableSize, 4)
+        #expect(layout.vtableSize == 4)
     }
 
+    @Test
     func testItableSizeInferredFromSlots() {
         let sym1 = SymbolID(rawValue: 0)
         let layout = NominalLayout(
@@ -147,9 +158,10 @@ final class NominalLayoutTests: XCTestCase {
             superClass: nil
         )
         // inferredItableSize = 5 + 1 = 6
-        XCTAssertEqual(layout.itableSize, 6)
+        #expect(layout.itableSize == 6)
     }
 
+    @Test
     func testVtableSizeUsesMaxOfDeclaredAndInferred() {
         let sym1 = SymbolID(rawValue: 0)
         let layout = NominalLayout(
@@ -162,9 +174,10 @@ final class NominalLayoutTests: XCTestCase {
             superClass: nil
         )
         // inferredVtableSize = 1 + 1 = 2; declared = 10; max(10, 2) = 10
-        XCTAssertEqual(layout.vtableSize, 10)
+        #expect(layout.vtableSize == 10)
     }
 
+    @Test
     func testItableSizeUsesMaxOfDeclaredAndInferred() {
         let sym1 = SymbolID(rawValue: 0)
         let layout = NominalLayout(
@@ -177,9 +190,10 @@ final class NominalLayoutTests: XCTestCase {
             superClass: nil
         )
         // inferredItableSize = 1 + 1 = 2; declared = 8; max(8, 2) = 8
-        XCTAssertEqual(layout.itableSize, 8)
+        #expect(layout.itableSize == 8)
     }
 
+    @Test
     func testEmptyVtableSlotsGivesZeroVtableSize() {
         let layout = NominalLayout(
             objectHeaderWords: 2,
@@ -189,12 +203,13 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: nil
         )
-        XCTAssertEqual(layout.vtableSize, 0)
-        XCTAssertEqual(layout.itableSize, 0)
+        #expect(layout.vtableSize == 0)
+        #expect(layout.itableSize == 0)
     }
 
     // MARK: - Superclass
 
+    @Test
     func testLayoutWithSuperclass() {
         let superSym = SymbolID(rawValue: 99)
         let layout = NominalLayout(
@@ -205,11 +220,12 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: superSym
         )
-        XCTAssertEqual(layout.superClass, superSym)
+        #expect(layout.superClass == superSym)
     }
 
     // MARK: - Equatable
 
+    @Test
     func testNominalLayoutEquality() {
         let layout1 = NominalLayout(
             objectHeaderWords: 2,
@@ -227,9 +243,10 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: nil
         )
-        XCTAssertEqual(layout1, layout2)
+        #expect(layout1 == layout2)
     }
 
+    @Test
     func testNominalLayoutInequality() {
         let layout1 = NominalLayout(
             objectHeaderWords: 2,
@@ -247,11 +264,12 @@ final class NominalLayoutTests: XCTestCase {
             itableSlots: [:],
             superClass: nil
         )
-        XCTAssertNotEqual(layout1, layout2)
+        #expect(layout1 != layout2)
     }
 
     // MARK: - NominalLayoutHint
 
+    @Test
     func testNominalLayoutHintAllNils() {
         let hint = NominalLayoutHint(
             declaredFieldCount: nil,
@@ -259,12 +277,13 @@ final class NominalLayoutTests: XCTestCase {
             declaredVtableSize: nil,
             declaredItableSize: nil
         )
-        XCTAssertNil(hint.declaredFieldCount)
-        XCTAssertNil(hint.declaredInstanceSizeWords)
-        XCTAssertNil(hint.declaredVtableSize)
-        XCTAssertNil(hint.declaredItableSize)
+        #expect(hint.declaredFieldCount == nil)
+        #expect(hint.declaredInstanceSizeWords == nil)
+        #expect(hint.declaredVtableSize == nil)
+        #expect(hint.declaredItableSize == nil)
     }
 
+    @Test
     func testNominalLayoutHintWithValues() {
         let hint = NominalLayoutHint(
             declaredFieldCount: 3,
@@ -272,15 +291,17 @@ final class NominalLayoutTests: XCTestCase {
             declaredVtableSize: 2,
             declaredItableSize: 1
         )
-        XCTAssertEqual(hint.declaredFieldCount, 3)
-        XCTAssertEqual(hint.declaredInstanceSizeWords, 5)
-        XCTAssertEqual(hint.declaredVtableSize, 2)
-        XCTAssertEqual(hint.declaredItableSize, 1)
+        #expect(hint.declaredFieldCount == 3)
+        #expect(hint.declaredInstanceSizeWords == 5)
+        #expect(hint.declaredVtableSize == 2)
+        #expect(hint.declaredItableSize == 1)
     }
 
+    @Test
     func testNominalLayoutHintEquality() {
         let a = NominalLayoutHint(declaredFieldCount: 1, declaredInstanceSizeWords: 2, declaredVtableSize: 3, declaredItableSize: 4)
         let b = NominalLayoutHint(declaredFieldCount: 1, declaredInstanceSizeWords: 2, declaredVtableSize: 3, declaredItableSize: 4)
-        XCTAssertEqual(a, b)
+        #expect(a == b)
     }
 }
+#endif

@@ -1,11 +1,16 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringPassRegressionTests {
 
     // MARK: - Non-local return: basic conversion
 
+    /// When an inline function body contains a `nonLocalReturn`, the inline
+    /// lowering pass should convert it into a real `returnValue` / `returnUnit`
+    /// in the caller's body.
+    @Test
     func testInlineLoweringConvertsNonLocalReturnValueToCallerReturn() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -15,6 +20,7 @@ extension LoweringPassRegressionTests {
         let inlineSym = SymbolID(rawValue: 401)
         let inlineParamSym = SymbolID(rawValue: 402)
 
+        // Inline function body: load the parameter, then non-local return it.
         let inlineArgExpr = arena.appendExpr(.temporary(0))
         let callerArg = arena.appendExpr(.temporary(1))
         let callerResult = arena.appendExpr(.temporary(2))
@@ -26,6 +32,7 @@ extension LoweringPassRegressionTests {
             returnType: types.make(.primitive(.int, .nonNull)),
             body: [
                 .constValue(result: inlineArgExpr, value: .symbolRef(inlineParamSym)),
+                // This non-local return should become a real return in the caller.
                 .nonLocalReturn(inlineArgExpr),
             ],
             isSuspend: false,
@@ -47,6 +54,7 @@ extension LoweringPassRegressionTests {
                     canThrow: false,
                     thrownResult: nil
                 ),
+                // This returnValue should still be present after inlining.
                 .returnValue(callerResult),
             ],
             isSuspend: false,
@@ -76,28 +84,36 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            XCTFail("expected lowered caller function")
+            Issue.record("expected lowered caller function")
             return
         }
 
+        // The non-local return should have been converted to a real returnValue.
+        // We expect at least 2: one from the non-local return conversion and one
+        // from the caller's own return statement.
         let returnValues = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(expr) = instruction else { return nil }
             return expr
         }
-        XCTAssertGreaterThanOrEqual(returnValues.count, 2, "Expected returnValue from both non-local return conversion and caller's own return")
+        #expect(returnValues.count >= 2, "Expected returnValue from both non-local return conversion and caller's own return")
 
+        // The inlined call should be removed (no call to 'runAndReturn').
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
-        XCTAssertFalse(calleeNames.contains("runAndReturn"), "Inline call should be expanded")
+        #expect(!calleeNames.contains("runAndReturn"), "Inline call should be expanded")
 
+        // No residual nonLocalReturn instructions should remain.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasNonLocalReturn, "nonLocalReturn should have been converted to returnValue")
+        #expect(!hasNonLocalReturn, "nonLocalReturn should have been converted to returnValue")
     }
 
     // MARK: - Non-local return Unit
 
+    /// A non-local return with nil value (Unit return) should become returnUnit
+    /// in the caller.
+    @Test
     func testInlineLoweringConvertsNonLocalReturnUnitToCallerReturnUnit() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -163,28 +179,35 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            XCTFail("expected lowered caller function")
+            Issue.record("expected lowered caller function")
             return
         }
 
+        // Should have at least 2 returnUnit instructions: one from the non-local
+        // return conversion and one from the caller's own return statement.
         let returnUnitCount = loweredCaller.body.filter { instruction in
             if case .returnUnit = instruction { return true }
             return false
         }.count
-        XCTAssertGreaterThanOrEqual(returnUnitCount, 2, "Expected returnUnit from both non-local return conversion and caller's own return")
+        #expect(returnUnitCount >= 2, "Expected returnUnit from both non-local return conversion and caller's own return")
 
+        // The inlined call should be removed (no call to 'earlyExit').
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
-        XCTAssertFalse(calleeNames.contains("earlyExit"), "Inline call should be expanded")
+        #expect(!calleeNames.contains("earlyExit"), "Inline call should be expanded")
 
+        // No residual nonLocalReturn.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasNonLocalReturn, "nonLocalReturn should have been lowered away")
+        #expect(!hasNonLocalReturn, "nonLocalReturn should have been lowered away")
     }
 
     // MARK: - Non-local return with mixed body (normal path + non-local path)
 
+    /// When an inline function contains both a normal code path and a
+    /// non-local return path, both should be present in the lowered output.
+    @Test
     func testInlineLoweringPreservesMixedNormalAndNonLocalReturnPaths() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -265,38 +288,49 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            XCTFail("expected lowered caller function")
+            Issue.record("expected lowered caller function")
             return
         }
 
+        // Should have returnValue instructions from both the non-local
+        // return path and the caller's own return.
         let returnValues = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(expr) = instruction else { return nil }
             return expr
         }
-        XCTAssertGreaterThanOrEqual(
-            returnValues.count, 2,
+        #expect(
+            returnValues.count >= 2,
             "Expected returns from both non-local path and caller's own return"
         )
 
+        // An exit label should be emitted (dynamically allocated above existing labels).
+        // With label remapping, the inline body's label 10 is remapped into the
+        // caller's namespace, and the exit label is allocated after all remapped labels.
         let labels = loweredCaller.body.compactMap { instruction -> Int32? in
             guard case let .label(id) = instruction else { return nil }
             return id
         }
-        XCTAssertGreaterThanOrEqual(labels.count, 2, "Expected remapped body label and exit label")
-        XCTAssertEqual(Set(labels).count, labels.count, "All labels should be unique after remapping")
+        // Expect at least 2 labels: one from the remapped inline body and the exit label.
+        #expect(labels.count >= 2, "Expected remapped body label and exit label")
+        // All labels should be unique (no collisions from remapping).
+        #expect(Set(labels).count == labels.count, "All labels should be unique after remapping")
 
+        // No residual nonLocalReturn.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasNonLocalReturn, "nonLocalReturn should have been lowered away")
+        #expect(!hasNonLocalReturn, "nonLocalReturn should have been lowered away")
 
+        // The inlined call should be removed.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
-        XCTAssertFalse(calleeNames.contains("conditionalReturn"))
+        #expect(!calleeNames.contains("conditionalReturn"))
     }
 
     // MARK: - Existing inline tests still pass (no regression)
 
+    /// Inline expansion without nonLocalReturn should work exactly as before.
+    @Test
     func testInlineLoweringWithoutNonLocalReturnIsUnchanged() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -363,29 +397,39 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            XCTFail("expected lowered caller function")
+            Issue.record("expected lowered caller function")
             return
         }
 
+        // Inline call should be expanded -- no call to addOne remains.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
-        XCTAssertFalse(calleeNames.contains("addOne"))
-        XCTAssertTrue(calleeNames.contains("kk_op_add"))
+        #expect(!calleeNames.contains("addOne"))
+        #expect(calleeNames.contains("kk_op_add"))
 
+        // No nonLocalReturn instructions.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasNonLocalReturn)
+        #expect(!hasNonLocalReturn)
 
+        // No exit labels from non-local return handling should be present.
+        // The inline function body has no labels, so exit labels would be
+        // allocated starting from 0. With no non-local returns, no exit
+        // labels should be emitted at all.
         let labels = loweredCaller.body.compactMap { instruction -> Int32? in
             guard case let .label(id) = instruction else { return nil }
             return id
         }
-        XCTAssertTrue(labels.isEmpty, "No non-local return labels expected for normal inline expansion")
+        #expect(labels.isEmpty, "No non-local return labels expected for normal inline expansion")
     }
 
     // MARK: - Unit inline body with mixed control flow (NLR + returnUnit in branches)
 
+    /// When an inline function returns Unit and has one branch with nonLocalReturn
+    /// and another branch with returnUnit, the returnUnit branch should jump to
+    /// an exit label (not fall through into subsequent code).
+    @Test
     func testInlineLoweringUnitBodyWithMixedNonLocalAndNormalReturn() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -468,19 +512,24 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            XCTFail("expected lowered caller function")
+            Issue.record("expected lowered caller function")
             return
         }
 
+        // The inline call should be expanded.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
-        XCTAssertFalse(calleeNames.contains("maybeExit"), "Inline call should be expanded")
+        #expect(!calleeNames.contains("maybeExit"), "Inline call should be expanded")
 
+        // No residual nonLocalReturn.
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasNonLocalReturn, "nonLocalReturn should have been lowered away")
+        #expect(!hasNonLocalReturn, "nonLocalReturn should have been lowered away")
 
+        // The normal-return branch (returnUnit from inline body) should have
+        // been converted to a jump to the exit label. Verify that a jump
+        // instruction exists targeting a label that also appears in the body.
         let labels = Set(loweredCaller.body.compactMap { instruction -> Int32? in
             guard case let .label(id) = instruction else { return nil }
             return id
@@ -489,15 +538,19 @@ extension LoweringPassRegressionTests {
             guard case let .jump(target) = instruction else { return nil }
             return target
         })
+        // There should be at least one exit label that is targeted by a jump.
         let exitLabelsWithIncomingEdges = labels.intersection(jumpTargets)
-        XCTAssertFalse(exitLabelsWithIncomingEdges.isEmpty,
-                       "Expected an exit label with incoming jump from the normal-return branch")
+        #expect(!exitLabelsWithIncomingEdges.isEmpty,
+                "Expected an exit label with incoming jump from the normal-return branch")
 
+        // Should have at least one returnUnit (from the NLR path converting
+        // nonLocalReturn(nil) into a real returnUnit).
         let returnUnitCount = loweredCaller.body.filter { instruction in
             if case .returnUnit = instruction { return true }
             return false
         }.count
-        XCTAssertGreaterThanOrEqual(returnUnitCount, 1,
-                                    "Expected at least one returnUnit from non-local return conversion")
+        #expect(returnUnitCount >= 1,
+                "Expected at least one returnUnit from non-local return conversion")
     }
 }
+#endif

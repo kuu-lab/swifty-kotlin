@@ -1,22 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCPointerGetFunctionTests: XCTestCase {
-    func testCPointerGetFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropCPointerGetFunctionTests {
+    @Test func testCPointerGetFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer.get surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer.get surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: cinteropPkg + [interner.intern(name)]),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: cinteropPkg + [interner.intern(name)])
+            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let cPointerSymbol = try cinteropSymbol("CPointer")
@@ -27,7 +24,7 @@ final class NativeCInteropCPointerGetFunctionTests: XCTestCase {
         )))
 
         let getFQName = cinteropPkg + [interner.intern("get")]
-        let getFunctionSymbol = try XCTUnwrap(
+        let getFunctionSymbol = try #require(
             sema.symbols.lookupAll(fqName: getFQName).first { symbolID in
                 guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
                 guard let typeParam = sig.typeParameterSymbols.first else { return false }
@@ -47,20 +44,20 @@ final class NativeCInteropCPointerGetFunctionTests: XCTestCase {
             "kotlinx.cinterop.CPointer<T>.get(index: Int): T must be registered"
         )
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: getFunctionSymbol))
-        let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let signature = try #require(sema.symbols.functionSignature(for: getFunctionSymbol))
+        let typeParameter = try #require(signature.typeParameterSymbols.first)
 
-        XCTAssertEqual(sema.symbols.symbol(getFunctionSymbol)?.kind, .function)
-        XCTAssertTrue(
+        #expect(sema.symbols.symbol(getFunctionSymbol)?.kind == .function)
+        #expect(
             sema.symbols.symbol(getFunctionSymbol)?.flags.contains(.operatorFunction) == true,
             "get must be marked as operator function"
         )
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [cPointedType])
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[cPointedType]])
-        XCTAssertEqual(signature.classTypeParameterCount, 0)
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [cPointedType])
+        #expect(signature.typeParameterUpperBoundsList == [[cPointedType]])
+        #expect(signature.classTypeParameterCount == 0)
     }
 
-    func testCPointerGetFunctionResolvesInSource() throws {
+    @Test func testCPointerGetFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointed
         import kotlinx.cinterop.CPointer
@@ -72,16 +69,13 @@ final class NativeCInteropCPointerGetFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointer.get to resolve via indexing syntax, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointer.get to resolve via indexing syntax, got: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let getFQName = ["kotlinx", "cinterop", "get"].map { interner.intern($0) }
         let getCandidates = Set(sema.symbols.lookupAll(fqName: getFQName))
-        let indexedAccess = try XCTUnwrap(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+        let indexedAccess = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
                   case .indexedAccess = expr
@@ -90,10 +84,11 @@ final class NativeCInteropCPointerGetFunctionTests: XCTestCase {
             }
             return exprID
         }.first)
-        let chosen = try XCTUnwrap(
+        let chosen = try #require(
             sema.bindings.callBinding(for: indexedAccess)?.chosenCallee,
             "Expected CPointer.get indexed access to bind a callee"
         )
-        XCTAssertTrue(getCandidates.contains(chosen))
+        #expect(getCandidates.contains(chosen))
     }
 }
+#endif

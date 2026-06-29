@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - STDLIB-EXPERIMENTAL-ABI-001: Synthetic experimental opt-in marker stubs
 //
@@ -23,7 +24,8 @@ import XCTest
 //   3. It carries @RequiresOptIn.
 //   4. The @RequiresOptIn argument encodes the correct severity level.
 
-final class ExperimentalMarkerStubTests: XCTestCase {
+@Suite
+struct ExperimentalMarkerStubTests {
     private struct ExperimentalPackageMarker: Hashable {
         let name: String
         let todo: String?
@@ -90,10 +92,10 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         guard let sym = lookupSymbol(fqPath: fqPath, sema: sema, interner: interner),
               let info = sema.symbols.symbol(sym)
         else {
-            XCTFail("\(fqPath.joined(separator: ".")) not found in symbol table", file: file, line: line)
+            Issue.record("\(fqPath.joined(separator: ".")) not found in symbol table")
             return
         }
-        XCTAssertEqual(info.kind, .annotationClass, "\(fqPath.last ?? "") must have kind=annotationClass", file: file, line: line)
+        #expect(info.kind == .annotationClass, "\(fqPath.last ?? "") must have kind=annotationClass")
     }
 
     private func assertHasRequiresOptIn(
@@ -105,36 +107,34 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         line: UInt = #line
     ) {
         guard let sym = lookupSymbol(fqPath: fqPath, sema: sema, interner: interner) else {
-            XCTFail("\(fqPath.joined(separator: ".")) not found in symbol table", file: file, line: line)
+            Issue.record("\(fqPath.joined(separator: ".")) not found in symbol table")
             return
         }
         let annotations = sema.symbols.annotations(for: sym)
         guard let requiresOptIn = annotations.first(where: { $0.annotationFQName == "kotlin.RequiresOptIn" }) else {
-            XCTFail("\(fqPath.last ?? "") must carry @RequiresOptIn annotation", file: file, line: line)
+            Issue.record("\(fqPath.last ?? "") must carry @RequiresOptIn annotation")
             return
         }
         let hasSeverity = requiresOptIn.arguments.contains { $0.contains(expectedSeverity) }
-        XCTAssertTrue(
-            hasSeverity,
-            "\(fqPath.last ?? "") @RequiresOptIn must declare severity=\(expectedSeverity); got \(requiresOptIn.arguments)",
-            file: file,
-            line: line
-        )
+        #expect(hasSeverity, "\(fqPath.last ?? "") @RequiresOptIn must declare severity=\(expectedSeverity); got \(requiresOptIn.arguments)")
     }
 
     // MARK: - ExperimentalUnsignedTypes (kotlin, ERROR)
 
+    @Test
     func testExperimentalUnsignedTypesIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalUnsignedTypes"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.ExperimentalUnsignedTypes must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.ExperimentalUnsignedTypes must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalUnsignedTypesIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalUnsignedTypes"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalUnsignedTypesHasRequiresOptIn() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -147,17 +147,20 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
     // MARK: - ExperimentalVersionOverloading (kotlin, ERROR)
 
+    @Test
     func testExperimentalVersionOverloadingIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalVersionOverloading"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.ExperimentalVersionOverloading must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.ExperimentalVersionOverloading must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalVersionOverloadingIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalVersionOverloading"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalVersionOverloadingHasRequiresOptInWithErrorSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -170,17 +173,20 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
     // MARK: - ExperimentalContextParameters (kotlin, ERROR)
 
+    @Test
     func testExperimentalContextParametersIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalContextParameters"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.ExperimentalContextParameters must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.ExperimentalContextParameters must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalContextParametersIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalContextParameters"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalContextParametersHasRequiresOptInWithErrorSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -191,32 +197,31 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalContextParametersRequiresOptInMessageMentionsContextParameters() throws {
         let (sema, interner) = try makeSema()
-        let sym = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "ExperimentalContextParameters"], sema: sema, interner: interner)
-        )
+        let sym = try #require(lookupSymbol(fqPath: ["kotlin", "ExperimentalContextParameters"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: sym)
-        let requiresOptIn = try XCTUnwrap(annotations.first { $0.annotationFQName == "kotlin.RequiresOptIn" })
-        XCTAssertTrue(
-            requiresOptIn.arguments.contains { $0.contains("context parameters") },
-            "Expected ExperimentalContextParameters @RequiresOptIn message to mention context parameters, got: \(requiresOptIn.arguments)"
-        )
+        let requiresOptIn = try #require(annotations.first { $0.annotationFQName == "kotlin.RequiresOptIn" })
+        #expect(requiresOptIn.arguments.contains { $0.contains("context parameters") }, "Expected ExperimentalContextParameters @RequiresOptIn message to mention context parameters, got: \(requiresOptIn.arguments)")
     }
 
     // MARK: - ExperimentalUuidApi (kotlin.uuid, ERROR)
 
+    @Test
     func testExperimentalUuidApiIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "uuid", "ExperimentalUuidApi"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.uuid.ExperimentalUuidApi must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.uuid.ExperimentalUuidApi must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalUuidApiIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "uuid", "ExperimentalUuidApi"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalUuidApiHasRequiresOptInWithErrorSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -229,6 +234,7 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
     // MARK: - ExperimentalEncodingApi (kotlin.io.encoding, ERROR)
 
+    @Test
     func testExperimentalEncodingApiIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(
@@ -236,9 +242,10 @@ final class ExperimentalMarkerStubTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertNotNil(sym, "kotlin.io.encoding.ExperimentalEncodingApi must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.io.encoding.ExperimentalEncodingApi must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalEncodingApiIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(
@@ -248,6 +255,7 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalEncodingApiHasRequiresOptInWithErrorSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -258,28 +266,29 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testKotlinIoEncodingPackageIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "io", "encoding"].map { interner.intern($0) }
-        XCTAssertNotNil(
-            sema.symbols.lookup(fqName: fq),
-            "kotlin.io.encoding package must be present in the symbol table after sema"
-        )
+        #expect(sema.symbols.lookup(fqName: fq) != nil, "kotlin.io.encoding package must be present in the symbol table after sema")
     }
 
     // MARK: - ExperimentalWasmInterop (kotlin.wasm, WARNING)
 
+    @Test
     func testExperimentalWasmInteropIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "wasm", "ExperimentalWasmInterop"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.wasm.ExperimentalWasmInterop must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.wasm.ExperimentalWasmInterop must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalWasmInteropIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "wasm", "ExperimentalWasmInterop"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalWasmInteropHasRequiresOptInWithWarningSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -292,6 +301,7 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
     // MARK: - ExperimentalPathApi (kotlin.io.path, ERROR)
 
+    @Test
     func testExperimentalPathApiIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(
@@ -299,9 +309,10 @@ final class ExperimentalMarkerStubTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertNotNil(sym, "kotlin.io.path.ExperimentalPathApi must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.io.path.ExperimentalPathApi must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalPathApiIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(
@@ -311,6 +322,7 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalPathApiHasRequiresOptInWithErrorSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -321,14 +333,12 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalPathApiHasOfficialTargets() throws {
         let (sema, interner) = try makeSema()
-        let sym = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"], sema: sema, interner: interner)
-        )
+        let sym = try #require(lookupSymbol(fqPath: ["kotlin", "io", "path", "ExperimentalPathApi"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: sym)
-        XCTAssertTrue(
-            annotations.contains {
+        #expect(annotations.contains {
                 $0.annotationFQName == "kotlin.annotation.Target"
                     && $0.arguments == [
                         "AnnotationTarget.CLASS",
@@ -343,13 +353,12 @@ final class ExperimentalMarkerStubTests: XCTestCase {
                         "AnnotationTarget.PROPERTY_SETTER",
                         "AnnotationTarget.TYPEALIAS",
                     ]
-            },
-            "ExperimentalPathApi must carry the official @Target list, got \(annotations)"
-        )
+            }, "ExperimentalPathApi must carry the official @Target list, got \(annotations)")
     }
 
     // MARK: - ExperimentalAssociatedObjects (kotlin.reflect, ERROR)
 
+    @Test
     func testExperimentalAssociatedObjectsIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(
@@ -357,9 +366,10 @@ final class ExperimentalMarkerStubTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertNotNil(sym, "kotlin.reflect.ExperimentalAssociatedObjects must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.reflect.ExperimentalAssociatedObjects must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalAssociatedObjectsIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(
@@ -369,6 +379,7 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalAssociatedObjectsHasRequiresOptInWithErrorSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -379,34 +390,33 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalAssociatedObjectsHasBinaryRetention() throws {
         let (sema, interner) = try makeSema()
-        let sym = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"], sema: sema, interner: interner)
-        )
+        let sym = try #require(lookupSymbol(fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: sym)
-        XCTAssertTrue(
-            annotations.contains {
+        #expect(annotations.contains {
                 $0.annotationFQName == "kotlin.annotation.Retention"
                     && $0.arguments.contains("AnnotationRetention.BINARY")
-            },
-            "Expected ExperimentalAssociatedObjects to carry @Retention(BINARY), got: \(annotations)"
-        )
+            }, "Expected ExperimentalAssociatedObjects to carry @Retention(BINARY), got: \(annotations)")
     }
 
     // MARK: - ExperimentalMultiplatform (kotlin, ERROR)
 
+    @Test
     func testExperimentalMultiplatformIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalMultiplatform"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.ExperimentalMultiplatform must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.ExperimentalMultiplatform must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalMultiplatformIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalMultiplatform"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalMultiplatformHasRequiresOptInWithErrorSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -419,17 +429,20 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
     // MARK: - ExperimentalSubclassOptIn (kotlin, WARNING)
 
+    @Test
     func testExperimentalSubclassOptInIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "ExperimentalSubclassOptIn"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.ExperimentalSubclassOptIn must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.ExperimentalSubclassOptIn must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalSubclassOptInIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "ExperimentalSubclassOptIn"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalSubclassOptInHasRequiresOptInWithWarningSeverity() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -442,6 +455,7 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
     // MARK: - Severity cross-check: ERROR vs WARNING are distinct
 
+    @Test
     func testErrorAndWarningSeveritiesAreDistinctAcrossMarkers() throws {
         let (sema, interner) = try makeSema()
 
@@ -458,82 +472,69 @@ final class ExperimentalMarkerStubTests: XCTestCase {
             return nil
         }
 
-        XCTAssertEqual(severity(fqPath: ["kotlin", "ExperimentalUnsignedTypes"]), "ERROR")
-        XCTAssertEqual(severity(fqPath: ["kotlin", "ExperimentalVersionOverloading"]), "ERROR")
-        XCTAssertEqual(severity(fqPath: ["kotlin", "ExperimentalContextParameters"]), "ERROR")
-        XCTAssertEqual(severity(fqPath: ["kotlin", "uuid", "ExperimentalUuidApi"]), "ERROR")
-        XCTAssertEqual(severity(fqPath: ["kotlin", "io", "encoding", "ExperimentalEncodingApi"]), "ERROR")
-        XCTAssertEqual(severity(fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"]), "ERROR")
-        XCTAssertEqual(severity(fqPath: ["kotlin", "ExperimentalMultiplatform"]), "ERROR")
-        XCTAssertEqual(severity(fqPath: ["kotlin", "ExperimentalSubclassOptIn"]), "WARNING")
+        #expect(severity(fqPath: ["kotlin", "ExperimentalUnsignedTypes"]) == "ERROR")
+        #expect(severity(fqPath: ["kotlin", "ExperimentalVersionOverloading"]) == "ERROR")
+        #expect(severity(fqPath: ["kotlin", "ExperimentalContextParameters"]) == "ERROR")
+        #expect(severity(fqPath: ["kotlin", "uuid", "ExperimentalUuidApi"]) == "ERROR")
+        #expect(severity(fqPath: ["kotlin", "io", "encoding", "ExperimentalEncodingApi"]) == "ERROR")
+        #expect(severity(fqPath: ["kotlin", "reflect", "ExperimentalAssociatedObjects"]) == "ERROR")
+        #expect(severity(fqPath: ["kotlin", "ExperimentalMultiplatform"]) == "ERROR")
+        #expect(severity(fqPath: ["kotlin", "ExperimentalSubclassOptIn"]) == "WARNING")
     }
 
     // MARK: - kotlin.experimental marker inventory
 
+    @Test
     func testKotlinExperimentalMarkerInventoryHasExpectedShape() {
         let targetMarkers = Self.implementedExperimentalPackageMarkers.union(Self.knownGapExperimentalPackageMarkers)
         let targetNames = Set(targetMarkers.map(\.name))
 
-        XCTAssertEqual(targetMarkers.count, targetNames.count)
-        XCTAssertEqual(targetMarkers.count, 6)
-        XCTAssertEqual(Self.implementedExperimentalPackageMarkers.count, 6)
-        XCTAssertEqual(Self.knownGapExperimentalPackageMarkers.count, 0)
+        #expect(targetMarkers.count == targetNames.count)
+        #expect(targetMarkers.count == 6)
+        #expect(Self.implementedExperimentalPackageMarkers.count == 6)
+        #expect(Self.knownGapExperimentalPackageMarkers.count == 0)
     }
 
+    @Test
     func testImplementedKotlinExperimentalMarkersAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         for marker in Self.implementedExperimentalPackageMarkers {
-            let symbol = try XCTUnwrap(
-                lookupSymbol(fqPath: ["kotlin", "experimental", marker.name], sema: sema, interner: interner),
-                "kotlin.experimental.\(marker.name) should be registered"
-            )
-            XCTAssertEqual(
-                sema.symbols.symbol(symbol)?.kind,
-                .annotationClass,
-                "kotlin.experimental.\(marker.name) should be an annotation class"
-            )
+            let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", marker.name], sema: sema, interner: interner))
+            #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass, "kotlin.experimental.\(marker.name) should be an annotation class")
         }
     }
 
+    @Test
     func testKnownGapKotlinExperimentalMarkersRemainAbsentUntilTheirTodoIsImplemented() throws {
         let (sema, interner) = try makeSema()
 
         for marker in Self.knownGapExperimentalPackageMarkers {
             let symbol = lookupSymbol(fqPath: ["kotlin", "experimental", marker.name], sema: sema, interner: interner)
-            XCTAssertNil(
-                symbol,
-                "kotlin.experimental.\(marker.name) is tracked by \(marker.todo ?? "unknown TODO") and should update this inventory when implemented"
-            )
+            #expect(symbol == nil, "kotlin.experimental.\(marker.name) is tracked by \(marker.todo ?? "unknown TODO") and should update this inventory when implemented")
         }
     }
 
+    @Test
     func testKnownGapKotlinExperimentalMarkerTodosAreScoped() {
         let todos = Set(Self.knownGapExperimentalPackageMarkers.compactMap(\.todo))
-        XCTAssertEqual(todos, Set<String>())
+        #expect(todos == Set<String>())
     }
 
+    @Test
     func testExpectRefinementCarriesClassTargetAndExperimentalMultiplatformMetadata() throws {
         let (sema, interner) = try makeSema()
-        let symbol = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "experimental", "ExpectRefinement"], sema: sema, interner: interner),
-            "kotlin.experimental.ExpectRefinement should be registered"
-        )
+        let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", "ExpectRefinement"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: symbol)
 
-        XCTAssertTrue(
-            annotations.contains {
+        #expect(annotations.contains {
                 $0.annotationFQName == "kotlin.annotation.Target"
                     && $0.arguments == ["AnnotationTarget.CLASS"]
-            },
-            "ExpectRefinement should carry @Target(AnnotationTarget.CLASS), got \(annotations)"
-        )
-        XCTAssertTrue(
-            annotations.contains { $0.annotationFQName == "kotlin.ExperimentalMultiplatform" },
-            "ExpectRefinement should carry @ExperimentalMultiplatform, got \(annotations)"
-        )
+            }, "ExpectRefinement should carry @Target(AnnotationTarget.CLASS), got \(annotations)")
+        #expect(annotations.contains { $0.annotationFQName == "kotlin.ExperimentalMultiplatform" }, "ExpectRefinement should carry @ExperimentalMultiplatform, got \(annotations)")
     }
 
+    @Test
     func testExpectRefinementMetadataIsExposedOnExpectDeclaration() throws {
         let sources = [
             """
@@ -555,26 +556,21 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
         let ctx = runSemaCollectingDiagnostics(sources)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(errors.isEmpty, "Expected expect/actual refined class to compile cleanly, got \(ctx.diagnostics.diagnostics)")
+        #expect(errors.isEmpty, "Expected expect/actual refined class to compile cleanly, got \(ctx.diagnostics.diagnostics)")
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let fqName = ["sample", "exp", "Refined"].map { ctx.interner.intern($0) }
-        let refinedSymbol = try XCTUnwrap(
-            sema.symbols.lookupAll(fqName: fqName).first { symbolID in
+        let refinedSymbol = try #require(sema.symbols.lookupAll(fqName: fqName).first { symbolID in
                 sema.symbols.symbol(symbolID)?.flags.contains(.expectDeclaration) == true
-            },
-            "Expected expect Refined symbol to be registered"
-        )
+            })
         let annotations = sema.symbols.annotations(for: refinedSymbol)
-        XCTAssertTrue(
-            annotations.contains {
+        #expect(annotations.contains {
                 $0.annotationFQName == "kotlin.experimental.ExpectRefinement"
                     || $0.annotationFQName == "ExpectRefinement"
-            },
-            "Expected @ExpectRefinement metadata on expect declaration, got \(annotations)"
-        )
+            }, "Expected @ExpectRefinement metadata on expect declaration, got \(annotations)")
     }
 
+    @Test
     func testExpectRefinementUseRequiresExperimentalMultiplatformOptIn() {
         let sources = [
             """
@@ -596,14 +592,12 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
         let ctx = runSemaCollectingDiagnostics(sources)
         let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
-        XCTAssertTrue(
-            diagnostics.contains {
+        #expect(diagnostics.contains {
                 $0.severity == .error && $0.message.contains("kotlin.ExperimentalMultiplatform")
-            },
-            "Expected ExpectRefinement usage to require ExperimentalMultiplatform opt-in, got \(ctx.diagnostics.diagnostics)"
-        )
+            }, "Expected ExpectRefinement usage to require ExperimentalMultiplatform opt-in, got \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
     func testExpectRefinementAcceptsExperimentalMultiplatformOptIn() {
         let sources = [
             """
@@ -627,12 +621,10 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
         let ctx = runSemaCollectingDiagnostics(sources)
         let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
-        XCTAssertTrue(
-            diagnostics.isEmpty,
-            "Expected @OptIn(kotlin.ExperimentalMultiplatform::class) to suppress ExpectRefinement diagnostics, got \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(diagnostics.isEmpty, "Expected @OptIn(kotlin.ExperimentalMultiplatform::class) to suppress ExpectRefinement diagnostics, got \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test
     func testExpectRefinementRejectsFunctionTarget() {
         let source = """
         @file:OptIn(kotlin.ExperimentalMultiplatform::class)
@@ -645,36 +637,25 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
-        XCTAssertEqual(
-            diagnostics.count,
-            1,
-            "Expected ExpectRefinement to reject function target, got \(ctx.diagnostics.diagnostics)"
-        )
-        XCTAssertTrue(
-            diagnostics.allSatisfy { $0.severity == .error },
-            "ExpectRefinement target diagnostics should be errors"
-        )
+        #expect(diagnostics.count == 1, "Expected ExpectRefinement to reject function target, got \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.allSatisfy { $0.severity == .error }, "ExpectRefinement target diagnostics should be errors")
     }
 
+    @Test
     func testKotlinExperimentalOptInMarkersCarryRequiresOptInError() throws {
         let (sema, interner) = try makeSema()
 
         for marker in Self.optInExperimentalPackageMarkerNames {
-            let symbol = try XCTUnwrap(
-                lookupSymbol(fqPath: ["kotlin", "experimental", marker], sema: sema, interner: interner),
-                "kotlin.experimental.\(marker) should be registered"
-            )
+            let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", marker], sema: sema, interner: interner))
             let annotations = sema.symbols.annotations(for: symbol)
-            XCTAssertTrue(
-                annotations.contains {
+            #expect(annotations.contains {
                     $0.annotationFQName == "kotlin.RequiresOptIn"
                         && $0.arguments.contains("level=RequiresOptIn.Level.ERROR")
-                },
-                "kotlin.experimental.\(marker) should carry @RequiresOptIn(ERROR), got \(annotations)"
-            )
+                }, "kotlin.experimental.\(marker) should carry @RequiresOptIn(ERROR), got \(annotations)")
         }
     }
 
+    @Test
     func testKotlinExperimentalOptInMarkersEmitDiagnosticsOnUse() {
         for marker in Self.optInExperimentalPackageMarkerNames {
             let source = """
@@ -692,13 +673,11 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
             let ctx = runSemaCollectingDiagnostics(source)
             let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
-            XCTAssertTrue(
-                diagnostics.contains { $0.severity == .error },
-                "Expected \(marker) use to emit an opt-in error, got \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(diagnostics.contains { $0.severity == .error }, "Expected \(marker) use to emit an opt-in error, got \(ctx.diagnostics.diagnostics)")
         }
     }
 
+    @Test
     func testKotlinExperimentalOptInMarkersAcceptExplicitOptIn() {
         for marker in Self.optInExperimentalPackageMarkerNames {
             let source = """
@@ -717,26 +696,26 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
             let ctx = runSemaCollectingDiagnostics(source)
             let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
-            XCTAssertTrue(
-                diagnostics.isEmpty,
-                "Expected @OptIn(\(marker)::class) to suppress opt-in diagnostics, got \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(diagnostics.isEmpty, "Expected @OptIn(\(marker)::class) to suppress opt-in diagnostics, got \(ctx.diagnostics.diagnostics)")
         }
     }
 
     // MARK: - ExperimentalJsCollectionsApi (kotlin.js, WARNING)
 
+    @Test
     func testExperimentalJsCollectionsApiIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsCollectionsApi"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.js.ExperimentalJsCollectionsApi must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.js.ExperimentalJsCollectionsApi must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalJsCollectionsApiIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "js", "ExperimentalJsCollectionsApi"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalJsCollectionsApiHasRequiresOptInWarning() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -747,38 +726,34 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalJsCollectionsApiHasOfficialTargets() throws {
         let (sema, interner) = try makeSema()
-        let symbol = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsCollectionsApi"], sema: sema, interner: interner)
-        )
+        let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsCollectionsApi"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: symbol)
-        let target = try XCTUnwrap(
-            annotations.first { $0.annotationFQName == "kotlin.annotation.Target" },
-            "ExperimentalJsCollectionsApi should carry explicit @Target metadata"
-        )
-        XCTAssertEqual(
-            Set(target.arguments),
-            Set([
+        let target = try #require(annotations.first { $0.annotationFQName == "kotlin.annotation.Target" })
+        #expect(Set(target.arguments) == Set([
                 "AnnotationTarget.CLASS",
                 "AnnotationTarget.FUNCTION",
-            ])
-        )
+            ]))
     }
 
     // MARK: - ExperimentalJsExport (kotlin.js, WARNING)
 
+    @Test
     func testExperimentalJsExportIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsExport"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.js.ExperimentalJsExport must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.js.ExperimentalJsExport must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalJsExportIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "js", "ExperimentalJsExport"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalJsExportHasRequiresOptInWarning() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -789,19 +764,16 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalJsExportDoesNotCarryExplicitTargetMetadata() throws {
         let (sema, interner) = try makeSema()
-        let symbol = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsExport"], sema: sema, interner: interner)
-        )
+        let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsExport"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: symbol)
 
-        XCTAssertFalse(
-            annotations.contains { $0.annotationFQName == "kotlin.annotation.Target" },
-            "ExperimentalJsExport should not carry explicit @Target metadata, got \(annotations)"
-        )
+        #expect(!(annotations.contains { $0.annotationFQName == "kotlin.annotation.Target" }), "ExperimentalJsExport should not carry explicit @Target metadata, got \(annotations)")
     }
 
+    @Test
     func testExperimentalJsExportEmitsWarningOnUse() {
         let source = """
         import kotlin.js.ExperimentalJsExport
@@ -818,14 +790,12 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
         let ctx = runSemaCollectingDiagnostics(source)
         let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
-        XCTAssertTrue(
-            diagnostics.contains { $0.severity == .warning },
-            "Expected ExperimentalJsExport use to emit an opt-in warning, got \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(diagnostics.contains { $0.severity == .warning }, "Expected ExperimentalJsExport use to emit an opt-in warning, got \(ctx.diagnostics.diagnostics)")
     }
 
     // MARK: - ExperimentalJsReflectionCreateInstance (kotlin.js, WARNING)
 
+    @Test
     func testExperimentalJsReflectionCreateInstanceIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(
@@ -833,9 +803,10 @@ final class ExperimentalMarkerStubTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertNotNil(sym, "kotlin.js.ExperimentalJsReflectionCreateInstance must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.js.ExperimentalJsReflectionCreateInstance must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalJsReflectionCreateInstanceIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(
@@ -845,6 +816,7 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalJsReflectionCreateInstanceHasRequiresOptInWarning() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -855,22 +827,16 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalJsReflectionCreateInstanceHasOfficialTargets() throws {
         let (sema, interner) = try makeSema()
-        let symbol = try XCTUnwrap(
-            lookupSymbol(
+        let symbol = try #require(lookupSymbol(
                 fqPath: ["kotlin", "js", "ExperimentalJsReflectionCreateInstance"],
                 sema: sema,
                 interner: interner
-            )
-        )
-        let target = try XCTUnwrap(
-            sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" },
-            "ExperimentalJsReflectionCreateInstance must carry @Target metadata"
-        )
-        XCTAssertEqual(
-            Set(target.arguments),
-            Set([
+            ))
+        let target = try #require(sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" })
+        #expect(Set(target.arguments) == Set([
                 "AnnotationTarget.CLASS",
                 "AnnotationTarget.ANNOTATION_CLASS",
                 "AnnotationTarget.PROPERTY",
@@ -882,23 +848,25 @@ final class ExperimentalMarkerStubTests: XCTestCase {
                 "AnnotationTarget.PROPERTY_GETTER",
                 "AnnotationTarget.PROPERTY_SETTER",
                 "AnnotationTarget.TYPEALIAS",
-            ])
-        )
+            ]))
     }
 
     // MARK: - ExperimentalJsStatic (kotlin.js, WARNING)
 
+    @Test
     func testExperimentalJsStaticIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsStatic"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.js.ExperimentalJsStatic must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.js.ExperimentalJsStatic must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalJsStaticIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "js", "ExperimentalJsStatic"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalJsStaticHasRequiresOptInWarning() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -909,32 +877,31 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalJsStaticDoesNotCarryExplicitTargetMetadata() throws {
         let (sema, interner) = try makeSema()
-        let symbol = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsStatic"], sema: sema, interner: interner)
-        )
+        let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsStatic"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: symbol)
 
-        XCTAssertFalse(
-            annotations.contains { $0.annotationFQName == "kotlin.annotation.Target" },
-            "ExperimentalJsStatic should not carry explicit @Target metadata, got \(annotations)"
-        )
+        #expect(!(annotations.contains { $0.annotationFQName == "kotlin.annotation.Target" }), "ExperimentalJsStatic should not carry explicit @Target metadata, got \(annotations)")
     }
 
     // MARK: - ExperimentalWasmJsInterop (kotlin.js, WARNING)
 
+    @Test
     func testExperimentalWasmJsInteropIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let sym = lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalWasmJsInterop"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.js.ExperimentalWasmJsInterop must be registered in the symbol table")
+        #expect(sym != nil, "kotlin.js.ExperimentalWasmJsInterop must be registered in the symbol table")
     }
 
+    @Test
     func testExperimentalWasmJsInteropIsAnnotationClass() throws {
         let (sema, interner) = try makeSema()
         assertIsAnnotationClass(fqPath: ["kotlin", "js", "ExperimentalWasmJsInterop"], sema: sema, interner: interner)
     }
 
+    @Test
     func testExperimentalWasmJsInteropHasRequiresOptInWarning() throws {
         let (sema, interner) = try makeSema()
         assertHasRequiresOptIn(
@@ -945,24 +912,18 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         )
     }
 
+    @Test
     func testExperimentalWasmJsInteropHasOfficialTargets() throws {
         let (sema, interner) = try makeSema()
-        let symbol = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalWasmJsInterop"], sema: sema, interner: interner)
-        )
+        let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalWasmJsInterop"], sema: sema, interner: interner))
         let annotations = sema.symbols.annotations(for: symbol)
-        let target = try XCTUnwrap(
-            annotations.first { $0.annotationFQName == "kotlin.annotation.Target" },
-            "ExperimentalWasmJsInterop should carry explicit @Target metadata"
-        )
-        XCTAssertEqual(
-            Set(target.arguments),
-            Set([
+        let target = try #require(annotations.first { $0.annotationFQName == "kotlin.annotation.Target" })
+        #expect(Set(target.arguments) == Set([
                 "AnnotationTarget.CLASS",
                 "AnnotationTarget.FUNCTION",
                 "AnnotationTarget.PROPERTY",
                 "AnnotationTarget.TYPEALIAS",
-            ])
-        )
+            ]))
     }
 }
+#endif

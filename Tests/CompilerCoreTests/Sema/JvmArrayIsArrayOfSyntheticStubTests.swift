@@ -1,26 +1,38 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class JvmArrayIsArrayOfSyntheticStubTests: XCTestCase {
-    func testIsArrayOfSignature() throws {
+@Suite
+struct JvmArrayIsArrayOfSyntheticStubTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (#require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test func testIsArrayOfSignature() throws {
         let (sema, interner) = try makeSema()
 
         let arrayFQName = ["kotlin", "Array"].map { interner.intern($0) }
-        let arraySymbol = try XCTUnwrap(
+        let arraySymbol = try #require(
             sema.symbols.lookup(fqName: arrayFQName),
             "Expected kotlin.Array to be registered"
         )
 
         let isArrayOfFQName = ["kotlin", "jvm", "isArrayOf"].map { interner.intern($0) }
-        let isArrayOfSymbol = try XCTUnwrap(
+        let isArrayOfSymbol = try #require(
             sema.symbols.lookup(fqName: isArrayOfFQName),
             "Expected kotlin.jvm.isArrayOf to be registered"
         )
-        let isArrayOfSignature = try XCTUnwrap(sema.symbols.functionSignature(for: isArrayOfSymbol))
-        XCTAssertTrue(sema.symbols.symbol(isArrayOfSymbol)?.flags.contains(.synthetic) == true)
-        XCTAssertTrue(sema.symbols.symbol(isArrayOfSymbol)?.flags.contains(.inlineFunction) == true)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: isArrayOfSymbol), "kk_array_isArrayOf")
+        let isArrayOfSignature = try #require(sema.symbols.functionSignature(for: isArrayOfSymbol))
+        #expect(sema.symbols.symbol(isArrayOfSymbol)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(isArrayOfSymbol)?.flags.contains(.inlineFunction) == true)
+        #expect(sema.symbols.externalLinkName(for: isArrayOfSymbol) == "kk_array_isArrayOf")
 
         let receiverType = sema.types.make(.classType(ClassType(
             classSymbol: arraySymbol,
@@ -28,20 +40,20 @@ final class JvmArrayIsArrayOfSyntheticStubTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(isArrayOfSignature.receiverType, receiverType)
-        XCTAssertEqual(isArrayOfSignature.parameterTypes, [])
-        XCTAssertEqual(isArrayOfSignature.returnType, sema.types.booleanType)
-        XCTAssertEqual(isArrayOfSignature.typeParameterSymbols.count, 1)
-        XCTAssertEqual(isArrayOfSignature.reifiedTypeParameterIndices, [0])
-        XCTAssertEqual(isArrayOfSignature.typeParameterUpperBoundsList, [[sema.types.anyType]])
-        XCTAssertEqual(isArrayOfSignature.classTypeParameterCount, 0)
+        #expect(isArrayOfSignature.receiverType == receiverType)
+        #expect(isArrayOfSignature.parameterTypes == [])
+        #expect(isArrayOfSignature.returnType == sema.types.booleanType)
+        #expect(isArrayOfSignature.typeParameterSymbols.count == 1)
+        #expect(isArrayOfSignature.reifiedTypeParameterIndices == [0])
+        #expect(isArrayOfSignature.typeParameterUpperBoundsList == [[sema.types.anyType]])
+        #expect(isArrayOfSignature.classTypeParameterCount == 0)
 
-        let typeParameterSymbol = try XCTUnwrap(isArrayOfSignature.typeParameterSymbols.first)
-        XCTAssertTrue(sema.symbols.symbol(typeParameterSymbol)?.flags.contains(.reifiedTypeParameter) == true)
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameterSymbol), [sema.types.anyType])
+        let typeParameterSymbol = try #require(isArrayOfSignature.typeParameterSymbols.first)
+        #expect(sema.symbols.symbol(typeParameterSymbol)?.flags.contains(.reifiedTypeParameter) == true)
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameterSymbol) == [sema.types.anyType])
     }
 
-    func testIsArrayOfResolvesInSource() throws {
+    @Test func testIsArrayOfResolvesInSource() throws {
         let source = """
         import kotlin.jvm.isArrayOf
 
@@ -54,22 +66,22 @@ final class JvmArrayIsArrayOfSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty)
+            #expect(ctx.diagnostics.diagnostics.isEmpty)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let isArrayOfCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let isArrayOfCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "isArrayOf"
             })
-            let chosenIsArrayOf = try XCTUnwrap(
+            let chosenIsArrayOf = try #require(
                 sema.bindings.callBinding(for: isArrayOfCall)?.chosenCallee
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenIsArrayOf),
-                "kk_array_isArrayOf"
+            #expect(
+                sema.symbols.externalLinkName(for: chosenIsArrayOf) == "kk_array_isArrayOf"
             )
         }
     }
 }
+#endif

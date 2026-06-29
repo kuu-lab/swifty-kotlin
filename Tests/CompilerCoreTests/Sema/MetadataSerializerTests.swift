@@ -1,7 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Foundation
+import Testing
 
-final class MetadataSerializerTests: XCTestCase {
+@Suite
+struct MetadataSerializerTests {
     // MARK: - Helpers
 
     /// Parse the serialized record line (after the header) into space-separated tokens,
@@ -28,33 +31,33 @@ final class MetadataSerializerTests: XCTestCase {
 
     // MARK: - MetadataRecord init
 
-    func testMetadataRecordDefaults() {
+    @Test func testMetadataRecordDefaults() {
         let record = MetadataRecord(kind: .function)
-        XCTAssertEqual(record.kind, .function)
-        XCTAssertEqual(record.mangledName, "")
-        XCTAssertEqual(record.fqName, "")
-        XCTAssertEqual(record.arity, 0)
-        XCTAssertFalse(record.isSuspend)
-        XCTAssertFalse(record.isInline)
-        XCTAssertNil(record.typeSignature)
-        XCTAssertNil(record.externalLinkName)
-        XCTAssertNil(record.declaredFieldCount)
-        XCTAssertNil(record.declaredInstanceSizeWords)
-        XCTAssertNil(record.declaredVtableSize)
-        XCTAssertNil(record.declaredItableSize)
-        XCTAssertNil(record.superFQName)
-        XCTAssertNil(record.fieldOffsets)
-        XCTAssertNil(record.vtableSlots)
-        XCTAssertNil(record.itableSlots)
-        XCTAssertFalse(record.isDataClass)
-        XCTAssertFalse(record.isSealedClass)
-        XCTAssertFalse(record.isValueClass)
-        XCTAssertNil(record.valueClassUnderlyingTypeSig)
-        XCTAssertTrue(record.sealedSubclassFQNames.isEmpty)
-        XCTAssertTrue(record.annotations.isEmpty)
+        #expect(record.kind == .function)
+        #expect(record.mangledName == "")
+        #expect(record.fqName == "")
+        #expect(record.arity == 0)
+        #expect(!(record.isSuspend))
+        #expect(!(record.isInline))
+        #expect(record.typeSignature == nil)
+        #expect(record.externalLinkName == nil)
+        #expect(record.declaredFieldCount == nil)
+        #expect(record.declaredInstanceSizeWords == nil)
+        #expect(record.declaredVtableSize == nil)
+        #expect(record.declaredItableSize == nil)
+        #expect(record.superFQName == nil)
+        #expect(record.fieldOffsets == nil)
+        #expect(record.vtableSlots == nil)
+        #expect(record.itableSlots == nil)
+        #expect(!(record.isDataClass))
+        #expect(!(record.isSealedClass))
+        #expect(!(record.isValueClass))
+        #expect(record.valueClassUnderlyingTypeSig == nil)
+        #expect(record.sealedSubclassFQNames.isEmpty)
+        #expect(record.annotations.isEmpty)
     }
 
-    func testMetadataRecordWithAllFields() {
+    @Test func testMetadataRecordWithAllFields() {
         let record = MetadataRecord(
             kind: .class,
             mangledName: "_KK_mod__Foo__C__abc",
@@ -79,56 +82,56 @@ final class MetadataSerializerTests: XCTestCase {
             valueClassUnderlyingTypeSig: "I",
             sealedSubclassFQNames: ["com.example.SubA", "com.example.SubB"]
         )
-        XCTAssertEqual(record.kind, .class)
-        XCTAssertEqual(record.mangledName, "_KK_mod__Foo__C__abc")
-        XCTAssertEqual(record.fqName, "com.example.Foo")
-        XCTAssertEqual(record.arity, 2)
-        XCTAssertTrue(record.isSuspend)
-        XCTAssertTrue(record.isInline)
-        XCTAssertEqual(record.typeSignature, "sig")
-        XCTAssertEqual(record.externalLinkName, "link")
-        XCTAssertEqual(record.declaredFieldCount, 3)
-        XCTAssertEqual(record.declaredInstanceSizeWords, 4)
-        XCTAssertEqual(record.declaredVtableSize, 5)
-        XCTAssertEqual(record.declaredItableSize, 6)
-        XCTAssertEqual(record.superFQName, "com.example.Base")
-        XCTAssertTrue(record.isDataClass)
-        XCTAssertTrue(record.isSealedClass)
-        XCTAssertTrue(record.isValueClass)
-        XCTAssertEqual(record.valueClassUnderlyingTypeSig, "I")
-        XCTAssertEqual(record.sealedSubclassFQNames, ["com.example.SubA", "com.example.SubB"])
-        XCTAssertEqual(record.annotations.count, 1)
+        #expect(record.kind == .class)
+        #expect(record.mangledName == "_KK_mod__Foo__C__abc")
+        #expect(record.fqName == "com.example.Foo")
+        #expect(record.arity == 2)
+        #expect(record.isSuspend)
+        #expect(record.isInline)
+        #expect(record.typeSignature == "sig")
+        #expect(record.externalLinkName == "link")
+        #expect(record.declaredFieldCount == 3)
+        #expect(record.declaredInstanceSizeWords == 4)
+        #expect(record.declaredVtableSize == 5)
+        #expect(record.declaredItableSize == 6)
+        #expect(record.superFQName == "com.example.Base")
+        #expect(record.isDataClass)
+        #expect(record.isSealedClass)
+        #expect(record.isValueClass)
+        #expect(record.valueClassUnderlyingTypeSig == "I")
+        #expect(record.sealedSubclassFQNames == ["com.example.SubA", "com.example.SubB"])
+        #expect(record.annotations.count == 1)
     }
 
     // MARK: - MetadataAnnotationRecord
 
-    func testAnnotationRecordDefaults() {
+    @Test func testAnnotationRecordDefaults() {
         let ann = MetadataAnnotationRecord(annotationFQName: "kotlin.Deprecated")
-        XCTAssertEqual(ann.annotationFQName, "kotlin.Deprecated")
-        XCTAssertTrue(ann.arguments.isEmpty)
-        XCTAssertNil(ann.useSiteTarget)
+        #expect(ann.annotationFQName == "kotlin.Deprecated")
+        #expect(ann.arguments.isEmpty)
+        #expect(ann.useSiteTarget == nil)
     }
 
-    func testAnnotationRecordWithAllFields() {
+    @Test func testAnnotationRecordWithAllFields() {
         let ann = MetadataAnnotationRecord(
             annotationFQName: "kotlin.Deprecated",
             arguments: ["Use newMethod instead", "WARNING"],
             useSiteTarget: "get"
         )
-        XCTAssertEqual(ann.annotationFQName, "kotlin.Deprecated")
-        XCTAssertEqual(ann.arguments, ["Use newMethod instead", "WARNING"])
-        XCTAssertEqual(ann.useSiteTarget, "get")
+        #expect(ann.annotationFQName == "kotlin.Deprecated")
+        #expect(ann.arguments == ["Use newMethod instead", "WARNING"])
+        #expect(ann.useSiteTarget == "get")
     }
 
-    func testAnnotationRecordEquatable() {
+    @Test func testAnnotationRecordEquatable() {
         let ann1 = MetadataAnnotationRecord(annotationFQName: "kotlin.Deprecated")
         let ann2 = MetadataAnnotationRecord(annotationFQName: "kotlin.Deprecated")
         let ann3 = MetadataAnnotationRecord(annotationFQName: "kotlin.JvmStatic")
-        XCTAssertEqual(ann1, ann2)
-        XCTAssertNotEqual(ann1, ann3)
+        #expect(ann1 == ann2)
+        #expect(ann1 != ann3)
     }
 
-    func testMetadataAnnotationPayloadRoundTripsThroughDecoder() {
+    @Test func testMetadataAnnotationPayloadRoundTripsThroughDecoder() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .class,
@@ -139,20 +142,20 @@ final class MetadataSerializerTests: XCTestCase {
         )
 
         let metadataAnnotation = encoder.metadataAnnotationRecord(for: record)
-        XCTAssertEqual(metadataAnnotation.annotationFQName, KnownCompilerAnnotation.metadata.qualifiedName)
-        XCTAssertEqual(metadataAnnotation.arguments.count, 1)
+        #expect(metadataAnnotation.annotationFQName == KnownCompilerAnnotation.metadata.qualifiedName)
+        #expect(metadataAnnotation.arguments.count == 1)
 
         let decoded = MetadataDecoder().decode(metadataAnnotation.arguments[0])
-        XCTAssertEqual(decoded.count, 1)
-        XCTAssertEqual(decoded[0].kind, .class)
-        XCTAssertEqual(decoded[0].fqName, "demo.Box")
-        XCTAssertEqual(decoded[0].declaredFieldCount, 1)
-        XCTAssertEqual(decoded[0].annotations.first?.annotationFQName, "kotlin.Deprecated")
+        #expect(decoded.count == 1)
+        #expect(decoded[0].kind == .class)
+        #expect(decoded[0].fqName == "demo.Box")
+        #expect(decoded[0].declaredFieldCount == 1)
+        #expect(decoded[0].annotations.first?.annotationFQName == "kotlin.Deprecated")
     }
 
     // MARK: - MetadataEncoder serialize
 
-    func testSerializeFunctionRecord() {
+    @Test func testSerializeFunctionRecord() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .function,
@@ -164,17 +167,17 @@ final class MetadataSerializerTests: XCTestCase {
             typeSignature: "F2<I,I,I>"
         )
         let output = encoder.serialize([record])
-        XCTAssertTrue(output.hasPrefix("symbols=1\n"))
+        #expect(output.hasPrefix("symbols=1\n"))
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.kind, "function")
-        XCTAssertEqual(parsed.fields["fq"], "test.add")
-        XCTAssertEqual(parsed.fields["arity"], "2")
-        XCTAssertEqual(parsed.fields["suspend"], "0")
-        XCTAssertEqual(parsed.fields["inline"], "0")
-        XCTAssertEqual(parsed.fields["sig"], "F2<I,I,I>")
+        #expect(parsed.kind == "function")
+        #expect(parsed.fields["fq"] == "test.add")
+        #expect(parsed.fields["arity"] == "2")
+        #expect(parsed.fields["suspend"] == "0")
+        #expect(parsed.fields["inline"] == "0")
+        #expect(parsed.fields["sig"] == "F2<I,I,I>")
     }
 
-    func testSerializeSuspendFunction() {
+    @Test func testSerializeSuspendFunction() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .function,
@@ -187,11 +190,11 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.fields["suspend"], "1")
-        XCTAssertEqual(parsed.fields["inline"], "1")
+        #expect(parsed.fields["suspend"] == "1")
+        #expect(parsed.fields["inline"] == "1")
     }
 
-    func testSerializeClassWithLayout() {
+    @Test func testSerializeClassWithLayout() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .class,
@@ -208,18 +211,18 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.kind, "class")
-        XCTAssertEqual(parsed.fields["layoutWords"], "5")
-        XCTAssertEqual(parsed.fields["fields"], "3")
-        XCTAssertEqual(parsed.fields["vtable"], "2")
-        XCTAssertEqual(parsed.fields["itable"], "1")
-        XCTAssertEqual(parsed.fields["superFq"], "test.Base")
-        XCTAssertEqual(parsed.fields["fieldOffsets"], "test.Foo.x@0,test.Foo.y@1")
-        XCTAssertEqual(parsed.fields["vtableSlots"], "test.Foo.bar#0#0@0")
-        XCTAssertEqual(parsed.fields["itableSlots"], "test.IFoo.baz@0")
+        #expect(parsed.kind == "class")
+        #expect(parsed.fields["layoutWords"] == "5")
+        #expect(parsed.fields["fields"] == "3")
+        #expect(parsed.fields["vtable"] == "2")
+        #expect(parsed.fields["itable"] == "1")
+        #expect(parsed.fields["superFq"] == "test.Base")
+        #expect(parsed.fields["fieldOffsets"] == "test.Foo.x@0,test.Foo.y@1")
+        #expect(parsed.fields["vtableSlots"] == "test.Foo.bar#0#0@0")
+        #expect(parsed.fields["itableSlots"] == "test.IFoo.baz@0")
     }
 
-    func testSerializeDataClassFlag() {
+    @Test func testSerializeDataClassFlag() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .class,
@@ -229,10 +232,10 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.fields["dataClass"], "1")
+        #expect(parsed.fields["dataClass"] == "1")
     }
 
-    func testSerializeSealedClassFlag() {
+    @Test func testSerializeSealedClassFlag() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .class,
@@ -243,11 +246,11 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.fields["sealedClass"], "1")
-        XCTAssertEqual(parsed.fields["sealedSubs"], "test.SubA,test.SubB")
+        #expect(parsed.fields["sealedClass"] == "1")
+        #expect(parsed.fields["sealedSubs"] == "test.SubA,test.SubB")
     }
 
-    func testSerializeValueClassFlag() {
+    @Test func testSerializeValueClassFlag() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .class,
@@ -258,11 +261,11 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.fields["valueClass"], "1")
-        XCTAssertEqual(parsed.fields["valueUnderlying"], "I")
+        #expect(parsed.fields["valueClass"] == "1")
+        #expect(parsed.fields["valueUnderlying"] == "I")
     }
 
-    func testSerializePropertyWithSignature() {
+    @Test func testSerializePropertyWithSignature() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .property,
@@ -272,11 +275,11 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.kind, "property")
-        XCTAssertEqual(parsed.fields["sig"], "I")
+        #expect(parsed.kind == "property")
+        #expect(parsed.fields["sig"] == "I")
     }
 
-    func testSerializeTypeAliasWithSignature() {
+    @Test func testSerializeTypeAliasWithSignature() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .typeAlias,
@@ -286,11 +289,11 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.kind, "typeAlias")
-        XCTAssertEqual(parsed.fields["sig"], "I")
+        #expect(parsed.kind == "typeAlias")
+        #expect(parsed.fields["sig"] == "I")
     }
 
-    func testSerializeConstructorRecord() {
+    @Test func testSerializeConstructorRecord() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .constructor,
@@ -302,12 +305,12 @@ final class MetadataSerializerTests: XCTestCase {
         )
         let output = encoder.serialize([record])
         let parsed = parseRecordLine(output)
-        XCTAssertEqual(parsed.kind, "constructor")
-        XCTAssertEqual(parsed.fields["arity"], "1")
-        XCTAssertEqual(parsed.fields["link"], "Foo_init")
+        #expect(parsed.kind == "constructor")
+        #expect(parsed.fields["arity"] == "1")
+        #expect(parsed.fields["link"] == "Foo_init")
     }
 
-    func testSerializeAnnotations() {
+    @Test func testSerializeAnnotations() {
         let encoder = MetadataEncoder()
         let record = MetadataRecord(
             kind: .function,
@@ -322,12 +325,12 @@ final class MetadataSerializerTests: XCTestCase {
             ]
         )
         let output = encoder.serialize([record])
-        XCTAssertTrue(output.contains("annotations="))
-        XCTAssertTrue(output.contains("kotlin.Deprecated"))
-        XCTAssertTrue(output.contains("target:get"))
+        #expect(output.contains("annotations="))
+        #expect(output.contains("kotlin.Deprecated"))
+        #expect(output.contains("target:get"))
     }
 
-    func testBuildRecordSkipsMissingValueClassUnderlyingType() throws {
+    @Test func testBuildRecordSkipsMissingValueClassUnderlyingType() throws {
         let encoder = MetadataEncoder()
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -343,72 +346,73 @@ final class MetadataSerializerTests: XCTestCase {
         )
 
         let record = encoder.buildRecord(
-            for: try XCTUnwrap(symbols.symbol(symbol)),
+            for: try #require(symbols.symbol(symbol)),
             symbols: symbols,
             types: types,
             moduleName: "Demo",
             interner: interner
         )
 
-        XCTAssertTrue(record.isValueClass)
-        XCTAssertNil(record.valueClassUnderlyingTypeSig)
+        #expect(record.isValueClass)
+        #expect(record.valueClassUnderlyingTypeSig == nil)
     }
 
-    func testSerializeMultipleRecords() {
+    @Test func testSerializeMultipleRecords() {
         let encoder = MetadataEncoder()
         let records = [
             MetadataRecord(kind: .function, mangledName: "m1", fqName: "test.fn1"),
             MetadataRecord(kind: .class, mangledName: "m2", fqName: "test.Cls"),
         ]
         let output = encoder.serialize(records)
-        XCTAssertTrue(output.hasPrefix("symbols=2\n"))
-        XCTAssertTrue(output.contains("function"))
-        XCTAssertTrue(output.contains("class"))
+        #expect(output.hasPrefix("symbols=2\n"))
+        #expect(output.contains("function"))
+        #expect(output.contains("class"))
     }
 
-    func testSerializeEmptyRecords() {
+    @Test func testSerializeEmptyRecords() {
         let encoder = MetadataEncoder()
         let output = encoder.serialize([])
-        XCTAssertEqual(output, "symbols=0\n")
+        #expect(output == "symbols=0\n")
     }
 
     // MARK: - MetadataDecoder
 
-    func testDecodeFunctionRecord() {
+    @Test func testDecodeFunctionRecord() {
         let decoder = MetadataDecoder()
         let content = "symbols=1\nfunction _KK_test__fn__F__sig fq=test.fn schema=v1 arity=2 suspend=0 inline=0 sig=F2<I,I,I>\n"
         let records = decoder.decode(content)
-        XCTAssertEqual(records.count, 1)
-        XCTAssertEqual(records[0].kind, .function)
-        XCTAssertEqual(records[0].fqName, "test.fn")
-        XCTAssertEqual(records[0].arity, 2)
-        XCTAssertFalse(records[0].isSuspend)
-        XCTAssertFalse(records[0].isInline)
-        XCTAssertEqual(records[0].typeSignature, "F2<I,I,I>")
+        #expect(records.count == 1)
+        #expect(records[0].kind == .function)
+        #expect(records[0].fqName == "test.fn")
+        #expect(records[0].arity == 2)
+        #expect(!(records[0].isSuspend))
+        #expect(!(records[0].isInline))
+        #expect(records[0].typeSignature == "F2<I,I,I>")
     }
 
-    func testDecodeSuspendFunction() {
+    @Test func testDecodeSuspendFunction() {
         let decoder = MetadataDecoder()
         let content = "symbols=1\nfunction _KK fq=test.fn schema=v1 arity=1 suspend=1 inline=1 sig=SF1<I,U>\n"
         let records = decoder.decode(content)
-        XCTAssertEqual(records.count, 1)
-        XCTAssertTrue(records[0].isSuspend)
-        XCTAssertTrue(records[0].isInline)
+        #expect(records.count == 1)
+        #expect(records[0].isSuspend)
+        #expect(records[0].isInline)
     }
 
-    func testDecodeClassWithLayout() {
+    @Test func testDecodeClassWithLayout() {
         let decoder = MetadataDecoder()
         let content = "symbols=1\nclass _KK fq=test.Foo schema=v1 layoutWords=5 fields=3 vtable=2 itable=1 superFq=test.Base fieldOffsets=x@0 vtableSlots=bar@0 itableSlots=baz@0\n"
         let records = decoder.decode(content)
-        XCTAssertEqual(records.count, 1)
-        XCTAssertEqual(records[0].kind, .class)
-        XCTAssertEqual(records[0].declaredInstanceSizeWords, 5)
-        XCTAssertEqual(records[0].declaredFieldCount, 3)
-        XCTAssertEqual(records[0].declaredVtableSize, 2)
-        XCTAssertEqual(records[0].declaredItableSize, 1)
-        XCTAssertEqual(records[0].superFQName, "test.Base")
-        XCTAssertEqual(records[0].fieldOffsets, "x@0")
-        XCTAssertEqual(records[0].vtableSlots, "bar@0")
-        XCTAssertEqual(records[0].itableSlots, "baz@0")
+        #expect(records.count == 1)
+        #expect(records[0].kind == .class)
+        #expect(records[0].declaredInstanceSizeWords == 5)
+        #expect(records[0].declaredFieldCount == 3)
+        #expect(records[0].declaredVtableSize == 2)
+        #expect(records[0].declaredItableSize == 1)
+        #expect(records[0].superFQName == "test.Base")
+        #expect(records[0].fieldOffsets == "x@0")
+        #expect(records[0].vtableSlots == "bar@0")
+        #expect(records[0].itableSlots == "baz@0")
     }
 }
+#endif

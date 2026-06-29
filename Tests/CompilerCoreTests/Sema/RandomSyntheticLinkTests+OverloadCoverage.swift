@@ -1,3 +1,4 @@
+#if canImport(Testing)
 /// Sema overload-resolution coverage for kotlin.random.Random
 /// Task: STDLIB-RANDOM-001 (API list) + STDLIB-RANDOM-002 (sema/lowering)
 ///
@@ -7,35 +8,36 @@
 
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension RandomSyntheticLinkTests {
 
     // MARK: - Random factory / seed constructors
 
     /// Random(seed: Int) factory constructor is registered and linked correctly.
+    @Test
     func testRandomIntSeedConstructorIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let ctorFQ = ["kotlin", "random", "Random", "<init>"].map { interner.intern($0) }
         let ctors = sema.symbols.lookupAll(fqName: ctorFQ)
-        XCTAssertFalse(ctors.isEmpty, "Random <init> constructor must be registered")
+        #expect(!(ctors.isEmpty), "Random <init> constructor must be registered")
 
         let intSeedCtor = ctors.first { id in
             guard let sig = sema.symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes.count == 1 &&
                 sig.parameterTypes.first == sema.types.intType
         }
-        XCTAssertNotNil(intSeedCtor, "Random(seed: Int) constructor must exist")
+        #expect(intSeedCtor != nil, "Random(seed: Int) constructor must exist")
 
         if let ctor = intSeedCtor {
             let link = sema.symbols.externalLinkName(for: ctor)
-            XCTAssertEqual(link, "kk_random_create_seeded",
-                           "Random(seed: Int) must link to kk_random_create_seeded")
+            #expect(link == "kk_random_create_seeded", "Random(seed: Int) must link to kk_random_create_seeded")
         }
     }
 
     /// Random(seed: Long) factory constructor is registered and linked correctly.
+    @Test
     func testRandomLongSeedConstructorIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -47,38 +49,38 @@ extension RandomSyntheticLinkTests {
             return sig.parameterTypes.count == 1 &&
                 sig.parameterTypes.first == sema.types.longType
         }
-        XCTAssertNotNil(longSeedCtor, "Random(seed: Long) constructor must exist")
+        #expect(longSeedCtor != nil, "Random(seed: Long) constructor must exist")
 
         if let ctor = longSeedCtor {
             let link = sema.symbols.externalLinkName(for: ctor)
-            XCTAssertEqual(link, "kk_random_create_seeded",
-                           "Random(seed: Long) must link to kk_random_create_seeded")
+            #expect(link == "kk_random_create_seeded", "Random(seed: Long) must link to kk_random_create_seeded")
         }
     }
 
     // MARK: - Random.Default singleton
 
     /// Random.Default property is registered as the default Random singleton.
+    @Test
     func testRandomDefaultSingletonIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let defaultFQ = ["kotlin", "random", "Random", "Default"].map { interner.intern($0) }
         let defaultSym = sema.symbols.lookup(fqName: defaultFQ)
-        XCTAssertNotNil(defaultSym, "Random.Default singleton must be registered")
+        #expect(defaultSym != nil, "Random.Default singleton must be registered")
 
         if let defaultSym {
             let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
             let randomSym = sema.symbols.lookup(fqName: randomFQ)
-            XCTAssertNotNil(randomSym, "Random object must be registered")
+            #expect(randomSym != nil, "Random object must be registered")
             if let randomSym {
                 let expectedType = sema.types.make(.classType(ClassType(
                     classSymbol: randomSym,
                     args: [],
                     nullability: .nonNull
                 )))
-                XCTAssertEqual(sema.symbols.propertyType(for: defaultSym), expectedType)
+                #expect(sema.symbols.propertyType(for: defaultSym) == expectedType)
             }
-            XCTAssertEqual(sema.symbols.externalLinkName(for: defaultSym), "kk_random_default")
+            #expect(sema.symbols.externalLinkName(for: defaultSym) == "kk_random_default")
         }
     }
 
@@ -88,6 +90,7 @@ extension RandomSyntheticLinkTests {
     // Tests checking for these as synthetic stubs at kotlin.random.Random.nextInt (with external
     // link names like kk_random_nextInt_until) have been removed.
 
+    @Test
     func testNextULongOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -95,7 +98,7 @@ extension RandomSyntheticLinkTests {
         let candidates = sema.symbols.lookupAll(fqName: fq)
 
         let ulongRangeFQ = ["kotlin", "ranges", "ULongRange"].map { interner.intern($0) }
-        let ulongRangeSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: ulongRangeFQ))
+        let ulongRangeSymbol = try #require(sema.symbols.lookup(fqName: ulongRangeFQ))
         let ulongRangeType = sema.types.make(.classType(ClassType(
             classSymbol: ulongRangeSymbol,
             args: [],
@@ -108,28 +111,29 @@ extension RandomSyntheticLinkTests {
             }
         }
 
-        let zero = try XCTUnwrap(candidate(parameterTypes: []))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: zero), "kk_random_nextULong")
+        let zero = try #require(candidate(parameterTypes: []))
+        #expect(sema.symbols.externalLinkName(for: zero) == "kk_random_nextULong")
 
-        let until = try XCTUnwrap(candidate(parameterTypes: [sema.types.ulongType]))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: until), "kk_random_nextULong_until")
-        XCTAssertEqual(sema.symbols.functionSignature(for: until)?.returnType, sema.types.ulongType)
-        XCTAssertTrue(sema.symbols.functionSignature(for: until)?.canThrow ?? false)
+        let until = try #require(candidate(parameterTypes: [sema.types.ulongType]))
+        #expect(sema.symbols.externalLinkName(for: until) == "kk_random_nextULong_until")
+        #expect(sema.symbols.functionSignature(for: until)?.returnType == sema.types.ulongType)
+        #expect(sema.symbols.functionSignature(for: until)?.canThrow ?? false)
 
-        let range = try XCTUnwrap(candidate(parameterTypes: [sema.types.ulongType, sema.types.ulongType]))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: range), "kk_random_nextULong_range")
-        XCTAssertEqual(sema.symbols.functionSignature(for: range)?.returnType, sema.types.ulongType)
-        XCTAssertTrue(sema.symbols.functionSignature(for: range)?.canThrow ?? false)
+        let range = try #require(candidate(parameterTypes: [sema.types.ulongType, sema.types.ulongType]))
+        #expect(sema.symbols.externalLinkName(for: range) == "kk_random_nextULong_range")
+        #expect(sema.symbols.functionSignature(for: range)?.returnType == sema.types.ulongType)
+        #expect(sema.symbols.functionSignature(for: range)?.canThrow ?? false)
 
-        let ulongRange = try XCTUnwrap(candidate(parameterTypes: [ulongRangeType]))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: ulongRange), "kk_random_nextULong_ulongRange")
-        XCTAssertEqual(sema.symbols.functionSignature(for: ulongRange)?.returnType, sema.types.ulongType)
-        XCTAssertTrue(sema.symbols.functionSignature(for: ulongRange)?.canThrow ?? false)
+        let ulongRange = try #require(candidate(parameterTypes: [ulongRangeType]))
+        #expect(sema.symbols.externalLinkName(for: ulongRange) == "kk_random_nextULong_ulongRange")
+        #expect(sema.symbols.functionSignature(for: ulongRange)?.returnType == sema.types.ulongType)
+        #expect(sema.symbols.functionSignature(for: ulongRange)?.canThrow ?? false)
     }
 
     // MARK: - nextUInt overload selection
 
     /// nextUInt() / nextUInt(until) / nextUInt(from, until) / nextUInt(range) are registered.
+    @Test
     func testNextUIntOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -161,30 +165,30 @@ extension RandomSyntheticLinkTests {
             return isUIntRange(sig.parameterTypes[0])
         }
 
-        XCTAssertNotNil(zero, "nextUInt() must be registered")
-        XCTAssertNotNil(until, "nextUInt(until: UInt) must be registered")
-        XCTAssertNotNil(fromUntil, "nextUInt(from: UInt, until: UInt) must be registered")
-        XCTAssertNotNil(range, "nextUInt(range: UIntRange) must be registered")
+        #expect(zero != nil, "nextUInt() must be registered")
+        #expect(until != nil, "nextUInt(until: UInt) must be registered")
+        #expect(fromUntil != nil, "nextUInt(from: UInt, until: UInt) must be registered")
+        #expect(range != nil, "nextUInt(range: UIntRange) must be registered")
         if let zero {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: zero), "kk_random_nextUInt")
+            #expect(sema.symbols.externalLinkName(for: zero) == "kk_random_nextUInt")
         }
         if let until,
            let signature = sema.symbols.functionSignature(for: until)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: until), "kk_random_nextUInt_until")
-            XCTAssertTrue(signature.canThrow)
+            #expect(sema.symbols.externalLinkName(for: until) == "kk_random_nextUInt_until")
+            #expect(signature.canThrow)
         }
         if let fromUntil,
            let signature = sema.symbols.functionSignature(for: fromUntil)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: fromUntil), "kk_random_nextUInt_range")
-            XCTAssertTrue(signature.canThrow)
+            #expect(sema.symbols.externalLinkName(for: fromUntil) == "kk_random_nextUInt_range")
+            #expect(signature.canThrow)
         }
         if let range,
            let signature = sema.symbols.functionSignature(for: range)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: range), "kk_random_nextUInt_uintRange")
-            XCTAssertTrue(signature.canThrow)
+            #expect(sema.symbols.externalLinkName(for: range) == "kk_random_nextUInt_uintRange")
+            #expect(signature.canThrow)
         }
     }
 
@@ -193,6 +197,7 @@ extension RandomSyntheticLinkTests {
     // Its stub test was removed; the extension function lives at kotlin.random.nextBytes.
 
     /// nextBytes(size: Int) returning a new ByteArray is registered and linked correctly.
+    @Test
     func testNextBytesSizeOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -207,16 +212,17 @@ extension RandomSyntheticLinkTests {
                 sig.parameterTypes.first == sema.types.intType &&
                 sig.receiverType != nil
         }
-        XCTAssertNotNil(intParamOverload, "nextBytes(size: Int): ByteArray overload must be registered")
+        #expect(intParamOverload != nil, "nextBytes(size: Int): ByteArray overload must be registered")
         if let intParamOverload,
            let signature = sema.symbols.functionSignature(for: intParamOverload)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: intParamOverload), "kk_random_nextBytes_size")
-            XCTAssertTrue(signature.canThrow, "nextBytes(size) must expose its negative-size throw path")
+            #expect(sema.symbols.externalLinkName(for: intParamOverload) == "kk_random_nextBytes_size")
+            #expect(signature.canThrow, "nextBytes(size) must expose its negative-size throw path")
         }
     }
 
     /// nextUBytes(size/array/range) overloads are registered and linked correctly.
+    @Test
     func testNextUBytesOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -249,32 +255,33 @@ extension RandomSyntheticLinkTests {
                 isUByteArray(sig.returnType)
         }
 
-        XCTAssertNotNil(sizeOverload, "nextUBytes(size: Int) must be registered")
-        XCTAssertNotNil(arrayOverload, "nextUBytes(array: UByteArray) must be registered")
-        XCTAssertNotNil(rangeOverload, "nextUBytes(array, fromIndex, toIndex) must be registered")
+        #expect(sizeOverload != nil, "nextUBytes(size: Int) must be registered")
+        #expect(arrayOverload != nil, "nextUBytes(array: UByteArray) must be registered")
+        #expect(rangeOverload != nil, "nextUBytes(array, fromIndex, toIndex) must be registered")
         if let sizeOverload,
            let signature = sema.symbols.functionSignature(for: sizeOverload)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: sizeOverload), "kk_random_nextUBytes_size")
-            XCTAssertTrue(signature.canThrow, "nextUBytes(size) must expose negative-size failures")
+            #expect(sema.symbols.externalLinkName(for: sizeOverload) == "kk_random_nextUBytes_size")
+            #expect(signature.canThrow, "nextUBytes(size) must expose negative-size failures")
         }
         if let arrayOverload,
            let signature = sema.symbols.functionSignature(for: arrayOverload)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: arrayOverload), "kk_random_nextUBytes")
-            XCTAssertFalse(signature.canThrow)
+            #expect(sema.symbols.externalLinkName(for: arrayOverload) == "kk_random_nextUBytes")
+            #expect(!(signature.canThrow))
         }
         if let rangeOverload,
            let signature = sema.symbols.functionSignature(for: rangeOverload)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: rangeOverload), "kk_random_nextUBytes_range")
-            XCTAssertTrue(signature.canThrow, "nextUBytes(array, fromIndex, toIndex) must expose bounds failures")
+            #expect(sema.symbols.externalLinkName(for: rangeOverload) == "kk_random_nextUBytes_range")
+            #expect(signature.canThrow, "nextUBytes(array, fromIndex, toIndex) must expose bounds failures")
         }
     }
 
     // MARK: - nextBits member
 
     /// nextBits(bitCount: Int) is registered and linked to kk_random_nextBits.
+    @Test
     func testNextBitsMemberIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -286,16 +293,17 @@ extension RandomSyntheticLinkTests {
             return sig.parameterTypes == [sema.types.intType] &&
                 sig.returnType == sema.types.intType
         }
-        XCTAssertNotNil(nextBits, "nextBits(bitCount: Int) member must be registered")
+        #expect(nextBits != nil, "nextBits(bitCount: Int) member must be registered")
         if let nextBits,
            let signature = sema.symbols.functionSignature(for: nextBits)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: nextBits), "kk_random_nextBits")
-            XCTAssertTrue(signature.canThrow, "nextBits(bitCount) must expose its bitCount bounds checks")
+            #expect(sema.symbols.externalLinkName(for: nextBits) == "kk_random_nextBits")
+            #expect(signature.canThrow, "nextBits(bitCount) must expose its bitCount bounds checks")
         }
     }
 
     /// nextBytes(array, fromIndex, toIndex) is registered and linked correctly.
+    @Test
     func testNextBytesArrayRangeOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
@@ -308,12 +316,12 @@ extension RandomSyntheticLinkTests {
                 sig.parameterTypes.dropFirst().allSatisfy { $0 == sema.types.intType } &&
                 sig.receiverType != nil
         }
-        XCTAssertNotNil(rangeOverload, "nextBytes(array, fromIndex, toIndex) overload must be registered")
+        #expect(rangeOverload != nil, "nextBytes(array, fromIndex, toIndex) overload must be registered")
         if let rangeOverload,
            let signature = sema.symbols.functionSignature(for: rangeOverload)
         {
-            XCTAssertEqual(sema.symbols.externalLinkName(for: rangeOverload), "kk_random_nextBytes_range")
-            XCTAssertTrue(signature.canThrow, "nextBytes(array, fromIndex, toIndex) must expose its bounds checks")
+            #expect(sema.symbols.externalLinkName(for: rangeOverload) == "kk_random_nextBytes_range")
+            #expect(signature.canThrow, "nextBytes(array, fromIndex, toIndex) must expose its bounds checks")
         }
     }
 
@@ -321,11 +329,12 @@ extension RandomSyntheticLinkTests {
 
     // MARK: - range.random(random: Random)
 
+    @Test
     func testRangeRandomOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
-        let randomSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: randomFQ))
+        let randomSymbol = try #require(sema.symbols.lookup(fqName: randomFQ))
         let randomType = sema.types.make(.classType(ClassType(
             classSymbol: randomSymbol,
             args: [],
@@ -347,10 +356,11 @@ extension RandomSyntheticLinkTests {
                 guard let sig = sema.symbols.functionSignature(for: id) else { return false }
                 return sig.parameterTypes.count == 1 && sig.parameterTypes.first == randomType
             }
-            XCTAssertNotNil(overload, "\(typeName).random(random: Random) must be registered")
+            #expect(overload != nil, "\(typeName).random(random: Random) must be registered")
             if let overload {
-                XCTAssertEqual(sema.symbols.externalLinkName(for: overload), expectedLink)
+                #expect(sema.symbols.externalLinkName(for: overload) == expectedLink)
             }
         }
     }
 }
+#endif

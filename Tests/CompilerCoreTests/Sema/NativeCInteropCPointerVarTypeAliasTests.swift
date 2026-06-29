@@ -1,21 +1,17 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCPointerVarTypeAliasTests: XCTestCase {
-    func testCPointerVarTypeAliasSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropCPointerVarTypeAliasTests {
+    @Test func testCPointerVarTypeAliasSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointerVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointerVar typealias surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) }),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+            try #require(sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) }), "kotlinx.cinterop.\(name) must be registered")
         }
 
         let aliasSymbol = try cinteropSymbol("CPointerVar")
@@ -26,7 +22,7 @@ final class NativeCInteropCPointerVarTypeAliasTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let typeParameter = try XCTUnwrap(sema.symbols.typeAliasTypeParameters(for: aliasSymbol).first)
+        let typeParameter = try #require(sema.symbols.typeAliasTypeParameters(for: aliasSymbol).first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -42,13 +38,13 @@ final class NativeCInteropCPointerVarTypeAliasTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.symbol(aliasSymbol)?.kind, .typeAlias)
-        XCTAssertEqual(sema.symbols.symbol(typeParameter)?.name, interner.intern("T"))
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [cPointedType])
-        XCTAssertEqual(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol), expectedUnderlying)
+        #expect(sema.symbols.symbol(aliasSymbol)?.kind == .typeAlias)
+        #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [cPointedType])
+        #expect(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) == expectedUnderlying)
     }
 
-    func testCPointerVarResolvesInSource() throws {
+    @Test func testCPointerVarResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointed
         import kotlinx.cinterop.CPointerVar
@@ -59,9 +55,7 @@ final class NativeCInteropCPointerVarTypeAliasTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CPointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected CPointerVar typealias to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

@@ -1,8 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LexerParserEdgeCaseTests: XCTestCase {
+@Suite
+struct LexerParserEdgeCaseTests {
+    @Test
     func testLexerConsumesTriviaIdentifiersAndAllSymbols() {
         let source = """
         #!/usr/bin/env kotlin
@@ -29,25 +32,26 @@ final class LexerParserEdgeCaseTests: XCTestCase {
             .lessThan, .greaterThan, .dot, .comma, .semicolon, .colon,
             .lParen, .rParen, .lBracket, .rBracket, .lBrace, .rBrace, .at, .hash,
         ]
-        XCTAssertEqual(symbols, expected)
+        #expect(symbols == expected)
 
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .backtickedIdentifier = token.kind { return true }
             return false
         })
 
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .softKeyword(.where) = token.kind { return true }
             return false
         })
 
-        XCTAssertFalse(result.diagnostics.hasError)
-        XCTAssertTrue(result.tokens.first?.leadingTrivia.contains { piece in
+        #expect(!(result.diagnostics.hasError))
+        #expect(result.tokens.first?.leadingTrivia.contains { piece in
             if case .shebang = piece { return true }
             return false
         } ?? false)
     }
 
+    @Test
     func testLexerStringTemplateAndEscapeDiagnostics() {
         let source = """
         val a = \"ok\\n\\t\\r\\\"\\'\\\\\\$\"
@@ -61,22 +65,23 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         let result = lex(source)
         let kinds = result.tokens.map(\.kind)
 
-        XCTAssertTrue(kinds.contains(.stringQuote))
-        XCTAssertTrue(kinds.contains(.rawStringQuote))
-        XCTAssertTrue(kinds.contains(.templateExprStart))
-        XCTAssertTrue(kinds.contains(.templateExprEnd))
-        XCTAssertTrue(kinds.contains(.templateSimpleNameStart))
-        XCTAssertTrue(kinds.contains { kind in
+        #expect(kinds.contains(.stringQuote))
+        #expect(kinds.contains(.rawStringQuote))
+        #expect(kinds.contains(.templateExprStart))
+        #expect(kinds.contains(.templateExprEnd))
+        #expect(kinds.contains(.templateSimpleNameStart))
+        #expect(kinds.contains { kind in
             if case .stringSegment = kind { return true }
             return false
         })
 
         let codes = Set(result.diagnostics.diagnostics.map(\.code))
-        XCTAssertTrue(codes.contains("KSWIFTK-LEX-0002"))
-        XCTAssertTrue(codes.contains("KSWIFTK-LEX-0003"))
-        XCTAssertFalse(codes.isEmpty)
+        #expect(codes.contains("KSWIFTK-LEX-0002"))
+        #expect(codes.contains("KSWIFTK-LEX-0003"))
+        #expect(!(codes.isEmpty))
     }
 
+    @Test
     func testLexerNumericAndCharLiteralsCoverErrorAndSuffixPaths() {
         let source = """
         0x1F 0X 0b101 0b 0o77 0o
@@ -86,37 +91,38 @@ final class LexerParserEdgeCaseTests: XCTestCase {
 
         let result = lex(source)
 
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .intLiteral("0x1F") = token.kind { return true }
             return false
         })
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .intLiteral("0b101") = token.kind { return true }
             return false
         })
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .longLiteral("10L") = token.kind { return true }
             return false
         })
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .floatLiteral("11f") = token.kind { return true }
             return false
         })
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .doubleLiteral("12D") = token.kind { return true }
             return false
         })
-        XCTAssertTrue(result.tokens.contains { token in
+        #expect(result.tokens.contains { token in
             if case .charLiteral(97) = token.kind { return true }
             return false
         })
 
         let codeCounts = Dictionary(grouping: result.diagnostics.diagnostics, by: \.code).mapValues(\.count)
-        XCTAssertTrue((codeCounts["KSWIFTK-LEX-0002"] ?? 0) >= 1)
-        XCTAssertTrue((codeCounts["KSWIFTK-LEX-0003"] ?? 0) >= 1)
-        XCTAssertTrue((codeCounts["KSWIFTK-LEX-0006"] ?? 0) >= 1)
+        #expect((codeCounts["KSWIFTK-LEX-0002"] ?? 0) >= 1)
+        #expect((codeCounts["KSWIFTK-LEX-0003"] ?? 0) >= 1)
+        #expect((codeCounts["KSWIFTK-LEX-0006"] ?? 0) >= 1)
     }
 
+    @Test
     func testParserParsesDeclarationsTypeArgsAndEmitsWarningsForBrokenInput() {
         let source = """
         package demo.pkg
@@ -137,20 +143,20 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         let parsed = parse(source)
         let arena = parsed.arena
         let rootChildren = arena.children(of: parsed.root)
-        XCTAssertFalse(rootChildren.isEmpty)
+        #expect(!(rootChildren.isEmpty))
 
         let kinds = Set(arena.nodes.map(\.kind))
-        XCTAssertTrue(kinds.contains(.packageHeader))
-        XCTAssertTrue(kinds.contains(.importHeader))
-        XCTAssertTrue(kinds.contains(.classDecl))
-        XCTAssertTrue(kinds.contains(.objectDecl))
-        XCTAssertTrue(kinds.contains(.funDecl))
-        XCTAssertTrue(kinds.contains(.statement))
-        XCTAssertTrue(kinds.contains(.typeArgs) || kinds.contains(.enumEntry))
+        #expect(kinds.contains(.packageHeader))
+        #expect(kinds.contains(.importHeader))
+        #expect(kinds.contains(.classDecl))
+        #expect(kinds.contains(.objectDecl))
+        #expect(kinds.contains(.funDecl))
+        #expect(kinds.contains(.statement))
+        #expect(kinds.contains(.typeArgs) || kinds.contains(.enumEntry))
 
         let warningCodes = Set(parsed.diagnostics.diagnostics.map(\.code))
-        XCTAssertTrue(warningCodes.contains("KSWIFTK-PARSE-0002"))
-        XCTAssertFalse(warningCodes.isEmpty)
+        #expect(warningCodes.contains("KSWIFTK-PARSE-0002"))
+        #expect(!(warningCodes.isEmpty))
 
         let parserForTypeArgs = KotlinParser(tokens: parsed.tokens, interner: parsed.interner, diagnostics: DiagnosticEngine())
         _ = parserForTypeArgs.parseFile()
@@ -162,6 +168,7 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         _ = parserForTypeArgs.canStartTypeArguments(after: NodeID(rawValue: -1))
     }
 
+    @Test
     func testLexerTemplateExpressionCoversNestedInvalidAndUnterminatedPaths() {
         let source = """
         val a = "${{1 + 2}}"
@@ -176,14 +183,15 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         let result = lex(source)
         let templateStarts = result.tokens.filter { $0.kind == .templateExprStart }
         let templateEnds = result.tokens.filter { $0.kind == .templateExprEnd }
-        XCTAssertGreaterThanOrEqual(templateStarts.count, 6)
-        XCTAssertGreaterThanOrEqual(templateEnds.count, 4)
+        #expect(templateStarts.count >= 6)
+        #expect(templateEnds.count >= 4)
 
         let codes = Set(result.diagnostics.diagnostics.map(\.code))
-        XCTAssertTrue(codes.contains("KSWIFTK-LEX-0001"))
-        XCTAssertTrue(codes.contains("KSWIFTK-LEX-0002"))
+        #expect(codes.contains("KSWIFTK-LEX-0001"))
+        #expect(codes.contains("KSWIFTK-LEX-0002"))
     }
 
+    @Test
     func testParserCanStartTypeArgumentsLookaheadVariants() {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -199,7 +207,7 @@ final class LexerParserEdgeCaseTests: XCTestCase {
             interner: interner,
             diagnostics: diagnostics
         )
-        XCTAssertTrue(parserA.canStartTypeArguments(after: anchor))
+        #expect(parserA.canStartTypeArguments(after: anchor))
 
         let parserB = KotlinParser(
             tokens: [
@@ -217,7 +225,7 @@ final class LexerParserEdgeCaseTests: XCTestCase {
             interner: interner,
             diagnostics: diagnostics
         )
-        XCTAssertTrue(parserB.canStartTypeArguments(after: anchor))
+        #expect(parserB.canStartTypeArguments(after: anchor))
 
         let parserB2 = KotlinParser(
             tokens: [
@@ -236,7 +244,7 @@ final class LexerParserEdgeCaseTests: XCTestCase {
             interner: interner,
             diagnostics: diagnostics
         )
-        XCTAssertFalse(parserB2.canStartTypeArguments(after: anchor))
+        #expect(!(parserB2.canStartTypeArguments(after: anchor)))
 
         let parserC = KotlinParser(
             tokens: [
@@ -247,7 +255,7 @@ final class LexerParserEdgeCaseTests: XCTestCase {
             interner: interner,
             diagnostics: diagnostics
         )
-        XCTAssertFalse(parserC.canStartTypeArguments(after: anchor))
+        #expect(!(parserC.canStartTypeArguments(after: anchor)))
 
         let parserD = KotlinParser(
             tokens: [
@@ -260,7 +268,7 @@ final class LexerParserEdgeCaseTests: XCTestCase {
             interner: interner,
             diagnostics: diagnostics
         )
-        XCTAssertFalse(parserD.canStartTypeArguments(after: anchor))
+        #expect(!(parserD.canStartTypeArguments(after: anchor)))
 
         let parserE = KotlinParser(
             tokens: [
@@ -283,9 +291,10 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         )
         let parsed = parserE.parseFile()
         let kinds = Set(parsed.arena.nodes.map(\.kind))
-        XCTAssertTrue(kinds.contains(.typeArgs))
+        #expect(kinds.contains(.typeArgs))
     }
 
+    @Test
     func testParserCoversRareDeclarationEnumAndMissingNameBranches() {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
@@ -373,23 +382,24 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         let parser = KotlinParser(tokens: tokens, interner: interner, diagnostics: diagnostics)
         let parsed = parser.parseFile()
 
-        XCTAssertFalse(parsed.arena.nodes.isEmpty)
+        #expect(!(parsed.arena.nodes.isEmpty))
         let kinds = Set(parsed.arena.nodes.map(\.kind))
-        XCTAssertTrue(kinds.contains(.packageHeader))
-        XCTAssertTrue(kinds.contains(.importHeader))
-        XCTAssertTrue(kinds.contains(.classDecl))
-        XCTAssertTrue(kinds.contains(.objectDecl))
-        XCTAssertTrue(kinds.contains(.propertyDecl))
-        XCTAssertTrue(kinds.contains(.typeAliasDecl))
-        XCTAssertTrue(kinds.contains(.funDecl))
-        XCTAssertTrue(kinds.contains(.enumEntry))
-        XCTAssertTrue(kinds.contains(.block))
-        XCTAssertTrue(kinds.contains(.statement))
+        #expect(kinds.contains(.packageHeader))
+        #expect(kinds.contains(.importHeader))
+        #expect(kinds.contains(.classDecl))
+        #expect(kinds.contains(.objectDecl))
+        #expect(kinds.contains(.propertyDecl))
+        #expect(kinds.contains(.typeAliasDecl))
+        #expect(kinds.contains(.funDecl))
+        #expect(kinds.contains(.enumEntry))
+        #expect(kinds.contains(.block))
+        #expect(kinds.contains(.statement))
 
         let codes = Set(diagnostics.diagnostics.map(\.code))
-        XCTAssertTrue(codes.contains("KSWIFTK-PARSE-0002"))
+        #expect(codes.contains("KSWIFTK-PARSE-0002"))
     }
 
+    @Test
     func testParserWarnsForUnterminatedTypeArgsAndParameterGroup() {
         let interner = StringInterner()
 
@@ -410,8 +420,8 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         ]
         let typeArgParser = KotlinParser(tokens: typeArgTokens, interner: interner, diagnostics: typeArgDiagnostics)
         let typeArgParsed = typeArgParser.parseFile()
-        XCTAssertTrue(typeArgParsed.arena.nodes.contains { $0.kind == .typeArgs })
-        XCTAssertTrue(typeArgDiagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0005" })
+        #expect(typeArgParsed.arena.nodes.contains { $0.kind == .typeArgs })
+        #expect(typeArgDiagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0005" })
 
         let groupDiagnostics = DiagnosticEngine()
         let groupTokens: [Token] = [
@@ -425,6 +435,7 @@ final class LexerParserEdgeCaseTests: XCTestCase {
         ]
         let groupParser = KotlinParser(tokens: groupTokens, interner: interner, diagnostics: groupDiagnostics)
         _ = groupParser.parseFile()
-        XCTAssertTrue(groupDiagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
+        #expect(groupDiagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
     }
 }
+#endif

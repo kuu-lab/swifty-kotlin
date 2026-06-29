@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testNativePlatformMemoryModelLowersToRuntimeCallee() throws {
+    @Test func testNativePlatformMemoryModelLowersToRuntimeCallee() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -18,29 +19,29 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_platform_memoryModel"),
                 "Expected Platform.memoryModel runtime call"
             )
         }
     }
 
-    func testABILoweringMarksNativePlatformMemoryModelAsNonThrowing() {
+    @Test func testABILoweringMarksNativePlatformMemoryModelAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(
+        #expect(
             callees.contains(interner.intern("kk_platform_memoryModel")),
             "kk_platform_memoryModel should not receive an outThrown slot during ABI lowering"
         )
     }
 
-    func testNativeIdentityHashCodeLowersToRuntimeCallee() throws {
+    @Test func testNativeIdentityHashCodeLowersToRuntimeCallee() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -53,23 +54,23 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_identityHashCode"))
+            #expect(callees.contains("kk_native_identityHashCode"))
         }
     }
 
-    func testABILoweringMarksNativeIdentityHashCodeAsNonThrowing() {
+    @Test func testABILoweringMarksNativeIdentityHashCodeAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_identityHashCode")))
+        #expect(callees.contains(interner.intern("kk_native_identityHashCode")))
     }
 
-    func testNativeGetStackTraceAddressesLowersToRuntimeCallee() throws {
+    @Test func testNativeGetStackTraceAddressesLowersToRuntimeCallee() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -82,23 +83,23 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_getStackTraceAddresses"))
+            #expect(callees.contains("kk_native_getStackTraceAddresses"))
         }
     }
 
-    func testABILoweringMarksNativeGetStackTraceAddressesAsNonThrowing() {
+    @Test func testABILoweringMarksNativeGetStackTraceAddressesAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_getStackTraceAddresses")))
+        #expect(callees.contains(interner.intern("kk_native_getStackTraceAddresses")))
     }
 
-    func testNativeUnhandledExceptionHooksLowerToRuntimeCallees() throws {
+    @Test func testNativeUnhandledExceptionHooksLowerToRuntimeCallees() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -120,31 +121,31 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let probeBody = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let dieBody = try findKIRFunctionBody(named: "die", in: module, interner: ctx.interner)
             let callees = extractCallees(from: probeBody, interner: ctx.interner)
                 + extractCallees(from: dieBody, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_getUnhandledExceptionHook"))
-            XCTAssertTrue(callees.contains("kk_native_setUnhandledExceptionHook"))
-            XCTAssertTrue(callees.contains("kk_native_processUnhandledException"))
-            XCTAssertTrue(callees.contains("kk_native_terminateWithUnhandledException"))
+            #expect(callees.contains("kk_native_getUnhandledExceptionHook"))
+            #expect(callees.contains("kk_native_setUnhandledExceptionHook"))
+            #expect(callees.contains("kk_native_processUnhandledException"))
+            #expect(callees.contains("kk_native_terminateWithUnhandledException"))
         }
     }
 
-    func testABILoweringMarksNonThrowingNativeUnhandledExceptionHooks() {
+    @Test func testABILoweringMarksNonThrowingNativeUnhandledExceptionHooks() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_getUnhandledExceptionHook")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_setUnhandledExceptionHook")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_terminateWithUnhandledException")))
-        XCTAssertFalse(callees.contains(interner.intern("kk_native_processUnhandledException")))
+        #expect(callees.contains(interner.intern("kk_native_getUnhandledExceptionHook")))
+        #expect(callees.contains(interner.intern("kk_native_setUnhandledExceptionHook")))
+        #expect(callees.contains(interner.intern("kk_native_terminateWithUnhandledException")))
+        #expect(!(callees.contains(interner.intern("kk_native_processUnhandledException"))))
     }
 
-    func testNativeByteArrayAccessorsLowerToRuntimeCallees() throws {
+    @Test func testNativeByteArrayAccessorsLowerToRuntimeCallees() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -165,29 +166,29 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getByteAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getShortAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getIntAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getLongAt"))
+            #expect(callees.contains("kk_native_byteArray_getByteAt"))
+            #expect(callees.contains("kk_native_byteArray_getShortAt"))
+            #expect(callees.contains("kk_native_byteArray_getIntAt"))
+            #expect(callees.contains("kk_native_byteArray_getLongAt"))
         }
     }
 
-    func testABILoweringMarksNativeByteArrayAccessorsAsNonThrowing() {
+    @Test func testABILoweringMarksNativeByteArrayAccessorsAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getByteAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getShortAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getIntAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getLongAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getByteAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getShortAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getIntAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getLongAt")))
     }
 
-    func testNativeByteArraySettersLowerToRuntimeCallees() throws {
+    @Test func testNativeByteArraySettersLowerToRuntimeCallees() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -208,29 +209,29 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setByteAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setShortAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setIntAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setLongAt"))
+            #expect(callees.contains("kk_native_byteArray_setByteAt"))
+            #expect(callees.contains("kk_native_byteArray_setShortAt"))
+            #expect(callees.contains("kk_native_byteArray_setIntAt"))
+            #expect(callees.contains("kk_native_byteArray_setLongAt"))
         }
     }
 
-    func testABILoweringMarksNativeByteArraySettersAsNonThrowing() {
+    @Test func testABILoweringMarksNativeByteArraySettersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setByteAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setShortAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setIntAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setLongAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setByteAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setShortAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setIntAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setLongAt")))
     }
 
-    func testNativeUnsignedByteArrayAccessorsLowerToRuntimeCallees() throws {
+    @Test func testNativeUnsignedByteArrayAccessorsLowerToRuntimeCallees() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
         @file:OptIn(kotlin.ExperimentalUnsignedTypes::class)
@@ -252,29 +253,29 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getUByteAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getUShortAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getUIntAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getULongAt"))
+            #expect(callees.contains("kk_native_byteArray_getUByteAt"))
+            #expect(callees.contains("kk_native_byteArray_getUShortAt"))
+            #expect(callees.contains("kk_native_byteArray_getUIntAt"))
+            #expect(callees.contains("kk_native_byteArray_getULongAt"))
         }
     }
 
-    func testABILoweringMarksNativeUnsignedByteArrayAccessorsAsNonThrowing() {
+    @Test func testABILoweringMarksNativeUnsignedByteArrayAccessorsAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getUByteAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getUShortAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getUIntAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getULongAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getUByteAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getUShortAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getUIntAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getULongAt")))
     }
 
-    func testNativeUnsignedByteArraySettersLowerToRuntimeCallees() throws {
+    @Test func testNativeUnsignedByteArraySettersLowerToRuntimeCallees() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
         @file:OptIn(kotlin.ExperimentalUnsignedTypes::class)
@@ -296,29 +297,29 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setUByteAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setUShortAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setUIntAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setULongAt"))
+            #expect(callees.contains("kk_native_byteArray_setUByteAt"))
+            #expect(callees.contains("kk_native_byteArray_setUShortAt"))
+            #expect(callees.contains("kk_native_byteArray_setUIntAt"))
+            #expect(callees.contains("kk_native_byteArray_setULongAt"))
         }
     }
 
-    func testABILoweringMarksNativeUnsignedByteArraySettersAsNonThrowing() {
+    @Test func testABILoweringMarksNativeUnsignedByteArraySettersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setUByteAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setUShortAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setUIntAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setULongAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setUByteAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setUShortAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setUIntAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setULongAt")))
     }
 
-    func testNativePrimitiveByteArrayAccessorsLowerToRuntimeCallees() throws {
+    @Test func testNativePrimitiveByteArrayAccessorsLowerToRuntimeCallees() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -337,27 +338,27 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getCharAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getFloatAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_getDoubleAt"))
+            #expect(callees.contains("kk_native_byteArray_getCharAt"))
+            #expect(callees.contains("kk_native_byteArray_getFloatAt"))
+            #expect(callees.contains("kk_native_byteArray_getDoubleAt"))
         }
     }
 
-    func testABILoweringMarksNativePrimitiveByteArrayAccessorsAsNonThrowing() {
+    @Test func testABILoweringMarksNativePrimitiveByteArrayAccessorsAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getCharAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getFloatAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getDoubleAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getCharAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getFloatAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_getDoubleAt")))
     }
 
-    func testNativePrimitiveByteArraySettersLowerToRuntimeCallees() throws {
+    @Test func testNativePrimitiveByteArraySettersLowerToRuntimeCallees() throws {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -376,27 +377,27 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setCharAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setFloatAt"))
-            XCTAssertTrue(callees.contains("kk_native_byteArray_setDoubleAt"))
+            #expect(callees.contains("kk_native_byteArray_setCharAt"))
+            #expect(callees.contains("kk_native_byteArray_setFloatAt"))
+            #expect(callees.contains("kk_native_byteArray_setDoubleAt"))
         }
     }
 
-    func testABILoweringMarksNativePrimitiveByteArraySettersAsNonThrowing() {
+    @Test func testABILoweringMarksNativePrimitiveByteArraySettersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setCharAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setFloatAt")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_setDoubleAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setCharAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setFloatAt")))
+        #expect(callees.contains(interner.intern("kk_native_byteArray_setDoubleAt")))
     }
 
-    func testCPointerIntVarToKStringFromUtf32LowersToRuntimeCallee() throws {
+    @Test func testCPointerIntVarToKStringFromUtf32LowersToRuntimeCallee() throws {
         let source = """
         import kotlinx.cinterop.CPointer
         import kotlinx.cinterop.IntVar
@@ -409,14 +410,15 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "decode", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_cpointer_toKStringFromUtf32"),
                 "Expected kk_cpointer_toKStringFromUtf32 runtime call in KIR"
             )
         }
     }
 }
+#endif

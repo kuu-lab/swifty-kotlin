@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension OverloadResolverTests {
     // MARK: - Unified Generic Type Inference (P5-85 / P5-126)
@@ -7,7 +8,7 @@ extension OverloadResolverTests {
     // P5-126: fun <T> id(x: T): T – infer T = Int from id(42)
     // (Already covered by testResolveCallInfersGenericTypeArgumentFromParameter but
     //  included here for completeness of the unified test suite.)
-    func testUnifiedInference_SimpleIdentityFunction() {
+    @Test func testUnifiedInference_SimpleIdentityFunction() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "uid_T", symbols: symbols, interner: interner)
@@ -21,13 +22,13 @@ extension OverloadResolverTests {
         let call = CallExpr(range: makeRange(start: 5000, end: 5010), calleeName: interner.intern("id"), args: [CallArg(type: intType)])
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: intType, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // P5-85: fun <T> listOf(vararg elements: T): List<T> – infer T = Int from listOf(1, 2, 3)
-    func testUnifiedInference_VarargUniformElementType() {
+    @Test func testUnifiedInference_VarargUniformElementType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "uva_T", symbols: symbols, interner: interner)
@@ -55,13 +56,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // P5-85: listOf(1, "a") – mixed types → T = Any via LUB
-    func testUnifiedInference_VarargMixedElementTypeLUB() {
+    @Test func testUnifiedInference_VarargMixedElementTypeLUB() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let stringType = types.make(.primitive(.string, .nonNull))
@@ -90,15 +91,15 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
         // LUB(Int, String) = Any (anyType) because the LUB implementation
         // returns anyType when all types are non-null and satisfy isSubtype($0, anyType).
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], types.anyType)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == types.anyType)
     }
 
     // P5-85: listOf<Int>(1, 2) – explicit type argument overrides inference
-    func testUnifiedInference_ExplicitTypeArgWithVararg() {
+    @Test func testUnifiedInference_ExplicitTypeArgWithVararg() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "uex_T", symbols: symbols, interner: interner)
@@ -127,13 +128,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // P5-126: fun <T> unwrap(list: List<T>): T – infer T = Int from List<Int> argument
-    func testUnifiedInference_InferTypeArgFromNestedClassTypeParameter() {
+    @Test func testUnifiedInference_InferTypeArgFromNestedClassTypeParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "unw_T", symbols: symbols, interner: interner)
@@ -156,13 +157,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: intType, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // P5-126: fun <T> wrap(x: T): List<T> – expected type List<Int> backward inference
-    func testUnifiedInference_BackwardInferenceFromExpectedType() {
+    @Test func testUnifiedInference_BackwardInferenceFromExpectedType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "bck_T", symbols: symbols, interner: interner)
@@ -185,13 +186,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: listOfInt, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // P5-126: fun <K, V> mapOf(k: K, v: V): Map<K, V> – multiple type params
-    func testUnifiedInference_MultipleTypeParamsFromNestedClassType() {
+    @Test func testUnifiedInference_MultipleTypeParamsFromNestedClassType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let stringType = types.make(.primitive(.string, .nonNull))
         let intType = types.make(.primitive(.int, .nonNull))
@@ -216,15 +217,15 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments.count, 2)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], stringType)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 1)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments.count == 2)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == stringType)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 1)] == intType)
     }
 
     // P5-126: backward inference from expected Map<String, Int> for return type Map<K, V>
-    func testUnifiedInference_BackwardInferenceMultipleTypeParamsFromExpectedType() {
+    @Test func testUnifiedInference_BackwardInferenceMultipleTypeParamsFromExpectedType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let stringType = types.make(.primitive(.string, .nonNull))
         let intType = types.make(.primitive(.int, .nonNull))
@@ -250,14 +251,14 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: mapStringInt, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], stringType)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 1)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == stringType)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 1)] == intType)
     }
 
     // P5-126: Inference failure when no constraints exist → KSWIFTK-SEMA-INFER diagnostic
-    func testUnifiedInference_FailureEmitsInferDiagnostic() {
+    @Test func testUnifiedInference_FailureEmitsInferDiagnostic() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "inf_T", symbols: symbols, interner: interner)
         let tType = types.make(.typeParam(TypeParamType(symbol: tSym)))
@@ -278,13 +279,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-INFER")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-INFER")
     }
 
     // P5-126: fun <T> transform(list: List<T>, f: (T) -> T): List<T>
     // Infer T = Int from List<Int> argument, with function type param.
-    func testUnifiedInference_FunctionTypeParameterDecomposition() {
+    @Test func testUnifiedInference_FunctionTypeParameterDecomposition() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "ftp_T", symbols: symbols, interner: interner)
@@ -309,13 +310,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // P5-126: Covariant (out T) decomposition – List<out T> parameter
-    func testUnifiedInference_CovariantTypeArgDecomposition() {
+    @Test func testUnifiedInference_CovariantTypeArgDecomposition() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "cov_T", symbols: symbols, interner: interner)
@@ -337,13 +338,13 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
     // P5-126: Contravariant (in T) decomposition – Consumer<in T> parameter
-    func testUnifiedInference_ContravariantTypeArgDecomposition() {
+    @Test func testUnifiedInference_ContravariantTypeArgDecomposition() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "con_T", symbols: symbols, interner: interner)
@@ -365,8 +366,9 @@ extension OverloadResolverTests {
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
 
-        XCTAssertEqual(resolved.chosenCallee, fn)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 }
+#endif

@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LibraryMetadataCacheBehaviorTests {
+    @Test
     func testManifestCacheHitOnSameKey() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -20,12 +22,13 @@ extension LibraryMetadataCacheBehaviorTests {
         cache.cacheManifestInfo(info, libraryDir: libDir.path, target: target)
 
         let retrieved = cache.cachedManifestInfo(libraryDir: libDir.path, target: target)
-        XCTAssertNotNil(retrieved, "Should hit cache for same libraryDir + mtime + target")
-        XCTAssertEqual(retrieved?.metadataPath, info.metadataPath)
-        XCTAssertEqual(retrieved?.isValid, true)
+        #expect(retrieved != nil, "Should hit cache for same libraryDir + mtime + target")
+        #expect(retrieved?.metadataPath == info.metadataPath)
+        #expect(retrieved?.isValid == true)
     }
 
     /// A2: Manifest cache miss — different libraryDir
+    @Test
     func testManifestCacheMissOnDifferentLibraryDir() throws {
         let fm = FileManager.default
         let baseDir1 = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -44,10 +47,11 @@ extension LibraryMetadataCacheBehaviorTests {
         cache.cacheManifestInfo(info, libraryDir: libDir1.path, target: target)
 
         let retrieved = cache.cachedManifestInfo(libraryDir: libDir2.path, target: target)
-        XCTAssertNil(retrieved, "Should miss cache for different libraryDir")
+        #expect(retrieved == nil, "Should miss cache for different libraryDir")
     }
 
     /// A3: Manifest cache miss — mtime changed (file modified)
+    @Test
     func testManifestCacheMissOnMtimeChange() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -62,7 +66,7 @@ extension LibraryMetadataCacheBehaviorTests {
         cache.cacheManifestInfo(info, libraryDir: libDir.path, target: target)
 
         // Verify hit before modification
-        XCTAssertNotNil(cache.cachedManifestInfo(libraryDir: libDir.path, target: target), "Should hit before modification")
+        #expect(cache.cachedManifestInfo(libraryDir: libDir.path, target: target) != nil, "Should hit before modification")
 
         // Explicitly set a different mtime to deterministically invalidate the cache
         // (avoids relying on filesystem mtime granularity which can be 1s on some systems)
@@ -70,10 +74,11 @@ extension LibraryMetadataCacheBehaviorTests {
         try fm.setAttributes([.modificationDate: futureDate], ofItemAtPath: manifestPath.path)
 
         let retrieved = cache.cachedManifestInfo(libraryDir: libDir.path, target: target)
-        XCTAssertNil(retrieved, "Should miss cache after file modification changes mtime")
+        #expect(retrieved == nil, "Should miss cache after file modification changes mtime")
     }
 
     /// A4: Metadata cache hit — same interner, same path+mtime
+    @Test
     func testMetadataCacheHitWithSameInterner() throws {
         let fm = FileManager.default
         let metadataPath = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".bin").path
@@ -94,11 +99,12 @@ extension LibraryMetadataCacheBehaviorTests {
         cache.cacheMetadataRecords([record], metadataPath: metadataPath, interner: interner)
 
         let retrieved = cache.cachedMetadataRecords(metadataPath: metadataPath, interner: interner)
-        XCTAssertNotNil(retrieved, "Should hit cache with same interner")
-        XCTAssertEqual(retrieved?.count, 1)
+        #expect(retrieved != nil, "Should hit cache with same interner")
+        #expect(retrieved?.count == 1)
     }
 
     /// A5: Metadata cache miss — different interner
+    @Test
     func testMetadataCacheMissWithDifferentInterner() throws {
         let fm = FileManager.default
         let metadataPath = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".bin").path
@@ -120,10 +126,11 @@ extension LibraryMetadataCacheBehaviorTests {
 
         let interner2 = StringInterner()
         let retrieved = cache.cachedMetadataRecords(metadataPath: metadataPath, interner: interner2)
-        XCTAssertNil(retrieved, "Should miss cache with different interner instance")
+        #expect(retrieved == nil, "Should miss cache with different interner instance")
     }
 
     /// A6: Signature cache hit — same TypeSystem + SymbolTable
+    @Test
     func testSignatureCacheHitWithSameTypeSystemAndSymbolTable() throws {
         let cache = LibraryMetadataCache()
         let types = TypeSystem()
@@ -133,11 +140,12 @@ extension LibraryMetadataCacheBehaviorTests {
         cache.cacheSignature(intType, for: "I", types: types, symbols: symbols)
 
         let retrieved = cache.cachedSignature("I", types: types, symbols: symbols)
-        XCTAssertNotNil(retrieved as Any?, "Outer optional should be non-nil (cache hit)")
-        XCTAssertEqual(try XCTUnwrap(retrieved), intType, "Should return the cached TypeID")
+        #expect(retrieved != nil, "Outer optional should be non-nil (cache hit)")
+        #expect(try #require(retrieved) == intType, "Should return the cached TypeID")
     }
 
     /// A7: Signature cache miss — different TypeSystem
+    @Test
     func testSignatureCacheMissWithDifferentTypeSystem() {
         let cache = LibraryMetadataCache()
         let types1 = TypeSystem()
@@ -148,10 +156,11 @@ extension LibraryMetadataCacheBehaviorTests {
 
         let types2 = TypeSystem()
         let retrieved = cache.cachedSignature("I", types: types2, symbols: symbols)
-        XCTAssertNil(retrieved as Any?, "Should miss cache with different TypeSystem")
+        #expect(retrieved == nil, "Should miss cache with different TypeSystem")
     }
 
     /// A8: Signature cache miss — different SymbolTable
+    @Test
     func testSignatureCacheMissWithDifferentSymbolTable() {
         let cache = LibraryMetadataCache()
         let types = TypeSystem()
@@ -162,11 +171,12 @@ extension LibraryMetadataCacheBehaviorTests {
 
         let symbols2 = SymbolTable()
         let retrieved = cache.cachedSignature("I", types: types, symbols: symbols2)
-        XCTAssertNil(retrieved as Any?, "Should miss cache with different SymbolTable")
+        #expect(retrieved == nil, "Should miss cache with different SymbolTable")
     }
 
     /// A9: Signature cache correctly caches nil (failed parse)
-    func testSignatureCacheCachesNilForFailedParse() {
+    @Test
+    func testSignatureCacheCachesNilForFailedParse() throws {
         let cache = LibraryMetadataCache()
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -175,12 +185,13 @@ extension LibraryMetadataCacheBehaviorTests {
 
         let retrieved = cache.cachedSignature("INVALID", types: types, symbols: symbols)
         // Outer optional should be non-nil (cache hit), inner should be nil (cached failure)
-        XCTAssertNotNil(retrieved as Any?, "Outer optional should be non-nil (cache hit for nil value)")
-        XCTAssertNil(try XCTUnwrap(retrieved), "Inner value should be nil (cached failed parse)")
-        XCTAssertEqual(cache.signatureCacheCount, 1)
+        #expect(retrieved != nil, "Outer optional should be non-nil (cache hit for nil value)")
+        #expect(try #require(retrieved) == nil, "Inner value should be nil (cached failed parse)")
+        #expect(cache.signatureCacheCount == 1)
     }
 
     /// A10: Signature cache auto-clears on TypeSystem change
+    @Test
     func testSignatureCacheAutoClearsOnTypeSystemChange() {
         let cache = LibraryMetadataCache()
         let types1 = TypeSystem()
@@ -189,16 +200,17 @@ extension LibraryMetadataCacheBehaviorTests {
         let intType1 = types1.make(.primitive(.int, .nonNull))
         cache.cacheSignature(intType1, for: "I", types: types1, symbols: symbols)
         cache.cacheSignature(intType1, for: "J", types: types1, symbols: symbols)
-        XCTAssertEqual(cache.signatureCacheCount, 2)
+        #expect(cache.signatureCacheCount == 2)
 
         // Switch to new TypeSystem — old entries should be cleared
         let types2 = TypeSystem()
         let intType2 = types2.make(.primitive(.int, .nonNull))
         cache.cacheSignature(intType2, for: "I", types: types2, symbols: symbols)
-        XCTAssertEqual(cache.signatureCacheCount, 1, "Old entries should have been cleared")
+        #expect(cache.signatureCacheCount == 1, "Old entries should have been cleared")
     }
 
     /// A11: Metadata cache auto-clears on interner change
+    @Test
     func testMetadataCacheAutoClearsOnInternerChange() throws {
         let fm = FileManager.default
         let metadataPath = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".bin").path
@@ -217,7 +229,7 @@ extension LibraryMetadataCacheBehaviorTests {
             valueClassUnderlyingTypeSig: nil, annotations: [], sealedSubclassFQNames: []
         )
         cache.cacheMetadataRecords([record], metadataPath: metadataPath, interner: interner1)
-        XCTAssertEqual(cache.metadataCacheCount, 1)
+        #expect(cache.metadataCacheCount == 1)
 
         // Switch to new interner — old entries should be cleared on next store
         let interner2 = StringInterner()
@@ -234,10 +246,11 @@ extension LibraryMetadataCacheBehaviorTests {
         let otherPath = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".bin").path
         try "symbols=0".write(toFile: otherPath, atomically: true, encoding: .utf8)
         cache.cacheMetadataRecords([record2], metadataPath: otherPath, interner: interner2)
-        XCTAssertEqual(cache.metadataCacheCount, 1, "Old interner entries should have been cleared")
+        #expect(cache.metadataCacheCount == 1, "Old interner entries should have been cleared")
     }
 
     // --- B. Integration tests (loadImportedLibrarySymbols with cache) ---
 
     // B1: cache=nil produces identical results to without cache (no regression)
 }
+#endif

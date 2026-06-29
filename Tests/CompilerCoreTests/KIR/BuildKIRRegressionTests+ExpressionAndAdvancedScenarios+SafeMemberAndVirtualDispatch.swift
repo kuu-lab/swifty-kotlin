@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testDirectSafeMemberCallConstFoldNonNullAndNullablePaths() {
+    @Test func testDirectSafeMemberCallConstFoldNonNullAndNullablePaths() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let callee = fixture.interner.intern("value")
@@ -48,15 +49,15 @@ extension BuildKIRRegressionTests {
             emit: &emitFolded
         )
 
-        XCTAssertTrue(emitFolded.instructions.contains { instruction in
+        #expect(emitFolded.instructions.contains { instruction in
             guard case let .constValue(_, value) = instruction else { return false }
             if case .intLiteral(42) = value { return true }
             return false
         })
-        XCTAssertFalse(emitFolded.instructions.contains { instruction in
+        #expect(!(emitFolded.instructions.contains { instruction in
             if case .call = instruction { return true }
             return false
-        })
+        }))
 
         let receiverNullable = appendTypedExpr(
             .nameRef(fixture.interner.intern("r2"), range),
@@ -89,13 +90,13 @@ extension BuildKIRRegressionTests {
             emit: &emitNotFolded
         )
 
-        XCTAssertTrue(emitNotFolded.instructions.contains { instruction in
+        #expect(emitNotFolded.instructions.contains { instruction in
             if case .call = instruction { return true }
             return false
         })
     }
 
-    func testDirectSafeMemberCallConstFoldWithoutBoundTypeUsesAnyFallback() {
+    @Test func testDirectSafeMemberCallConstFoldWithoutBoundTypeUsesAnyFallback() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let callee = fixture.interner.intern("value")
@@ -138,14 +139,14 @@ extension BuildKIRRegressionTests {
             emit: &emit
         )
 
-        XCTAssertTrue(emit.instructions.contains { instruction in
+        #expect(emit.instructions.contains { instruction in
             guard case let .constValue(_, value) = instruction else { return false }
             if case .intLiteral(11) = value { return true }
             return false
         })
     }
 
-    func testDirectSafeMemberCallInvWithoutTypeBindingsFallsBackToDynamicCall() {
+    @Test func testDirectSafeMemberCallInvWithoutTypeBindingsFallsBackToDynamicCall() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let invName = fixture.interner.intern("inv")
@@ -173,11 +174,11 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        XCTAssertFalse(callees.contains("kk_op_inv"))
-        XCTAssertTrue(callees.contains("inv"))
+        #expect(!(callees.contains("kk_op_inv")))
+        #expect(callees.contains("inv"))
     }
 
-    func testDirectSafeMemberCallPrimitiveInvFastPathAndFallback() {
+    @Test func testDirectSafeMemberCallPrimitiveInvFastPathAndFallback() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let invName = fixture.interner.intern("inv")
@@ -206,7 +207,7 @@ extension BuildKIRRegressionTests {
             shared: fixture.makeShared(),
             emit: &emitFast
         )
-        XCTAssertTrue(extractCallees(from: emitFast.instructions, interner: fixture.interner).contains("kk_op_inv"))
+        #expect(extractCallees(from: emitFast.instructions, interner: fixture.interner).contains("kk_op_inv"))
 
         let receiverBool = appendTypedExpr(
             .nameRef(fixture.interner.intern("b"), range),
@@ -231,11 +232,11 @@ extension BuildKIRRegressionTests {
             emit: &emitFallback
         )
         let fallbackCallees = extractCallees(from: emitFallback.instructions, interner: fixture.interner)
-        XCTAssertFalse(fallbackCallees.contains("kk_op_inv"))
-        XCTAssertTrue(fallbackCallees.contains("inv"))
+        #expect(!(fallbackCallees.contains("kk_op_inv")))
+        #expect(fallbackCallees.contains("inv"))
     }
 
-    func testDirectSafeMemberCallUnresolvedCoroutineMemberRenames() {
+    @Test func testDirectSafeMemberCallUnresolvedCoroutineMemberRenames() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let handleClass = defineSemanticSymbol(
@@ -287,19 +288,19 @@ extension BuildKIRRegressionTests {
                 if case .call = instruction { return true }
                 return false
             }) else {
-                XCTFail("Expected .call for \(testCase.input)")
+                Issue.record("Expected .call for \(testCase.input)")
                 continue
             }
             guard case let .call(_, loweredCallee, arguments, _, _, _, _, _) = callInstruction else {
-                XCTFail("Expected .call payload for \(testCase.input)")
+                Issue.record("Expected .call payload for \(testCase.input)")
                 continue
             }
-            XCTAssertEqual(fixture.interner.resolve(loweredCallee), testCase.expected)
-            XCTAssertEqual(arguments.count, testCase.expectedArgCount)
+            #expect(fixture.interner.resolve(loweredCallee) == testCase.expected)
+            #expect(arguments.count == testCase.expectedArgCount)
         }
     }
 
-    func testDirectSafeMemberCallChosenCalleeUsesExternalLinkAndReceiverInsertion() {
+    @Test func testDirectSafeMemberCallChosenCalleeUsesExternalLinkAndReceiverInsertion() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -367,18 +368,18 @@ extension BuildKIRRegressionTests {
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == callee
         }) else {
-            XCTFail("Expected chosen callee call")
+            Issue.record("Expected chosen callee call")
             return
         }
         guard case let .call(_, loweredCallee, arguments, _, _, _, _, _) = callInstruction else {
-            XCTFail("Expected .call payload")
+            Issue.record("Expected .call payload")
             return
         }
-        XCTAssertEqual(fixture.interner.resolve(loweredCallee), "kk_vec_call")
-        XCTAssertEqual(arguments.count, 2)
+        #expect(fixture.interner.resolve(loweredCallee) == "kk_vec_call")
+        #expect(arguments.count == 2)
     }
 
-    func testDirectSafeMemberCallDefaultMaskPathUsesDefaultStub() {
+    @Test func testDirectSafeMemberCallDefaultMaskPathUsesDefaultStub() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -447,18 +448,18 @@ extension BuildKIRRegressionTests {
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == expectedStub
         }) else {
-            XCTFail("Expected default stub call")
+            Issue.record("Expected default stub call")
             return
         }
         guard case let .call(_, callee, arguments, _, _, _, _, _) = stubCall else {
-            XCTFail("Expected .call payload")
+            Issue.record("Expected .call payload")
             return
         }
-        XCTAssertEqual(fixture.interner.resolve(callee), "withDefault$default")
-        XCTAssertGreaterThanOrEqual(arguments.count, 2)
+        #expect(fixture.interner.resolve(callee) == "withDefault$default")
+        #expect(arguments.count >= 2)
     }
 
-    func testDirectSafeMemberCallVirtualDispatchUsesVirtualCallAndDropsReceiverFromArgs() {
+    @Test func testDirectSafeMemberCallVirtualDispatchUsesVirtualCallAndDropsReceiverFromArgs() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -539,19 +540,19 @@ extension BuildKIRRegressionTests {
             if case .virtualCall = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasVirtualCall, "Virtual dispatch is currently disabled and should fall back to static call emission.")
-        let directInstruction = try? XCTUnwrap(emit.instructions.first { instruction in
+        #expect(!(hasVirtualCall), "Virtual dispatch is currently disabled and should fall back to static call emission.")
+        let directInstruction = try? #require(emit.instructions.first { instruction in
             if case .call = instruction { return true }
             return false
         })
         guard case let .call(_, _, arguments, _, _, _, _, _)? = directInstruction else {
-            XCTFail("Expected direct call fallback instruction")
+            Issue.record("Expected direct call fallback instruction")
             return
         }
-        XCTAssertEqual(arguments.count, 2, "Static fallback should pass receiver plus one value argument.")
+        #expect(arguments.count == 2, "Static fallback should pass receiver plus one value argument.")
     }
 
-    func testDirectSafeMemberCallSuperCallSkipsVirtualDispatch() {
+    @Test func testDirectSafeMemberCallSuperCallSkipsVirtualDispatch() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -633,44 +634,44 @@ extension BuildKIRRegressionTests {
             if case .virtualCall = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasVirtualCall)
-        XCTAssertTrue(emit.instructions.contains { instruction in
+        #expect(!(hasVirtualCall))
+        #expect(emit.instructions.contains { instruction in
             guard case let .call(_, _, _, _, _, _, isSuperCall, _) = instruction else { return false }
             return isSuperCall
         })
     }
 
-    func testResolveVirtualDispatchGuardFailuresReturnNil() {
+    @Test func testResolveVirtualDispatchGuardFailuresReturnNil() {
         let fixture = makeKIRDirectLoweringFixture()
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: .invalid,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         let method = defineSemanticSymbol(in: fixture, kind: .function, fqName: ["pkg", "free"])
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         let parent = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["pkg", "Owner"])
         fixture.symbols.setParentSymbol(parent, for: method)
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
     }
 
-    func testResolveVirtualDispatchInterfaceBranchCases() {
+    @Test func testResolveVirtualDispatchInterfaceBranchCases() {
         let fixture = makeKIRDirectLoweringFixture()
         let iface = defineSemanticSymbol(in: fixture, kind: .interface, fqName: ["pkg", "IWorker"])
         let method = defineSemanticSymbol(in: fixture, kind: .function, fqName: ["pkg", "IWorker", "work"])
@@ -694,29 +695,29 @@ extension BuildKIRRegressionTests {
             )
         )
 
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: receiverType,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         let receiverChild = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["pkg", "WorkerSub"])
         fixture.symbols.setDirectSupertypes([receiverClass], for: receiverChild)
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: receiverType,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         fixture.symbols.setNominalLayout(
@@ -741,12 +742,12 @@ extension BuildKIRRegressionTests {
             ),
             for: iface
         )
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: receiverType,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         fixture.symbols.setNominalLayout(
@@ -765,10 +766,10 @@ extension BuildKIRRegressionTests {
             receiverTypeID: receiverType,
             sema: fixture.sema
         )
-        XCTAssertEqual(dispatch, .itable(interfaceSlot: 2, methodSlot: 4))
+        #expect(dispatch == .itable(interfaceSlot: 2, methodSlot: 4))
     }
 
-    func testResolveVirtualDispatchInterfaceFallsBackToZeroInterfaceSlot() {
+    @Test func testResolveVirtualDispatchInterfaceFallsBackToZeroInterfaceSlot() {
         let fixture = makeKIRDirectLoweringFixture()
         let iface = defineSemanticSymbol(in: fixture, kind: .interface, fqName: ["pkg", "IWorker"])
         let method = defineSemanticSymbol(in: fixture, kind: .function, fqName: ["pkg", "IWorker", "work"])
@@ -810,10 +811,10 @@ extension BuildKIRRegressionTests {
             receiverTypeID: receiverType,
             sema: fixture.sema
         )
-        XCTAssertEqual(dispatch, .itable(interfaceSlot: 0, methodSlot: 5))
+        #expect(dispatch == .itable(interfaceSlot: 0, methodSlot: 5))
     }
 
-    func testResolveVirtualDispatchClassAndOtherParentCases() {
+    @Test func testResolveVirtualDispatchClassAndOtherParentCases() {
         let fixture = makeKIRDirectLoweringFixture()
         let owner = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["pkg", "Animal"])
         let method = defineSemanticSymbol(in: fixture, kind: .function, fqName: ["pkg", "Animal", "speak"])
@@ -830,12 +831,12 @@ extension BuildKIRRegressionTests {
             for: owner
         )
 
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         let child = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["pkg", "Dog"])
@@ -851,12 +852,12 @@ extension BuildKIRRegressionTests {
             ),
             for: owner
         )
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         fixture.symbols.setNominalLayout(
@@ -870,12 +871,12 @@ extension BuildKIRRegressionTests {
             ),
             for: owner
         )
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: method,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
 
         let objectOwner = defineSemanticSymbol(in: fixture, kind: .object, fqName: ["pkg", "Singleton"])
@@ -892,12 +893,13 @@ extension BuildKIRRegressionTests {
             ),
             for: objectOwner
         )
-        XCTAssertNil(
+        #expect(
             fixture.driver.callLowerer.resolveVirtualDispatch(
                 callee: objectMethod,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            )
+            ) == nil
         )
     }
 }
+#endif

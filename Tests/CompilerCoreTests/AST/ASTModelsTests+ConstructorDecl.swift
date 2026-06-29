@@ -1,7 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-extension ASTModelsTests {
+@Suite
+struct ASTModelsTestsPart2 {
+    @Test
     func testConstructorDeclAndDelegationCallInitializers() {
         let interner = StringInterner()
         let range = makeRange(start: 10, end: 50)
@@ -12,25 +15,25 @@ extension ASTModelsTests {
             args: [CallArgument(label: nil, expr: ExprID(rawValue: 0))],
             range: range
         )
-        XCTAssertEqual(delegationThis.kind, .this)
-        XCTAssertEqual(delegationThis.args.count, 1)
-        XCTAssertEqual(delegationThis.range, range)
+        #expect(delegationThis.kind == .this)
+        #expect(delegationThis.args.count == 1)
+        #expect(delegationThis.range == range)
 
         let delegationSuper = ConstructorDelegationCall(
             kind: .super_,
             args: [],
             range: range
         )
-        XCTAssertEqual(delegationSuper.kind, .super_)
-        XCTAssertTrue(delegationSuper.args.isEmpty)
-        XCTAssertNotEqual(delegationThis, delegationSuper)
+        #expect(delegationSuper.kind == .super_)
+        #expect(delegationSuper.args.isEmpty)
+        #expect(delegationThis != delegationSuper)
 
         let ctorDefault = ConstructorDecl(range: range)
-        XCTAssertEqual(ctorDefault.range, range)
-        XCTAssertEqual(ctorDefault.modifiers, [])
-        XCTAssertTrue(ctorDefault.valueParams.isEmpty)
-        XCTAssertNil(ctorDefault.delegationCall)
-        XCTAssertEqual(ctorDefault.body, .unit)
+        #expect(ctorDefault.range == range)
+        #expect(ctorDefault.modifiers == [])
+        #expect(ctorDefault.valueParams.isEmpty)
+        #expect(ctorDefault.delegationCall == nil)
+        #expect(ctorDefault.body == .unit)
 
         let param = ValueParamDecl(name: interner.intern("x"), type: typeRef)
         let ctorFull = ConstructorDecl(
@@ -40,13 +43,13 @@ extension ASTModelsTests {
             delegationCall: delegationThis,
             body: .block([ExprID(rawValue: 1)], range)
         )
-        XCTAssertEqual(ctorFull.modifiers, [.public])
-        XCTAssertEqual(ctorFull.valueParams.count, 1)
-        XCTAssertNotNil(ctorFull.delegationCall)
+        #expect(ctorFull.modifiers == [.public])
+        #expect(ctorFull.valueParams.count == 1)
+        #expect(ctorFull.delegationCall != nil)
         if case let .block(exprs, _) = ctorFull.body {
-            XCTAssertEqual(exprs.count, 1)
+            #expect(exprs.count == 1)
         } else {
-            XCTFail("Expected .block body")
+            Issue.record("Expected .block body")
         }
 
         let classDeclWithCtor = ClassDecl(
@@ -57,7 +60,8 @@ extension ASTModelsTests {
             primaryConstructorParams: [],
             secondaryConstructors: [ctorFull]
         )
-        XCTAssertEqual(classDeclWithCtor.secondaryConstructors.count, 1)
-        XCTAssertTrue(classDeclWithCtor.initBlocks.isEmpty)
+        #expect(classDeclWithCtor.secondaryConstructors.count == 1)
+        #expect(classDeclWithCtor.initBlocks.isEmpty)
     }
 }
+#endif

@@ -1,5 +1,6 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-013: Validates that `InputStream.copyTo(out, bufferSize)` resolves
 /// through Sema for the `java.io.InputStream` receiver and produces a `Long` value.
@@ -11,11 +12,12 @@ import XCTest
 ///   ): Long
 ///
 /// The runtime link name exercised here is `kk_input_stream_copyTo`.
-final class InputStreamCopyToFunctionTests: XCTestCase {
+@Suite
+struct InputStreamCopyToFunctionTests {
 
     // MARK: - Default bufferSize overload
 
-    func testInputStreamCopyToWithDefaultBufferSizeResolves() throws {
+    @Test func testInputStreamCopyToWithDefaultBufferSizeResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
         import java.io.InputStream
@@ -29,7 +31,7 @@ final class InputStreamCopyToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected InputStream.copyTo(out) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -37,7 +39,7 @@ final class InputStreamCopyToFunctionTests: XCTestCase {
 
     // MARK: - Explicit bufferSize overload
 
-    func testInputStreamCopyToWithExplicitBufferSizeResolves() throws {
+    @Test func testInputStreamCopyToWithExplicitBufferSizeResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
         import java.io.InputStream
@@ -51,7 +53,7 @@ final class InputStreamCopyToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected InputStream.copyTo(out, bufferSize) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -59,7 +61,7 @@ final class InputStreamCopyToFunctionTests: XCTestCase {
 
     // MARK: - Return type is Long
 
-    func testInputStreamCopyToReturnTypeIsLong() throws {
+    @Test func testInputStreamCopyToReturnTypeIsLong() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
         import java.io.InputStream
@@ -74,9 +76,10 @@ final class InputStreamCopyToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected InputStream.copyTo return type Long to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 }
+#endif

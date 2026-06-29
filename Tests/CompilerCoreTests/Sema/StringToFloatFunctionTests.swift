@@ -1,11 +1,13 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-097: Validates that `String.toFloat()` resolves through Sema
 /// for plain String receivers as well as literal / branch / nullable contexts.
 /// The runtime link involved is `kk_string_toFloat` (see
 /// `Sources/Runtime/RuntimeStringStdlib.swift`).
-final class StringToFloatFunctionTests: XCTestCase {
+@Suite
+struct StringToFloatFunctionTests {
+    @Test
     func testStringToFloatResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun parseFromVariable(text: String): Float {
@@ -30,21 +32,22 @@ final class StringToFloatFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected String.toFloat() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
+    @Test
     func testStringToFloatResolvesToRuntimeLink() throws {
         var resolvedLink: String?
         var resolvedReturnType: TypeID?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "toFloat"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -53,12 +56,11 @@ final class StringToFloatFunctionTests: XCTestCase {
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
             resolvedReturnType = sema.symbols.functionSignature(for: symbol)?.returnType
-            XCTAssertEqual(
-                resolvedReturnType,
-                sema.types.floatType,
+            #expect(
+                resolvedReturnType == sema.types.floatType,
                 "String.toFloat() should return Float"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_toFloat")
+        #expect(resolvedLink == "kk_string_toFloat")
     }
 }

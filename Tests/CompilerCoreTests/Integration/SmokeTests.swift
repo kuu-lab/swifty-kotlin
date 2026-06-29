@@ -1,13 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class SmokeTests: XCTestCase {
-    func testSmokeDriverKirDumpSucceedsForMinimalProgram() throws {
+@Suite struct SmokeTests {
+    @Test func testSmokeDriverKirDumpSucceedsForMinimalProgram() throws {
         try assertKotlinCompilesToKIR("fun main() = 0", moduleName: "SmokeKir")
     }
 
-    func testSmokeDriverSemanticErrorReportsNonZeroExit() throws {
+    @Test func testSmokeDriverSemanticErrorReportsNonZeroExit() throws {
         let source = """
         fun expectInt(value: Int) = value
         fun main() = expectInt("oops")
@@ -29,15 +30,15 @@ final class SmokeTests: XCTestCase {
             )
             let result = makeTestDriver().runForTesting(options: options)
 
-            XCTAssertEqual(result.exitCode, 1)
-            XCTAssertTrue(result.diagnostics.contains(where: { $0.severity == .error }))
-            XCTAssertTrue(result.diagnostics.contains(where: {
+            #expect(result.exitCode == 1)
+            #expect(result.diagnostics.contains(where: { $0.severity == .error }))
+            #expect(result.diagnostics.contains(where: {
                 $0.code.hasPrefix("KSWIFTK-SEMA-") || $0.code.hasPrefix("KSWIFTK-TYPE-")
             }))
         }
     }
 
-    func testSmokeDriverMissingInputReportsFailure() {
+    @Test func testSmokeDriverMissingInputReportsFailure() {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("kt")
@@ -57,11 +58,11 @@ final class SmokeTests: XCTestCase {
         )
         let result = makeTestDriver().runForTesting(options: options)
 
-        XCTAssertEqual(result.exitCode, 1)
-        XCTAssertTrue(result.diagnostics.contains(where: { $0.code == "KSWIFTK-SOURCE-0002" }))
+        #expect(result.exitCode == 1)
+        #expect(result.diagnostics.contains(where: { $0.code == "KSWIFTK-SOURCE-0002" }))
     }
 
-    func testSmokeDriverEmptyFileProducesSourceError() throws {
+    @Test func testSmokeDriverEmptyFileProducesSourceError() throws {
         try withTemporaryFile(contents: "") { path in
             let fileManager = FileManager.default
             let outputBase = fileManager.temporaryDirectory
@@ -81,21 +82,21 @@ final class SmokeTests: XCTestCase {
 
             // An empty Kotlin file is valid (no top-level declarations is acceptable);
             // the compiler should not crash and must return a defined exit code.
-            XCTAssertTrue(
+            #expect(
                 result.exitCode == 0 || result.exitCode == 1,
                 "Unexpected exit code \(result.exitCode) for empty file"
             )
         }
     }
 
-    func testSmokeDriverMultipleInputFilesCompilesToKIR() throws {
+    @Test func testSmokeDriverMultipleInputFilesCompilesToKIR() throws {
         try assertKotlinSourcesToKIR(
             ["fun greet(): String = \"hello\"", "fun main() = 0"],
             moduleName: "SmokeMultiFile"
         )
     }
 
-    func testSmokeDriverLargeFileCompilesToKIR() throws {
+    @Test func testSmokeDriverLargeFileCompilesToKIR() throws {
         // Generate a file with many top-level functions to exercise the pipeline
         // under a larger-than-trivial input without triggering semantic errors.
         var lines: [String] = (0 ..< 200).map { "fun smokeFunc\($0)(x: Int): Int = x + \($0)" }
@@ -105,7 +106,7 @@ final class SmokeTests: XCTestCase {
 
     // MARK: - New smoke tests (TEST-SMOKE-005)
 
-    func testSmokeSealedClassExhaustiveWhenCompilesToKIR() throws {
+    @Test func testSmokeSealedClassExhaustiveWhenCompilesToKIR() throws {
         // Sealed class with exhaustive when branches must compile cleanly through
         // the full frontend pipeline (Lex → Parse → BuildAST → Sema → KIR).
         try assertKotlinCompilesToKIR("""
@@ -130,7 +131,7 @@ final class SmokeTests: XCTestCase {
         """, moduleName: "SmokeSealedWhen")
     }
 
-    func testSmokeEnumClassWhenExpressionCompilesToKIR() throws {
+    @Test func testSmokeEnumClassWhenExpressionCompilesToKIR() throws {
         // Enum class entries used in a when expression must compile cleanly;
         // this exercises the enum codepath through Sema and KIR lowering.
         try assertKotlinCompilesToKIR("""
@@ -152,7 +153,7 @@ final class SmokeTests: XCTestCase {
         """, moduleName: "SmokeEnumWhen")
     }
 
-    func testSmokeDefaultParameterForwardingCompilesToKIR() throws {
+    @Test func testSmokeDefaultParameterForwardingCompilesToKIR() throws {
         // Functions with default parameters and call-sites that omit those
         // parameters must survive Sema argument-filling and KIR generation.
         try assertKotlinCompilesToKIR("""
@@ -168,7 +169,7 @@ final class SmokeTests: XCTestCase {
         """, moduleName: "SmokeDefaultParams")
     }
 
-    func testSmokeTypealiasAndExtensionFunctionCompilesToKIR() throws {
+    @Test func testSmokeTypealiasAndExtensionFunctionCompilesToKIR() throws {
         // A typealias used as a parameter type together with an extension function
         // on the aliased type must compile without errors through the full pipeline.
         try assertKotlinCompilesToKIR("""
@@ -189,3 +190,4 @@ final class SmokeTests: XCTestCase {
     }
 
 }
+#endif

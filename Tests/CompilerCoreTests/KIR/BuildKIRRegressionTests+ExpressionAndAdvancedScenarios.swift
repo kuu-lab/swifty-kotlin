@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
     // MARK: - Expression Variants Scenarios
@@ -149,7 +150,7 @@ extension BuildKIRRegressionTests {
         return (ctx, (eUnaryPlus, eUnaryMinus, eUnaryNot, eNe, eLt, eLe, eGt, eGe, eAnd, eOr))
     }
 
-    func testTypeCheckAndBuildKIRCoverExpressionVariants() throws {
+    @Test func testTypeCheckAndBuildKIRCoverExpressionVariants() throws {
         let (ctx, exprIDs) = makeExpressionVariantsFixture()
 
         try DataFlowSemaPhase().run(ctx)
@@ -157,25 +158,26 @@ extension BuildKIRRegressionTests {
         try BuildKIRPhase().run(ctx)
         try LoweringPhase().run(ctx)
 
-        let kir = try XCTUnwrap(ctx.kir)
+        let kir = try #require(ctx.kir)
         // helper + calc functions
-        XCTAssertGreaterThanOrEqual(kir.functionCount, 2)
-        XCTAssertFalse(kir.executedLowerings.isEmpty)
-        XCTAssertFalse(kir.arena.exprTypes.isEmpty)
-        XCTAssertFalse((ctx.sema?.bindings.exprTypes ?? [:]).isEmpty)
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eUnaryPlus])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eUnaryMinus])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eUnaryNot])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eNe])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eLt])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eLe])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eGt])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eGe])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eAnd])
-        XCTAssertNotNil(ctx.sema?.bindings.exprTypes[exprIDs.eOr])
+        #expect(kir.functionCount >= 2)
+        #expect(!(kir.executedLowerings.isEmpty))
+        #expect(!(kir.arena.exprTypes.isEmpty))
+        let semaExprTypes = ctx.sema?.bindings.exprTypes ?? [:]
+        #expect(!semaExprTypes.isEmpty)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eUnaryPlus] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eUnaryMinus] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eUnaryNot] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eNe] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eLt] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eLe] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eGt] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eGe] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eAnd] != nil)
+        #expect(ctx.sema?.bindings.exprTypes[exprIDs.eOr] != nil)
     }
 
-    func testBuildKIRLowersLoopExpressionsToControlFlowInstructions() throws {
+    @Test func testBuildKIRLowersLoopExpressionsToControlFlowInstructions() throws {
         let source = """
         fun loop(flag: Boolean, items: IntArray): Int {
             while (flag) { break }
@@ -189,7 +191,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "LoopIR", emit: .kirDump)
             try runToKIR(ctx)
 
-            let kir = try XCTUnwrap(ctx.kir)
+            let kir = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "loop", in: kir, interner: ctx.interner)
 
             let labelCount = body.filter { instruction in
@@ -198,7 +200,7 @@ extension BuildKIRRegressionTests {
             }.count
             // while/do-while/for each need loop-start + loop-end labels;
             // 3 loops need at least 4 labels (some may share via break/continue)
-            XCTAssertGreaterThanOrEqual(labelCount, 4)
+            #expect(labelCount >= 4)
 
             let jumpCount = body.filter { instruction in
                 if case .jump = instruction { return true }
@@ -207,12 +209,12 @@ extension BuildKIRRegressionTests {
             }.count
             // Each loop has conditional jump + unconditional jump-back;
             // 3 loops need at least 4 jumps
-            XCTAssertGreaterThanOrEqual(jumpCount, 4)
+            #expect(jumpCount >= 4)
 
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_range_iterator"))
-            XCTAssertTrue(callees.contains("kk_range_hasNext"))
-            XCTAssertTrue(callees.contains("kk_range_next"))
+            #expect(callees.contains("kk_range_iterator"))
+            #expect(callees.contains("kk_range_hasNext"))
+            #expect(callees.contains("kk_range_next"))
         }
     }
 
@@ -370,3 +372,4 @@ extension BuildKIRRegressionTests {
         return (ctx, pickSymbol, mainSymbol, typeParameterSymbol, intType)
     }
 }
+#endif

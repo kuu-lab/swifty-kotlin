@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension ConstraintSolverTests {
-    func testSolutionInitStoresAllFields() {
+    @Test func testSolutionInitStoresAllFields() {
         let sub: [TypeVarID: TypeID] = [TypeVarID(rawValue: 0): TypeID(rawValue: 5)]
         let diag = Diagnostic(
             severity: .error,
@@ -12,12 +13,12 @@ extension ConstraintSolverTests {
             secondaryRanges: []
         )
         let solution = Solution(substitution: sub, isSuccess: false, failure: diag)
-        XCTAssertEqual(solution.substitution[TypeVarID(rawValue: 0)], TypeID(rawValue: 5))
-        XCTAssertFalse(solution.isSuccess)
-        XCTAssertEqual(solution.failure?.code, "TEST")
+        #expect(solution.substitution[TypeVarID(rawValue: 0)] == TypeID(rawValue: 5))
+        #expect(!(solution.isSuccess))
+        #expect(solution.failure?.code == "TEST")
     }
 
-    func testSolveVarToVarConvergesWithoutChange() {
+    @Test func testSolveVarToVarConvergesWithoutChange() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let t0 = TypeVarID(rawValue: 92)
@@ -30,12 +31,12 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
-        XCTAssertEqual(solution.substitution[t1], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
+        #expect(solution.substitution[t1] == intType)
     }
 
-    func testConstraintInitWithBlameRange() {
+    @Test func testConstraintInitWithBlameRange() {
         let blame = makeRange(start: 10, end: 20)
         let constraint = Constraint(
             kind: .equal,
@@ -43,20 +44,20 @@ extension ConstraintSolverTests {
             right: TypeID(rawValue: 2),
             blameRange: blame
         )
-        XCTAssertEqual(constraint.kind, .equal)
-        XCTAssertEqual(constraint.blameRange, blame)
+        #expect(constraint.kind == .equal)
+        #expect(constraint.blameRange == blame)
     }
 
-    func testConstraintInitWithoutBlameRange() {
+    @Test func testConstraintInitWithoutBlameRange() {
         let constraint = Constraint(
             kind: .subtype,
             left: TypeID(rawValue: 1),
             right: TypeID(rawValue: 2)
         )
-        XCTAssertNil(constraint.blameRange)
+        #expect(constraint.blameRange == nil)
     }
 
-    func testVariableConstraintInitWithBlameRange() {
+    @Test func testVariableConstraintInitWithBlameRange() {
         let blame = makeRange(start: 0, end: 5)
         let vc = VariableConstraint(
             kind: .supertype,
@@ -64,20 +65,20 @@ extension ConstraintSolverTests {
             right: .type(TypeID(rawValue: 2)),
             blameRange: blame
         )
-        XCTAssertEqual(vc.kind, .supertype)
-        XCTAssertEqual(vc.blameRange, blame)
+        #expect(vc.kind == .supertype)
+        #expect(vc.blameRange == blame)
     }
 
-    func testVariableConstraintInitWithoutBlameRange() {
+    @Test func testVariableConstraintInitWithoutBlameRange() {
         let vc = VariableConstraint(
             kind: .equal,
             left: .type(TypeID(rawValue: 1)),
             right: .variable(TypeVarID(rawValue: 2))
         )
-        XCTAssertNil(vc.blameRange)
+        #expect(vc.blameRange == nil)
     }
 
-    func testSolveBothBoundsUsesLowerCandidate() {
+    @Test func testSolveBothBoundsUsesLowerCandidate() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -89,11 +90,11 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
-        XCTAssertEqual(solution.substitution[t0], intType)
+        #expect(solution.isSuccess)
+        #expect(solution.substitution[t0] == intType)
     }
 
-    func testSolveErrorCandidateReportsFailure() throws {
+    @Test func testSolveErrorCandidateReportsFailure() throws {
         let (solver, types) = makeDeps()
         let t0 = TypeVarID(rawValue: 70)
         let blame = makeRange(start: 5, end: 8)
@@ -103,12 +104,12 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertTrue(failure.message.contains("Failed to infer type variable"))
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.message.contains("Failed to infer type variable"))
     }
 
-    func testSolveMultipleVarRelationsConverge() {
+    @Test func testSolveMultipleVarRelationsConverge() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let anyType = types.anyType
@@ -124,16 +125,16 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0, t1, t2], constraints: constraints, typeSystem: types)
 
-        XCTAssertTrue(solution.isSuccess)
+        #expect(solution.isSuccess)
     }
 
-    func testTypeVarIDInvalidAndEquality() {
-        XCTAssertEqual(TypeVarID.invalid.rawValue, -1)
-        XCTAssertEqual(TypeVarID(), TypeVarID.invalid)
-        XCTAssertNotEqual(TypeVarID(rawValue: 0), TypeVarID(rawValue: 1))
+    @Test func testTypeVarIDInvalidAndEquality() {
+        #expect(TypeVarID.invalid.rawValue == -1)
+        #expect(TypeVarID() == TypeVarID.invalid)
+        #expect(TypeVarID(rawValue: 0) != TypeVarID(rawValue: 1))
     }
 
-    func testConstraintOperandEquality() {
+    @Test func testConstraintOperandEquality() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
         let op1 = ConstraintOperand.type(intType)
@@ -141,12 +142,12 @@ extension ConstraintSolverTests {
         let op3 = ConstraintOperand.variable(TypeVarID(rawValue: 1))
         let op4 = ConstraintOperand.variable(TypeVarID(rawValue: 1))
 
-        XCTAssertEqual(op1, op2)
-        XCTAssertEqual(op3, op4)
-        XCTAssertNotEqual(op1, op3)
+        #expect(op1 == op2)
+        #expect(op3 == op4)
+        #expect(op1 != op3)
     }
 
-    func testSolveSupertypeConstraintViolationReportsFailure() {
+    @Test func testSolveSupertypeConstraintViolationReportsFailure() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -157,10 +158,10 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
+        #expect(!(solution.isSuccess))
     }
 
-    func testFirstRelevantBlameRangeFindsRightSideVariable() {
+    @Test func testFirstRelevantBlameRangeFindsRightSideVariable() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -173,11 +174,11 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        XCTAssertEqual(solution.failure?.primaryRange, blame)
+        #expect(!(solution.isSuccess))
+        #expect(solution.failure?.primaryRange == blame)
     }
 
-    func testSolveUnresolvedVariableInConstraintProducesFailure() throws {
+    @Test func testSolveUnresolvedVariableInConstraintProducesFailure() throws {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let t0 = TypeVarID(rawValue: 60)
@@ -190,12 +191,12 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertTrue(failure.message.contains("unresolved variables"))
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.message.contains("unresolved variables"))
     }
 
-    func testSolveConflictingBoundsWithMixedTypeTypeConstraints() {
+    @Test func testSolveConflictingBoundsWithMixedTypeTypeConstraints() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -210,10 +211,10 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
+        #expect(!(solution.isSuccess))
     }
 
-    func testSolveCandidateErrorTypeFromUpperBoundsOnly() throws {
+    @Test func testSolveCandidateErrorTypeFromUpperBoundsOnly() throws {
         let (solver, types) = makeDeps()
         let t0 = TypeVarID(rawValue: 101)
         let blame = makeRange(start: 0, end: 1)
@@ -223,17 +224,17 @@ extension ConstraintSolverTests {
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
 
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertTrue(failure.message.contains("Failed to infer"))
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.message.contains("Failed to infer"))
     }
 
-    func testTypeVarIDInvalidIsMinusOne() {
-        XCTAssertEqual(TypeVarID.invalid.rawValue, -1)
-        XCTAssertEqual(TypeVarID().rawValue, -1)
+    @Test func testTypeVarIDInvalidIsMinusOne() {
+        #expect(TypeVarID.invalid.rawValue == -1)
+        #expect(TypeVarID().rawValue == -1)
     }
 
-    func testSolveRenderBoundsIncludesEmptyMarker() throws {
+    @Test func testSolveRenderBoundsIncludesEmptyMarker() throws {
         let (solver, types) = makeDeps()
         let t0 = TypeVarID(rawValue: 110)
         let blame = makeRange(start: 60, end: 65)
@@ -242,8 +243,9 @@ extension ConstraintSolverTests {
             VariableConstraint(kind: .subtype, left: .variable(t0), right: .type(types.errorType), blameRange: blame),
         ]
         let solution = solver.solve(vars: [t0], constraints: constraints, typeSystem: types)
-        XCTAssertFalse(solution.isSuccess)
-        let failure = try XCTUnwrap(solution.failure)
-        XCTAssertTrue(failure.message.contains("lower=[-]"))
+        #expect(!(solution.isSuccess))
+        let failure = try #require(solution.failure)
+        #expect(failure.message.contains("lower=[-]"))
     }
 }
+#endif

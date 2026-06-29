@@ -1,24 +1,26 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class CharIsUpperCaseFunctionTests: XCTestCase {
-    func testCharIsUpperCaseResolvesInSource() throws {
+@Suite
+struct CharIsUpperCaseFunctionTests {
+    @Test func testCharIsUpperCaseResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun probe(ch: Char): Boolean {
             return ch.isUpperCase()
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(!(
+            ctx.diagnostics.hasError),
             "Expected Char.isUpperCase() to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
-    func testCharIsUpperCaseLinksToRuntimeStub() throws {
+    @Test func testCharIsUpperCaseLinksToRuntimeStub() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let fq = ["kotlin", "text", "isUpperCase"].map { ctx.interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fq)
         let charReceiverSymbol = candidates.first { symbolID in
@@ -29,11 +31,11 @@ final class CharIsUpperCaseFunctionTests: XCTestCase {
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == sema.types.booleanType
         }
-        let symbol = try XCTUnwrap(charReceiverSymbol, "Char.isUpperCase synthetic stub should be registered")
-        XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_char_isUpperCase")
+        let symbol = try #require(charReceiverSymbol, "Char.isUpperCase synthetic stub should be registered")
+        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_char_isUpperCase")
     }
 
-    func testCharIsUpperCaseResolvesAtCallSite() throws {
+    @Test func testCharIsUpperCaseResolvesAtCallSite() throws {
         let ctx = makeContextFromSource("""
         fun probe(ch: Char) {
             ch.isUpperCase()
@@ -41,22 +43,20 @@ final class CharIsUpperCaseFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
 
-        let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let callExpr = try #require(firstExprID(in: ast) { _, expr in
             guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
             return ctx.interner.resolve(callee) == "isUpperCase"
         }, "Expected member call to isUpperCase in AST")
 
-        XCTAssertNotEqual(sema.bindings.exprTypes[callExpr], sema.types.errorType)
-        XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.booleanType)
+        #expect(sema.bindings.exprTypes[callExpr] != sema.types.errorType)
+        #expect(sema.bindings.exprTypes[callExpr] == sema.types.booleanType)
 
         let chosen = sema.bindings.callBinding(for: callExpr)?.chosenCallee
             ?? sema.bindings.identifierSymbol(for: callExpr)
-        XCTAssertEqual(
-            chosen.flatMap { sema.symbols.externalLinkName(for: $0) },
-            "kk_char_isUpperCase"
-        )
+        #expect(chosen.flatMap { sema.symbols.externalLinkName(for: $0) } == "kk_char_isUpperCase")
     }
 }
+#endif

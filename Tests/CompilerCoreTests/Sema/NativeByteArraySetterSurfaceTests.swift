@@ -1,8 +1,22 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class NativeByteArraySetterSurfaceTests: XCTestCase {
+private struct _TestHelperFailure: Error {}
+
+@Suite
+struct NativeByteArraySetterSurfaceTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (#require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
         do {
@@ -20,11 +34,9 @@ final class NativeByteArraySetterSurfaceTests: XCTestCase {
         line: UInt = #line
     ) throws -> TypeID {
         let fqName = ["kotlin", "ByteArray"].map { interner.intern($0) }
-        let byteArraySymbol = try XCTUnwrap(
+        let byteArraySymbol = try #require(
             sema.symbols.lookup(fqName: fqName),
-            "kotlin.ByteArray must be registered",
-            file: file,
-            line: line
+            "kotlin.ByteArray must be registered"
         )
         return sema.types.make(.classType(ClassType(
             classSymbol: byteArraySymbol,
@@ -56,11 +68,11 @@ final class NativeByteArraySetterSurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected kotlin.native.\(name) ByteArray setter, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected kotlin.native.\(name) ByteArray setter, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw _TestHelperFailure()
     }
 
-    func testSignedByteArraySettersAreRegistered() throws {
+    @Test func testSignedByteArraySettersAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let expected: [(name: String, valueType: TypeID, linkName: String)] = [
             ("setByteAt", sema.types.intType, "kk_native_byteArray_setByteAt"),
@@ -76,9 +88,9 @@ final class NativeByteArraySetterSurfaceTests: XCTestCase {
                 sema: sema,
                 interner: interner
             )
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), setter.linkName)
-            XCTAssertTrue(
+            #expect(signature.valueParameterHasDefaultValues == [false, false])
+            #expect(sema.symbols.externalLinkName(for: symbol) == setter.linkName)
+            #expect(
                 sema.symbols.annotations(for: symbol).contains {
                     $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
                 },
@@ -87,7 +99,7 @@ final class NativeByteArraySetterSurfaceTests: XCTestCase {
         }
     }
 
-    func testSignedByteArraySettersResolveInSourceWithOptIn() {
+    @Test func testSignedByteArraySettersResolveInSourceWithOptIn() {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
         import kotlin.native.setByteAt
@@ -105,6 +117,7 @@ final class NativeByteArraySetterSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(errors.isEmpty, "Expected signed ByteArray setters to resolve without errors, got \(errors)")
+        #expect(errors.isEmpty, "Expected signed ByteArray setters to resolve without errors, got \(errors)")
     }
 }
+#endif

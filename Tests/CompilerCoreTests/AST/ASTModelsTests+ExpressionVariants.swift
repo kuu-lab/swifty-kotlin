@@ -1,80 +1,87 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension ASTModelsTests {
     // MARK: - Expr variants
 
+    @Test
     func testExprIntLiteral() {
         let r = makeRange(start: 0, end: 3)
         let expr = Expr.intLiteral(42, r)
         if case let .intLiteral(val, range) = expr {
-            XCTAssertEqual(val, 42)
-            XCTAssertEqual(range, r)
+            #expect(val == 42)
+            #expect(range == r)
         } else {
-            XCTFail("Expected .intLiteral")
+            Issue.record("Expected .intLiteral")
         }
     }
 
+    @Test
     func testExprLongLiteral() {
         let r = makeRange(start: 0, end: 3)
         let expr = Expr.longLiteral(Int64.max, r)
         if case let .longLiteral(val, _) = expr {
-            XCTAssertEqual(val, Int64.max)
+            #expect(val == Int64.max)
         } else {
-            XCTFail("Expected .longLiteral")
+            Issue.record("Expected .longLiteral")
         }
     }
 
+    @Test
     func testExprFloatAndDoubleLiteral() {
         let r = makeRange(start: 0, end: 3)
         let floatExpr = Expr.floatLiteral(3.14, r)
         if case let .floatLiteral(val, _) = floatExpr {
-            XCTAssertEqual(val, 3.14)
+            #expect(val == 3.14)
         } else {
-            XCTFail("Expected .floatLiteral")
+            Issue.record("Expected .floatLiteral")
         }
         let doubleExpr = Expr.doubleLiteral(2.718, r)
         if case let .doubleLiteral(val, _) = doubleExpr {
-            XCTAssertEqual(val, 2.718)
+            #expect(val == 2.718)
         } else {
-            XCTFail("Expected .doubleLiteral")
+            Issue.record("Expected .doubleLiteral")
         }
     }
 
+    @Test
     func testExprCharLiteral() {
         let r = makeRange(start: 0, end: 3)
         let expr = Expr.charLiteral(65, r)
         if case let .charLiteral(val, _) = expr {
-            XCTAssertEqual(val, 65)
+            #expect(val == 65)
         } else {
-            XCTFail("Expected .charLiteral")
+            Issue.record("Expected .charLiteral")
         }
     }
 
+    @Test
     func testExprBoolLiteral() {
         let r = makeRange(start: 0, end: 3)
         let trueExpr = Expr.boolLiteral(true, r)
         let falseExpr = Expr.boolLiteral(false, r)
         if case let .boolLiteral(val, _) = trueExpr {
-            XCTAssertTrue(val)
+            #expect(val)
         } else {
-            XCTFail("Expected .boolLiteral")
+            Issue.record("Expected .boolLiteral")
         }
         if case let .boolLiteral(val, _) = falseExpr {
-            XCTAssertFalse(val)
+            #expect(!(val))
         } else {
-            XCTFail("Expected .boolLiteral")
+            Issue.record("Expected .boolLiteral")
         }
     }
 
+    @Test
     func testExprStringLiteralAndTemplate() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 3)
         let strExpr = Expr.stringLiteral(interner.intern("hello"), r)
         if case let .stringLiteral(val, _) = strExpr {
-            XCTAssertEqual(val, interner.intern("hello"))
+            #expect(val == interner.intern("hello"))
         } else {
-            XCTFail("Expected .stringLiteral")
+            Issue.record("Expected .stringLiteral")
         }
 
         let arena = ASTArena()
@@ -84,23 +91,25 @@ extension ASTModelsTests {
             range: r
         )
         if case let .stringTemplate(parts, _) = templateExpr {
-            XCTAssertEqual(parts.count, 2)
+            #expect(parts.count == 2)
         } else {
-            XCTFail("Expected .stringTemplate")
+            Issue.record("Expected .stringTemplate")
         }
     }
 
+    @Test
     func testExprNameRef() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 3)
         let expr = Expr.nameRef(interner.intern("myVar"), r)
         if case let .nameRef(name, _) = expr {
-            XCTAssertEqual(name, interner.intern("myVar"))
+            #expect(name == interner.intern("myVar"))
         } else {
-            XCTFail("Expected .nameRef")
+            Issue.record("Expected .nameRef")
         }
     }
 
+    @Test
     func testExprControlFlow() {
         let r = makeRange(start: 0, end: 10)
         let arena = ASTArena()
@@ -111,32 +120,33 @@ extension ASTModelsTests {
 
         let forExpr = Expr.forExpr(loopVariable: loopVar, iterable: bodyID, body: bodyID, range: r)
         if case let .forExpr(lv, _, _, _, _) = forExpr {
-            XCTAssertEqual(lv, loopVar)
-        } else { XCTFail("Expected .forExpr") }
+            #expect(lv == loopVar)
+        } else { Issue.record("Expected .forExpr") }
 
         let whileExpr = Expr.whileExpr(condition: condID, body: bodyID, range: r)
         if case let .whileExpr(c, b, _, _) = whileExpr {
-            XCTAssertEqual(c, condID)
-            XCTAssertEqual(b, bodyID)
-        } else { XCTFail("Expected .whileExpr") }
+            #expect(c == condID)
+            #expect(b == bodyID)
+        } else { Issue.record("Expected .whileExpr") }
 
         let doWhileExpr = Expr.doWhileExpr(body: bodyID, condition: condID, range: r)
         if case let .doWhileExpr(b, c, _, _) = doWhileExpr {
-            XCTAssertEqual(b, bodyID)
-            XCTAssertEqual(c, condID)
-        } else { XCTFail("Expected .doWhileExpr") }
+            #expect(b == bodyID)
+            #expect(c == condID)
+        } else { Issue.record("Expected .doWhileExpr") }
 
         let breakExpr = Expr.breakExpr(range: r)
         if case let .breakExpr(_, range) = breakExpr {
-            XCTAssertEqual(range, r)
-        } else { XCTFail("Expected .breakExpr") }
+            #expect(range == r)
+        } else { Issue.record("Expected .breakExpr") }
 
         let continueExpr = Expr.continueExpr(range: r)
         if case let .continueExpr(_, range) = continueExpr {
-            XCTAssertEqual(range, r)
-        } else { XCTFail("Expected .continueExpr") }
+            #expect(range == r)
+        } else { Issue.record("Expected .continueExpr") }
     }
 
+    @Test
     func testExprLocalDeclAndAssign() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 10)
@@ -147,35 +157,36 @@ extension ASTModelsTests {
 
         let localDecl = Expr.localDecl(name: name, isMutable: true, typeAnnotation: typeRefID, initializer: initID, range: r)
         if case let .localDecl(n, mut, ta, init_, _, _) = localDecl {
-            XCTAssertEqual(n, name)
-            XCTAssertTrue(mut)
-            XCTAssertEqual(ta, typeRefID)
-            XCTAssertEqual(init_, initID)
-        } else { XCTFail("Expected .localDecl") }
+            #expect(n == name)
+            #expect(mut)
+            #expect(ta == typeRefID)
+            #expect(init_ == initID)
+        } else { Issue.record("Expected .localDecl") }
 
         let localAssign = Expr.localAssign(name: name, value: initID, range: r)
         if case let .localAssign(n, v, _) = localAssign {
-            XCTAssertEqual(n, name)
-            XCTAssertEqual(v, initID)
-        } else { XCTFail("Expected .localAssign") }
+            #expect(n == name)
+            #expect(v == initID)
+        } else { Issue.record("Expected .localAssign") }
 
         let memberAssign = Expr.memberAssign(receiver: initID, callee: interner.intern("value"), value: initID, range: r)
         if case let .memberAssign(receiver, callee, value, _) = memberAssign {
-            XCTAssertEqual(receiver, initID)
-            XCTAssertEqual(callee, interner.intern("value"))
-            XCTAssertEqual(value, initID)
-        } else { XCTFail("Expected .memberAssign") }
+            #expect(receiver == initID)
+            #expect(callee == interner.intern("value"))
+            #expect(value == initID)
+        } else { Issue.record("Expected .memberAssign") }
 
         let arrExprID = arena.appendExpr(.intLiteral(0, r))
         let idxExprID = arena.appendExpr(.intLiteral(1, r))
         let indexedAssign = Expr.indexedAssign(receiver: arrExprID, indices: [idxExprID], value: initID, range: r)
         if case let .indexedAssign(a, indices, v, _) = indexedAssign {
-            XCTAssertEqual(a, arrExprID)
-            XCTAssertEqual(indices, [idxExprID])
-            XCTAssertEqual(v, initID)
-        } else { XCTFail("Expected .indexedAssign") }
+            #expect(a == arrExprID)
+            #expect(indices == [idxExprID])
+            #expect(v == initID)
+        } else { Issue.record("Expected .indexedAssign") }
     }
 
+    @Test
     func testExprCallAndMemberCall() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 10)
@@ -187,27 +198,28 @@ extension ASTModelsTests {
 
         let callExpr = Expr.call(callee: calleeID, typeArgs: [typeRefID], args: [arg], range: r)
         if case let .call(c, ta, args, _) = callExpr {
-            XCTAssertEqual(c, calleeID)
-            XCTAssertEqual(ta.count, 1)
-            XCTAssertEqual(args.count, 1)
-            XCTAssertEqual(args[0].label, interner.intern("x"))
-        } else { XCTFail("Expected .call") }
+            #expect(c == calleeID)
+            #expect(ta.count == 1)
+            #expect(args.count == 1)
+            #expect(args[0].label == interner.intern("x"))
+        } else { Issue.record("Expected .call") }
 
         let receiverID = arena.appendExpr(.nameRef(interner.intern("obj"), r))
         let memberCall = Expr.memberCall(receiver: receiverID, callee: interner.intern("bar"), typeArgs: [], args: [arg], range: r)
         if case let .memberCall(recv, callee, _, args, _) = memberCall {
-            XCTAssertEqual(recv, receiverID)
-            XCTAssertEqual(callee, interner.intern("bar"))
-            XCTAssertEqual(args.count, 1)
-        } else { XCTFail("Expected .memberCall") }
+            #expect(recv == receiverID)
+            #expect(callee == interner.intern("bar"))
+            #expect(args.count == 1)
+        } else { Issue.record("Expected .memberCall") }
 
         let safeMemberCall = Expr.safeMemberCall(receiver: receiverID, callee: interner.intern("baz"), typeArgs: [], args: [], range: r)
         if case let .safeMemberCall(recv, callee, _, _, _) = safeMemberCall {
-            XCTAssertEqual(recv, receiverID)
-            XCTAssertEqual(callee, interner.intern("baz"))
-        } else { XCTFail("Expected .safeMemberCall") }
+            #expect(recv == receiverID)
+            #expect(callee == interner.intern("baz"))
+        } else { Issue.record("Expected .safeMemberCall") }
     }
 
+    @Test
     func testExprIndexedAccess() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
@@ -215,11 +227,12 @@ extension ASTModelsTests {
         let idxID = arena.appendExpr(.intLiteral(1, r))
         let expr = Expr.indexedAccess(receiver: arrID, indices: [idxID], range: r)
         if case let .indexedAccess(a, indices, _) = expr {
-            XCTAssertEqual(a, arrID)
-            XCTAssertEqual(indices, [idxID])
-        } else { XCTFail("Expected .indexedAccess") }
+            #expect(a == arrID)
+            #expect(indices == [idxID])
+        } else { Issue.record("Expected .indexedAccess") }
     }
 
+    @Test
     func testExprBinaryAllOps() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
@@ -234,11 +247,12 @@ extension ASTModelsTests {
         for op in ops {
             let expr = Expr.binary(op: op, lhs: lhs, rhs: rhs, range: r)
             if case let .binary(o, _, _, _) = expr {
-                XCTAssertEqual(o, op)
-            } else { XCTFail("Expected .binary for op \(op)") }
+                #expect(o == op)
+            } else { Issue.record("Expected .binary for op \(op)") }
         }
     }
 
+    @Test
     func testExprUnaryAllOps() {
         let r = makeRange(start: 0, end: 5)
         let arena = ASTArena()
@@ -247,11 +261,12 @@ extension ASTModelsTests {
         for op in ops {
             let expr = Expr.unaryExpr(op: op, operand: operand, range: r)
             if case let .unaryExpr(o, _, _) = expr {
-                XCTAssertEqual(o, op)
-            } else { XCTFail("Expected .unaryExpr for op \(op)") }
+                #expect(o == op)
+            } else { Issue.record("Expected .unaryExpr for op \(op)") }
         }
     }
 
+    @Test
     func testExprCompoundAssignAllOps() {
         let interner = StringInterner()
         let r = makeRange(start: 0, end: 5)
@@ -262,8 +277,9 @@ extension ASTModelsTests {
         for op in ops {
             let expr = Expr.compoundAssign(op: op, name: name, value: valID, range: r)
             if case let .compoundAssign(o, _, _, _) = expr {
-                XCTAssertEqual(o, op)
-            } else { XCTFail("Expected .compoundAssign for op \(op)") }
+                #expect(o == op)
+            } else { Issue.record("Expected .compoundAssign for op \(op)") }
         }
     }
 }
+#endif
