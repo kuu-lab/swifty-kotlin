@@ -849,6 +849,16 @@ public fun <T> AtomicReference<T>.getAndSet(newValue: T): T = exchange(newValue)
     static let kotlinTimeSource = """
 package kotlin.time
 
+public val Duration.absoluteValue: Duration
+    get() = this.__kk_duration_absoluteValue()
+
+public fun Duration.isNegative(): Boolean = this.__kk_duration_isNegative()
+
+public fun Duration.isPositive(): Boolean = this.__kk_duration_isPositive()
+
+public fun Duration.isInfinite(): Boolean = this.__kk_duration_isInfinite()
+
+
 val Duration.inWholeMilliseconds: Long get() = inWholeNanoseconds / 1_000_000L
 
 val Duration.inWholeMicroseconds: Long get() = inWholeNanoseconds / 1_000L

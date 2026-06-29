@@ -1,3 +1,3 @@
 package golden.sema
 
-fun twoArgMinULong(a: ULong, b: ULong): ULong = minOf(a, b)
+fun minOfULongTwoArg(a: ULong, b: ULong): ULong = minOf(a, b)
