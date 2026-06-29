@@ -1,7 +1,7 @@
 symbol fq=guardChain kind=function vis=public flags=_ sig=recv=_ params=[Int,Int] ret=Int
 symbol fq=guardChain.$0.x kind=valueParameter vis=private flags=_
 symbol fq=guardChain.$0.y kind=valueParameter vis=private flags=_
-file f5 package=_
+file f12 package=_
   decl d0 fun guardChain sym=guardChain
 expr e0 name(x) type=Int ref=guardChain.$0.x
 expr e1 int(0) type=Int

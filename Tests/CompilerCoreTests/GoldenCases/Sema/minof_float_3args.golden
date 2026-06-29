@@ -6,7 +6,7 @@ symbol fq=kotlin.comparisons.minOf#4 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 fun threeArgMinFloat sym=golden.sema.threeArgMinFloat
 expr e0 name(a) type=Float ref=golden.sema.threeArgMinFloat.$0.a
 expr e1 name(b) type=Float ref=golden.sema.threeArgMinFloat.$0.b

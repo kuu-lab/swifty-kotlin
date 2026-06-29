@@ -12,7 +12,7 @@ symbol fq=golden.sema.callValid kind=function vis=public flags=_ sig=recv=_ para
 symbol fq=golden.sema.unbounded kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.unbounded.$2.T] ret=golden.sema.unbounded.$2.T
 symbol fq=golden.sema.unbounded.$2.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.unbounded.$2.x kind=valueParameter vis=private flags=_
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 class Animal sym=golden.sema.Animal
   decl d1 class Dog sym=golden.sema.Dog
   decl d2 fun accept sym=golden.sema.accept

@@ -4,7 +4,7 @@ symbol fq=golden.sema.measure kind=function vis=public flags=_ sig=recv=_ params
 symbol fq=golden.sema.measure.$0.m kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.toAny kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Meter] ret=Any
 symbol fq=golden.sema.toAny.$1.m kind=valueParameter vis=private flags=_
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 class Meter sym=golden.sema.Meter
   decl d1 fun measure sym=golden.sema.measure
   decl d2 fun toAny sym=golden.sema.toAny

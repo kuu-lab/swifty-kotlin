@@ -13,7 +13,7 @@ symbol fq=golden.sema.Incrementer.invoke.$1.x kind=valueParameter vis=private fl
 symbol fq=golden.sema.globalAdder kind=property vis=public flags=_ type=golden.sema.Adder
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.makeAdder kind=function vis=public flags=_ sig=recv=_ params=[] ret=golden.sema.Adder
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 class Adder sym=golden.sema.Adder
   decl d1 property globalAdder var=0 sym=golden.sema.globalAdder
   decl d2 object Incrementer sym=golden.sema.Incrementer

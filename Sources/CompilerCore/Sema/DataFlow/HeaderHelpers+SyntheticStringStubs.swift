@@ -2607,6 +2607,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
         // --- STDLIB-TEXT-FN-040: CharSequence.onEachIndexed(action: (Int, Char) -> Unit): S ---
         registerSyntheticStringExtensionFunction(
             named: "onEachIndexed",
@@ -3601,64 +3602,6 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
-
-        // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         // --- STDLIB-316: String/CharSequence.zipWithNext ---
 
