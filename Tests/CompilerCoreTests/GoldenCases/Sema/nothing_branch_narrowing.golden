@@ -7,7 +7,7 @@ symbol fq=golden.sema.throwOrValue.$1.flag kind=valueParameter vis=private flags
 symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.IllegalArgumentException
 symbol fq=kotlin.IllegalArgumentException.<init>.message kind=valueParameter vis=private flags=synthetic
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 fun throwOrValue sym=golden.sema.throwOrValue
   decl d1 fun returnOrValue sym=golden.sema.returnOrValue
 expr e0 name(flag) type=Boolean ref=golden.sema.throwOrValue.$1.flag

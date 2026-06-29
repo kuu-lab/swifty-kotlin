@@ -6,7 +6,7 @@ symbol fq=kotlin.random.Random.<init>.seed kind=valueParameter vis=private flags
 symbol fq=kotlin.random.nextLong#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Long] ret=Long
 symbol fq=kotlin.random.nextLong.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandomNextLongRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f5 package=_
+file f12 package=_
   decl d0 fun useRandomNextLongRange sym=useRandomNextLongRange
 expr e0 int(42) type=Int
 expr e1 call callee=e2 args=[_:e0] type=kotlin.random.Random call=kotlin.random.Random.<init>#0

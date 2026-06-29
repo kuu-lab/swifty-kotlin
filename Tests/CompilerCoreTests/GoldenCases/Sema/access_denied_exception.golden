@@ -14,7 +14,7 @@ symbol fq=kotlin.io.AccessDeniedException.<init>#2 kind=constructor vis=public f
 symbol fq=kotlin.io.AccessDeniedException.<init>.file kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.AccessDeniedException.<init>.other kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.AccessDeniedException.<init>.reason kind=valueParameter vis=private flags=synthetic
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 fun catchAccessDenied sym=golden.sema.catchAccessDenied
   decl d1 fun catchAccessDeniedWithReason sym=golden.sema.catchAccessDeniedWithReason
 expr e0 string(/protected/file.txt) type=String

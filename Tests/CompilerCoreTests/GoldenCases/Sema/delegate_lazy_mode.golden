@@ -8,7 +8,7 @@ symbol fq=kotlin.LazyThreadSafetyMode.PUBLICATION kind=field vis=public flags=sy
 symbol fq=kotlin.LazyThreadSafetyMode.SYNCHRONIZED kind=field vis=public flags=synthetic type=kotlin.LazyThreadSafetyMode
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f5 package=golden.sema
+file f12 package=golden.sema
   decl d0 property syncProp var=0 sym=golden.sema.syncProp
   decl d1 property pubProp var=0 sym=golden.sema.pubProp
   decl d2 property noneProp var=0 sym=golden.sema.noneProp

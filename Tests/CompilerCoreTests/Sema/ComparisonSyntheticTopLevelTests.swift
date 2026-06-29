@@ -37,7 +37,7 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, _, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -82,7 +82,7 @@ struct ComparisonSyntheticTopLevelTests {
                 ("compareBy", "compareByPrimitive", "kk_comparator_from_selector_primitive"),
                 ("compareByDescending", "compareByDescendingPrimitive", "kk_comparator_from_selector_primitive_descending"),
             ] {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, _, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -116,7 +116,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, args, _, _) = expr,
                           args.count == 2,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -148,7 +148,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, args, _, _) = expr,
                           args.count == 2,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -183,7 +183,7 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -227,7 +227,7 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -261,7 +261,7 @@ struct ComparisonSyntheticTopLevelTests {
             let interner = ctx.interner
 
             for name in ["maxOf", "minOf"] {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -312,7 +312,7 @@ struct ComparisonSyntheticTopLevelTests {
             ]
 
             for expected in expectedCases {
-                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                let callExpr = try #require(lastExprID(in: ast) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -360,7 +360,7 @@ struct ComparisonSyntheticTopLevelTests {
             ]
 
             for expected in expectedCases {
-                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                let callExpr = try #require(lastExprID(in: ast) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -398,7 +398,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -436,7 +436,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -474,7 +474,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -511,7 +511,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -551,7 +551,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -589,7 +589,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -629,7 +629,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -669,7 +669,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -707,7 +707,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -745,7 +745,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -783,7 +783,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -819,7 +819,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -855,7 +855,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -893,7 +893,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -929,7 +929,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -989,7 +989,7 @@ struct ComparisonSyntheticTopLevelTests {
             ]
 
             for expected in expectedCases {
-                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                let callExpr = try #require(lastExprID(in: ast) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -1027,7 +1027,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1063,7 +1063,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1099,7 +1099,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1136,7 +1136,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1173,7 +1173,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1212,7 +1212,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1252,7 +1252,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1292,7 +1292,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1332,7 +1332,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1370,7 +1370,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -1407,7 +1407,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }

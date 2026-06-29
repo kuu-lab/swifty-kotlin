@@ -22,15 +22,12 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected List.lastIndex to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.lastIndex to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let propertyExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "lastIndex" && args.isEmpty
-            }, "Expected values.lastIndex property access in AST")
+            })
             #expect(sema.bindings.exprType(for: propertyExpr) == sema.types.intType)
 
             let getter = try #require(sema.bindings.callBinding(for: propertyExpr)?.chosenCallee)
@@ -77,10 +74,7 @@ struct ListSyntheticMemberLinkTests {
                     return ctx.interner.resolve(callee) == memberName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
-                )
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
         }
     }
@@ -143,15 +137,12 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected List.indices to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.indices to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let propertyExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "indices" && args.isEmpty
-            }, "Expected values.indices property access in AST")
+            })
             let propertyType = try #require(sema.bindings.exprType(for: propertyExpr))
             guard case let .classType(rangeType) = sema.types.kind(of: propertyType) else {
                 Issue.record("Expected List.indices to have IntRange type"); return
@@ -182,10 +173,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected arrayListOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected arrayListOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -201,10 +189,7 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableList")
             #expect(classType.args == [.invariant(sema.types.intType)])
-            #expect(
-                sema.bindings.isCollectionExpr(arrayListCall),
-                "Expected arrayListOf to be tracked as a collection expression"
-            )
+            #expect(sema.bindings.isCollectionExpr(arrayListCall), "Expected arrayListOf to be tracked as a collection expression")
         }
     }
 
@@ -223,10 +208,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected linkedSetOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected linkedSetOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -242,10 +224,7 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "LinkedHashSet")
             #expect(classType.args == [.invariant(sema.types.intType)])
-            #expect(
-                sema.bindings.isCollectionExpr(linkedSetCall),
-                "Expected linkedSetOf to be tracked as a collection expression"
-            )
+            #expect(sema.bindings.isCollectionExpr(linkedSetCall), "Expected linkedSetOf to be tracked as a collection expression")
         }
     }
 
@@ -266,10 +245,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected LinkedHashSet concrete class calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected LinkedHashSet concrete class calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -287,10 +263,7 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.symbols.directSupertypes(for: linkedHashSetSymbol).contains(mutableSetSymbol))
             #expect(sema.types.nominalTypeParameterVariances(for: linkedHashSetSymbol) == [.invariant])
 
-            let constructorSymbol = try #require(
-                sema.symbols.lookup(fqName: linkedHashSetFQ + [interner.intern("<init>")]),
-                "Expected LinkedHashSet public constructor to be registered"
-            )
+            let constructorSymbol = try #require(sema.symbols.lookup(fqName: linkedHashSetFQ + [interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .public)
@@ -312,10 +285,7 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "LinkedHashSet")
             #expect(classType.args == [.invariant(sema.types.intType)])
-            #expect(
-                sema.bindings.isCollectionExpr(constructorCall),
-                "Expected LinkedHashSet constructor to be tracked as a collection expression"
-            )
+            #expect(sema.bindings.isCollectionExpr(constructorCall), "Expected LinkedHashSet constructor to be tracked as a collection expression")
         }
     }
 
@@ -334,10 +304,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected linkedMapOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected linkedMapOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -353,10 +320,7 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableMap")
             #expect(classType.args == [.invariant(sema.types.stringType), .invariant(sema.types.intType)])
-            #expect(
-                sema.bindings.isCollectionExpr(linkedMapCall),
-                "Expected linkedMapOf to be tracked as a collection expression"
-            )
+            #expect(sema.bindings.isCollectionExpr(linkedMapCall), "Expected linkedMapOf to be tracked as a collection expression")
         }
     }
 
@@ -375,10 +339,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected hashMapOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected hashMapOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -394,10 +355,7 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableMap")
             #expect(classType.args == [.invariant(sema.types.stringType), .invariant(sema.types.intType)])
-            #expect(
-                sema.bindings.isCollectionExpr(hashMapCall),
-                "Expected hashMapOf to be tracked as a collection expression"
-            )
+            #expect(sema.bindings.isCollectionExpr(hashMapCall), "Expected hashMapOf to be tracked as a collection expression")
         }
     }
 
@@ -416,10 +374,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected hashSetOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected hashSetOf factory calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -435,10 +390,7 @@ struct ListSyntheticMemberLinkTests {
             }
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableSet")
             #expect(classType.args == [.invariant(sema.types.intType)])
-            #expect(
-                sema.bindings.isCollectionExpr(hashSetCall),
-                "Expected hashSetOf to be tracked as a collection expression"
-            )
+            #expect(sema.bindings.isCollectionExpr(hashSetCall), "Expected hashSetOf to be tracked as a collection expression")
         }
     }
 
@@ -474,21 +426,15 @@ struct ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let symbolID = try #require(
-                    sema.symbols.lookup(
+                let symbolID = try #require(sema.symbols.lookup(
                         fqName: [
                             ctx.interner.intern("kotlin"),
                             ctx.interner.intern("collections"),
                             ctx.interner.intern("List"),
                             ctx.interner.intern(memberName),
                         ]
-                    ),
-                    "Expected synthetic List member \(memberName) to be registered"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: symbolID) == externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
-                )
+                    ))
+                #expect(sema.symbols.externalLinkName(for: symbolID) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
         }
     }
@@ -501,7 +447,6 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let bundledPath = "__bundled_kotlin_collections_stdlib.kt"
             let expectedArities: [String: Set<Int>] = [
                 "first": [0, 1],
                 "firstOrNull": [0, 1],
@@ -526,21 +471,16 @@ struct ListSyntheticMemberLinkTests {
                     else {
                         return false
                     }
-                    return ctx.sourceManager.path(of: fileID) == bundledPath
+                    let path = ctx.sourceManager.path(of: fileID)
+                    return path.hasPrefix("__bundled_")
                 }
                 let registeredArities = Set(sourceSymbols.compactMap { symbolID in
                     sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count
                 })
-                #expect(
-                    arities.isSubset(of: registeredArities),
-                    "Expected \(name) bundled source overloads \(arities), got \(registeredArities)"
-                )
-                #expect(
-                    sourceSymbols.allSatisfy { symbolID in
+                #expect(arities.isSubset(of: registeredArities), "Expected \(name) bundled source overloads \(arities), got \(registeredArities)")
+                #expect(sourceSymbols.allSatisfy { symbolID in
                         sema.symbols.functionSignature(for: symbolID)?.receiverType != nil
-                    },
-                    "Expected \(name) bundled source definitions to be List extension functions"
-                )
+                    }, "Expected \(name) bundled source definitions to be List extension functions")
             }
         }
     }
@@ -557,10 +497,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected List.filterIsInstanceTo to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.filterIsInstanceTo to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -568,15 +505,9 @@ struct ListSyntheticMemberLinkTests {
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "filterIsInstanceTo"
             })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "Expected filterIsInstanceTo to bind to its synthetic runtime callee"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIsInstanceTo")
-            #expect(
-                sema.bindings.isCollectionExpr(callExpr),
-                "Expected filterIsInstanceTo result to be tracked as a collection expression"
-            )
+            #expect(sema.bindings.isCollectionExpr(callExpr), "Expected filterIsInstanceTo result to be tracked as a collection expression")
         }
     }
 
@@ -602,20 +533,14 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.sumBy surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.sumBy surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "sumBy"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
             #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_sumBy")
-            #expect(
-                sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "Iterable.sumBy should carry Deprecated metadata"
-            )
+            #expect(sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" }, "Iterable.sumBy should carry Deprecated metadata")
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -654,20 +579,14 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.sumByDouble surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.sumByDouble surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "sumByDouble"]
                 .map { ctx.interner.intern($0) }
             let memberSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
             #expect(sema.symbols.externalLinkName(for: memberSymbol) == "kk_list_sumByDouble")
-            #expect(
-                sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "Iterable.sumByDouble should carry Deprecated metadata"
-            )
+            #expect(sema.symbols.annotations(for: memberSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" }, "Iterable.sumByDouble should carry Deprecated metadata")
 
             let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
             #expect(signature.parameterTypes.count == 1)
@@ -706,10 +625,7 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.firstNotNullOf surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.firstNotNullOf surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "firstNotNullOf"]
@@ -744,10 +660,7 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.firstNotNullOfOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.firstNotNullOfOrNull surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "firstNotNullOfOrNull"]
@@ -778,10 +691,7 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.minusElement surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.minusElement surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "minusElement"]
@@ -826,10 +736,7 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.reduceRightIndexed surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.reduceRightIndexed surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightIndexed"]
@@ -878,10 +785,7 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.reduceRightIndexedOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.reduceRightIndexedOrNull surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightIndexedOrNull"]
@@ -930,10 +834,7 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected Iterable.reduceRightOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable.reduceRightOrNull surface to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightOrNull"]
@@ -982,26 +883,14 @@ struct ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
+                })
                 if let externalLinkName {
-                    let chosenCallee = try #require(
-                        sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                        "Expected call binding for \(memberName)"
-                    )
+                    let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                    #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
-                    )
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
-                #expect(
-                    sema.bindings.exprTypes[callExpr] == expectedType,
-                    "Expected \(memberName) to return the expected element type"
-                )
-                #expect(
-                    !(sema.bindings.isCollectionExpr(callExpr)),
-                    "Expected \(memberName) result to avoid collection-expression marking"
-                )
+                #expect(sema.bindings.exprTypes[callExpr] == expectedType, "Expected \(memberName) to return the expected element type")
+                #expect(!(sema.bindings.isCollectionExpr(callExpr)), "Expected \(memberName) result to avoid collection-expression marking")
             }
         }
     }
@@ -1034,14 +923,8 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let comparableSymbol = try #require(
-                sema.types.comparableInterfaceSymbol,
-                "Expected synthetic Comparable interface to be registered"
-            )
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: comparableSymbol) == [.in],
-                "Expected Comparable to be declared as Comparable<in T>"
-            )
+            let comparableSymbol = try #require(sema.types.comparableInterfaceSymbol)
+            #expect(sema.types.nominalTypeParameterVariances(for: comparableSymbol) == [.in], "Expected Comparable to be declared as Comparable<in T>")
 
             let comparableAny = sema.types.make(.classType(ClassType(
                 classSymbol: comparableSymbol,
@@ -1054,14 +937,8 @@ struct ListSyntheticMemberLinkTests {
                 nullability: .nonNull
             )))
 
-            #expect(
-                sema.types.isSubtype(comparableAny, comparableString),
-                "Expected Comparable<Any> to be a subtype of Comparable<String>"
-            )
-            #expect(
-                !(sema.types.isSubtype(comparableString, comparableAny)),
-                "Expected Comparable<String> not to be a subtype of Comparable<Any>"
-            )
+            #expect(sema.types.isSubtype(comparableAny, comparableString), "Expected Comparable<Any> to be a subtype of Comparable<String>")
+            #expect(!(sema.types.isSubtype(comparableString, comparableAny)), "Expected Comparable<String> not to be a subtype of Comparable<Any>")
         }
     }
 
@@ -1084,17 +961,11 @@ struct ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName)")
-                #expect(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil,
-                    "Expected Collection.\(memberName) to remain unresolved"
-                )
+                })
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Collection.\(memberName) to remain unresolved")
             }
 
-            #expect(
-                !(ctx.diagnostics.diagnostics.isEmpty),
-                "Expected diagnostics for Collection indexed lookup fallbacks"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.isEmpty), "Expected diagnostics for Collection indexed lookup fallbacks")
         }
     }
 
@@ -1130,9 +1001,7 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let iteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterator")])
-            )
+            let iteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterator")]))
             let specs: [(className: String, nextName: String, elementType: TypeID)] = [
                 ("BooleanIterator", "nextBoolean", sema.types.booleanType),
                 ("ByteIterator", "nextByte", sema.types.intType),
@@ -1146,10 +1015,7 @@ struct ListSyntheticMemberLinkTests {
 
             for spec in specs {
                 let classFQName = collectionsPkg + [ctx.interner.intern(spec.className)]
-                let classSymbol = try #require(
-                    sema.symbols.lookup(fqName: classFQName),
-                    "Expected \(spec.className) to be registered"
-                )
+                let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
                 let classInfo = try #require(sema.symbols.symbol(classSymbol))
                 #expect(classInfo.kind == .class)
                 #expect(classInfo.flags.contains(.synthetic))
@@ -1157,20 +1023,14 @@ struct ListSyntheticMemberLinkTests {
                 #expect(sema.symbols.directSupertypes(for: classSymbol).contains(iteratorSymbol))
                 #expect(sema.symbols.supertypeTypeArgs(for: classSymbol, supertype: iteratorSymbol) == [.out(spec.elementType)])
 
-                let primitiveNextSymbol = try #require(
-                    sema.symbols.lookup(fqName: classFQName + [ctx.interner.intern(spec.nextName)]),
-                    "Expected \(spec.className).\(spec.nextName) to be registered"
-                )
+                let primitiveNextSymbol = try #require(sema.symbols.lookup(fqName: classFQName + [ctx.interner.intern(spec.nextName)]))
                 let primitiveNextInfo = try #require(sema.symbols.symbol(primitiveNextSymbol))
                 #expect(primitiveNextInfo.flags.isSuperset(of: [.synthetic, .abstractType]))
                 let primitiveNextSignature = try #require(sema.symbols.functionSignature(for: primitiveNextSymbol))
                 #expect(primitiveNextSignature.parameterTypes.isEmpty)
                 #expect(primitiveNextSignature.returnType == spec.elementType)
 
-                let nextSymbol = try #require(
-                    sema.symbols.lookup(fqName: classFQName + [ctx.interner.intern("next")]),
-                    "Expected \(spec.className).next to be registered"
-                )
+                let nextSymbol = try #require(sema.symbols.lookup(fqName: classFQName + [ctx.interner.intern("next")]))
                 let nextInfo = try #require(sema.symbols.symbol(nextSymbol))
                 #expect(nextInfo.flags.isSuperset(of: [.synthetic, .openType, .overrideMember, .operatorFunction]))
                 #expect(try #require(sema.symbols.functionSignature(for: nextSymbol)).returnType == spec.elementType)
@@ -1201,10 +1061,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected primitive iterator subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected primitive iterator subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1217,21 +1074,14 @@ struct ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             let abstractIteratorFQName = ["kotlin", "collections", "AbstractIterator"]
                 .map { ctx.interner.intern($0) }
-            let abstractIteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractIteratorFQName),
-                "Expected kotlin.collections.AbstractIterator to be registered"
-            )
+            let abstractIteratorSymbol = try #require(sema.symbols.lookup(fqName: abstractIteratorFQName))
             let abstractIteratorInfo = try #require(sema.symbols.symbol(abstractIteratorSymbol))
             #expect(abstractIteratorInfo.kind == .class)
             #expect(abstractIteratorInfo.flags.contains(.synthetic))
             #expect(abstractIteratorInfo.flags.contains(.abstractType))
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: abstractIteratorSymbol) == [.invariant]
-            )
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractIteratorSymbol) == [.invariant])
 
-            let iteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: ["kotlin", "collections", "Iterator"].map { ctx.interner.intern($0) })
-            )
+            let iteratorSymbol = try #require(sema.symbols.lookup(fqName: ["kotlin", "collections", "Iterator"].map { ctx.interner.intern($0) }))
             #expect(sema.symbols.directSupertypes(for: abstractIteratorSymbol).contains(iteratorSymbol))
             #expect(sema.types.directNominalSupertypes(for: abstractIteratorSymbol).contains(iteratorSymbol))
             #expect(sema.symbols.supertypeTypeArgs(for: abstractIteratorSymbol, supertype: iteratorSymbol).count == 1)
@@ -1245,10 +1095,7 @@ struct ListSyntheticMemberLinkTests {
                 ("next", .public, [.synthetic, .openType, .overrideMember, .operatorFunction], 0),
             ]
             for expected in expectedMembers {
-                let memberSymbol = try #require(
-                    sema.symbols.lookup(fqName: abstractIteratorFQName + [ctx.interner.intern(expected.name)]),
-                    "Expected AbstractIterator.\(expected.name) to be registered"
-                )
+                let memberSymbol = try #require(sema.symbols.lookup(fqName: abstractIteratorFQName + [ctx.interner.intern(expected.name)]))
                 let memberInfo = try #require(sema.symbols.symbol(memberSymbol))
                 #expect(memberInfo.visibility == expected.visibility)
                 #expect(memberInfo.flags.isSuperset(of: expected.requiredFlags))
@@ -1282,10 +1129,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected AbstractIterator subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractIterator subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1298,30 +1142,20 @@ struct ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
             let abstractCollectionFQName = ["kotlin", "collections", "AbstractCollection"]
                 .map { ctx.interner.intern($0) }
-            let abstractCollectionSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractCollectionFQName),
-                "Expected kotlin.collections.AbstractCollection to be registered"
-            )
+            let abstractCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractCollectionFQName))
             let abstractCollectionInfo = try #require(sema.symbols.symbol(abstractCollectionSymbol))
             #expect(abstractCollectionInfo.kind == .class)
             #expect(abstractCollectionInfo.flags.contains(.synthetic))
             #expect(abstractCollectionInfo.flags.contains(.abstractType))
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: abstractCollectionSymbol) == [.out]
-            )
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractCollectionSymbol) == [.out])
 
-            let collectionSymbol = try #require(
-                sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map { ctx.interner.intern($0) })
-            )
+            let collectionSymbol = try #require(sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map { ctx.interner.intern($0) }))
             #expect(sema.symbols.directSupertypes(for: abstractCollectionSymbol).contains(collectionSymbol))
             #expect(sema.types.directNominalSupertypes(for: abstractCollectionSymbol).contains(collectionSymbol))
             #expect(sema.symbols.supertypeTypeArgs(for: abstractCollectionSymbol, supertype: collectionSymbol).count == 1)
             #expect(sema.types.nominalSupertypeTypeArgs(for: abstractCollectionSymbol, supertype: collectionSymbol).count == 1)
 
-            let constructorSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractCollectionFQName + [ctx.interner.intern("<init>")]),
-                "Expected AbstractCollection protected constructor to be registered"
-            )
+            let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractCollectionFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .protected)
@@ -1349,10 +1183,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected AbstractCollection subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractCollection subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1364,25 +1195,16 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let abstractCollectionSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("AbstractCollection")])
-            )
-            let listSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("List")])
-            )
+            let abstractCollectionSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("AbstractCollection")]))
+            let listSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("List")]))
 
             let abstractListFQName = collectionsPkg + [ctx.interner.intern("AbstractList")]
-            let abstractListSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractListFQName),
-                "Expected kotlin.collections.AbstractList to be registered"
-            )
+            let abstractListSymbol = try #require(sema.symbols.lookup(fqName: abstractListFQName))
             let abstractListInfo = try #require(sema.symbols.symbol(abstractListSymbol))
             #expect(abstractListInfo.kind == .class)
             #expect(abstractListInfo.flags.contains(.synthetic))
             #expect(abstractListInfo.flags.contains(.abstractType))
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: abstractListSymbol) == [.out]
-            )
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractListSymbol) == [.out])
 
             let directSupertypes = sema.symbols.directSupertypes(for: abstractListSymbol)
             #expect(directSupertypes.contains(abstractCollectionSymbol))
@@ -1392,10 +1214,7 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.types.nominalSupertypeTypeArgs(for: abstractListSymbol, supertype: abstractCollectionSymbol).count == 1)
             #expect(sema.types.nominalSupertypeTypeArgs(for: abstractListSymbol, supertype: listSymbol).count == 1)
 
-            let constructorSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractListFQName + [ctx.interner.intern("<init>")]),
-                "Expected AbstractList protected constructor to be registered"
-            )
+            let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractListFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .protected)
@@ -1411,25 +1230,16 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let collectionSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Collection")])
-            )
-            let setSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")])
-            )
+            let collectionSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Collection")]))
+            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
 
             let abstractSetFQName = collectionsPkg + [ctx.interner.intern("AbstractSet")]
-            let abstractSetSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractSetFQName),
-                "Expected kotlin.collections.AbstractSet to be registered"
-            )
+            let abstractSetSymbol = try #require(sema.symbols.lookup(fqName: abstractSetFQName))
             let abstractSetInfo = try #require(sema.symbols.symbol(abstractSetSymbol))
             #expect(abstractSetInfo.kind == .class)
             #expect(abstractSetInfo.flags.contains(.synthetic))
             #expect(abstractSetInfo.flags.contains(.abstractType))
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: abstractSetSymbol) == [.out]
-            )
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractSetSymbol) == [.out])
 
             let abstractCollectionSymbol = sema.symbols.lookup(
                 fqName: collectionsPkg + [ctx.interner.intern("AbstractCollection")]
@@ -1443,10 +1253,7 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.types.nominalSupertypeTypeArgs(for: abstractSetSymbol, supertype: collectionSupertype).count == 1)
             #expect(sema.types.nominalSupertypeTypeArgs(for: abstractSetSymbol, supertype: setSymbol).count == 1)
 
-            let constructorSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractSetFQName + [ctx.interner.intern("<init>")]),
-                "Expected AbstractSet protected constructor to be registered"
-            )
+            let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractSetFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .protected)
@@ -1478,10 +1285,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected AbstractList subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractList subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1509,10 +1313,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected AbstractSet subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractSet subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1536,18 +1337,12 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected RandomAccess marker interface surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected RandomAccess marker interface surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
             let sema = try #require(ctx.sema)
             let randomAccessFQName = ["kotlin", "collections", "RandomAccess"]
                 .map { ctx.interner.intern($0) }
-            let randomAccessSymbol = try #require(
-                sema.symbols.lookup(fqName: randomAccessFQName),
-                "Expected kotlin.collections.RandomAccess to be registered"
-            )
+            let randomAccessSymbol = try #require(sema.symbols.lookup(fqName: randomAccessFQName))
             let randomAccessInfo = try #require(sema.symbols.symbol(randomAccessSymbol))
             #expect(randomAccessInfo.kind == .interface)
             #expect(randomAccessInfo.flags.contains(.synthetic))
@@ -1563,17 +1358,10 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let collectionSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Collection")])
-            )
+            let collectionSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Collection")]))
             let mutableCollectionFQName = collectionsPkg + [ctx.interner.intern("MutableCollection")]
-            let mutableCollectionSymbol = try #require(
-                sema.symbols.lookup(fqName: mutableCollectionFQName),
-                "Expected kotlin.collections.MutableCollection to be registered"
-            )
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: mutableCollectionSymbol) == [.invariant]
-            )
+            let mutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName))
+            #expect(sema.types.nominalTypeParameterVariances(for: mutableCollectionSymbol) == [.invariant])
             #expect(sema.symbols.directSupertypes(for: mutableCollectionSymbol).contains(collectionSymbol))
             #expect(sema.types.directNominalSupertypes(for: mutableCollectionSymbol).contains(collectionSymbol))
 
@@ -1586,26 +1374,18 @@ struct ListSyntheticMemberLinkTests {
                 ("retainAll", 1),
             ]
             for expected in expectedMutableMembers {
-                let memberSymbol = try #require(
-                    sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern(expected.name)]),
-                    "Expected MutableCollection.\(expected.name) to be registered"
-                )
+                let memberSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern(expected.name)]))
                 let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
                 #expect(signature.parameterTypes.count == expected.parameterCount)
             }
 
             let abstractMutableCollectionFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")]
-            let abstractMutableCollectionSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractMutableCollectionFQName),
-                "Expected kotlin.collections.AbstractMutableCollection to be registered"
-            )
+            let abstractMutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName))
             let abstractMutableCollectionInfo = try #require(sema.symbols.symbol(abstractMutableCollectionSymbol))
             #expect(abstractMutableCollectionInfo.kind == .class)
             #expect(abstractMutableCollectionInfo.flags.contains(.synthetic))
             #expect(abstractMutableCollectionInfo.flags.contains(.abstractType))
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: abstractMutableCollectionSymbol) == [.invariant]
-            )
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableCollectionSymbol) == [.invariant])
 
             let abstractCollectionSymbol = sema.symbols.lookup(
                 fqName: collectionsPkg + [ctx.interner.intern("AbstractCollection")]
@@ -1614,23 +1394,16 @@ struct ListSyntheticMemberLinkTests {
             let directSupertypes = sema.symbols.directSupertypes(for: abstractMutableCollectionSymbol)
             #expect(directSupertypes.contains(readonlySupertype))
             #expect(directSupertypes.contains(mutableCollectionSymbol))
-            #expect(
-                sema.symbols.supertypeTypeArgs(
+            #expect(sema.symbols.supertypeTypeArgs(
                     for: abstractMutableCollectionSymbol,
                     supertype: readonlySupertype
-                ).count == 1
-            )
-            #expect(
-                sema.symbols.supertypeTypeArgs(
+                ).count == 1)
+            #expect(sema.symbols.supertypeTypeArgs(
                     for: abstractMutableCollectionSymbol,
                     supertype: mutableCollectionSymbol
-                ).count == 1
-            )
+                ).count == 1)
 
-            let constructorSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractMutableCollectionFQName + [ctx.interner.intern("<init>")]),
-                "Expected AbstractMutableCollection protected constructor to be registered"
-            )
+            let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.visibility == .protected)
             #expect(try #require(sema.symbols.functionSignature(for: constructorSymbol)).parameterTypes.isEmpty)
@@ -1659,10 +1432,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected AbstractMutableCollection subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractMutableCollection subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1674,24 +1444,15 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let setSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")])
-            )
-            let mutableSetSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableSet")])
-            )
+            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
+            let mutableSetSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableSet")]))
             let abstractMutableSetFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableSet")]
-            let abstractMutableSetSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractMutableSetFQName),
-                "Expected kotlin.collections.AbstractMutableSet to be registered"
-            )
+            let abstractMutableSetSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableSetFQName))
             let abstractMutableSetInfo = try #require(sema.symbols.symbol(abstractMutableSetSymbol))
             #expect(abstractMutableSetInfo.kind == .class)
             #expect(abstractMutableSetInfo.flags.contains(.synthetic))
             #expect(abstractMutableSetInfo.flags.contains(.abstractType))
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: abstractMutableSetSymbol) == [.invariant]
-            )
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableSetSymbol) == [.invariant])
 
             let abstractSetSymbol = sema.symbols.lookup(
                 fqName: collectionsPkg + [ctx.interner.intern("AbstractSet")]
@@ -1700,17 +1461,10 @@ struct ListSyntheticMemberLinkTests {
             let directSupertypes = sema.symbols.directSupertypes(for: abstractMutableSetSymbol)
             #expect(directSupertypes.contains(readonlySupertype))
             #expect(directSupertypes.contains(mutableSetSymbol))
-            #expect(
-                sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: readonlySupertype).count == 1
-            )
-            #expect(
-                sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: mutableSetSymbol).count == 1
-            )
+            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: readonlySupertype).count == 1)
+            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: mutableSetSymbol).count == 1)
 
-            let constructorSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractMutableSetFQName + [ctx.interner.intern("<init>")]),
-                "Expected AbstractMutableSet protected constructor to be registered"
-            )
+            let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableSetFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .protected)
@@ -1726,24 +1480,15 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let mapSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Map")])
-            )
-            let mutableMapSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableMap")])
-            )
+            let mapSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Map")]))
+            let mutableMapSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableMap")]))
             let abstractMutableMapFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableMap")]
-            let abstractMutableMapSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractMutableMapFQName),
-                "Expected kotlin.collections.AbstractMutableMap to be registered"
-            )
+            let abstractMutableMapSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName))
             let abstractMutableMapInfo = try #require(sema.symbols.symbol(abstractMutableMapSymbol))
             #expect(abstractMutableMapInfo.kind == .class)
             #expect(abstractMutableMapInfo.flags.contains(.synthetic))
             #expect(abstractMutableMapInfo.flags.contains(.abstractType))
-            #expect(
-                sema.types.nominalTypeParameterVariances(for: abstractMutableMapSymbol) == [.invariant, .invariant]
-            )
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableMapSymbol) == [.invariant, .invariant])
 
             let abstractMapSymbol = sema.symbols.lookup(
                 fqName: collectionsPkg + [ctx.interner.intern("AbstractMap")]
@@ -1752,17 +1497,10 @@ struct ListSyntheticMemberLinkTests {
             let directSupertypes = sema.symbols.directSupertypes(for: abstractMutableMapSymbol)
             #expect(directSupertypes.contains(readonlySupertype))
             #expect(directSupertypes.contains(mutableMapSymbol))
-            #expect(
-                sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: readonlySupertype).count == 2
-            )
-            #expect(
-                sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: mutableMapSymbol).count == 2
-            )
+            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: readonlySupertype).count == 2)
+            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: mutableMapSymbol).count == 2)
 
-            let constructorSymbol = try #require(
-                sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("<init>")]),
-                "Expected AbstractMutableMap protected constructor to be registered"
-            )
+            let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .protected)
@@ -1792,10 +1530,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected AbstractMutableSet subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractMutableSet subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1821,10 +1556,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected AbstractMutableMap subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractMutableMap subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -1836,18 +1568,11 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let listIteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("ListIterator")])
-            )
-            let mutableIteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator")])
-            )
+            let listIteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("ListIterator")]))
+            let mutableIteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator")]))
 
             let mutableListIteratorFQName = collectionsPkg + [ctx.interner.intern("MutableListIterator")]
-            let mutableListIteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: mutableListIteratorFQName),
-                "Expected kotlin.collections.MutableListIterator to be registered"
-            )
+            let mutableListIteratorSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName))
             let mutableListIteratorInfo = try #require(sema.symbols.symbol(mutableListIteratorSymbol))
             #expect(mutableListIteratorInfo.kind == .interface)
             #expect(mutableListIteratorInfo.flags.contains(.synthetic))
@@ -1860,31 +1585,20 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.symbols.supertypeTypeArgs(for: mutableListIteratorSymbol, supertype: mutableIteratorSymbol).count == 1)
 
             for memberName in ["add", "set"] {
-                let memberSymbol = try #require(
-                    sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern(memberName)]),
-                    "Expected MutableListIterator.\(memberName) to be registered"
-                )
+                let memberSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern(memberName)]))
                 let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
                 #expect(signature.parameterTypes.count == 1)
                 #expect(signature.returnType == sema.types.unitType)
             }
-            let removeSymbol = try #require(
-                sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern("remove")]),
-                "Expected MutableListIterator.remove to be registered"
-            )
+            let removeSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern("remove")]))
             let removeSignature = try #require(sema.symbols.functionSignature(for: removeSymbol))
             #expect(removeSignature.parameterTypes.isEmpty)
             #expect(removeSignature.returnType == sema.types.unitType)
 
-            let mutableListSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableList")])
-            )
-            let listIteratorMember = try #require(
-                sema.symbols.lookup(
+            let mutableListSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableList")]))
+            let listIteratorMember = try #require(sema.symbols.lookup(
                     fqName: collectionsPkg + [ctx.interner.intern("MutableList"), ctx.interner.intern("listIterator")]
-                ),
-                "Expected MutableList.listIterator to be registered"
-            )
+                ))
             #expect(sema.symbols.parentSymbol(for: listIteratorMember) == mutableListSymbol)
             let listIteratorSignature = try #require(sema.symbols.functionSignature(for: listIteratorMember))
             guard case let .classType(returnType) = sema.types.kind(of: listIteratorSignature.returnType) else {
@@ -1903,32 +1617,19 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let iterableSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterable")])
-            )
-            let iteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterator")])
-            )
-            let mutableIteratorSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator")])
-            )
+            let iterableSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterable")]))
+            let iteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterator")]))
+            let mutableIteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator")]))
             #expect(sema.types.nominalTypeParameterVariances(for: mutableIteratorSymbol) == [.out])
             #expect(sema.symbols.directSupertypes(for: mutableIteratorSymbol).contains(iteratorSymbol))
-            #expect(
-                sema.symbols.supertypeTypeArgs(for: mutableIteratorSymbol, supertype: iteratorSymbol).count == 1
-            )
-            let removeSymbol = try #require(
-                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator"), ctx.interner.intern("remove")])
-            )
+            #expect(sema.symbols.supertypeTypeArgs(for: mutableIteratorSymbol, supertype: iteratorSymbol).count == 1)
+            let removeSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator"), ctx.interner.intern("remove")]))
             let removeSignature = try #require(sema.symbols.functionSignature(for: removeSymbol))
             #expect(removeSignature.parameterTypes.isEmpty)
             #expect(removeSignature.returnType == sema.types.unitType)
 
             let mutableIterableFQName = collectionsPkg + [ctx.interner.intern("MutableIterable")]
-            let mutableIterableSymbol = try #require(
-                sema.symbols.lookup(fqName: mutableIterableFQName),
-                "Expected kotlin.collections.MutableIterable to be registered"
-            )
+            let mutableIterableSymbol = try #require(sema.symbols.lookup(fqName: mutableIterableFQName))
             let mutableIterableInfo = try #require(sema.symbols.symbol(mutableIterableSymbol))
             #expect(mutableIterableInfo.kind == .interface)
             #expect(mutableIterableInfo.flags.contains(.synthetic))
@@ -1937,10 +1638,7 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.types.directNominalSupertypes(for: mutableIterableSymbol).contains(iterableSymbol))
             #expect(sema.symbols.supertypeTypeArgs(for: mutableIterableSymbol, supertype: iterableSymbol).count == 1)
 
-            let iteratorMember = try #require(
-                sema.symbols.lookup(fqName: mutableIterableFQName + [ctx.interner.intern("iterator")]),
-                "Expected MutableIterable.iterator to be registered"
-            )
+            let iteratorMember = try #require(sema.symbols.lookup(fqName: mutableIterableFQName + [ctx.interner.intern("iterator")]))
             #expect(try #require(sema.symbols.symbol(iteratorMember)).flags.contains(.operatorFunction))
             let iteratorSignature = try #require(sema.symbols.functionSignature(for: iteratorMember))
             #expect(iteratorSignature.parameterTypes.isEmpty)
@@ -1951,14 +1649,10 @@ struct ListSyntheticMemberLinkTests {
             #expect(iteratorReturnType.classSymbol == mutableIteratorSymbol)
 
             for collectionName in ["MutableList", "MutableSet"] {
-                let collectionSymbol = try #require(
-                    sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern(collectionName)])
-                )
+                let collectionSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern(collectionName)]))
                 #expect(sema.symbols.directSupertypes(for: collectionSymbol).contains(mutableIterableSymbol))
                 #expect(sema.types.directNominalSupertypes(for: collectionSymbol).contains(mutableIterableSymbol))
-                #expect(
-                    sema.symbols.supertypeTypeArgs(for: collectionSymbol, supertype: mutableIterableSymbol).count == 1
-                )
+                #expect(sema.symbols.supertypeTypeArgs(for: collectionSymbol, supertype: mutableIterableSymbol).count == 1)
             }
         }
     }
@@ -1980,10 +1674,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected MutableListIterator surface to resolve from MutableList: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected MutableListIterator surface to resolve from MutableList: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -2019,10 +1710,7 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected MutableIterable subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected MutableIterable subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
@@ -2045,17 +1733,11 @@ struct ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName)")
-                #expect(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil,
-                    "Expected Set.\(memberName) to remain unresolved"
-                )
+                })
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Set.\(memberName) to remain unresolved")
             }
 
-            #expect(
-                !(ctx.diagnostics.diagnostics.isEmpty),
-                "Expected diagnostics for Set indexed lookup fallbacks"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.isEmpty), "Expected diagnostics for Set indexed lookup fallbacks")
         }
     }
 
@@ -2090,7 +1772,7 @@ struct ListSyntheticMemberLinkTests {
                       case let .nameRef(receiverName, _) = receiverExpr
                 else { return false }
                 return ctx.interner.resolve(receiverName) == "list"
-            }, "Expected a getOrElse member call")
+            })
             let listCallee = try #require(sema.bindings.callBinding(for: listCall)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: listCallee) == "kk_list_getOrElse")
 
@@ -2101,7 +1783,7 @@ struct ListSyntheticMemberLinkTests {
                       case let .nameRef(receiverName, _) = receiverExpr
                 else { return false }
                 return ctx.interner.resolve(receiverName) == "map"
-            }, "Expected a getOrElse member call")
+            })
             let mapCallee = try #require(sema.bindings.callBinding(for: mapCall)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: mapCallee) == "kk_map_getOrElse")
 
@@ -2112,7 +1794,7 @@ struct ListSyntheticMemberLinkTests {
                       case let .nameRef(receiverName, _) = receiverExpr
                 else { return false }
                 return ctx.interner.resolve(receiverName) == "mutableMap"
-            }, "Expected a getOrPut member call")
+            })
             let mutableCallee = try #require(sema.bindings.callBinding(for: mutableCall)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: mutableCallee) == "kk_mutable_map_getOrPut")
         }
@@ -2133,21 +1815,12 @@ struct ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "getOrElse"
-                },
-                "Expected member call to getOrElse"
-            )
-            #expect(
-                sema.bindings.exprType(for: callExpr) == sema.types.intType,
-                "Expected getOrElse result to be Int"
-            )
-            #expect(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected map getOrElse fallback to resolve without diagnostics, got: \(ctx.diagnostics.diagnostics)"
-            )
+                })
+            #expect(sema.bindings.exprType(for: callExpr) == sema.types.intType, "Expected getOrElse result to be Int")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected map getOrElse fallback to resolve without diagnostics, got: \(ctx.diagnostics.diagnostics)")
         }
     }
 
@@ -2158,17 +1831,14 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let symbolID = try #require(
-                sema.symbols.lookupAll(
+            let symbolID = try #require(sema.symbols.lookupAll(
                     fqName: [
                         ctx.interner.intern("kotlin"),
                         ctx.interner.intern("collections"),
                         ctx.interner.intern("List"),
                         ctx.interner.intern("binarySearch"),
                     ]
-                ).first(where: { sema.symbols.externalLinkName(for: $0) == "kk_list_binarySearch" }),
-                "Expected synthetic List member binarySearch to be registered"
-            )
+                ).first(where: { sema.symbols.externalLinkName(for: $0) == "kk_list_binarySearch" }))
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.typeParameterUpperBoundsList.count == 1)
             let upperBounds = signature.typeParameterUpperBoundsList[0]
@@ -2200,20 +1870,15 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let listSymbol = try #require(
-                sema.symbols.lookup(fqName: [
+            let listSymbol = try #require(sema.symbols.lookup(fqName: [
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("collections"),
                     ctx.interner.intern("List"),
-                ])
-            )
-            let symbolID = try #require(
-                sema.symbols.lookupByShortName(ctx.interner.intern("binarySearch")).first(where: { candidate in
+                ]))
+            let symbolID = try #require(sema.symbols.lookupByShortName(ctx.interner.intern("binarySearch")).first(where: { candidate in
                     sema.symbols.parentSymbol(for: candidate) == listSymbol
                         && sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_comparator"
-                }),
-                "Expected synthetic List member binarySearch comparator overload to be registered"
-            )
+                }))
             let signature = try #require(sema.symbols.functionSignature(for: symbolID))
             #expect(signature.parameterTypes.count == 4)
             #expect(signature.valueParameterSymbols.count == 4)
@@ -2286,18 +1951,9 @@ struct ListSyntheticMemberLinkTests {
             #expect(callExprIDs.count == expectedOverloads.count, "Expected three binarySearchBy calls")
 
             for (index, callExprID) in callExprIDs.enumerated() {
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExprID)?.chosenCallee,
-                    "Expected a chosen callee for binarySearchBy overload \(index)"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == expectedOverloads[index].externalLinkName,
-                    "Expected binarySearchBy overload \(index) to resolve to \(expectedOverloads[index].externalLinkName)"
-                )
-                #expect(
-                    sema.bindings.exprType(for: callExprID) == sema.types.intType,
-                    "Expected binarySearchBy overload \(index) to return Int"
-                )
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExprID)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedOverloads[index].externalLinkName, "Expected binarySearchBy overload \(index) to resolve to \(expectedOverloads[index].externalLinkName)")
+                #expect(sema.bindings.exprType(for: callExprID) == sema.types.intType, "Expected binarySearchBy overload \(index) to return Int")
             }
 
             let listFQName: [InternedString] = [
@@ -2308,12 +1964,9 @@ struct ListSyntheticMemberLinkTests {
             ]
 
             for overload in expectedOverloads {
-                let symbolID = try #require(
-                    sema.symbols.lookupAll(fqName: listFQName).first(where: {
+                let symbolID = try #require(sema.symbols.lookupAll(fqName: listFQName).first(where: {
                         sema.symbols.externalLinkName(for: $0) == overload.externalLinkName
-                    }),
-                    "Expected synthetic List member \(overload.externalLinkName) to be registered"
-                )
+                    }))
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.returnType == sema.types.intType)
                 #expect(signature.parameterTypes.count == overload.parameterCount)
@@ -2415,25 +2068,16 @@ func assertSyntheticMemberCall(
         let ctx = makeCompilationContext(inputs: [path])
         try runSema(ctx)
 
-        #expect(
-            ctx.diagnostics.diagnostics.isEmpty,
-            "Expected \(testCase.memberName) to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected \(testCase.memberName) to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let callExpr = try #require(firstExprID(in: ast) { _, expr in
             guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
             return ctx.interner.resolve(callee) == testCase.memberName
-        }, "Expected member call to \(testCase.memberName) in AST")
-        let chosenCallee = try #require(
-            sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-            "\(testCase.memberName) should resolve"
-        )
-        #expect(
-            sema.symbols.externalLinkName(for: chosenCallee) == testCase.expectedExternalLink,
-            "Expected \(testCase.memberName) to resolve to \(testCase.expectedExternalLink)"
-        )
+        })
+        let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+        #expect(sema.symbols.externalLinkName(for: chosenCallee) == testCase.expectedExternalLink, "Expected \(testCase.memberName) to resolve to \(testCase.expectedExternalLink)")
 
         if let expectedTypeShape = testCase.expectedTypeShape {
             let resultType = try #require(sema.bindings.exprType(for: callExpr))
@@ -2442,7 +2086,9 @@ func assertSyntheticMemberCall(
                 matches: expectedTypeShape,
                 sema: sema,
                 interner: ctx.interner,
-                memberName: testCase.memberName
+                memberName: testCase.memberName,
+                file: file,
+                line: line
             )
         }
     }
@@ -2477,7 +2123,7 @@ func projectedType(
     case let .invariant(type), let .out(type), let .in(type):
         return type
     case .star:
-        return try #require(nil as TypeID?, "Expected concrete type projection")
+        return try #require(nil as TypeID?)
     }
 }
 
@@ -2492,11 +2138,9 @@ func assertListType(
     guard case let .classType(listType) = sema.types.kind(of: type) else {
         Issue.record("Expected List type"); return
     }
-    #expect(
-        try interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List"
-    )
+    #expect(try interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List")
     #expect(listType.args.count == 1)
-    let elementType = try projectedType(try #require(listType.args.first))
+    let elementType = try projectedType(try #require(listType.args.first), file: file, line: line)
     #expect(elementType == expectedElementType)
 }
 #endif

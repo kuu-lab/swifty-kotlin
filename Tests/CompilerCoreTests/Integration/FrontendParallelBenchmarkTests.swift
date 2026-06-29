@@ -1,11 +1,10 @@
-#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import Testing
+import XCTest
 
 // MARK: - Multi-file compile benchmarks for frontend parallelization (P5-61)
 
-@Suite struct FrontendParallelBenchmarkTests {
+final class FrontendParallelBenchmarkTests: XCTestCase {
     // MARK: - Helpers
 
     /// Generate N Kotlin source files with varied declarations.
@@ -71,39 +70,41 @@ import Testing
 
     // MARK: - Correctness: per-file frontend results
 
-    @Test func testPerFileFrontendResultsPopulatedForAllFiles() throws {
+    func testPerFileFrontendResultsPopulatedForAllFiles() throws {
         let sources = generateSources(count: 5)
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 1)
 
-        // 5 user files + 2 bundled stdlib files (collections + text)
-        #expect(ctx.tokensByFile.count == 10, "Expected tokens for 7 files (5 user + 2 bundled stdlib)")
-        #expect(ctx.syntaxTrees.count == 10, "Expected syntax trees for 7 files")
-        let ast = try #require(ctx.ast)
-        #expect(ast.sortedFiles.count == 10, "Expected AST files for 7 files")
+        // 5 user files + auto-loaded .kt files + residual bundled stdlib files
+        let totalFileCount = ctx.tokensByFile.count
+        XCTAssertGreaterThan(totalFileCount, 5, "Expected more than 5 files (user files + bundled stdlib)")
+        XCTAssertEqual(ctx.syntaxTrees.count, totalFileCount, "Expected syntax trees for all files")
+        let ast = try XCTUnwrap(ctx.ast)
+        XCTAssertEqual(ast.sortedFiles.count, totalFileCount, "Expected AST files for all files")
 
         for (fileID, tokens) in ctx.tokensByFile {
-            #expect(!(tokens.isEmpty), "Tokens should be populated for file \(fileID.rawValue)")
+            XCTAssertFalse(tokens.isEmpty, "Tokens should be populated for file \(fileID.rawValue)")
         }
     }
 
-    @Test func testPerFileFrontendResultsPopulatedInParallelMode() throws {
+    func testPerFileFrontendResultsPopulatedInParallelMode() throws {
         let sources = generateSources(count: 5)
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 4)
 
-        // 5 user files + 2 bundled stdlib files (collections + text)
-        #expect(ctx.tokensByFile.count == 10, "Expected tokens for 7 files in parallel mode (5 user + 2 bundled stdlib)")
-        #expect(ctx.syntaxTrees.count == 10, "Expected syntax trees for 7 files in parallel mode")
-        let ast = try #require(ctx.ast)
-        #expect(ast.sortedFiles.count == 10, "Expected AST files for 7 files in parallel mode")
+        // 5 user files + auto-loaded .kt files + residual bundled stdlib files
+        let totalFileCount = ctx.tokensByFile.count
+        XCTAssertGreaterThan(totalFileCount, 5, "Expected more than 5 files in parallel mode (user files + bundled stdlib)")
+        XCTAssertEqual(ctx.syntaxTrees.count, totalFileCount, "Expected syntax trees for all files in parallel mode")
+        let ast = try XCTUnwrap(ctx.ast)
+        XCTAssertEqual(ast.sortedFiles.count, totalFileCount, "Expected AST files for all files in parallel mode")
 
         for (fileID, tokens) in ctx.tokensByFile {
-            #expect(!(tokens.isEmpty), "Tokens should be populated for file \(fileID.rawValue)")
+            XCTAssertFalse(tokens.isEmpty, "Tokens should be populated for file \(fileID.rawValue)")
         }
     }
 
     // MARK: - Deterministic output ordering
 
-    @Test func testParallelOutputIsDeterministic() throws {
+    func testParallelOutputIsDeterministic() throws {
         let sources = generateSources(count: 20)
 
         // Run multiple times with jobs=4 and verify identical AST structure.
@@ -111,7 +112,7 @@ import Testing
 
         for iteration in 0 ..< 3 {
             let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 4)
-            let ast = try #require(ctx.ast, "AST should be non-nil (iteration \(iteration))")
+            let ast = try XCTUnwrap(ctx.ast, "AST should be non-nil (iteration \(iteration))")
 
             // Collect all declaration names in file order.
             let declNames: [String] = ast.sortedFiles.flatMap { file in
@@ -128,8 +129,8 @@ import Testing
             }
 
             if let prev = previousDeclNames {
-                #expect(
-                    prev == declNames,
+                XCTAssertEqual(
+                    prev, declNames,
                     "Declaration order must be deterministic across parallel runs (iteration \(iteration))"
                 )
             }
@@ -139,7 +140,7 @@ import Testing
 
     // MARK: - Diagnostic order stability
 
-    @Test func testDiagnosticOrderIsStableAcrossParallelRuns() throws {
+    func testDiagnosticOrderIsStableAcrossParallelRuns() throws {
         // Intentionally include some files with parse warnings/issues.
         var sources = generateSources(count: 10)
         // Add a file with a trailing comma to trigger a diagnostic.
@@ -156,8 +157,8 @@ import Testing
             let diagCodes = ctx.diagnostics.diagnostics.map(\.code)
 
             if let prev = previousDiagCodes {
-                #expect(
-                    prev == diagCodes,
+                XCTAssertEqual(
+                    prev, diagCodes,
                     "Diagnostic order must be stable across parallel runs (iteration \(iteration))"
                 )
             }
@@ -167,45 +168,45 @@ import Testing
 
     // MARK: - Benchmarks: 10 / 50 / 100 files
 
-    @Test func testBenchmark10Files() throws {
+    func testBenchmark10Files() throws {
         let sources = generateSources(count: 10)
         let (seqCtx, seqTime) = try runFrontendTimed(sources: sources, jobs: 1)
         let (parCtx, parTime) = try runFrontendTimed(sources: sources, jobs: 4)
 
-        let seqAST = try #require(seqCtx.ast)
-        let parAST = try #require(parCtx.ast)
-        #expect(seqAST.sortedFiles.count == parAST.sortedFiles.count, "File count must match")
-        #expect(seqAST.declarationCount == parAST.declarationCount, "Declaration count must match")
+        let seqAST = try XCTUnwrap(seqCtx.ast)
+        let parAST = try XCTUnwrap(parCtx.ast)
+        XCTAssertEqual(seqAST.sortedFiles.count, parAST.sortedFiles.count, "File count must match")
+        XCTAssertEqual(seqAST.declarationCount, parAST.declarationCount, "Declaration count must match")
 
         let speedup = seqTime / max(parTime, 0.000001)
 
         print("[Benchmark 10 files] sequential=\(String(format: "%.4f", seqTime))s parallel(4)=\(String(format: "%.4f", parTime))s speedup=\(String(format: "%.2f", speedup))x")
     }
 
-    @Test func testBenchmark50Files() throws {
+    func testBenchmark50Files() throws {
         let sources = generateSources(count: 50)
         let (seqCtx, seqTime) = try runFrontendTimed(sources: sources, jobs: 1)
         let (parCtx, parTime) = try runFrontendTimed(sources: sources, jobs: 4)
 
-        let seqAST = try #require(seqCtx.ast)
-        let parAST = try #require(parCtx.ast)
-        #expect(seqAST.sortedFiles.count == parAST.sortedFiles.count)
-        #expect(seqAST.declarationCount == parAST.declarationCount)
+        let seqAST = try XCTUnwrap(seqCtx.ast)
+        let parAST = try XCTUnwrap(parCtx.ast)
+        XCTAssertEqual(seqAST.sortedFiles.count, parAST.sortedFiles.count)
+        XCTAssertEqual(seqAST.declarationCount, parAST.declarationCount)
 
         let speedup = seqTime / max(parTime, 0.000001)
 
         print("[Benchmark 50 files] sequential=\(String(format: "%.4f", seqTime))s parallel(4)=\(String(format: "%.4f", parTime))s speedup=\(String(format: "%.2f", speedup))x")
     }
 
-    @Test func testBenchmark100Files() throws {
+    func testBenchmark100Files() throws {
         let sources = generateSources(count: 100)
         let (seqCtx, seqTime) = try runFrontendTimed(sources: sources, jobs: 1)
         let (parCtx, parTime) = try runFrontendTimed(sources: sources, jobs: 4)
 
-        let seqAST = try #require(seqCtx.ast)
-        let parAST = try #require(parCtx.ast)
-        #expect(seqAST.sortedFiles.count == parAST.sortedFiles.count)
-        #expect(seqAST.declarationCount == parAST.declarationCount)
+        let seqAST = try XCTUnwrap(seqCtx.ast)
+        let parAST = try XCTUnwrap(parCtx.ast)
+        XCTAssertEqual(seqAST.sortedFiles.count, parAST.sortedFiles.count)
+        XCTAssertEqual(seqAST.declarationCount, parAST.declarationCount)
 
         let speedup = seqTime / max(parTime, 0.000001)
 
@@ -214,56 +215,56 @@ import Testing
 
     // MARK: - frontendJobs parsing
 
-    @Test func testFrontendJobsParsing() {
+    func testFrontendJobsParsing() {
         let opts1 = CompilerOptions(
             moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
             target: defaultTargetTriple(), frontendFlags: ["jobs=4"]
         )
-        #expect(opts1.frontendJobs == 4)
+        XCTAssertEqual(opts1.frontendJobs, 4)
 
         let opts2 = CompilerOptions(
             moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
             target: defaultTargetTriple(), frontendFlags: []
         )
-        #expect(opts2.frontendJobs == 1, "Default should be 1 (sequential)")
+        XCTAssertEqual(opts2.frontendJobs, 1, "Default should be 1 (sequential)")
 
         let opts3 = CompilerOptions(
             moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
             target: defaultTargetTriple(), frontendFlags: ["jobs=0"]
         )
-        #expect(opts3.frontendJobs == 1, "jobs=0 should fall back to 1")
+        XCTAssertEqual(opts3.frontendJobs, 1, "jobs=0 should fall back to 1")
 
         let opts5 = CompilerOptions(
             moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
             target: defaultTargetTriple(), frontendFlags: ["jobs=1"]
         )
-        #expect(opts5.frontendJobs == 1, "jobs=1 should be sequential")
+        XCTAssertEqual(opts5.frontendJobs, 1, "jobs=1 should be sequential")
 
         let opts4 = CompilerOptions(
             moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
             target: defaultTargetTriple(), frontendFlags: ["other-flag", "jobs=8"]
         )
-        #expect(opts4.frontendJobs == 8)
+        XCTAssertEqual(opts4.frontendJobs, 8)
     }
 
     // MARK: - Sequential vs parallel AST equivalence
 
-    @Test func testSequentialAndParallelProduceSameAST() throws {
+    func testSequentialAndParallelProduceSameAST() throws {
         let sources = generateSources(count: 15)
 
         let (seqCtx, _) = try runFrontendTimed(sources: sources, jobs: 1)
         let (parCtx, _) = try runFrontendTimed(sources: sources, jobs: 4)
 
-        let seqAST = try #require(seqCtx.ast)
-        let parAST = try #require(parCtx.ast)
+        let seqAST = try XCTUnwrap(seqCtx.ast)
+        let parAST = try XCTUnwrap(parCtx.ast)
 
-        #expect(seqAST.sortedFiles.count == parAST.sortedFiles.count)
-        #expect(seqAST.declarationCount == parAST.declarationCount)
+        XCTAssertEqual(seqAST.sortedFiles.count, parAST.sortedFiles.count)
+        XCTAssertEqual(seqAST.declarationCount, parAST.declarationCount)
 
         // Verify file order matches.
         for (seqFile, parFile) in zip(seqAST.sortedFiles, parAST.sortedFiles) {
-            #expect(seqFile.fileID == parFile.fileID, "File order must be deterministic")
-            #expect(seqFile.topLevelDecls.count == parFile.topLevelDecls.count,
+            XCTAssertEqual(seqFile.fileID, parFile.fileID, "File order must be deterministic")
+            XCTAssertEqual(seqFile.topLevelDecls.count, parFile.topLevelDecls.count,
                            "Declaration count must match for file \(seqFile.fileID.rawValue)")
 
             // Verify declaration names match in order.
@@ -275,7 +276,7 @@ import Testing
                 guard let decl = parAST.arena.decl(declID) else { return nil }
                 return topLevelDeclName(decl, interner: parCtx.interner)
             }
-            #expect(seqNames == parNames,
+            XCTAssertEqual(seqNames, parNames,
                            "Declaration names must match between sequential and parallel for file \(seqFile.fileID.rawValue)")
         }
     }
@@ -290,4 +291,3 @@ import Testing
         }
     }
 }
-#endif

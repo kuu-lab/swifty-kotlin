@@ -1,13 +1,14 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Testing
 import Foundation
+import Testing
 
 /// Mutable-collection, Map, Build, Grouping, and zip/sort/conversion
 /// test methods of `ListSyntheticMemberLinkTests`, split out to keep
 /// each test source focused.
 extension ListSyntheticMemberLinkTests {
-    @Test func testListSortedAndSortedDescendingHaveComparableUpperBound() throws {
+    @Test
+    func testListSortedAndSortedDescendingHaveComparableUpperBound() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -24,12 +25,9 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in memberCases {
-                let symbolID = try #require(
-                    sema.symbols.lookupAll(
+                let symbolID = try #require(sema.symbols.lookupAll(
                         fqName: baseFQName + [ctx.interner.intern(memberName)]
-                    ).first(where: { sema.symbols.externalLinkName(for: $0) == externalLinkName }),
-                    "Expected synthetic List member \(memberName) to be registered"
-                )
+                    ).first(where: { sema.symbols.externalLinkName(for: $0) == externalLinkName }))
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.typeParameterUpperBoundsList.count == 1)
                 let upperBounds = signature.typeParameterUpperBoundsList[0]
@@ -55,7 +53,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListSortedAndSortedDescendingRequireComparableElements() throws {
+    @Test
+    func testListSortedAndSortedDescendingRequireComparableElements() throws {
         let source = """
         class Box
 
@@ -75,7 +74,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListConversionMembersUseRuntimeExternalLinks() throws {
+    @Test
+    func testListConversionMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun convert(values: List<Int>) {
             values.toMutableList()
@@ -116,7 +116,7 @@ extension ListSyntheticMemberLinkTests {
                             return false
                         }
                         return true
-                    }, "Expected member call to \(memberName) in AST")
+                    })
                     let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                     #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
@@ -124,7 +124,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testCollectionAndIterableConversionMembersUseRuntimeExternalLinks() throws {
+    @Test
+    func testCollectionAndIterableConversionMembersUseRuntimeExternalLinks() throws {
         let cases: [SyntheticMemberCallCase] = [
             .init(
                 source: """
@@ -173,7 +174,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSetBinaryMembersKeepSetResultTypeInFallbackPath() throws {
+    @Test
+    func testSetBinaryMembersKeepSetResultTypeInFallbackPath() throws {
         let source = """
         fun combine(values: Set<Int>, other: Set<Int>) {
             val left = values.intersect(other)
@@ -208,7 +210,7 @@ extension ListSyntheticMemberLinkTests {
             #expect(setResultTypes.keys.count == expectedMembers.count)
 
             for memberName in expectedMembers {
-                let type = try #require(setResultTypes[memberName], "Expected inferred type for \(memberName)")
+                let type = try #require(setResultTypes[memberName])
                 guard case let .classType(classType) = sema.types.kind(of: type) else {
                     Issue.record("Expected \(memberName) to infer as Set<Int>, got \(sema.types.kind(of: type))"); return
                 }
@@ -226,7 +228,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListUnzipUsesRuntimeExternalLinkAndReturnsPairOfLists() throws {
+    @Test
+    func testListUnzipUsesRuntimeExternalLinkAndReturnsPairOfLists() throws {
         let source = """
         fun split(values: List<Pair<Int, String>>) {
             val result: Pair<List<Int>, List<String>> = values.unzip()
@@ -244,7 +247,7 @@ extension ListSyntheticMemberLinkTests {
             let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "unzip"
-            }, "Expected values.unzip() member call in AST")
+            })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
 
@@ -262,7 +265,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSequenceJoinToStringUsesRuntimeExternalLink() throws {
+    @Test
+    func testSequenceJoinToStringUsesRuntimeExternalLink() throws {
         let source = """
         fun render(values: Sequence<Int>) {
             println(values.joinToString(", "))
@@ -288,7 +292,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSequenceReduceIndexedOrNullUsesRuntimeExternalLink() throws {
+    @Test
+    func testSequenceReduceIndexedOrNullUsesRuntimeExternalLink() throws {
         let source = """
         fun render(values: Sequence<Int>) {
             println(values.reduceIndexedOrNull { index, acc, value -> acc + index * value })
@@ -303,22 +308,20 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
             let sema = try #require(ctx.sema)
-            let sequenceReduceIndexedOrNullSymbol = try #require(
-                sema.symbols.lookup(
+            let sequenceReduceIndexedOrNullSymbol = try #require(sema.symbols.lookup(
                     fqName: [
                         ctx.interner.intern("kotlin"),
                         ctx.interner.intern("sequences"),
                         ctx.interner.intern("Sequence"),
                         ctx.interner.intern("reduceIndexedOrNull"),
                     ]
-                ),
-                "Expected synthetic Sequence.reduceIndexedOrNull member to be registered"
-            )
+                ))
             #expect(sema.symbols.externalLinkName(for: sequenceReduceIndexedOrNullSymbol) == "kk_sequence_reduceIndexedOrNull")
         }
     }
 
-    @Test func testListFlatMapRegistersRuntimeExternalLink() throws {
+    @Test
+    func testListFlatMapRegistersRuntimeExternalLink() throws {
         let source = """
         fun render(values: List<String>) {
             val result: List<Int> = values.flatMap { listOf(it.length) }
@@ -365,7 +368,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSequenceFlatMapIndexedRegistersIterableAndSequenceOverloads() throws {
+    @Test
+    func testSequenceFlatMapIndexedRegistersIterableAndSequenceOverloads() throws {
         let source = """
         fun render(values: Sequence<Int>) {
             val iterableResult = values.flatMapIndexed { index, value -> listOf(index, value * 10) }
@@ -391,7 +395,9 @@ extension ListSyntheticMemberLinkTests {
             ]
             let symbols = sema.symbols.lookupAll(fqName: memberFQName)
             #expect(symbols.count == 2, "Expected Iterable and Sequence flatMapIndexed overloads")
-            #expect(symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexed" })
+            #expect(symbols.allSatisfy {
+                sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexed"
+            })
 
             let transformReturnTypeNames = symbols.compactMap { symbolID -> String? in
                 guard let parameterType = sema.symbols.functionSignature(for: symbolID)?.parameterTypes.first,
@@ -406,7 +412,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSequenceShuffledUsesRuntimeExternalLinks() throws {
+    @Test
+    func testSequenceShuffledUsesRuntimeExternalLinks() throws {
         let source = """
         import kotlin.random.Random
 
@@ -438,7 +445,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSequenceRequireNoNullsSyntheticStubHasRuntimeExternalLink() throws {
+    @Test
+    func testSequenceRequireNoNullsSyntheticStubHasRuntimeExternalLink() throws {
         let source = """
         fun render(values: Sequence<Int?>) {
             val result: Sequence<Int> = values.requireNoNulls()
@@ -460,11 +468,14 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("Sequence"),
                 ctx.interner.intern("requireNoNulls"),
             ]
-            #expect(sema.symbols.lookupAll(fqName: fqName).contains { candidate in sema.symbols.externalLinkName(for: candidate) == "kk_sequence_requireNoNulls" })
+            #expect(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+                sema.symbols.externalLinkName(for: candidate) == "kk_sequence_requireNoNulls"
+            })
         }
     }
 
-    @Test func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
+    @Test
+    func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
             values.add(1)
@@ -505,17 +516,18 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
-                }, "Expected member call to \(memberName) with \(argumentCount) arguments in AST")
+                })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
             }
         }
     }
 
-    @Test func testMutableListBulkMutationFallbacksReturnBoolean() throws {
+    @Test
+    func testMutableListBulkMutationFallbacksReturnBoolean() throws {
         let source = """
         fun mutate(): Boolean {
             val values = listOf(1, 2, 3).toMutableList()
@@ -536,18 +548,15 @@ extension ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let symbolID = try #require(
-                    sema.symbols.lookup(
+                })
+                let symbolID = try #require(sema.symbols.lookup(
                         fqName: [
                             ctx.interner.intern("kotlin"),
                             ctx.interner.intern("collections"),
                             ctx.interner.intern("MutableList"),
                             ctx.interner.intern(memberName),
                         ]
-                    ),
-                    "Expected synthetic MutableList member \(memberName) to be registered"
-                )
+                    ))
 
                 #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_mutable_list_\(memberName)", "Expected \(memberName) to resolve to runtime extern")
                 #expect(sema.bindings.exprTypes[callExpr] == sema.types.booleanType, "Expected \(memberName) to return Boolean")
@@ -556,7 +565,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableCollectionSequenceAddAllMembersUseRuntimeExternalLinks() throws {
+    @Test
+    func testMutableCollectionSequenceAddAllMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun appendCollection(collection: MutableCollection<Int>, source: Sequence<Int>) = collection.addAll(source)
         fun appendList(list: MutableList<Int>, source: Sequence<Int>) = list.addAll(source)
@@ -585,7 +595,7 @@ extension ListSyntheticMemberLinkTests {
                         return false
                     }
                     return ctx.interner.resolve(name) == receiverName
-                }, "Expected \(receiverName).addAll(source) call in AST")
+                })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(externalLinkName)")
                 #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
@@ -593,7 +603,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableListSortMembersUseRuntimeExternalLinks() throws {
+    @Test
+    func testMutableListSortMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
             values.sort()
@@ -622,7 +633,7 @@ extension ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
+                })
                 if let chosenCallee = sema.bindings.callBinding(for: callExpr)?.chosenCallee {
                     #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
@@ -630,7 +641,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListPrimitiveArrayConversionsUseRuntimeExternalLinks() throws {
+    @Test
+    func testListPrimitiveArrayConversionsUseRuntimeExternalLinks() throws {
         let cases: [SyntheticMemberCallCase] = [
             .init(
                 source: """
@@ -699,7 +711,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableListBulkMutationMembersUseInvariantReceiverTypes() throws {
+    @Test
+    func testMutableListBulkMutationMembersUseInvariantReceiverTypes() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -725,7 +738,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableListBulkCollectionMembersAcceptCollectionOfSameElementType() throws {
+    @Test
+    func testMutableListBulkCollectionMembersAcceptCollectionOfSameElementType() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
             values.addAll(listOf(1, 2))
@@ -753,14 +767,15 @@ extension ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
+                })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
         }
     }
 
-    @Test func testMutableListBulkCollectionMembersKeepInvariantReceiverType() throws {
+    @Test
+    func testMutableListBulkCollectionMembersKeepInvariantReceiverType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -773,10 +788,7 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["addAll", "removeAll", "retainAll"] {
-                let symbolID = try #require(
-                    sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]),
-                    "Expected synthetic MutableList member \(memberName) to be registered"
-                )
+                let symbolID = try #require(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 let receiverType = try #require(signature.receiverType)
                 guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
@@ -797,7 +809,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testOutProjectedMutableListBlocksBulkMutationMembers() throws {
+    @Test
+    func testOutProjectedMutableListBlocksBulkMutationMembers() throws {
         let source = """
         fun mutate(values: MutableList<out Number>) {
             values.addAll(listOf(1, 2))
@@ -816,7 +829,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListSortMembersRemainUnavailableOnImmutableList() throws {
+    @Test
+    func testListSortMembersRemainUnavailableOnImmutableList() throws {
         let source = """
         fun mutate(values: List<Int>) {
             values.sort()
@@ -836,7 +850,7 @@ extension ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
+                })
                 #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected immutable List.\(memberName) to remain unresolved")
             }
 
@@ -844,7 +858,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableListBulkOperationsAcceptListArguments() throws {
+    @Test
+    func testMutableListBulkOperationsAcceptListArguments() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
             values.addAll(listOf(1, 2))
@@ -860,7 +875,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableListMatchesTransitiveCollectionConstraint() throws {
+    @Test
+    func testMutableListMatchesTransitiveCollectionConstraint() throws {
         let source = """
         fun <T> consume(values: Collection<T>): T? = values.firstOrNull()
 
@@ -881,13 +897,14 @@ extension ListSyntheticMemberLinkTests {
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
                 return ctx.interner.resolve(name) == "consume"
-            }, "Expected consume(values) call in AST")
+            })
 
             #expect(sema.bindings.callBinding(for: consumeCall)?.chosenCallee != nil, "Expected MutableList<Int> to satisfy Collection<T> through transitive lifting")
         }
     }
 
-    @Test func testListIteratorMemberResolvesWithoutTypeConstraintFailure() throws {
+    @Test
+    func testListIteratorMemberResolvesWithoutTypeConstraintFailure() throws {
         let source = """
         class IntContainer(private val elements: List<Int>) {
             operator fun iterator(): Iterator<Int> = elements.iterator()
@@ -905,19 +922,17 @@ extension ListSyntheticMemberLinkTests {
             let iteratorCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "iterator"
-            }, "Expected List.iterator() call in AST")
+            })
 
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: iteratorCall)?.chosenCallee,
-                "Expected List.iterator() to resolve"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: iteratorCall)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_range_iterator")
         }
     }
 
     /// Regression: listOf(...).contains/isEmpty must not emit KSWIFTK-SEMA-VAR-OUT.
     /// The synthetic List type uses .out projection; variance relaxation must apply.
-    @Test func testListOfContainsAndIsEmptyDoNotEmitVarOut() throws {
+    @Test
+    func testListOfContainsAndIsEmptyDoNotEmitVarOut() throws {
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -952,7 +967,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListElementAtUsesRuntimeExternalLink() throws {
+    @Test
+    func testListElementAtUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -969,15 +985,13 @@ extension ListSyntheticMemberLinkTests {
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "elementAt"
             })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "elementAt should resolve"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAt")
         }
     }
 
-    @Test func testListElementAtOrNullUsesRuntimeExternalLink() throws {
+    @Test
+    func testListElementAtOrNullUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -994,15 +1008,13 @@ extension ListSyntheticMemberLinkTests {
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "elementAtOrNull"
             })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "elementAtOrNull should resolve"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAtOrNull")
         }
     }
 
-    @Test func testSetMembersUseRuntimeExternalLinks() throws {
+    @Test
+    func testSetMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun check(values: Set<Int>) {
             values.contains(42)
@@ -1025,7 +1037,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSetRegistersCollectionAsNominalSupertype() throws {
+    @Test
+    func testSetRegistersCollectionAsNominalSupertype() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1046,7 +1059,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testContainsAllMembersUseCollectionRuntimeExternalLinks() throws {
+    @Test
+    func testContainsAllMembersUseCollectionRuntimeExternalLinks() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1070,7 +1084,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testSetContainsAllUsesCollectionParameterType() throws {
+    @Test
+    func testSetContainsAllUsesCollectionParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1102,7 +1117,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testContainsMembersAreMarkedOperatorFunctions() throws {
+    @Test
+    func testContainsMembersAreMarkedOperatorFunctions() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1132,7 +1148,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testWithIndexUsesIterableOfIndexedValueSignature() throws {
+    @Test
+    func testWithIndexUsesIterableOfIndexedValueSignature() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1167,7 +1184,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableSetMutationMembersUseRuntimeExternalLinks() throws {
+    @Test
+    func testMutableSetMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableSet<Int>) {
             values.add(1)
@@ -1201,21 +1219,18 @@ extension ListSyntheticMemberLinkTests {
                 #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
 
-            let addAllLookup = sema.symbols.lookup(fqName: [
+            let addAllSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("MutableSet"),
                 ctx.interner.intern("addAll"),
-            ])
-            let addAllSymbol = try #require(addAllLookup)
-            #expect(
-                sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_set_addAll",
-                "Expected addAll to resolve to kk_mutable_set_addAll"
-            )
+            ]))
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_set_addAll", "Expected addAll to resolve to kk_mutable_set_addAll")
         }
     }
 
-    @Test func testMutableListBulkMutationMembersUseInvariantReceiverType() throws {
+    @Test
+    func testMutableListBulkMutationMembersUseInvariantReceiverType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1245,7 +1260,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableSetClearIsNotMarkedOperatorFunction() throws {
+    @Test
+    func testMutableSetClearIsNotMarkedOperatorFunction() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1262,7 +1278,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableSetAddAllUsesCollectionParameterType() throws {
+    @Test
+    func testMutableSetAddAllUsesCollectionParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1290,7 +1307,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableCollectionArrayAddAllOverloadsUseRuntimeExternalLinks() throws {
+    @Test
+    func testMutableCollectionArrayAddAllOverloadsUseRuntimeExternalLinks() throws {
         let cases: [(String, String, String)] = [
             (
                 "MutableCollection",
@@ -1319,7 +1337,7 @@ extension ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "addAll"
-                }, "Expected \(receiverName).addAll(Array) call in AST")
+                })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedExternalLink)")
@@ -1334,7 +1352,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableCollectionIterableAddAllOverloadsUseRuntimeExternalLinks() throws {
+    @Test
+    func testMutableCollectionIterableAddAllOverloadsUseRuntimeExternalLinks() throws {
         let cases: [(String, String, String)] = [
             (
                 "MutableCollection",
@@ -1368,7 +1387,7 @@ extension ListSyntheticMemberLinkTests {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "addAll"
-                }, "Expected \(receiverName).addAll(Iterable) call in AST")
+                })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedExternalLink)")
@@ -1386,7 +1405,8 @@ extension ListSyntheticMemberLinkTests {
     /// Map member calls (containsKey, put, remove) go through the collection-fallback
     /// inference path which does not record a callBinding. Instead we verify that the
     /// synthetic symbols in the symbol table carry the correct external link names.
-    @Test func testMapSyntheticSymbolsHaveCorrectExternalLinkNames() throws {
+    @Test
+    func testMapSyntheticSymbolsHaveCorrectExternalLinkNames() throws {
         let source = """
         fun noop() {}
         """
@@ -1427,16 +1447,14 @@ extension ListSyntheticMemberLinkTests {
 
             for (ownerFQ, memberName, expectedExternal) in expectedLinks {
                 let memberFQ = ownerFQ + [interner.intern(memberName)]
-                let symbolID = try #require(
-                    sema.symbols.lookup(fqName: memberFQ),
-                    "Symbol for \(memberName) not found in symbol table"
-                )
+                let symbolID = try #require(sema.symbols.lookup(fqName: memberFQ))
                 #expect(sema.symbols.externalLinkName(for: symbolID) == expectedExternal, "Expected \(memberName) to have external link \(expectedExternal)")
             }
         }
     }
 
-    @Test func testMapWithDefaultSurfaceResolvesDefaultLambda() throws {
+    @Test
+    func testMapWithDefaultSurfaceResolvesDefaultLambda() throws {
         let source = """
         fun probe(values: Map<Int, Int>): Int {
             val defaults = values.withDefault { it * 10 }
@@ -1452,7 +1470,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testIndexedAndAggregateListMembersAreInlineSynthetic() throws {
+    @Test
+    func testIndexedAndAggregateListMembersAreInlineSynthetic() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1465,10 +1484,7 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["sumOf", "forEachIndexed", "mapIndexed", "filterIndexed"] {
-                let symbolID = try #require(
-                    sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]),
-                    "Expected synthetic List member \(memberName) to be registered"
-                )
+                let symbolID = try #require(sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]))
                 let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
                 #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
                 #expect(flags.contains(.synthetic), "Expected \(memberName) to be synthetic")
@@ -1476,7 +1492,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListFilterIndexedUsesRuntimeExternalLink() throws {
+    @Test
+    func testListFilterIndexedUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
             val list = listOf(10, 20, 30)
@@ -1494,15 +1511,13 @@ extension ListSyntheticMemberLinkTests {
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "filterIndexed"
             })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "filterIndexed should resolve"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIndexed")
         }
     }
 
-    @Test func testListFilterIsInstanceUsesRuntimeExternalLink() throws {
+    @Test
+    func testListFilterIsInstanceUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
             val list: List<Any> = listOf(1, "two", 3)
@@ -1519,15 +1534,13 @@ extension ListSyntheticMemberLinkTests {
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "filterIsInstance"
             })
-            let chosenCallee = try #require(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "filterIsInstance should resolve"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIsInstance")
         }
     }
 
-    @Test func testMapHigherOrderMembersAreInlineAndToListPreservesPairType() throws {
+    @Test
+    func testMapHigherOrderMembersAreInlineAndToListPreservesPairType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1540,17 +1553,12 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["forEach", "map", "filter", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo"] {
-                let symbolID = try #require(
-                    sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern(memberName)]),
-                    "Expected synthetic Map member \(memberName) to be registered"
-                )
+                let symbolID = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern(memberName)]))
                 let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
                 #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
             }
 
-            let toListSymbol = try #require(
-                sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern("toList")])
-            )
+            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern("toList")]))
             let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
             guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
                 Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
@@ -1568,7 +1576,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMapEntryToPairSurfaceIsRegistered() throws {
+    @Test
+    func testMapEntryToPairSurfaceIsRegistered() throws {
         let source = """
         fun probe(values: Map<String, Int>): List<Pair<String, Int>> {
             return values.map { it.toPair() }
@@ -1588,10 +1597,7 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("Map"),
                 ctx.interner.intern("Entry"),
             ]
-            let toPairSymbol = try #require(
-                sema.symbols.lookup(fqName: entryFQName + [ctx.interner.intern("toPair")]),
-                "Expected Map.Entry.toPair to be registered"
-            )
+            let toPairSymbol = try #require(sema.symbols.lookup(fqName: entryFQName + [ctx.interner.intern("toPair")]))
             #expect(sema.symbols.externalLinkName(for: toPairSymbol) == "kk_map_entry_to_pair")
             let signature = try #require(sema.symbols.functionSignature(for: toPairSymbol))
             guard case let .classType(pairType) = sema.types.kind(of: signature.returnType) else {
@@ -1603,7 +1609,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testBuildListInfersElementTypeFromBuilderCalls() throws {
+    @Test
+    func testBuildListInfersElementTypeFromBuilderCalls() throws {
         let source = """
         fun render(): List<Int> = buildList {
             this.add(1)
@@ -1652,7 +1659,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testBuildMapInfersKeyAndValueTypesFromBuilderCalls() throws {
+    @Test
+    func testBuildMapInfersKeyAndValueTypesFromBuilderCalls() throws {
         let source = """
         fun render(): Map<String, Int> = buildMap {
             this.put("a", 1)
@@ -1709,7 +1717,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMapKeysToResolvesWithMutableMapDestination() throws {
+    @Test
+    func testMapKeysToResolvesWithMutableMapDestination() throws {
         let source = """
         fun remap(values: Map<Int, String>, destination: MutableMap<Int, String>): MutableMap<Int, String> {
             return values.mapKeysTo(destination) { entry -> entry.key + 10 }
@@ -1736,7 +1745,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMapValuesToResolvesWithMutableMapDestination() throws {
+    @Test
+    func testMapValuesToResolvesWithMutableMapDestination() throws {
         let source = """
         fun remap(values: Map<Int, String>, destination: MutableMap<Int, Int>): MutableMap<Int, Int> {
             return values.mapValuesTo(destination) { entry -> entry.value.length }
@@ -1763,7 +1773,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testMutableMapPutAllUsesProjectedMapParameterType() throws {
+    @Test
+    func testMutableMapPutAllUsesProjectedMapParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1794,7 +1805,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testGroupingEachCountToUsesProjectedMutableMapParameterType() throws {
+    @Test
+    func testGroupingEachCountToUsesProjectedMutableMapParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -1834,7 +1846,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testBuildListCapacityOverloadResolves() throws {
+    @Test
+    func testBuildListCapacityOverloadResolves() throws {
         let source = """
         fun render(): List<Int> = buildList(4) {
             add(1)
@@ -1868,7 +1881,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListZipWithNextOverloadsInferReturnTypes() throws {
+    @Test
+    func testListZipWithNextOverloadsInferReturnTypes() throws {
         let source = """
         fun pairs(values: List<Int>) = values.zipWithNext()
         fun gaps(values: List<Int>) = values.zipWithNext { left, right -> right - left }
@@ -1894,11 +1908,11 @@ extension ListSyntheticMemberLinkTests {
             let noArgCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "zipWithNext" && args.isEmpty
-            }, "Expected values.zipWithNext() call")
+            })
             let transformCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "zipWithNext" && args.count == 1
-            }, "Expected values.zipWithNext { ... } call")
+            })
 
             let noArgType = try #require(sema.bindings.exprType(for: noArgCall))
             guard case let .classType(noArgListType) = sema.types.kind(of: noArgType),
@@ -1922,7 +1936,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListZipUsesRuntimeExternalLinkAndReturnsPairList() throws {
+    @Test
+    func testListZipUsesRuntimeExternalLinkAndReturnsPairList() throws {
         let source = """
         fun zipValues(values: List<Int>, labels: List<String>) = values.zip(labels)
         """
@@ -1938,7 +1953,7 @@ extension ListSyntheticMemberLinkTests {
             let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "zip" && args.count == 1
-            }, "Expected values.zip(labels) call in AST")
+            })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_zip")
@@ -1980,7 +1995,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testStringAsIterableImplicitReceiverDoesNotExposeListOnlyMembers() throws {
+    @Test
+    func testStringAsIterableImplicitReceiverDoesNotExposeListOnlyMembers() throws {
         let source = """
         fun probe(): Char = with("hello") {
             asIterable().get(0)
@@ -1996,7 +2012,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListFlatMapIndexedRegistersRuntimeExternalLink() throws {
+    @Test
+    func testListFlatMapIndexedRegistersRuntimeExternalLink() throws {
         let source = """
         fun render(values: List<String>) {
             val result: List<Int> = values.flatMapIndexed { index, value -> listOf(index + value.length) }
@@ -2046,7 +2063,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListToBooleanArrayUsesRuntimeExternalLink() throws {
+    @Test
+    func testListToBooleanArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Boolean>) {
             values.toBooleanArray()
@@ -2074,7 +2092,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListToShortArrayUsesRuntimeExternalLink() throws {
+    @Test
+    func testListToShortArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Short>) {
             values.toShortArray()
@@ -2102,7 +2121,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListToDoubleArrayUsesRuntimeExternalLink() throws {
+    @Test
+    func testListToDoubleArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Double>) {
             values.toDoubleArray()
@@ -2130,7 +2150,8 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testListToFloatArrayUsesRuntimeExternalLink() throws {
+    @Test
+    func testListToFloatArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Float>) {
             values.toFloatArray()

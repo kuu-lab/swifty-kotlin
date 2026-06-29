@@ -34,7 +34,9 @@ let package = Package(
         .target(
             name: "CompilerCore",
             dependencies: ["RuntimeABI"],
-            resources: [.process("Stdlib")]
+            resources: [
+                .copy("Stdlib"),
+            ]
         ),
         .target(
             name: "CompilerBackend",
