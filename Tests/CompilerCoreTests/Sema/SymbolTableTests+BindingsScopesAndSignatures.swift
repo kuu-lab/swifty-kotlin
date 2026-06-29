@@ -1,14 +1,16 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension SymbolTableTests {
+    @Test
     func testParentSymbolReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.parentSymbol(for: SymbolID(rawValue: 0)))
+        #expect(symbols.parentSymbol(for: SymbolID(rawValue: 0)) == nil)
     }
 
     // MARK: - Type Parameter Upper Bound
 
+    @Test
     func testSetAndGetTypeParameterUpperBound() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -21,9 +23,10 @@ extension SymbolTableTests {
             visibility: .public
         )
         symbols.setTypeParameterUpperBound(types.anyType, for: id)
-        XCTAssertEqual(symbols.typeParameterUpperBound(for: id), types.anyType)
+        #expect(symbols.typeParameterUpperBound(for: id) == types.anyType)
     }
 
+    @Test
     func testSetTypeParameterUpperBoundAppendsDistinctBounds() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -40,51 +43,58 @@ extension SymbolTableTests {
         symbols.setTypeParameterUpperBound(types.nullableAnyType, for: id)
         symbols.setTypeParameterUpperBound(types.anyType, for: id)
 
-        XCTAssertEqual(symbols.typeParameterUpperBounds(for: id), [types.anyType, types.nullableAnyType])
+        #expect(symbols.typeParameterUpperBounds(for: id) == [types.anyType, types.nullableAnyType])
     }
 
+    @Test
     func testTypeParameterUpperBoundReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.typeParameterUpperBound(for: SymbolID(rawValue: 0)))
+        #expect(symbols.typeParameterUpperBound(for: SymbolID(rawValue: 0)) == nil)
     }
 
     // MARK: - Source File ID
 
+    @Test
     func testSetAndGetSourceFileID() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let id = symbols.define(kind: .class, name: interner.intern("C"), fqName: [interner.intern("C")], declSite: nil, visibility: .public)
         let fileID = FileID(rawValue: 42)
         symbols.setSourceFileID(fileID, for: id)
-        XCTAssertEqual(symbols.sourceFileID(for: id), fileID)
+        #expect(symbols.sourceFileID(for: id) == fileID)
     }
 
+    @Test
     func testSourceFileIDReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.sourceFileID(for: SymbolID(rawValue: 0)))
+        #expect(symbols.sourceFileID(for: SymbolID(rawValue: 0)) == nil)
     }
 }
 
 // MARK: - BindingTable Tests
 
-final class BindingTableTests: XCTestCase {
+@Suite
+struct BindingTableTests {
+    @Test
     func testBindExprType() {
         let bindings = BindingTable()
         let types = TypeSystem()
         let expr = ExprID(rawValue: 0)
         let intType = types.make(.primitive(.int, .nonNull))
         bindings.bindExprType(expr, type: intType)
-        XCTAssertEqual(bindings.exprTypes[expr], intType)
+        #expect(bindings.exprTypes[expr] == intType)
     }
 
+    @Test
     func testBindIdentifier() {
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 0)
         let sym = SymbolID(rawValue: 5)
         bindings.bindIdentifier(expr, symbol: sym)
-        XCTAssertEqual(bindings.identifierSymbols[expr], sym)
+        #expect(bindings.identifierSymbols[expr] == sym)
     }
 
+    @Test
     func testBindCall() {
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 0)
@@ -94,33 +104,37 @@ final class BindingTableTests: XCTestCase {
             parameterMapping: [0: 0]
         )
         bindings.bindCall(expr, binding: binding)
-        XCTAssertNotNil(bindings.callBindings[expr])
-        XCTAssertEqual(bindings.callBindings[expr]?.chosenCallee, SymbolID(rawValue: 1))
+        #expect(bindings.callBindings[expr] != nil)
+        #expect(bindings.callBindings[expr]?.chosenCallee == SymbolID(rawValue: 1))
     }
 
+    @Test
     func testBindDecl() {
         let bindings = BindingTable()
         let decl = DeclID(rawValue: 0)
         let sym = SymbolID(rawValue: 3)
         bindings.bindDecl(decl, symbol: sym)
-        XCTAssertEqual(bindings.declSymbols[decl], sym)
+        #expect(bindings.declSymbols[decl] == sym)
     }
 
+    @Test
     func testMarkSuperCall() {
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 7)
         bindings.markSuperCall(expr)
-        XCTAssertTrue(bindings.superCallExprs.contains(expr))
+        #expect(bindings.superCallExprs.contains(expr))
     }
 
+    @Test
     func testMarkSuperCallIdempotent() {
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 7)
         bindings.markSuperCall(expr)
         bindings.markSuperCall(expr)
-        XCTAssertEqual(bindings.superCallExprs.count, 1)
+        #expect(bindings.superCallExprs.count == 1)
     }
 
+    @Test
     func testMultipleBindings() {
         let bindings = BindingTable()
         let types = TypeSystem()
@@ -130,15 +144,17 @@ final class BindingTableTests: XCTestCase {
         bindings.bindExprType(ExprID(rawValue: 0), type: intType)
         bindings.bindExprType(ExprID(rawValue: 1), type: stringType)
 
-        XCTAssertEqual(bindings.exprTypes.count, 2)
-        XCTAssertEqual(bindings.exprTypes[ExprID(rawValue: 0)], intType)
-        XCTAssertEqual(bindings.exprTypes[ExprID(rawValue: 1)], stringType)
+        #expect(bindings.exprTypes.count == 2)
+        #expect(bindings.exprTypes[ExprID(rawValue: 0)] == intType)
+        #expect(bindings.exprTypes[ExprID(rawValue: 1)] == stringType)
     }
 }
 
 // MARK: - Scope Tests
 
-final class ScopeTests: XCTestCase {
+@Suite
+struct ScopeTests {
+    @Test
     func testBaseScopeLookupReturnsLocalSymbol() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -149,9 +165,10 @@ final class ScopeTests: XCTestCase {
         scope.insert(id)
 
         let result = scope.lookup(name)
-        XCTAssertEqual(result, [id])
+        #expect(result == [id])
     }
 
+    @Test
     func testBaseScopeLookupDelegatesToParent() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -163,9 +180,10 @@ final class ScopeTests: XCTestCase {
         parent.insert(id)
 
         let result = child.lookup(name)
-        XCTAssertEqual(result, [id])
+        #expect(result == [id])
     }
 
+    @Test
     func testBaseScopeLocalShadowsParent() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -179,16 +197,18 @@ final class ScopeTests: XCTestCase {
         child.insert(childID)
 
         let result = child.lookup(name)
-        XCTAssertEqual(result, [childID])
+        #expect(result == [childID])
     }
 
+    @Test
     func testBaseScopeLookupReturnsEmptyForUnknown() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let scope = FileScope(parent: nil, symbols: symbols)
-        XCTAssertEqual(scope.lookup(interner.intern("unknown")), [])
+        #expect(scope.lookup(interner.intern("unknown")) == [])
     }
 
+    @Test
     func testInsertWithAlias() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -199,10 +219,11 @@ final class ScopeTests: XCTestCase {
         let id = symbols.define(kind: .class, name: originalName, fqName: [originalName], declSite: nil, visibility: .public)
         scope.insertWithAlias(id, asName: alias)
 
-        XCTAssertEqual(scope.lookup(alias), [id])
-        XCTAssertEqual(scope.lookup(originalName), [])
+        #expect(scope.lookup(alias) == [id])
+        #expect(scope.lookup(originalName) == [])
     }
 
+    @Test
     func testInsertDeduplicates() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -213,9 +234,10 @@ final class ScopeTests: XCTestCase {
         scope.insert(id)
         scope.insert(id)
 
-        XCTAssertEqual(scope.lookup(name), [id])
+        #expect(scope.lookup(name) == [id])
     }
 
+    @Test
     func testClassMemberScopeReceiverType() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -224,62 +246,70 @@ final class ScopeTests: XCTestCase {
         let thisType = types.make(.classType(ClassType(classSymbol: ownerSym)))
 
         let scope = ClassMemberScope(parent: nil, symbols: symbols, ownerSymbol: ownerSym, thisType: thisType)
-        XCTAssertEqual(scope.receiverType, thisType)
-        XCTAssertEqual(scope.owner, ownerSym)
+        #expect(scope.receiverType == thisType)
+        #expect(scope.owner == ownerSym)
     }
 
+    @Test
     func testClassMemberScopeNilReceiverType() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let ownerSym = symbols.define(kind: .object, name: interner.intern("O"), fqName: [interner.intern("O")], declSite: nil, visibility: .public)
         let scope = ClassMemberScope(parent: nil, symbols: symbols, ownerSymbol: ownerSym, thisType: nil)
-        XCTAssertNil(scope.receiverType)
+        #expect(scope.receiverType == nil)
     }
 
+    @Test
     func testInsertWithInvalidIDIsNoOp() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let scope = FileScope(parent: nil, symbols: symbols)
         scope.insert(SymbolID.invalid)
-        XCTAssertTrue(scope.lookup(interner.intern("anything")).isEmpty,
-                      "inserting SymbolID.invalid must leave scope state unchanged")
+        #expect(scope.lookup(interner.intern("anything")).isEmpty,
+                "inserting SymbolID.invalid must leave scope state unchanged")
     }
 }
 
 // MARK: - SemaModule Tests
 
-final class SemaModuleTests: XCTestCase {
+@Suite
+struct SemaModuleTests {
+    @Test
     func testSemaModuleInit() {
         let (sema, symbols, types, _) = makeSemaModule()
-        XCTAssertTrue(sema.symbols === symbols)
-        XCTAssertTrue(sema.types === types)
-        XCTAssertTrue(sema.bindings.exprTypes.isEmpty)
-        XCTAssertTrue(sema.diagnostics.diagnostics.isEmpty)
+        #expect(sema.symbols === symbols)
+        #expect(sema.types === types)
+        #expect(sema.bindings.exprTypes.isEmpty)
+        #expect(sema.diagnostics.diagnostics.isEmpty)
     }
 
+    @Test
     func testSemaModuleImportedInlineFunctionsDefault() {
         let (sema, _, _, _) = makeSemaModule()
-        XCTAssertTrue(sema.importedInlineFunctions.isEmpty)
+        #expect(sema.importedInlineFunctions.isEmpty)
     }
 }
 
 // MARK: - FunctionSignature Tests
 
-final class FunctionSignatureTests: XCTestCase {
+@Suite
+struct FunctionSignatureTests {
+    @Test
     func testFunctionSignatureDefaults() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
         let sig = FunctionSignature(parameterTypes: [intType], returnType: intType)
-        XCTAssertNil(sig.receiverType)
-        XCTAssertFalse(sig.isSuspend)
-        XCTAssertTrue(sig.valueParameterSymbols.isEmpty)
-        XCTAssertTrue(sig.valueParameterHasDefaultValues.isEmpty)
-        XCTAssertTrue(sig.valueParameterIsVararg.isEmpty)
-        XCTAssertTrue(sig.typeParameterSymbols.isEmpty)
-        XCTAssertTrue(sig.reifiedTypeParameterIndices.isEmpty)
-        XCTAssertTrue(sig.typeParameterUpperBounds.isEmpty)
+        #expect(sig.receiverType == nil)
+        #expect(sig.isSuspend == false)
+        #expect(sig.valueParameterSymbols.isEmpty)
+        #expect(sig.valueParameterHasDefaultValues.isEmpty)
+        #expect(sig.valueParameterIsVararg.isEmpty)
+        #expect(sig.typeParameterSymbols.isEmpty)
+        #expect(sig.reifiedTypeParameterIndices.isEmpty)
+        #expect(sig.typeParameterUpperBounds.isEmpty)
     }
 
+    @Test
     func testFunctionSignatureFullInit() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
@@ -295,16 +325,17 @@ final class FunctionSignatureTests: XCTestCase {
             reifiedTypeParameterIndices: [0],
             typeParameterUpperBounds: [intType]
         )
-        XCTAssertEqual(sig.receiverType, intType)
-        XCTAssertTrue(sig.isSuspend)
-        XCTAssertEqual(sig.valueParameterSymbols.count, 1)
-        XCTAssertEqual(sig.valueParameterHasDefaultValues, [true])
-        XCTAssertEqual(sig.valueParameterIsVararg, [false])
-        XCTAssertEqual(sig.typeParameterSymbols.count, 1)
-        XCTAssertEqual(sig.reifiedTypeParameterIndices, [0])
-        XCTAssertEqual(sig.typeParameterUpperBounds, [intType])
+        #expect(sig.receiverType == intType)
+        #expect(sig.isSuspend)
+        #expect(sig.valueParameterSymbols.count == 1)
+        #expect(sig.valueParameterHasDefaultValues == [true])
+        #expect(sig.valueParameterIsVararg == [false])
+        #expect(sig.typeParameterSymbols.count == 1)
+        #expect(sig.reifiedTypeParameterIndices == [0])
+        #expect(sig.typeParameterUpperBounds == [intType])
     }
 
+    @Test
     func testFunctionSignatureRetainsMultipleUpperBoundsList() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
@@ -316,14 +347,16 @@ final class FunctionSignatureTests: XCTestCase {
             typeParameterUpperBoundsList: [[intType, boolType], []]
         )
 
-        XCTAssertEqual(sig.typeParameterUpperBoundsList, [[intType, boolType], []])
-        XCTAssertEqual(sig.typeParameterUpperBounds, [intType, nil])
+        #expect(sig.typeParameterUpperBoundsList == [[intType, boolType], []])
+        #expect(sig.typeParameterUpperBounds == [intType, nil])
     }
 }
 
 // MARK: - CallBinding Tests
 
-final class CallBindingTests: XCTestCase {
+@Suite
+struct CallBindingTests {
+    @Test
     func testCallBindingInit() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
@@ -332,8 +365,8 @@ final class CallBindingTests: XCTestCase {
             substitutedTypeArguments: [intType],
             parameterMapping: [0: 0, 1: 1]
         )
-        XCTAssertEqual(binding.chosenCallee, SymbolID(rawValue: 0))
-        XCTAssertEqual(binding.substitutedTypeArguments, [intType])
-        XCTAssertEqual(binding.parameterMapping, [0: 0, 1: 1])
+        #expect(binding.chosenCallee == SymbolID(rawValue: 0))
+        #expect(binding.substitutedTypeArguments == [intType])
+        #expect(binding.parameterMapping == [0: 0, 1: 1])
     }
 }

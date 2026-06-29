@@ -1,9 +1,18 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class BlockExpressionTests: XCTestCase {
+// MARK: - Block Expression Multi-Statement Evaluation Tests
 
+// Covers: P5-47 — block expression with multiple statements + trailing expression
+// Spec references: J6, J9, J11
+
+@Suite
+struct BlockExpressionTests {
+    // MARK: - AST: single expression block always produces blockExpr
+
+    @Test
     func testSingleExpressionBlockProducesBlockExprNode() throws {
         let source = """
         fun main(): Int {
@@ -13,16 +22,19 @@ final class BlockExpressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             // After removing single-expression re-parse, even { 42 } should be a blockExpr
             let foundBlockExpr = ast.arena.exprs.contains { expr in
                 if case .blockExpr = expr { return true }
                 return false
             }
-            XCTAssertTrue(foundBlockExpr, "Expected at least one blockExpr in AST")
+            #expect(foundBlockExpr, "Expected at least one blockExpr in AST")
         }
     }
 
+    // MARK: - if branch with multi-statement block (return pattern)
+
+    @Test
     func testIfBranchMultiStatementBlockReturnPattern() throws {
         let source = """
         fun compute(): Int {
@@ -39,13 +51,16 @@ final class BlockExpressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.bindings.exprTypes.isEmpty))
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - if branch with multi-statement block and String trailing expr (return pattern)
+
+    @Test
     func testIfBranchMultiStatementBlockStringTrailingExpr() throws {
         let source = """
         fun greet(): String {
@@ -62,10 +77,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - when branch with multi-statement block
+
+    @Test
     func testWhenBranchMultiStatementBlockInfersTrailingExprType() throws {
         let source = """
         fun classify(x: Int): Int {
@@ -85,13 +103,16 @@ final class BlockExpressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.bindings.exprTypes.isEmpty))
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - try/catch with multi-statement block
+
+    @Test
     func testTryCatchMultiStatementBlockInfersTrailingExprType() throws {
         let source = """
         fun compute(): Int {
@@ -108,13 +129,16 @@ final class BlockExpressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            #expect(!(sema.bindings.exprTypes.isEmpty))
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - Empty block has Unit type
+
+    @Test
     func testEmptyBlockHasUnitType() throws {
         let source = """
         fun doNothing(): Unit {
@@ -128,10 +152,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - Block expression with only declarations (no trailing expr -> Unit)
+
+    @Test
     func testBlockWithOnlyDeclarationsHasUnitType() throws {
         let source = """
         fun main(): Unit {
@@ -145,10 +172,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - Multi-statement block with three val declarations and trailing expr
+
+    @Test
     func testThreeValDeclarationsAndTrailingExpr() throws {
         let source = """
         fun compute(): Int {
@@ -167,10 +197,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - Multi-statement block with var reassignment (return pattern)
+
+    @Test
     func testMultiStatementBlockWithVarReassignment() throws {
         let source = """
         fun compute(): Int {
@@ -188,10 +221,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - if branch with single val and trailing expr (return pattern)
+
+    @Test
     func testIfBranchSingleValAndTrailingExpr() throws {
         let source = """
         fun compute(): Int {
@@ -208,10 +244,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - try/catch both branches with multi-statement blocks
+
+    @Test
     func testTryCatchBothBranchesMultiStatement() throws {
         let source = """
         fun compute(): Int {
@@ -230,10 +269,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - when expression-body with multi-statement branches
+
+    @Test
     func testWhenExpressionBodyMultiStatementBranches() throws {
         let source = """
         fun classify(x: Int): Int = when (x) {
@@ -256,10 +298,13 @@ final class BlockExpressionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
+            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
         }
     }
 
+    // MARK: - AST structure: blockExpr has statements and trailing expression
+
+    @Test
     func testBlockExprASTStructure() throws {
         let source = """
         fun compute(): Int {
@@ -275,7 +320,7 @@ final class BlockExpressionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             // Find a blockExpr with non-empty statements and a trailing expression
             var foundMultiStmtBlock = false
             for expr in ast.arena.exprs {
@@ -286,7 +331,8 @@ final class BlockExpressionTests: XCTestCase {
                     break
                 }
             }
-            XCTAssertTrue(foundMultiStmtBlock, "Expected a blockExpr with statements and trailing expression")
+            #expect(foundMultiStmtBlock, "Expected a blockExpr with statements and trailing expression")
         }
     }
 }
+#endif

@@ -1,10 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class CallableRefTypeIdentityTests: XCTestCase {
+/// REFL-003: Tests for KFunction / KProperty type identity on callable references.
+@Suite @MainActor
+struct CallableRefTypeIdentityTests {
+    // MARK: - Sema binding tests
 
-    func testSemaBindsFunctionRefKindForCallableReference() throws {
+    @Test func testSemaBindsFunctionRefKindForCallableReference() throws {
         let source = """
         fun inc(x: Int): Int = x + 1
         fun main() {
@@ -14,18 +18,18 @@ final class CallableRefTypeIdentityTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
 
         let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        XCTAssertEqual(refKind, .functionRef, "::inc should be marked as a function reference.")
+        #expect(refKind == .functionRef, "::inc should be marked as a function reference.")
     }
 
-    func testSemaBindsPropertyRefKindForPropertyCallableReference() throws {
+    @Test func testSemaBindsPropertyRefKindForPropertyCallableReference() throws {
         let source = """
         val answer: Int = 42
         fun main() {
@@ -35,18 +39,18 @@ final class CallableRefTypeIdentityTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
 
         let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        XCTAssertEqual(refKind, .propertyRef, "::answer should be marked as a property reference.")
+        #expect(refKind == .propertyRef, "::answer should be marked as a property reference.")
     }
 
-    func testSemaBindsFunctionRefKindForBoundCallableReference() throws {
+    @Test func testSemaBindsFunctionRefKindForBoundCallableReference() throws {
         let source = """
         class Box {
             fun value(): Int = 42
@@ -58,18 +62,18 @@ final class CallableRefTypeIdentityTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
 
         let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        XCTAssertEqual(refKind, .functionRef, "box::value should be marked as a function reference.")
+        #expect(refKind == .functionRef, "box::value should be marked as a function reference.")
     }
 
-    func testSemaBindsFunctionRefKindForOverloadedCallableReference() throws {
+    @Test func testSemaBindsFunctionRefKindForOverloadedCallableReference() throws {
         let source = """
         fun target(x: Int): Int = x + 1
         fun target(x: String): String = x
@@ -80,18 +84,20 @@ final class CallableRefTypeIdentityTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
-        let callableRefExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
             if case .callableRef = expr { return true }
             return false
         })
 
         let refKind = sema.bindings.callableRefKind(for: callableRefExprID)
-        XCTAssertEqual(refKind, .functionRef, "Overloaded ::target should be marked as a function reference.")
+        #expect(refKind == .functionRef, "Overloaded ::target should be marked as a function reference.")
     }
 
-    func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
+    // MARK: - KIR lowering tests
+
+    @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
         let source = """
         fun inc(x: Int): Int = x + 1
         fun main(): Int {
@@ -104,18 +110,18 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_callable_ref_tag_kfunction"),
                 "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
             )
         }
     }
 
-    func testKIREmitsKPropertyTagForPropertyCallableRef() throws {
+    @Test func testKIREmitsKPropertyTagForPropertyCallableRef() throws {
         let source = """
         val answer: Int = 42
         fun main(): Int {
@@ -128,23 +134,26 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
+            // Property callable refs are lowered inline in main.
             let allCallees = module.arena.declarations.flatMap { decl -> [String] in
                 guard case let .function(function) = decl else { return [] }
                 return extractCallees(from: function.body, interner: ctx.interner)
             }
-            XCTAssertTrue(
+            // Verify the property ref is tagged with the KProperty tag.
+            #expect(
                 allCallees.contains("kk_callable_ref_tag_kproperty"),
                 "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
             )
-            XCTAssertFalse(
-                allCallees.contains("kk_callable_ref_tag_kfunction"),
+            // Verify it does not accidentally tag as kfunction.
+            #expect(
+                !(allCallees.contains("kk_callable_ref_tag_kfunction")),
                 "Property callable ref should NOT be tagged as KFunction."
             )
         }
     }
 
-    func testKIRKFunctionTagIncludesCorrectNameAndArity() throws {
+    @Test func testKIRKFunctionTagIncludesCorrectNameAndArity() throws {
         let source = """
         fun add(a: Int, b: Int): Int = a + b
         fun main(): Int {
@@ -157,9 +166,10 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
+            // Find the tagging call and verify its arguments.
             let tagCall = mainBody.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
@@ -167,39 +177,44 @@ final class CallableRefTypeIdentityTests: XCTestCase {
                 return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
             }
             guard case let .call(_, _, arguments, _, _, _, _, _) = tagCall else {
-                XCTFail("Expected kk_callable_ref_tag_kfunction call in main body.")
+                Issue.record("Expected kk_callable_ref_tag_kfunction call in main body.")
                 return
             }
 
-            XCTAssertEqual(arguments.count, 4)
+            // arguments[0] = callable value, arguments[1] = name, arguments[2] = arity,
+            // arguments[3] = isSuspend flag.
+            #expect(arguments.count == 4)
 
+            // Verify the name argument is the string "add".
             if let nameExpr = module.arena.expr(arguments[1]),
                case let .stringLiteral(nameInterned) = nameExpr
             {
-                XCTAssertEqual(ctx.interner.resolve(nameInterned), "add")
+                #expect(ctx.interner.resolve(nameInterned) == "add")
             } else {
-                XCTFail("Second argument to tag call should be string literal 'add'.")
+                Issue.record("Second argument to tag call should be string literal 'add'.")
             }
 
+            // Verify the arity argument is 2 (two value parameters).
             if let arityExpr = module.arena.expr(arguments[2]),
                case let .intLiteral(arityValue) = arityExpr
             {
-                XCTAssertEqual(arityValue, 2, "::add has arity 2 (a, b).")
+                #expect(arityValue == 2, "::add has arity 2 (a, b).")
             } else {
-                XCTFail("Third argument to tag call should be int literal for arity.")
+                Issue.record("Third argument to tag call should be int literal for arity.")
             }
 
+            // Non-suspend callable refs should emit an isSuspend flag of 0.
             if let suspendExpr = module.arena.expr(arguments[3]),
                case let .intLiteral(isSuspendValue) = suspendExpr
             {
-                XCTAssertEqual(isSuspendValue, 0, "::add is not a suspend function.")
+                #expect(isSuspendValue == 0, "::add is not a suspend function.")
             } else {
-                XCTFail("Fourth argument to tag call should be int literal for isSuspend.")
+                Issue.record("Fourth argument to tag call should be int literal for isSuspend.")
             }
         }
     }
 
-    func testKIRKFunctionTagForBoundCallableRef() throws {
+    @Test func testKIRKFunctionTagForBoundCallableRef() throws {
         let source = """
         class Box {
             fun plus(x: Int): Int = x
@@ -214,18 +229,20 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_callable_ref_tag_kfunction"),
                 "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
             )
         }
     }
 
-    func testCallableRefTagCallsAreNonThrowing() throws {
+    // MARK: - Non-throwing verification
+
+    @Test func testCallableRefTagCallsAreNonThrowing() throws {
         let source = """
         fun inc(x: Int): Int = x + 1
         fun main(): Int {
@@ -238,7 +255,7 @@ final class CallableRefTypeIdentityTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let tagCall = mainBody.first { instruction in
@@ -248,10 +265,11 @@ final class CallableRefTypeIdentityTests: XCTestCase {
                 return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
             }
             guard case let .call(_, _, _, _, canThrow, _, _, _) = tagCall else {
-                XCTFail("Expected kk_callable_ref_tag_kfunction call.")
+                Issue.record("Expected kk_callable_ref_tag_kfunction call.")
                 return
             }
-            XCTAssertFalse(canThrow, "Callable ref tagging call should be non-throwing.")
+            #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
         }
     }
 }
+#endif

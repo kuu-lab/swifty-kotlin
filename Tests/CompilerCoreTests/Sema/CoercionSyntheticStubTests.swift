@@ -1,9 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class CoercionSyntheticStubTests: XCTestCase {
+@Suite
+struct CoercionSyntheticStubTests {
 
     // MARK: - Helpers
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (#require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
 
     private func coercionSymbols(
         for member: String,
@@ -22,11 +34,9 @@ final class CoercionSyntheticStubTests: XCTestCase {
         line: UInt = #line
     ) throws -> TypeID {
         let fqName = ["kotlin", "ranges", name].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
-            "Expected synthetic range type \(name)",
-            file: file,
-            line: line
+            "Expected synthetic range type \(name)"
         )
         return sema.types.make(.classType(ClassType(
             classSymbol: symbol,
@@ -53,13 +63,10 @@ final class CoercionSyntheticStubTests: XCTestCase {
                 && sig.parameterTypes == parameterTypes
                 && sig.returnType == returnType
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected \(expectedLink) coercion stub", file: file, line: line)
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: sym),
-            expectedLink,
-            "\(expectedLink) should be registered for \(member)",
-            file: file,
-            line: line
+        let sym = try #require(matchingSymbol, "Expected \(expectedLink) coercion stub")
+        #expect(
+            sema.symbols.externalLinkName(for: sym) == expectedLink,
+            "\(expectedLink) should be registered for \(member)"
         )
     }
 
@@ -67,6 +74,7 @@ final class CoercionSyntheticStubTests: XCTestCase {
     // Int coercion stubs rather than registering separate symbols.
     // MARK: - Int coercion stubs
 
+    @Test
     func testIntCoercionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -84,15 +92,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
                     && sig.parameterTypes == entry.paramTypes
                     && sig.returnType == sema.types.intType
             }
-            let sym = try XCTUnwrap(matchingSymbol, "Expected Int.\(entry.member) coercion stub")
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: sym),
-                entry.link,
+            let sym = try #require(matchingSymbol, "Expected Int.\(entry.member) coercion stub")
+            #expect(
+                sema.symbols.externalLinkName(for: sym) == entry.link,
                 "Int.\(entry.member) should link to \(entry.link)"
             )
         }
     }
 
+    @Test
     func testIntCoerceInSignatureHasTwoIntParameters() throws {
         let (sema, interner) = try makeSema()
 
@@ -102,14 +110,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.intType
                 && sig.parameterTypes == [sema.types.intType, sema.types.intType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Int.coerceIn stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Int.coerceIn stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.intType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
-        XCTAssertEqual(sig.returnType, sema.types.intType)
+        #expect(sig.receiverType == sema.types.intType)
+        #expect(sig.parameterTypes == [sema.types.intType, sema.types.intType])
+        #expect(sig.returnType == sema.types.intType)
     }
 
+    @Test
     func testIntCoerceAtLeastSignatureHasOneIntParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -119,14 +128,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.intType
                 && sig.parameterTypes == [sema.types.intType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Int.coerceAtLeast stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Int.coerceAtLeast stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.intType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.intType])
-        XCTAssertEqual(sig.returnType, sema.types.intType)
+        #expect(sig.receiverType == sema.types.intType)
+        #expect(sig.parameterTypes == [sema.types.intType])
+        #expect(sig.returnType == sema.types.intType)
     }
 
+    @Test
     func testIntCoerceAtMostSignatureHasOneIntParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -136,16 +146,17 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.intType
                 && sig.parameterTypes == [sema.types.intType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Int.coerceAtMost stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Int.coerceAtMost stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.intType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.intType])
-        XCTAssertEqual(sig.returnType, sema.types.intType)
+        #expect(sig.receiverType == sema.types.intType)
+        #expect(sig.parameterTypes == [sema.types.intType])
+        #expect(sig.returnType == sema.types.intType)
     }
 
     // MARK: - Long coercion stubs
 
+    @Test
     func testLongCoercionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -163,15 +174,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
                     && sig.parameterTypes == entry.paramTypes
                     && sig.returnType == sema.types.longType
             }
-            let sym = try XCTUnwrap(matchingSymbol, "Expected Long.\(entry.member) coercion stub")
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: sym),
-                entry.link,
+            let sym = try #require(matchingSymbol, "Expected Long.\(entry.member) coercion stub")
+            #expect(
+                sema.symbols.externalLinkName(for: sym) == entry.link,
                 "Long.\(entry.member) should link to \(entry.link)"
             )
         }
     }
 
+    @Test
     func testLongCoerceInSignatureHasTwoLongParameters() throws {
         let (sema, interner) = try makeSema()
 
@@ -181,14 +192,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.longType
                 && sig.parameterTypes == [sema.types.longType, sema.types.longType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Long.coerceIn stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Long.coerceIn stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.longType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.longType, sema.types.longType])
-        XCTAssertEqual(sig.returnType, sema.types.longType)
+        #expect(sig.receiverType == sema.types.longType)
+        #expect(sig.parameterTypes == [sema.types.longType, sema.types.longType])
+        #expect(sig.returnType == sema.types.longType)
     }
 
+    @Test
     func testLongCoerceAtLeastSignatureHasOneLongParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -198,14 +210,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.longType
                 && sig.parameterTypes == [sema.types.longType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Long.coerceAtLeast stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Long.coerceAtLeast stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.longType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.longType])
-        XCTAssertEqual(sig.returnType, sema.types.longType)
+        #expect(sig.receiverType == sema.types.longType)
+        #expect(sig.parameterTypes == [sema.types.longType])
+        #expect(sig.returnType == sema.types.longType)
     }
 
+    @Test
     func testLongCoerceAtMostSignatureHasOneLongParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -215,16 +228,17 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.longType
                 && sig.parameterTypes == [sema.types.longType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Long.coerceAtMost stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Long.coerceAtMost stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.longType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.longType])
-        XCTAssertEqual(sig.returnType, sema.types.longType)
+        #expect(sig.receiverType == sema.types.longType)
+        #expect(sig.parameterTypes == [sema.types.longType])
+        #expect(sig.returnType == sema.types.longType)
     }
 
     // MARK: - Double coercion stubs
 
+    @Test
     func testDoubleCoercionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -242,15 +256,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
                     && sig.parameterTypes == entry.paramTypes
                     && sig.returnType == sema.types.doubleType
             }
-            let sym = try XCTUnwrap(matchingSymbol, "Expected Double.\(entry.member) coercion stub")
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: sym),
-                entry.link,
+            let sym = try #require(matchingSymbol, "Expected Double.\(entry.member) coercion stub")
+            #expect(
+                sema.symbols.externalLinkName(for: sym) == entry.link,
                 "Double.\(entry.member) should link to \(entry.link)"
             )
         }
     }
 
+    @Test
     func testDoubleCoerceInSignatureHasTwoDoubleParameters() throws {
         let (sema, interner) = try makeSema()
 
@@ -260,14 +274,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.doubleType
                 && sig.parameterTypes == [sema.types.doubleType, sema.types.doubleType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Double.coerceIn stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Double.coerceIn stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.doubleType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.doubleType, sema.types.doubleType])
-        XCTAssertEqual(sig.returnType, sema.types.doubleType)
+        #expect(sig.receiverType == sema.types.doubleType)
+        #expect(sig.parameterTypes == [sema.types.doubleType, sema.types.doubleType])
+        #expect(sig.returnType == sema.types.doubleType)
     }
 
+    @Test
     func testDoubleCoerceAtLeastSignatureHasOneDoubleParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -277,14 +292,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.doubleType
                 && sig.parameterTypes == [sema.types.doubleType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Double.coerceAtLeast stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Double.coerceAtLeast stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.doubleType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.doubleType])
-        XCTAssertEqual(sig.returnType, sema.types.doubleType)
+        #expect(sig.receiverType == sema.types.doubleType)
+        #expect(sig.parameterTypes == [sema.types.doubleType])
+        #expect(sig.returnType == sema.types.doubleType)
     }
 
+    @Test
     func testDoubleCoerceAtMostSignatureHasOneDoubleParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -294,16 +310,17 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.doubleType
                 && sig.parameterTypes == [sema.types.doubleType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Double.coerceAtMost stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Double.coerceAtMost stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.doubleType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.doubleType])
-        XCTAssertEqual(sig.returnType, sema.types.doubleType)
+        #expect(sig.receiverType == sema.types.doubleType)
+        #expect(sig.parameterTypes == [sema.types.doubleType])
+        #expect(sig.returnType == sema.types.doubleType)
     }
 
     // MARK: - Float coercion stubs
 
+    @Test
     func testFloatCoercionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -321,15 +338,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
                     && sig.parameterTypes == entry.paramTypes
                     && sig.returnType == sema.types.floatType
             }
-            let sym = try XCTUnwrap(matchingSymbol, "Expected Float.\(entry.member) coercion stub")
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: sym),
-                entry.link,
+            let sym = try #require(matchingSymbol, "Expected Float.\(entry.member) coercion stub")
+            #expect(
+                sema.symbols.externalLinkName(for: sym) == entry.link,
                 "Float.\(entry.member) should link to \(entry.link)"
             )
         }
     }
 
+    @Test
     func testFloatCoerceInSignatureHasTwoFloatParameters() throws {
         let (sema, interner) = try makeSema()
 
@@ -339,14 +356,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.floatType
                 && sig.parameterTypes == [sema.types.floatType, sema.types.floatType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Float.coerceIn stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Float.coerceIn stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.floatType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.floatType, sema.types.floatType])
-        XCTAssertEqual(sig.returnType, sema.types.floatType)
+        #expect(sig.receiverType == sema.types.floatType)
+        #expect(sig.parameterTypes == [sema.types.floatType, sema.types.floatType])
+        #expect(sig.returnType == sema.types.floatType)
     }
 
+    @Test
     func testFloatCoerceAtLeastSignatureHasOneFloatParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -356,14 +374,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.floatType
                 && sig.parameterTypes == [sema.types.floatType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Float.coerceAtLeast stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Float.coerceAtLeast stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.floatType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.floatType])
-        XCTAssertEqual(sig.returnType, sema.types.floatType)
+        #expect(sig.receiverType == sema.types.floatType)
+        #expect(sig.parameterTypes == [sema.types.floatType])
+        #expect(sig.returnType == sema.types.floatType)
     }
 
+    @Test
     func testFloatCoerceAtMostSignatureHasOneFloatParameter() throws {
         let (sema, interner) = try makeSema()
 
@@ -373,16 +392,17 @@ final class CoercionSyntheticStubTests: XCTestCase {
             return sig.receiverType == sema.types.floatType
                 && sig.parameterTypes == [sema.types.floatType]
         }
-        let sym = try XCTUnwrap(matchingSymbol, "Expected Float.coerceAtMost stub")
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sym = try #require(matchingSymbol, "Expected Float.coerceAtMost stub")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
-        XCTAssertEqual(sig.receiverType, sema.types.floatType)
-        XCTAssertEqual(sig.parameterTypes, [sema.types.floatType])
-        XCTAssertEqual(sig.returnType, sema.types.floatType)
+        #expect(sig.receiverType == sema.types.floatType)
+        #expect(sig.parameterTypes == [sema.types.floatType])
+        #expect(sig.returnType == sema.types.floatType)
     }
 
     // MARK: - Unsigned coercion stubs
 
+    @Test
     func testUnsignedCoercionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -414,6 +434,7 @@ final class CoercionSyntheticStubTests: XCTestCase {
         }
     }
 
+    @Test
     func testUnsignedRangeCoerceInDoesNotRegisterSyntheticStubs() throws {
         let (sema, interner) = try makeSema()
         let uintRangeType = try nominalRangeType(named: "UIntRange", sema: sema, interner: interner)
@@ -426,14 +447,15 @@ final class CoercionSyntheticStubTests: XCTestCase {
                 || (sig.receiverType == sema.types.ulongType && sig.parameterTypes == [ulongRangeType])
         }
 
-        XCTAssertFalse(
-            hasRangeStub,
+        #expect(
+            !hasRangeStub,
             "UInt/ULong coerceIn(range) should be handled by the type-checker range fast path, not synthetic stubs"
         )
     }
 
     // MARK: - Cross-type: all numeric types register distinct overloads
 
+    @Test
     func testAllNumericTypesRegisterDistinctCoerceInOverloads() throws {
         let (sema, interner) = try makeSema()
 
@@ -458,13 +480,13 @@ final class CoercionSyntheticStubTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(
-            foundReceiverTypes,
-            expectedReceiverTypes,
+        #expect(
+            foundReceiverTypes == expectedReceiverTypes,
             "coerceIn should have stubs for Int, Long, Double, Float, UByte, UShort, UInt, and ULong"
         )
     }
 
+    @Test
     func testAllNumericTypesRegisterDistinctCoerceAtLeastOverloads() throws {
         let (sema, interner) = try makeSema()
 
@@ -489,13 +511,13 @@ final class CoercionSyntheticStubTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(
-            foundReceiverTypes,
-            expectedReceiverTypes,
+        #expect(
+            foundReceiverTypes == expectedReceiverTypes,
             "coerceAtLeast should have stubs for Int, Long, Double, Float, UByte, UShort, UInt, and ULong"
         )
     }
 
+    @Test
     func testAllNumericTypesRegisterDistinctCoerceAtMostOverloads() throws {
         let (sema, interner) = try makeSema()
 
@@ -520,23 +542,24 @@ final class CoercionSyntheticStubTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(
-            foundReceiverTypes,
-            expectedReceiverTypes,
+        #expect(
+            foundReceiverTypes == expectedReceiverTypes,
             "coerceAtMost should have stubs for Int, Long, Double, Float, UByte, UShort, UInt, and ULong"
         )
     }
 
     // MARK: - Package parenting
 
+    @Test
     func testKotlinRangesPackageIsParentedUnderKotlinPackage() throws {
         let (sema, interner) = try makeSema()
 
-        _ = try XCTUnwrap(
+        _ = try #require(
             sema.symbols.lookup(fqName: [interner.intern("kotlin")])
         )
-        _ = try XCTUnwrap(
+        _ = try #require(
             sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("ranges")])
         )
     }
 }
+#endif

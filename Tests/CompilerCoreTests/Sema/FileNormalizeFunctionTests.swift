@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-FN-024: `fun java.io.File.normalize(): File`
 ///
@@ -9,11 +10,12 @@ import XCTest
 /// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFileIOStubs.swift`)
 /// resolves through Sema and binds to the runtime helper `kk_file_normalize`
 /// listed in `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
-final class FileNormalizeFunctionTests: XCTestCase {
+@Suite
+struct FileNormalizeFunctionTests {
 
     // MARK: - Basic resolution
 
-    func testFileNormalizeResolves() throws {
+    @Test func testFileNormalizeResolves() throws {
         let source = """
         import java.io.File
 
@@ -30,7 +32,7 @@ final class FileNormalizeFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "File.normalize() should resolve cleanly, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -39,7 +41,7 @@ final class FileNormalizeFunctionTests: XCTestCase {
 
     // MARK: - Return type is File
 
-    func testFileNormalizeCallExpressionIsTypedAsFile() throws {
+    @Test func testFileNormalizeCallExpressionIsTypedAsFile() throws {
         let source = """
         import java.io.File
 
@@ -52,21 +54,21 @@ final class FileNormalizeFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "File.normalize() should type-check as File: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
-            let fileSymbol = try XCTUnwrap(
+            let sema = try #require(ctx.sema)
+            let fileSymbol = try #require(
                 sema.symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
             )
             let fileType = sema.types.make(
                 .classType(ClassType(classSymbol: fileSymbol, args: [], nullability: .nonNull))
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
             let normalizeCallExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
                 let exprID = ExprID(rawValue: Int32(index))
                 guard let expr = ast.arena.expr(exprID),
@@ -77,11 +79,10 @@ final class FileNormalizeFunctionTests: XCTestCase {
                 }
                 return exprID
             }
-            XCTAssertFalse(normalizeCallExprs.isEmpty, "Expected at least one normalize call expression")
+            #expect(!normalizeCallExprs.isEmpty, "Expected at least one normalize call expression")
             for callExpr in normalizeCallExprs {
-                XCTAssertEqual(
-                    sema.bindings.exprTypes[callExpr],
-                    fileType,
+                #expect(
+                    sema.bindings.exprTypes[callExpr] == fileType,
                     "File.normalize() call expression must be typed as File"
                 )
             }
@@ -90,17 +91,17 @@ final class FileNormalizeFunctionTests: XCTestCase {
 
     // MARK: - Symbol registration and runtime link name
 
-    func testFileNormalizeSignatureAndRuntimeLinkName() throws {
+    @Test func testFileNormalizeSignatureAndRuntimeLinkName() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let fileSymbol = try XCTUnwrap(
+            let fileSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "File"].map(interner.intern))
             )
             let fileType = types.make(
@@ -111,18 +112,18 @@ final class FileNormalizeFunctionTests: XCTestCase {
                 fqName: ["java", "io", "File", "normalize"].map(interner.intern)
             )
 
-            let normalizeOverload = try XCTUnwrap(candidates.first { symbolID in
+            let normalizeOverload = try #require(candidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == fileType
                     && signature.parameterTypes.isEmpty
                     && signature.returnType == fileType
             }, "Expected a normalize overload with () -> File signature")
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: normalizeOverload),
-                "kk_file_normalize",
+            #expect(
+                symbols.externalLinkName(for: normalizeOverload) == "kk_file_normalize",
                 "File.normalize() should bind to runtime helper kk_file_normalize"
             )
         }
     }
 }
+#endif

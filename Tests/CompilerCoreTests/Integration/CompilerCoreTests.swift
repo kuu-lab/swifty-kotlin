@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class CompilerCoreTests: XCTestCase {
-    func testLexerRecognizesQuestionQuestionSymbol() {
+@Suite struct CompilerCoreTests {
+    @Test func testLexerRecognizesQuestionQuestionSymbol() {
         let source = Data("a ?? b".utf8)
         let diagnostics = DiagnosticEngine()
         let interner = StringInterner()
@@ -15,13 +16,13 @@ final class CompilerCoreTests: XCTestCase {
         )
 
         let tokens = lexer.lexAll()
-        XCTAssertTrue(tokens.contains { token in
+        #expect(tokens.contains { token in
             token.kind == .symbol(.questionQuestion)
         })
-        XCTAssertFalse(diagnostics.hasError)
+        #expect(!(diagnostics.hasError))
     }
 
-    func testSemaBindsSimpleCallExpression() throws {
+    @Test func testSemaBindsSimpleCallExpression() throws {
         let source = """
         fun foo(a: Int) = a
         fun bar() = foo(1)
@@ -29,11 +30,11 @@ final class CompilerCoreTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let sema = try XCTUnwrap(ctx.sema)
-        XCTAssertFalse(sema.bindings.callBindings.isEmpty)
+        let sema = try #require(ctx.sema)
+        #expect(!(sema.bindings.callBindings.isEmpty))
     }
 
-    func testWhenExhaustivenessDiagnosticForBooleanWithoutElse() throws {
+    @Test func testWhenExhaustivenessDiagnosticForBooleanWithoutElse() throws {
         let source = """
         fun test() {
             when (true) {
@@ -47,7 +48,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
     }
 
-    func testWhenExhaustivenessDiagnosticForNullableBooleanWithoutNullBranch() throws {
+    @Test func testWhenExhaustivenessDiagnosticForNullableBooleanWithoutNullBranch() throws {
         let source = """
         fun test(x: Boolean?) {
             when (x) {
@@ -62,7 +63,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
     }
 
-    func testWhenExhaustivenessAcceptsNullableBooleanWithNullBranch() throws {
+    @Test func testWhenExhaustivenessAcceptsNullableBooleanWithNullBranch() throws {
         let source = """
         fun test(x: Boolean?) {
             when (x) {
@@ -78,7 +79,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
     }
 
-    func testWhenExhaustivenessAcceptsEnumWithAllEntries() throws {
+    @Test func testWhenExhaustivenessAcceptsEnumWithAllEntries() throws {
         let source = """
         enum class Color { Red, Green }
         fun pick(color: Color) = when (color) {
@@ -92,7 +93,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
     }
 
-    func testWhenExhaustivenessAcceptsEnumWithGroupedBranches() throws {
+    @Test func testWhenExhaustivenessAcceptsEnumWithGroupedBranches() throws {
         let source = """
         enum class Color { Red, Green, Blue }
         fun pick(color: Color) = when (color) {
@@ -106,7 +107,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0004", in: ctx)
     }
 
-    func testWhenExhaustivenessAcceptsEnumWithQualifiedGroupedBranches() throws {
+    @Test func testWhenExhaustivenessAcceptsEnumWithQualifiedGroupedBranches() throws {
         let source = """
         enum class Color { Red, Green, Blue }
         fun pick(color: Color) = when (color) {
@@ -121,7 +122,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testWhenExhaustivenessAcceptsSealedWithAllDirectSubtypes() throws {
+    @Test func testWhenExhaustivenessAcceptsSealedWithAllDirectSubtypes() throws {
         let source = """
         sealed class Expr
         object A : Expr()
@@ -140,7 +141,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
     }
 
-    func testWhenQualifiedGroupedObjectBranchesResolveWithoutUnresolvedMemberErrors() throws {
+    @Test func testWhenQualifiedGroupedObjectBranchesResolveWithoutUnresolvedMemberErrors() throws {
         let source = """
         sealed class Expr {
             object A : Expr()
@@ -157,7 +158,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testWhenQualifiedGroupedObjectBranchesWithoutElseReportNonExhaustive() throws {
+    @Test func testWhenQualifiedGroupedObjectBranchesWithoutElseReportNonExhaustive() throws {
         let source = """
         sealed class Expr {
             object A : Expr()
@@ -174,7 +175,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
-    func testSealedInterfaceWhenGroupedIsBranchesAreExhaustive() throws {
+    @Test func testSealedInterfaceWhenGroupedIsBranchesAreExhaustive() throws {
         let source = """
         sealed interface Expr
         class Literal : Expr
@@ -195,7 +196,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
     }
 
-    func testSealedInterfaceWhenGroupedIsBranchesReportMissingSubtype() throws {
+    @Test func testSealedInterfaceWhenGroupedIsBranchesReportMissingSubtype() throws {
         let source = """
         sealed interface Expr
         class Literal : Expr
@@ -213,14 +214,14 @@ final class CompilerCoreTests: XCTestCase {
 
         assertHasDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
         let sealedDiag = ctx.diagnostics.diagnostics.first { $0.code == "KSWIFTK-SEMA-0071" }
-        XCTAssertNotNil(sealedDiag)
-        XCTAssertTrue(
+        #expect(sealedDiag != nil)
+        #expect(
             sealedDiag?.message.contains("Multiply") == true,
             "Expected diagnostic message to mention missing subtype 'Multiply'"
         )
     }
 
-    func testWhenExhaustivenessDiagnosticForSealedMissingSubtype() throws {
+    @Test func testWhenExhaustivenessDiagnosticForSealedMissingSubtype() throws {
         let source = """
         sealed class Expr
         object A : Expr()
@@ -239,19 +240,19 @@ final class CompilerCoreTests: XCTestCase {
 
         // Also assert that the diagnostic text mentions missing branches and the missing subtype.
         let sealedDiag = ctx.diagnostics.diagnostics.first { $0.code == "KSWIFTK-SEMA-0071" }
-        XCTAssertNotNil(sealedDiag)
-        XCTAssertTrue(
+        #expect(sealedDiag != nil)
+        #expect(
             sealedDiag?.message.contains("Missing branches") == true,
             "Expected diagnostic message to mention missing branches"
         )
-        XCTAssertTrue(
+        #expect(
             sealedDiag?.message.contains("B") == true,
             "Expected diagnostic message to mention missing subtype 'B'"
         )
     }
 
     // P5-78: sealed interface when exhaustiveness accepts all branches
-    func testSealedInterfaceWhenExhaustivenessAcceptsAllBranches() throws {
+    @Test func testSealedInterfaceWhenExhaustivenessAcceptsAllBranches() throws {
         let source = """
         sealed interface Expr
         class Literal : Expr
@@ -271,7 +272,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0071", in: ctx)
     }
 
-    func testWhenNullBranchSmartCastsLocalToNonNullInOtherBranches() throws {
+    @Test func testWhenNullBranchSmartCastsLocalToNonNullInOtherBranches() throws {
         let source = """
         fun takesInt(x: Int) = x
         fun smart(x: Int?): Int {
@@ -287,7 +288,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testWhenBranchSmartCastsSealedSubjectToMatchedSubtype() throws {
+    @Test func testWhenBranchSmartCastsSealedSubjectToMatchedSubtype() throws {
         let source = """
         sealed class Expr
         object A : Expr()
@@ -306,7 +307,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testWhenBooleanBranchSmartCastsNullableBooleanToNonNull() throws {
+    @Test func testWhenBooleanBranchSmartCastsNullableBooleanToNonNull() throws {
         let source = """
         fun takesBool(x: Boolean) = x
         fun eval(b: Boolean?) {
@@ -323,7 +324,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testTypeCheckReportsReturnTypeMismatchForExpressionBody() throws {
+    @Test func testTypeCheckReportsReturnTypeMismatchForExpressionBody() throws {
         let source = """
         fun bad(): Int = "x"
         """
@@ -333,7 +334,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
-    func testPropertyInitializerInfersTypeForSubsequentCalls() throws {
+    @Test func testPropertyInitializerInfersTypeForSubsequentCalls() throws {
         let source = """
         val num = 1
         fun takesInt(x: Int) = x
@@ -345,7 +346,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testPropertyInitializerTypeMismatchReportsTypeDiagnostic() throws {
+    @Test func testPropertyInitializerTypeMismatchReportsTypeDiagnostic() throws {
         let source = """
         val bad: Int = "x"
         """
@@ -355,7 +356,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
-    func testPropertyGetterTypeMismatchReportsTypeDiagnostic() throws {
+    @Test func testPropertyGetterTypeMismatchReportsTypeDiagnostic() throws {
         let source = """
         val bad: Int {
             get() = "x"
@@ -367,7 +368,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
-    func testSetterOnValReportsDiagnostic() throws {
+    @Test func testSetterOnValReportsDiagnostic() throws {
         let source = """
         val bad: Int {
             set(value) {
@@ -381,7 +382,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0005", in: ctx)
     }
 
-    func testClassInitBlockIsTypeChecked() throws {
+    @Test func testClassInitBlockIsTypeChecked() throws {
         let source = """
         fun takesInt(x: Int) = x
         class C {
@@ -396,7 +397,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testOverloadRejectsBooleanArgumentForIntParameter() throws {
+    @Test func testOverloadRejectsBooleanArgumentForIntParameter() throws {
         let source = """
         fun foo(a: Int) = a
         fun bar() = foo(true)
@@ -407,7 +408,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testCallSupportsMixedNamedAndPositionalArguments() throws {
+    @Test func testCallSupportsMixedNamedAndPositionalArguments() throws {
         let source = """
         fun pick(x: Int, flag: Boolean) = x
         fun use() = pick(1, flag = true)
@@ -418,7 +419,7 @@ final class CompilerCoreTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testCallRejectsPositionalArgumentAfterNamedArgument() throws {
+    @Test func testCallRejectsPositionalArgumentAfterNamedArgument() throws {
         let source = """
         fun pick(x: Int, y: Int) = x
         fun use() = pick(y = 1, 2)
@@ -429,7 +430,7 @@ final class CompilerCoreTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
-    func testCallSupportsNonTrailingVarargWithNamedTail() throws {
+    @Test func testCallSupportsNonTrailingVarargWithNamedTail() throws {
         let source = """
         fun sum(vararg items: Int, tail: Int) = tail
         fun use() = sum(1, 2, tail = 3)
@@ -446,3 +447,4 @@ final class CompilerCoreTests: XCTestCase {
 
     // MARK: - P5-40 Resolved negative tests (no spurious diagnostics)
 }
+#endif

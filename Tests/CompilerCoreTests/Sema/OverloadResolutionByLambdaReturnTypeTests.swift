@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
-    func testUnannotatedLambdaReturnTypeOverloadsRemainAmbiguous() {
+@Suite
+struct OverloadResolutionByLambdaReturnTypeTests {
+    @Test func testUnannotatedLambdaReturnTypeOverloadsRemainAmbiguous() {
         let source = """
         fun foo(block: () -> Int): Int = 1
         fun foo(block: () -> String): String = "s"
@@ -12,14 +14,13 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertEqual(
-            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count,
-            1,
+        #expect(
+            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count == 1,
             "Expected ambiguous overload resolution without annotation, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
-    func testAnnotatedLambdaReturnTypeOverloadSelectsMatchingTopLevelOverload() {
+    @Test func testAnnotatedLambdaReturnTypeOverloadSelectsMatchingTopLevelOverload() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -34,10 +35,10 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected annotated overload to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected annotated overload to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testAnnotatedLambdaReturnTypeOverloadCanSelectNonAnnotatedCandidate() {
+    @Test func testAnnotatedLambdaReturnTypeOverloadCanSelectNonAnnotatedCandidate() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -52,10 +53,10 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected refinement to keep the matching non-annotated overload, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected refinement to keep the matching non-annotated overload, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testDifferentLambdaInputShapesRemainAmbiguous() {
+    @Test func testDifferentLambdaInputShapesRemainAmbiguous() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -72,14 +73,13 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertEqual(
-            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count,
-            1,
+        #expect(
+            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count == 1,
             "Expected ambiguity when lambda parameter shapes differ, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
-    func testMultipleLambdaArgumentsRemainAmbiguous() {
+    @Test func testMultipleLambdaArgumentsRemainAmbiguous() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -96,14 +96,13 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertEqual(
-            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count,
-            1,
+        #expect(
+            diagnostics(withCode: "KSWIFTK-SEMA-0003", in: ctx).count == 1,
             "Expected ambiguity when multiple lambda return types participate, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
-    func testCallableReferenceStillResolvesNormally() {
+    @Test func testCallableReferenceStillResolvesNormally() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -120,10 +119,10 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected callable reference overload resolution to keep working, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected callable reference overload resolution to keep working, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testMemberCallRefinesByLambdaReturnType() {
+    @Test func testMemberCallRefinesByLambdaReturnType() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -141,10 +140,10 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected member-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected member-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testSafeMemberCallRefinesByLambdaReturnType() {
+    @Test func testSafeMemberCallRefinesByLambdaReturnType() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -162,10 +161,10 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected safe member-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected safe member-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testExtensionCallRefinesByLambdaReturnType() {
+    @Test func testExtensionCallRefinesByLambdaReturnType() {
         let source = """
         import kotlin.OptIn
         import kotlin.OverloadResolutionByLambdaReturnType
@@ -183,7 +182,7 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         """
 
         let ctx = runSemaCollectingDiagnostics(source)
-        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected extension-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected extension-call refinement to resolve cleanly, got: \(ctx.diagnostics.diagnostics)")
     }
 
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
@@ -200,3 +199,4 @@ final class OverloadResolutionByLambdaReturnTypeTests: XCTestCase {
         ctx.diagnostics.diagnostics.filter { $0.code == code }
     }
 }
+#endif

@@ -1,17 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropByteArrayToKStringFunctionTests: XCTestCase {
-    func testByteArrayToKStringFunctionSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropByteArrayToKStringFunctionTests {
+    @Test func testByteArrayToKStringFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "compile clean: \(ctx.diagnostics.diagnostics)")
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "compile clean: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
         let kotlinPkg = [interner.intern("kotlin")]
 
-        let byteArraySymbol = try XCTUnwrap(
+        let byteArraySymbol = try #require(
             sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("ByteArray")]),
             "kotlin.ByteArray must be registered"
         )
@@ -22,20 +24,20 @@ final class NativeCInteropByteArrayToKStringFunctionTests: XCTestCase {
         )))
 
         let candidates = sema.symbols.lookupAll(fqName: cinteropPkg + [interner.intern("toKString")])
-        let fn = try XCTUnwrap(candidates.first { symbolID in
+        let fn = try #require(candidates.first { symbolID in
             guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
             return sig.receiverType == byteArrayType
                 && sig.parameterTypes == [sema.types.intType, sema.types.intType, sema.types.booleanType]
                 && sig.returnType == sema.types.stringType
         }, "ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence) must be registered")
-        XCTAssertTrue(try XCTUnwrap(sema.symbols.symbol(fn)?.flags).contains(.synthetic))
+        #expect(try #require(sema.symbols.symbol(fn)?.flags).contains(.synthetic))
 
         // Verify all three parameters have default values
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: fn))
-        XCTAssertEqual(sig.valueParameterHasDefaultValues, [true, true, true])
+        let sig = try #require(sema.symbols.functionSignature(for: fn))
+        #expect(sig.valueParameterHasDefaultValues == [true, true, true])
     }
 
-    func testByteArrayToKStringFunctionResolvesInSource() throws {
+    @Test func testByteArrayToKStringFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.toKString
 
@@ -44,10 +46,10 @@ final class NativeCInteropByteArrayToKStringFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve with no args: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve with no args: \(ctx.diagnostics.diagnostics)")
     }
 
-    func testByteArrayToKStringFunctionResolvesWithAllArgs() throws {
+    @Test func testByteArrayToKStringFunctionResolvesWithAllArgs() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.toKString
 
@@ -56,6 +58,7 @@ final class NativeCInteropByteArrayToKStringFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve with all args: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve with all args: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

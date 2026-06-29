@@ -1,5 +1,5 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-074: Validates that `String.substringAfter(delimiter, missingDelimiterValue)`
 /// resolves through Sema for both `String` and `Char` delimiter overloads with optional
@@ -8,8 +8,9 @@ import XCTest
 /// - 2-arg String delimiter + missingDelimiterValue: `kk_string_substringAfter`.
 /// - 1-arg Char delimiter: `kk_string_substringAfter_char`.
 /// - 2-arg Char delimiter + missingDelimiterValue: `kk_string_substringAfter_char`.
-final class StringSubstringAfterFunctionTests: XCTestCase {
-    func testSubstringAfterFunctionResolvesInSource() throws {
+@Suite
+struct StringSubstringAfterFunctionTests {
+    @Test func testSubstringAfterFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun afterStringDelimiter(s: String): String {
             return s.substringAfter(".")
@@ -41,7 +42,7 @@ final class StringSubstringAfterFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected substringAfter to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

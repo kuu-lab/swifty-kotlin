@@ -1,10 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class DelegatePropertySetterKIRTests: XCTestCase {
+/// Tests for delegate property setter rewriting and lowering pass recording.
+@Suite @MainActor
+struct DelegatePropertySetterKIRTests {
+    // MARK: - Setter Rewrite: Observable
 
-    func testObservableSetterRewritesToSetValueCall() throws {
+    @Test func testObservableSetterRewritesToSetValueCall() throws {
         let source = """
         import kotlin.properties.Delegates
         var name: String by Delegates.observable("initial") { prop, old, new ->
@@ -20,23 +24,25 @@ final class DelegatePropertySetterKIRTests: XCTestCase {
             try runToKIR(ctx)
 
             let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(ctx.diagnostics.hasError,
+            #expect(!(ctx.diagnostics.hasError),
                            "observable setter should compile without errors: \(diagnosticMessages)")
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(
                 named: "main", in: module, interner: ctx.interner
             )
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_observable_set_value"),
                 "Should emit kk_observable_set_value, got: \(callees)"
             )
         }
     }
 
-    func testVetoableSetterRewritesToSetValueCall() throws {
+    // MARK: - Setter Rewrite: Vetoable
+
+    @Test func testVetoableSetterRewritesToSetValueCall() throws {
         let source = """
         import kotlin.properties.Delegates
         var count: Int by Delegates.vetoable(0) { prop, old, new ->
@@ -52,23 +58,25 @@ final class DelegatePropertySetterKIRTests: XCTestCase {
             try runToKIR(ctx)
 
             let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(ctx.diagnostics.hasError,
+            #expect(!(ctx.diagnostics.hasError),
                            "vetoable setter should compile without errors: \(diagnosticMessages)")
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(
                 named: "main", in: module, interner: ctx.interner
             )
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_vetoable_set_value"),
                 "Should emit kk_vetoable_set_value, got: \(callees)"
             )
         }
     }
 
-    func testStdlibDelegateLoweringPassIsRecordedInModule() throws {
+    // MARK: - StdlibDelegateLowering Pass Is Recorded
+
+    @Test func testStdlibDelegateLoweringPassIsRecordedInModule() throws {
         let source = """
         val x by lazy { 42 }
         fun main() = println(x)
@@ -78,11 +86,12 @@ final class DelegatePropertySetterKIRTests: XCTestCase {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertTrue(
+            let module = try #require(ctx.kir)
+            #expect(
                 module.executedLowerings.contains("StdlibDelegateLowering"),
                 "Should be recorded: \(module.executedLowerings)"
             )
         }
     }
 }
+#endif

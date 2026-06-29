@@ -1,10 +1,18 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
+// STDLIB-004: Codegen coverage for primitive array factory calls and
+// lambda constructors.  These tests verify the KIR lowering output so
+// that any regression in the array-creation code path is caught early.
 extension BuildKIRRegressionTests {
 
-    func testIntArrayOfFactoryLowersToKkArrayOf() throws {
+    // MARK: - Factory functions → kk_array_of
+
+    /// `intArrayOf(1, 2, 3)` must lower to `kk_array_of`, the same vararg-
+    /// preserving runtime helper used by all `*ArrayOf` factories.
+    @Test func testIntArrayOfFactoryLowersToKkArrayOf() throws {
         let source = """
         fun make() = intArrayOf(1, 2, 3)
         fun main(): Int {
@@ -18,22 +26,23 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_array_of"),
                 "intArrayOf must lower to kk_array_of; got: \(callNames)"
             )
-            XCTAssertFalse(
-                callNames.contains("intArrayOf"),
+            #expect(
+                !(callNames.contains("intArrayOf")),
                 "intArrayOf call should have been rewritten; got: \(callNames)"
             )
         }
     }
 
-    func testByteArrayOfFactoryLowersToKkArrayOf() throws {
+    /// `byteArrayOf(1.toByte(), 2.toByte())` must also lower to `kk_array_of`.
+    @Test func testByteArrayOfFactoryLowersToKkArrayOf() throws {
         let source = """
         fun make() = byteArrayOf(1.toByte(), 127.toByte())
         fun main(): Int {
@@ -47,18 +56,19 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_array_of"),
                 "byteArrayOf must lower to kk_array_of; got: \(callNames)"
             )
         }
     }
 
-    func testCharArrayOfFactoryLowersToKkArrayOf() throws {
+    /// `charArrayOf('a', 'b', 'c')` must lower to `kk_array_of`.
+    @Test func testCharArrayOfFactoryLowersToKkArrayOf() throws {
         let source = """
         fun make() = charArrayOf('a', 'b', 'c')
         fun main(): Int {
@@ -72,18 +82,22 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_array_of"),
                 "charArrayOf must lower to kk_array_of; got: \(callNames)"
             )
         }
     }
 
-    func testIntArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
+    // MARK: - Lambda constructors → kk_array_new + kk_array_set
+
+    /// `IntArray(3) { it * 2 }` must lower to a `kk_array_new` call followed
+    /// by a loop that fills elements via `kk_array_set`.
+    @Test func testIntArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
         let source = """
         fun make() = IntArray(3) { it * 2 }
         fun main(): Int {
@@ -97,29 +111,30 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_array_new"),
                 "IntArray(n) { init } must emit kk_array_new; got: \(callNames)"
             )
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_array_set"),
                 "IntArray(n) { init } must emit kk_array_set in the fill loop; got: \(callNames)"
             )
 
             let throwFlags = extractThrowFlags(from: makeBody, interner: ctx.interner)
-            XCTAssertEqual(
-                throwFlags["kk_array_new"]?.allSatisfy { $0 == false },
-                true,
+            #expect(
+                throwFlags["kk_array_new"]?.allSatisfy { $0 == false } == true,
                 "kk_array_new inside constructor must be non-throwing"
             )
         }
     }
 
-    func testByteArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
+    /// `ByteArray(4) { (it + 1).toByte() }` exercises the same loop-based
+    /// constructor path for the byte-width primitive type.
+    @Test func testByteArrayLambdaConstructorLowersToArrayNewAndArraySet() throws {
         let source = """
         fun make() = ByteArray(4) { (it + 1).toByte() }
         fun main(): Int {
@@ -133,22 +148,26 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_array_new"),
                 "ByteArray(n) { init } must emit kk_array_new; got: \(callNames)"
             )
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_array_set"),
                 "ByteArray(n) { init } must emit kk_array_set; got: \(callNames)"
             )
         }
     }
 
-    func testListToIntArrayLowersToRuntimeCall() throws {
+    // MARK: - List.toIntArray / List.toByteArray conversion lowering
+
+    /// `list.toIntArray()` must lower to the dedicated `kk_list_toIntArray`
+    /// runtime call rather than the generic `toIntArray` symbol.
+    @Test func testListToIntArrayLowersToRuntimeCall() throws {
         let source = """
         fun convert(list: List<Int>) = list.toIntArray()
         fun main(): Int {
@@ -162,22 +181,25 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let convertBody = try findKIRFunctionBody(named: "convert", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: convertBody, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callNames.contains("kk_list_toIntArray"),
                 "List<Int>.toIntArray() must lower to kk_list_toIntArray; got: \(callNames)"
             )
-            XCTAssertFalse(
-                callNames.contains("toIntArray"),
+            #expect(
+                !(callNames.contains("toIntArray")),
                 "toIntArray must be fully rewritten; got: \(callNames)"
             )
         }
     }
 
-    func testIntArrayToListLowersToRuntimeCall() throws {
+    /// `intArray.toList()` must lower to a runtime `kk_*_toList` call.
+    /// The method resolver currently selects the generic `Array<T>.toList()` path
+    /// (`kk_array_toList`) rather than the IntArray-specific stub.
+    @Test func testIntArrayToListLowersToRuntimeCall() throws {
         let source = """
         fun convert(arr: IntArray) = arr.toList()
         fun main(): Int {
@@ -191,19 +213,20 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let convertBody = try findKIRFunctionBody(named: "convert", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: convertBody, interner: ctx.interner)
 
             let resolved = callNames.contains("kk_intArray_toList") || callNames.contains("kk_array_toList")
-            XCTAssertTrue(
+            #expect(
                 resolved,
                 "IntArray.toList() must lower to a runtime toList call; got: \(callNames)"
             )
-            XCTAssertFalse(
-                callNames.contains("toList"),
+            #expect(
+                !(callNames.contains("toList")),
                 "toList must be fully rewritten to a runtime call; got: \(callNames)"
             )
         }
     }
 }
+#endif

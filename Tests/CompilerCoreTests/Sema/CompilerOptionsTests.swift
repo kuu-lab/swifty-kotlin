@@ -1,40 +1,42 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class CompilerOptionsTests: XCTestCase {
+@Suite
+struct CompilerOptionsTests {
     // MARK: - TargetTriple
 
-    func testTargetTripleInit() {
+    @Test func testTargetTripleInit() {
         let triple = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: "14.0")
-        XCTAssertEqual(triple.arch, "arm64")
-        XCTAssertEqual(triple.vendor, "apple")
-        XCTAssertEqual(triple.os, "macosx")
-        XCTAssertEqual(triple.osVersion, "14.0")
+        #expect(triple.arch == "arm64")
+        #expect(triple.vendor == "apple")
+        #expect(triple.os == "macosx")
+        #expect(triple.osVersion == "14.0")
     }
 
-    func testTargetTripleEquatable() {
+    @Test func testTargetTripleEquatable() {
         let t1 = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
         let t2 = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
         let t3 = TargetTriple(arch: "x86_64", vendor: "apple", os: "macosx", osVersion: nil)
-        XCTAssertEqual(t1, t2)
-        XCTAssertNotEqual(t1, t3)
+        #expect(t1 == t2)
+        #expect(t1 != t3)
     }
 
-    func testTargetTripleHostDefault() {
+    @Test func testTargetTripleHostDefault() {
         let triple = TargetTriple.hostDefault()
-        XCTAssertFalse(triple.arch.isEmpty)
-        XCTAssertFalse(triple.vendor.isEmpty)
-        XCTAssertFalse(triple.os.isEmpty)
+        #expect(!(triple.arch.isEmpty))
+        #expect(!(triple.vendor.isEmpty))
+        #expect(!(triple.os.isEmpty))
     }
 
-    func testTargetTripleWithNilOsVersion() {
+    @Test func testTargetTripleWithNilOsVersion() {
         let triple = TargetTriple(arch: "arm64", vendor: "unknown", os: "linux-gnu", osVersion: nil)
-        XCTAssertNil(triple.osVersion)
+        #expect(triple.osVersion == nil)
     }
 
     // MARK: - CompilerOptions init
 
-    func testCompilerOptionsDefaultValues() {
+    @Test func testCompilerOptionsDefaultValues() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: ["/a.kt"],
@@ -42,22 +44,22 @@ final class CompilerOptionsTests: XCTestCase {
             emit: .executable,
             target: defaultTargetTriple()
         )
-        XCTAssertEqual(opts.moduleName, "Test")
-        XCTAssertEqual(opts.inputs, ["/a.kt"])
-        XCTAssertEqual(opts.outputPath, "/out")
-        XCTAssertEqual(opts.emit, .executable)
-        XCTAssertTrue(opts.searchPaths.isEmpty)
-        XCTAssertTrue(opts.libraryPaths.isEmpty)
-        XCTAssertTrue(opts.linkLibraries.isEmpty)
-        XCTAssertEqual(opts.optLevel, .O0)
-        XCTAssertFalse(opts.debugInfo)
-        XCTAssertTrue(opts.frontendFlags.isEmpty)
-        XCTAssertTrue(opts.irFlags.isEmpty)
-        XCTAssertTrue(opts.runtimeFlags.isEmpty)
-        XCTAssertNil(opts.incrementalCachePath)
+        #expect(opts.moduleName == "Test")
+        #expect(opts.inputs == ["/a.kt"])
+        #expect(opts.outputPath == "/out")
+        #expect(opts.emit == .executable)
+        #expect(opts.searchPaths.isEmpty)
+        #expect(opts.libraryPaths.isEmpty)
+        #expect(opts.linkLibraries.isEmpty)
+        #expect(opts.optLevel == .O0)
+        #expect(!(opts.debugInfo))
+        #expect(opts.frontendFlags.isEmpty)
+        #expect(opts.irFlags.isEmpty)
+        #expect(opts.runtimeFlags.isEmpty)
+        #expect(opts.incrementalCachePath == nil)
     }
 
-    func testCompilerOptionsWithAllFields() {
+    @Test func testCompilerOptionsWithAllFields() {
         let opts = CompilerOptions(
             moduleName: "MyMod",
             inputs: ["/a.kt", "/b.kt"],
@@ -74,22 +76,22 @@ final class CompilerOptionsTests: XCTestCase {
             runtimeFlags: ["gc=conservative"],
             incrementalCachePath: "/cache"
         )
-        XCTAssertEqual(opts.moduleName, "MyMod")
-        XCTAssertEqual(opts.inputs.count, 2)
-        XCTAssertEqual(opts.emit, .object)
-        XCTAssertEqual(opts.searchPaths, ["/lib"])
-        XCTAssertEqual(opts.libraryPaths, ["/ext"])
-        XCTAssertEqual(opts.linkLibraries, ["runtime"])
-        XCTAssertEqual(opts.optLevel, .O2)
-        XCTAssertTrue(opts.debugInfo)
-        XCTAssertEqual(opts.frontendFlags, ["jobs=4"])
-        XCTAssertEqual(opts.irFlags, ["opt-passes"])
-        XCTAssertEqual(opts.runtimeFlags, ["gc=conservative"])
-        XCTAssertEqual(opts.incrementalCachePath, "/cache")
-        XCTAssertFalse(opts.includeNonPublicReflectionMetadata)
+        #expect(opts.moduleName == "MyMod")
+        #expect(opts.inputs.count == 2)
+        #expect(opts.emit == .object)
+        #expect(opts.searchPaths == ["/lib"])
+        #expect(opts.libraryPaths == ["/ext"])
+        #expect(opts.linkLibraries == ["runtime"])
+        #expect(opts.optLevel == .O2)
+        #expect(opts.debugInfo)
+        #expect(opts.frontendFlags == ["jobs=4"])
+        #expect(opts.irFlags == ["opt-passes"])
+        #expect(opts.runtimeFlags == ["gc=conservative"])
+        #expect(opts.incrementalCachePath == "/cache")
+        #expect(!(opts.includeNonPublicReflectionMetadata))
     }
 
-    func testCompilerOptionsRuntimeMetadataVisibilityFlag() {
+    @Test func testCompilerOptionsRuntimeMetadataVisibilityFlag() {
         let opts = CompilerOptions(
             moduleName: "MyMod",
             inputs: ["/a.kt"],
@@ -99,10 +101,10 @@ final class CompilerOptionsTests: XCTestCase {
             runtimeFlags: ["reflection-metadata=all"]
         )
 
-        XCTAssertTrue(opts.includeNonPublicReflectionMetadata)
+        #expect(opts.includeNonPublicReflectionMetadata)
     }
 
-    func testCompilerOptionsEquatable() {
+    @Test func testCompilerOptionsEquatable() {
         let opts1 = CompilerOptions(
             moduleName: "A",
             inputs: ["/a.kt"],
@@ -124,13 +126,13 @@ final class CompilerOptionsTests: XCTestCase {
             emit: .kirDump,
             target: defaultTargetTriple()
         )
-        XCTAssertEqual(opts1, opts2)
-        XCTAssertNotEqual(opts1, opts3)
+        #expect(opts1 == opts2)
+        #expect(opts1 != opts3)
     }
 
     // MARK: - frontendJobs
 
-    func testFrontendJobsDefaultIsOne() {
+    @Test func testFrontendJobsDefaultIsOne() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -138,10 +140,10 @@ final class CompilerOptionsTests: XCTestCase {
             emit: .kirDump,
             target: defaultTargetTriple()
         )
-        XCTAssertEqual(opts.frontendJobs, 1)
+        #expect(opts.frontendJobs == 1)
     }
 
-    func testFrontendJobsParsesFromFlag() {
+    @Test func testFrontendJobsParsesFromFlag() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -150,10 +152,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["jobs=8"]
         )
-        XCTAssertEqual(opts.frontendJobs, 8)
+        #expect(opts.frontendJobs == 8)
     }
 
-    func testFrontendJobsIgnoresInvalidValues() {
+    @Test func testFrontendJobsIgnoresInvalidValues() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -163,10 +165,10 @@ final class CompilerOptionsTests: XCTestCase {
             frontendFlags: ["jobs=0"]
         )
         // jobs=0 is < 1, so should return default of 1
-        XCTAssertEqual(opts.frontendJobs, 1)
+        #expect(opts.frontendJobs == 1)
     }
 
-    func testFrontendJobsIgnoresNonNumeric() {
+    @Test func testFrontendJobsIgnoresNonNumeric() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -175,10 +177,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["jobs=abc"]
         )
-        XCTAssertEqual(opts.frontendJobs, 1)
+        #expect(opts.frontendJobs == 1)
     }
 
-    func testFrontendJobsIgnoresUnrelatedFlags() {
+    @Test func testFrontendJobsIgnoresUnrelatedFlags() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -187,10 +189,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["sema-cache", "debug-mode"]
         )
-        XCTAssertEqual(opts.frontendJobs, 1)
+        #expect(opts.frontendJobs == 1)
     }
 
-    func testFrontendJobsUsesFirstMatch() {
+    @Test func testFrontendJobsUsesFirstMatch() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -199,12 +201,12 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["jobs=4", "jobs=8"]
         )
-        XCTAssertEqual(opts.frontendJobs, 4)
+        #expect(opts.frontendJobs == 4)
     }
 
     // MARK: - lazyThreadSafetyMode
 
-    func testLazyThreadSafetyModeDefaultIsSynchronized() {
+    @Test func testLazyThreadSafetyModeDefaultIsSynchronized() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -212,10 +214,10 @@ final class CompilerOptionsTests: XCTestCase {
             emit: .kirDump,
             target: defaultTargetTriple()
         )
-        XCTAssertEqual(opts.lazyThreadSafetyMode, .synchronized)
+        #expect(opts.lazyThreadSafetyMode == .synchronized)
     }
 
-    func testLazyThreadSafetyModeNone() {
+    @Test func testLazyThreadSafetyModeNone() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -224,10 +226,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["lazy-thread-safety=NONE"]
         )
-        XCTAssertEqual(opts.lazyThreadSafetyMode, .none)
+        #expect(opts.lazyThreadSafetyMode == .none)
     }
 
-    func testLazyThreadSafetyModeSynchronized() {
+    @Test func testLazyThreadSafetyModeSynchronized() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -236,10 +238,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["lazy-thread-safety=SYNCHRONIZED"]
         )
-        XCTAssertEqual(opts.lazyThreadSafetyMode, .synchronized)
+        #expect(opts.lazyThreadSafetyMode == .synchronized)
     }
 
-    func testLazyThreadSafetyModePublication() {
+    @Test func testLazyThreadSafetyModePublication() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -248,10 +250,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["lazy-thread-safety=PUBLICATION"]
         )
-        XCTAssertEqual(opts.lazyThreadSafetyMode, .publication)
+        #expect(opts.lazyThreadSafetyMode == .publication)
     }
 
-    func testLazyThreadSafetyModeIsCaseInsensitive() {
+    @Test func testLazyThreadSafetyModeIsCaseInsensitive() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -260,10 +262,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["lazy-thread-safety=none"]
         )
-        XCTAssertEqual(opts.lazyThreadSafetyMode, .none)
+        #expect(opts.lazyThreadSafetyMode == .none)
     }
 
-    func testLazyThreadSafetyModeUnknownValueDefaultsSynchronized() {
+    @Test func testLazyThreadSafetyModeUnknownValueDefaultsSynchronized() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -272,10 +274,10 @@ final class CompilerOptionsTests: XCTestCase {
             target: defaultTargetTriple(),
             frontendFlags: ["lazy-thread-safety=UNKNOWN"]
         )
-        XCTAssertEqual(opts.lazyThreadSafetyMode, .synchronized)
+        #expect(opts.lazyThreadSafetyMode == .synchronized)
     }
 
-    func testAdvancedTypeInferenceFlagsAreDetected() {
+    @Test func testAdvancedTypeInferenceFlagsAreDetected() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -289,36 +291,37 @@ final class CompilerOptionsTests: XCTestCase {
             ]
         )
 
-        XCTAssertTrue(opts.useNewInference)
-        XCTAssertTrue(opts.useUnrestrictedBuilderInference)
-        XCTAssertTrue(opts.useProperTypeInferenceConstraintsProcessing)
+        #expect(opts.useNewInference)
+        #expect(opts.useUnrestrictedBuilderInference)
+        #expect(opts.useProperTypeInferenceConstraintsProcessing)
     }
 
     // MARK: - EmitMode
 
-    func testEmitModeRawValues() {
-        XCTAssertEqual(EmitMode.executable.rawValue, "executable")
-        XCTAssertEqual(EmitMode.object.rawValue, "object")
-        XCTAssertEqual(EmitMode.llvmIR.rawValue, "llvmIR")
-        XCTAssertEqual(EmitMode.kirDump.rawValue, "kirDump")
-        XCTAssertEqual(EmitMode.library.rawValue, "library")
+    @Test func testEmitModeRawValues() {
+        #expect(EmitMode.executable.rawValue == "executable")
+        #expect(EmitMode.object.rawValue == "object")
+        #expect(EmitMode.llvmIR.rawValue == "llvmIR")
+        #expect(EmitMode.kirDump.rawValue == "kirDump")
+        #expect(EmitMode.library.rawValue == "library")
     }
 
     // MARK: - OptimizationLevel
 
-    func testOptimizationLevelRawValues() {
-        XCTAssertEqual(OptimizationLevel.O0.rawValue, 0)
-        XCTAssertEqual(OptimizationLevel.O1.rawValue, 1)
-        XCTAssertEqual(OptimizationLevel.O2.rawValue, 2)
-        XCTAssertEqual(OptimizationLevel.O3.rawValue, 3)
+    @Test func testOptimizationLevelRawValues() {
+        #expect(OptimizationLevel.O0.rawValue == 0)
+        #expect(OptimizationLevel.O1.rawValue == 1)
+        #expect(OptimizationLevel.O2.rawValue == 2)
+        #expect(OptimizationLevel.O3.rawValue == 3)
     }
 
     // MARK: - LazyDelegateThreadSafetyMode
 
-    func testLazyDelegateThreadSafetyModeRawValues() {
-        XCTAssertEqual(LazyDelegateThreadSafetyMode.synchronized.rawValue, 1)
-        XCTAssertEqual(LazyDelegateThreadSafetyMode.none.rawValue, 0)
-        XCTAssertEqual(LazyDelegateThreadSafetyMode.publication.rawValue, 2)
+    @Test func testLazyDelegateThreadSafetyModeRawValues() {
+        #expect(LazyDelegateThreadSafetyMode.synchronized.rawValue == 1)
+        #expect(LazyDelegateThreadSafetyMode.none.rawValue == 0)
+        #expect(LazyDelegateThreadSafetyMode.publication.rawValue == 2)
     }
 
 }
+#endif

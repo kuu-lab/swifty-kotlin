@@ -1,8 +1,9 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class DeepPhasePipelineIntegrationTests: XCTestCase {
+@Suite struct DeepPhasePipelineIntegrationTests {
     private struct SyntheticCSTFixture {
         let ctx: CompilationContext
         let tokens: [Token]
@@ -269,7 +270,7 @@ final class DeepPhasePipelineIntegrationTests: XCTestCase {
         return SyntheticCSTFixture(ctx: ctx, tokens: builder.tokens, cst: builder.cst, root: root)
     }
 
-    func testSyntheticCSTDrivesFrontendSemaAndKIRPaths() throws {
+    @Test func testSyntheticCSTDrivesFrontendSemaAndKIRPaths() throws {
         let fixture = makeSyntheticCSTFixture()
         let ctx = fixture.ctx
         ctx.tokens = fixture.tokens
@@ -277,17 +278,18 @@ final class DeepPhasePipelineIntegrationTests: XCTestCase {
         ctx.syntaxTreeRoot = fixture.root
 
         try BuildASTPhase().run(ctx)
-        let ast = try XCTUnwrap(ctx.ast)
+        let ast = try #require(ctx.ast)
         // CST contains: class, object, typealias, enum entry, 2 properties, 2 functions = 8+ decls
-        XCTAssertGreaterThanOrEqual(ast.declarationCount, 8)
+        #expect(ast.declarationCount >= 8)
 
         try SemaPhase().run(ctx)
         try BuildKIRPhase().run(ctx)
         try LoweringPhase().run(ctx)
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
         // At minimum: compute and blocky functions
-        XCTAssertGreaterThanOrEqual(module.functionCount, 2)
-        XCTAssertFalse(module.executedLowerings.isEmpty)
+        #expect(module.functionCount >= 2)
+        #expect(!(module.executedLowerings.isEmpty))
     }
 }
+#endif

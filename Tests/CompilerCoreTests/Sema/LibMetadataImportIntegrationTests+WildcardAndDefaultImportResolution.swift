@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LibMetadataImportIntegrationTests {
-    func testWildcardImportResolvesKklibSymbolInScope() throws {
+    @Test func testWildcardImportResolvesKklibSymbolInScope() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -38,7 +39,7 @@ extension LibMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             // Verify the symbol is present
             let computeSymbol = sema.symbols.allSymbols().first { symbol in
@@ -46,17 +47,18 @@ extension LibMetadataImportIntegrationTests {
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic)
             }
-            XCTAssertNotNil(computeSymbol, "Wildcard import should make library function 'compute' available")
+            #expect(computeSymbol != nil, "Wildcard import should make library function 'compute' available")
 
             // Verify no SEMA/TYPE diagnostics (proves the symbol resolved in scope)
             let semaErrors = ctx.diagnostics.diagnostics.filter {
                 $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
             }
-            XCTAssertTrue(semaErrors.isEmpty, "Wildcard import should resolve library function without errors: \(semaErrors.map(\.code))")
+            let semaErrorsEmpty = semaErrors.isEmpty
+            #expect(semaErrorsEmpty, "Wildcard import should resolve library function without errors: \(semaErrors.map(\.code))")
         }
     }
 
-    func testDefaultImportResolvesKklibSymbolInScope() throws {
+    @Test func testDefaultImportResolvesKklibSymbolInScope() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -90,22 +92,23 @@ extension LibMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let isBlankSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "isBlank" &&
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic)
             }
-            XCTAssertNotNil(isBlankSymbol, "Default import should make library function 'isBlank' from kotlin.text available")
+            #expect(isBlankSymbol != nil, "Default import should make library function 'isBlank' from kotlin.text available")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
                 $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
             }
-            XCTAssertTrue(semaErrors.isEmpty, "Default import should resolve library function without errors: \(semaErrors.map(\.code))")
+            let semaErrorsEmpty = semaErrors.isEmpty
+            #expect(semaErrorsEmpty, "Default import should resolve library function without errors: \(semaErrors.map(\.code))")
         }
     }
 
-    func testWildcardImportWithoutExplicitPackageRecordInMetadata() throws {
+    @Test func testWildcardImportWithoutExplicitPackageRecordInMetadata() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -140,30 +143,31 @@ extension LibMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             // Verify synthetic package was created
             let packageSymbol = sema.symbols.allSymbols().first { symbol in
                 symbol.kind == .package &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["np", "api"]
             }
-            XCTAssertNotNil(packageSymbol, "Synthetic package 'np.api' should be created even without explicit package record")
+            #expect(packageSymbol != nil, "Synthetic package 'np.api' should be created even without explicit package record")
 
             let doWorkSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "doWork" &&
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic)
             }
-            XCTAssertNotNil(doWorkSymbol, "Wildcard import should resolve function from synthesized package")
+            #expect(doWorkSymbol != nil, "Wildcard import should resolve function from synthesized package")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
                 $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
             }
-            XCTAssertTrue(semaErrors.isEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
+            let semaErrorsEmpty = semaErrors.isEmpty
+            #expect(semaErrorsEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
         }
     }
 
-    func testMultipleKklibWildcardImportsCoexist() throws {
+    @Test func testMultipleKklibWildcardImportsCoexist() throws {
         let fm = FileManager.default
 
         // Create first library
@@ -223,7 +227,7 @@ extension LibMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             let funcA = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "funcA" && symbol.flags.contains(.synthetic)
@@ -231,17 +235,18 @@ extension LibMetadataImportIntegrationTests {
             let funcB = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "funcB" && symbol.flags.contains(.synthetic)
             }
-            XCTAssertNotNil(funcA, "funcA from lib.a should be resolved via wildcard import")
-            XCTAssertNotNil(funcB, "funcB from lib.b should be resolved via wildcard import")
+            #expect(funcA != nil, "funcA from lib.a should be resolved via wildcard import")
+            #expect(funcB != nil, "funcB from lib.b should be resolved via wildcard import")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
                 $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
             }
-            XCTAssertTrue(semaErrors.isEmpty, "No SEMA errors expected with multiple library wildcard imports: \(semaErrors.map(\.code))")
+            let semaErrorsEmpty = semaErrors.isEmpty
+            #expect(semaErrorsEmpty, "No SEMA errors expected with multiple library wildcard imports: \(semaErrors.map(\.code))")
         }
     }
 
-    func testPackageSymbolCreatedEvenWhenNonPackageSymbolExistsAtSamePath() throws {
+    @Test func testPackageSymbolCreatedEvenWhenNonPackageSymbolExistsAtSamePath() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -277,30 +282,31 @@ extension LibMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             // Verify the package symbol was created despite the class 'cx.util' existing
             let packageSymbol = sema.symbols.allSymbols().first { symbol in
                 symbol.kind == .package &&
                     symbol.fqName.map { ctx.interner.resolve($0) } == ["cx", "util"]
             }
-            XCTAssertNotNil(packageSymbol, "Package 'cx.util' should be created even when class 'cx.util' exists")
+            #expect(packageSymbol != nil, "Package 'cx.util' should be created even when class 'cx.util' exists")
 
             let processSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "process" &&
                     symbol.kind == .function &&
                     symbol.flags.contains(.synthetic)
             }
-            XCTAssertNotNil(processSymbol, "Wildcard import should resolve 'process' even when non-package symbol coexists at package path")
+            #expect(processSymbol != nil, "Wildcard import should resolve 'process' even when non-package symbol coexists at package path")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
                 $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
             }
-            XCTAssertTrue(semaErrors.isEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
+            let semaErrorsEmpty = semaErrors.isEmpty
+            #expect(semaErrorsEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
         }
     }
 
-    func testDefaultImportFromMultipleStdlibPackagesInKklib() throws {
+    @Test func testDefaultImportFromMultipleStdlibPackagesInKklib() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -339,7 +345,7 @@ extension LibMetadataImportIntegrationTests {
             )
             try runToKIR(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             let listOfSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "listOf" && symbol.flags.contains(.synthetic)
@@ -347,13 +353,15 @@ extension LibMetadataImportIntegrationTests {
             let trimSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "trim" && symbol.flags.contains(.synthetic)
             }
-            XCTAssertNotNil(listOfSymbol, "Default import should resolve 'listOf' from kotlin.collections")
-            XCTAssertNotNil(trimSymbol, "Default import should resolve 'trim' from kotlin.text")
+            #expect(listOfSymbol != nil, "Default import should resolve 'listOf' from kotlin.collections")
+            #expect(trimSymbol != nil, "Default import should resolve 'trim' from kotlin.text")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
                 $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
             }
-            XCTAssertTrue(semaErrors.isEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
+            let semaErrorsEmpty = semaErrors.isEmpty
+            #expect(semaErrorsEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
         }
     }
 }
+#endif

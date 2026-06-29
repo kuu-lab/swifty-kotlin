@@ -1,12 +1,13 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-015: Validates that `kotlin.sequences.Sequence<T>.count()`
 /// resolves through Sema for the no-argument receiver wired through the
 /// standard Sequence terminal / HOF infrastructure.
 /// Runtime link name involved: `kk_sequence_count`.
-final class SequenceCountFunctionTests: XCTestCase {
-    func testSequenceCountFunctionResolvesInSource() throws {
+@Suite
+struct SequenceCountFunctionTests {
+    @Test func testSequenceCountFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun countSeq(): Int {
             return sequenceOf(1, 2, 3).count()
@@ -18,21 +19,21 @@ final class SequenceCountFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
-            "Expected Sequence.count to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            Comment(rawValue: "Expected Sequence.count to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
         )
 
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let memberFQName = ["kotlin", "sequences", "Sequence", "count"]
             .map { ctx.interner.intern($0) }
         let links = Set(
             sema.symbols.lookupAll(fqName: memberFQName)
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_sequence_count"),
-            "Expected kk_sequence_count link to be registered, got: \(links)"
+            Comment(rawValue: "Expected kk_sequence_count link to be registered, got: \(links)")
         )
     }
 }

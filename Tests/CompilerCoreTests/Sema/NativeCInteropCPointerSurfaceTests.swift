@@ -1,21 +1,22 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCPointerSurfaceTests: XCTestCase {
+@Suite
+struct NativeCInteropCPointerSurfaceTests {
+    @Test
     func testCPointerClassSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected CPointer surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
         )
-        let sema = try XCTUnwrap(ctx.sema)
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) }),
-                "kotlinx.cinterop.\(name) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let cPointerSymbol = try cinteropSymbol("CPointer")
@@ -30,7 +31,7 @@ final class NativeCInteropCPointerSurfaceTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let typeParameter = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: cPointerSymbol).first)
+        let typeParameter = try #require(sema.types.nominalTypeParameterSymbols(for: cPointerSymbol).first)
         let typeParameterType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParameter,
             nullability: .nonNull
@@ -41,35 +42,36 @@ final class NativeCInteropCPointerSurfaceTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(sema.symbols.symbol(cPointerSymbol)?.kind, .class)
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: cPointerSymbol), [.invariant])
-        XCTAssertEqual(sema.symbols.symbol(typeParameter)?.name, interner.intern("T"))
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [cPointedType])
-        XCTAssertEqual(sema.symbols.propertyType(for: cPointerSymbol), cPointerType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: cPointerSymbol), [cValuesRefSymbol])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: cPointerSymbol), [cValuesRefSymbol])
-        XCTAssertEqual(
-            sema.symbols.supertypeTypeArgs(for: cPointerSymbol, supertype: cValuesRefSymbol),
-            [.invariant(typeParameterType)]
+        #expect(sema.symbols.symbol(cPointerSymbol)?.kind == .class)
+        #expect(sema.types.nominalTypeParameterVariances(for: cPointerSymbol) == [.invariant])
+        #expect(sema.symbols.symbol(typeParameter)?.name == interner.intern("T"))
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParameter) == [cPointedType])
+        #expect(sema.symbols.propertyType(for: cPointerSymbol) == cPointerType)
+        #expect(sema.symbols.directSupertypes(for: cPointerSymbol) == [cValuesRefSymbol])
+        #expect(sema.types.directNominalSupertypes(for: cPointerSymbol) == [cValuesRefSymbol])
+        #expect(
+            sema.symbols.supertypeTypeArgs(for: cPointerSymbol, supertype: cValuesRefSymbol)
+                == [.invariant(typeParameterType)]
         )
-        XCTAssertEqual(
-            sema.types.nominalSupertypeTypeArgs(for: cPointerSymbol, supertype: cValuesRefSymbol),
-            [.invariant(typeParameterType)]
+        #expect(
+            sema.types.nominalSupertypeTypeArgs(for: cPointerSymbol, supertype: cValuesRefSymbol)
+                == [.invariant(typeParameterType)]
         )
 
-        let fqName = try XCTUnwrap(sema.symbols.symbol(cPointerSymbol)?.fqName)
-        let getPointer = try XCTUnwrap(sema.symbols.lookupAll(fqName: fqName + [interner.intern("getPointer")])
+        let fqName = try #require(sema.symbols.symbol(cPointerSymbol)?.fqName)
+        let getPointer = try #require(sema.symbols.lookupAll(fqName: fqName + [interner.intern("getPointer")])
             .compactMap { sema.symbols.functionSignature(for: $0) }
             .first {
                 $0.receiverType == cPointerType &&
                     $0.parameterTypes == [autofreeScopeType] &&
                     $0.returnType == cPointerType
             })
-        XCTAssertEqual(getPointer.typeParameterSymbols, [typeParameter])
-        XCTAssertEqual(getPointer.typeParameterUpperBoundsList, [[cPointedType]])
-        XCTAssertEqual(getPointer.classTypeParameterCount, 1)
+        #expect(getPointer.typeParameterSymbols == [typeParameter])
+        #expect(getPointer.typeParameterUpperBoundsList == [[cPointedType]])
+        #expect(getPointer.classTypeParameterCount == 1)
     }
 
+    @Test
     func testCPointerGetPointerResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.AutofreeScope
@@ -82,9 +84,10 @@ final class NativeCInteropCPointerSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
+        #expect(
+            !(ctx.diagnostics.hasError),
             "Expected CPointer.getPointer to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 }
+#endif

@@ -1,11 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LibraryMetadataManifestValidationTests: XCTestCase {
+@Suite
+struct LibraryMetadataManifestValidationTests {
     // MARK: - P5-54: Missing/Invalid manifest.json
 
-    func testMissingManifestJsonEmitsErrorAndSkipsLibrary() throws {
+    @Test func testMissingManifestJsonEmitsErrorAndSkipsLibrary() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -31,11 +33,11 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
             let hasImported = ctx.sema?.symbols.allSymbols().contains { symbol in
                 ctx.interner.resolve(symbol.name) == "foo" && symbol.flags.contains(.synthetic)
             }
-            XCTAssertFalse(hasImported ?? false, "Library without manifest.json should not load symbols")
+            #expect(!(hasImported ?? false), "Library without manifest.json should not load symbols")
         }
     }
 
-    func testInvalidJsonManifestEmitsErrorAndSkipsLibrary() throws {
+    @Test func testInvalidJsonManifestEmitsErrorAndSkipsLibrary() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -63,13 +65,13 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
             let hasImported = ctx.sema?.symbols.allSymbols().contains { symbol in
                 ctx.interner.resolve(symbol.name) == "bar" && symbol.flags.contains(.synthetic)
             }
-            XCTAssertFalse(hasImported ?? false, "Library with invalid JSON manifest should not load symbols")
+            #expect(!(hasImported ?? false), "Library with invalid JSON manifest should not load symbols")
         }
     }
 
     // MARK: - P5-54: Missing metadata field warning
 
-    func testManifestMissingMetadataFieldEmitsWarning() throws {
+    @Test func testManifestMissingMetadataFieldEmitsWarning() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -100,13 +102,13 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
             let metadataWarnings = ctx.diagnostics.diagnostics.filter {
                 $0.code == "KSWIFTK-LIB-0016" && $0.severity == .warning
             }
-            XCTAssertFalse(metadataWarnings.isEmpty, "Should warn when 'metadata' field is missing from manifest")
+            #expect(!metadataWarnings.isEmpty, "Should warn when 'metadata' field is missing from manifest")
         }
     }
 
     // MARK: - P5-54: compilerVersion validation
 
-    func testManifestEmptyCompilerVersionEmitsWarning() throws {
+    @Test func testManifestEmptyCompilerVersionEmitsWarning() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -139,11 +141,11 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
             let cvWarnings = ctx.diagnostics.diagnostics.filter {
                 $0.code == "KSWIFTK-LIB-0017" && $0.severity == .warning
             }
-            XCTAssertFalse(cvWarnings.isEmpty, "Should warn when 'compilerVersion' is empty")
+            #expect(!cvWarnings.isEmpty, "Should warn when 'compilerVersion' is empty")
         }
     }
 
-    func testManifestInvalidCompilerVersionTypeEmitsWarning() throws {
+    @Test func testManifestInvalidCompilerVersionTypeEmitsWarning() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -173,11 +175,11 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
             )
             try runToKIR(ctx)
 
-            XCTAssertNotNil(ctx.kir, "Invalid manifest metadata should not prevent KIR construction")
+            #expect(ctx.kir != nil, "Invalid manifest metadata should not prevent KIR construction")
         }
     }
 
-    func testManifestValidCompilerVersionDoesNotWarn() throws {
+    @Test func testManifestValidCompilerVersionDoesNotWarn() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -217,7 +219,7 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
 
     // MARK: - P5-54: Path traversal protection
 
-    func testManifestMetadataPathTraversalEmitsError() throws {
+    @Test func testManifestMetadataPathTraversalEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -245,7 +247,7 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
         }
     }
 
-    func testManifestObjectPathTraversalEmitsError() throws {
+    @Test func testManifestObjectPathTraversalEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -279,7 +281,7 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
         }
     }
 
-    func testManifestInlineKIRDirPathTraversalEmitsError() throws {
+    @Test func testManifestInlineKIRDirPathTraversalEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -315,7 +317,7 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
 
     // MARK: - P5-54: Invalid objects field type
 
-    func testManifestInvalidObjectsFieldTypeEmitsError() throws {
+    @Test func testManifestInvalidObjectsFieldTypeEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -345,13 +347,13 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
             )
             try runToKIR(ctx)
 
-            XCTAssertNotNil(ctx.kir, "Invalid objects field should not crash library discovery")
+            #expect(ctx.kir != nil, "Invalid objects field should not crash library discovery")
         }
     }
 
     // MARK: - P5-54: Full valid manifest with all fields passes cleanly
 
-    func testFullyValidManifestProducesNoSchemaErrors() throws {
+    @Test func testFullyValidManifestProducesNoSchemaErrors() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -406,7 +408,8 @@ final class LibraryMetadataManifestValidationTests: XCTestCase {
             let fnSymbol = ctx.sema?.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "fn" && symbol.flags.contains(.synthetic)
             }
-            XCTAssertNotNil(fnSymbol, "Fully valid manifest should load symbols successfully")
+            #expect(fnSymbol != nil, "Fully valid manifest should load symbols successfully")
         }
     }
 }
+#endif

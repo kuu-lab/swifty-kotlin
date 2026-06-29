@@ -1,10 +1,11 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class SemaCacheContextTests: XCTestCase {
+@Suite
+struct SemaCacheContextTests {
     // MARK: - Scope Lookup Cache
 
-    func testScopeLookupCacheReturnsSameResultAsUncached() {
+    @Test func testScopeLookupCacheReturnsSameResultAsUncached() {
         let setup = makeSemaModule()
         let interner = setup.interner
         let symbols = setup.symbols
@@ -23,14 +24,14 @@ final class SemaCacheContextTests: XCTestCase {
         let uncachedResult = scope.lookup(fooName)
         let cachedResult = cache.lookupInScope(fooName, scope: scope)
 
-        XCTAssertEqual(uncachedResult, cachedResult, "Cached scope lookup must return the same result as uncached")
+        #expect(uncachedResult == cachedResult, "Cached scope lookup must return the same result as uncached")
 
         // Second call should return the same result (from cache)
         let cachedResult2 = cache.lookupInScope(fooName, scope: scope)
-        XCTAssertEqual(cachedResult, cachedResult2, "Repeated cached lookup must be stable")
+        #expect(cachedResult == cachedResult2, "Repeated cached lookup must be stable")
     }
 
-    func testScopeLookupCacheReturnsEmptyForUnknownName() {
+    @Test func testScopeLookupCacheReturnsEmptyForUnknownName() {
         let setup = makeSemaModule()
         let interner = setup.interner
 
@@ -38,12 +39,12 @@ final class SemaCacheContextTests: XCTestCase {
         let cache = SemaCacheContext()
 
         let result = cache.lookupInScope(interner.intern("nonexistent"), scope: scope)
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty)
     }
 
     // MARK: - Symbol Lookup Cache
 
-    func testSymbolLookupCacheReturnsSameResultAsUncached() {
+    @Test func testSymbolLookupCacheReturnsSameResultAsUncached() {
         let setup = makeSemaModule()
         let interner = setup.interner
         let symbols = setup.symbols
@@ -58,30 +59,30 @@ final class SemaCacheContextTests: XCTestCase {
         let uncached = symbols.symbol(sym)
         let cached = cache.symbol(sym, in: symbols)
 
-        XCTAssertEqual(uncached?.id, cached?.id)
-        XCTAssertEqual(uncached?.kind, cached?.kind)
+        #expect(uncached?.id == cached?.id)
+        #expect(uncached?.kind == cached?.kind)
 
         // Second call
         let cached2 = cache.symbol(sym, in: symbols)
-        XCTAssertEqual(cached?.id, cached2?.id)
+        #expect(cached?.id == cached2?.id)
     }
 
-    func testSymbolLookupCacheReturnsNilForInvalidID() {
+    @Test func testSymbolLookupCacheReturnsNilForInvalidID() {
         let setup = makeSemaModule()
         let cache = SemaCacheContext()
 
         let invalidID = SymbolID(rawValue: 9999)
         let result = cache.symbol(invalidID, in: setup.symbols)
-        XCTAssertNil(result)
+        #expect(result == nil)
 
         // Second call should also return nil (miss cache)
         let result2 = cache.symbol(invalidID, in: setup.symbols)
-        XCTAssertNil(result2)
+        #expect(result2 == nil)
     }
 
     // MARK: - Call Resolution Cache
 
-    func testCallResolutionCacheReturnsSameResultAsUncached() {
+    @Test func testCallResolutionCacheReturnsSameResultAsUncached() {
         let setup = makeSemaModule()
         let interner = setup.interner
         let symbols = setup.symbols
@@ -120,22 +121,22 @@ final class SemaCacheContextTests: XCTestCase {
         )
 
         // Verify identical results
-        XCTAssertEqual(uncached.chosenCallee, cached.chosenCallee)
-        XCTAssertEqual(uncached.substitutedTypeArguments, cached.substitutedTypeArguments)
-        XCTAssertEqual(uncached.parameterMapping, cached.parameterMapping)
-        XCTAssertEqual(uncached.diagnostic, cached.diagnostic)
+        #expect(uncached.chosenCallee == cached.chosenCallee)
+        #expect(uncached.substitutedTypeArguments == cached.substitutedTypeArguments)
+        #expect(uncached.parameterMapping == cached.parameterMapping)
+        #expect(uncached.diagnostic == cached.diagnostic)
 
         // Second call should be a cache hit
         let cached2 = resolverWithCache.resolveCall(
             candidates: [fn], call: call, expectedType: intType, ctx: setup.ctx
         )
-        XCTAssertEqual(cached.chosenCallee, cached2.chosenCallee)
-        XCTAssertEqual(cached.parameterMapping, cached2.parameterMapping)
-        XCTAssertEqual(cache.callResolutionHits, 1, "Second call should be a cache hit")
-        XCTAssertEqual(cache.callResolutionMisses, 1, "First call should be a cache miss")
+        #expect(cached.chosenCallee == cached2.chosenCallee)
+        #expect(cached.parameterMapping == cached2.parameterMapping)
+        #expect(cache.callResolutionHits == 1, "Second call should be a cache hit")
+        #expect(cache.callResolutionMisses == 1, "First call should be a cache miss")
     }
 
-    func testCallResolutionCacheKeyDistinguishesDifferentCandidates() {
+    @Test func testCallResolutionCacheKeyDistinguishesDifferentCandidates() {
         let setup = makeSemaModule()
         let interner = setup.interner
         let symbols = setup.symbols
@@ -182,14 +183,14 @@ final class SemaCacheContextTests: XCTestCase {
         )
 
         // Different candidates should produce different results
-        XCTAssertEqual(resultA.chosenCallee, fnA)
-        XCTAssertEqual(resultB.chosenCallee, fnB)
-        XCTAssertEqual(cache.callResolutionMisses, 2, "Different candidate sets must be separate cache entries")
+        #expect(resultA.chosenCallee == fnA)
+        #expect(resultB.chosenCallee == fnB)
+        #expect(cache.callResolutionMisses == 2, "Different candidate sets must be separate cache entries")
     }
 
     // MARK: - Differential Verification (cache ON vs OFF produce same diagnostics)
 
-    func testDifferentialVerificationSimpleFunction() throws {
+    @Test func testDifferentialVerificationSimpleFunction() throws {
         let source = """
         fun add(a: Int, b: Int): Int = a + b
         fun main() {
@@ -207,9 +208,8 @@ final class SemaCacheContextTests: XCTestCase {
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
-        XCTAssertEqual(
-            diagsNoCache.map(\.code).sorted(),
-            diagsCached.map(\.code).sorted(),
+        #expect(
+            diagsNoCache.map(\.code).sorted() == diagsCached.map(\.code).sorted(),
             "Diagnostic codes must be identical with and without sema-cache"
         )
     }

@@ -1,6 +1,6 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-040: Validates that `Sequence<T>.flatMapIndexedTo` resolves
 /// through Sema for the `kotlin.sequences.Sequence` receiver wired through
@@ -9,8 +9,9 @@ import XCTest
 /// destination `MutableCollection<R>`. The call is linked to the runtime
 /// symbol `kk_sequence_flatMapIndexedTo` and the call expression is typed as
 /// the destination collection type.
-final class SequenceFlatMapIndexedToFunctionTests: XCTestCase {
-    func testSequenceFlatMapIndexedToResolvesToRuntimeABIAndDestinationResult() throws {
+@Suite
+struct SequenceFlatMapIndexedToFunctionTests {
+    @Test func testSequenceFlatMapIndexedToResolvesToRuntimeABIAndDestinationResult() throws {
         let source = """
         fun probe(values: Sequence<Int>): MutableList<String> {
             val dest: MutableList<String> = mutableListOf()
@@ -25,17 +26,17 @@ final class SequenceFlatMapIndexedToFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
-                "Expected flatMapIndexedTo to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+                Comment(rawValue: "Expected flatMapIndexedTo to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 "kotlin", "sequences", "Sequence", "flatMapIndexedTo",
             ].map { ctx.interner.intern($0) }
             let sequenceMembers = sema.symbols.lookupAll(fqName: memberFQName)
-            XCTAssertTrue(
+            #expect(
                 sequenceMembers.contains { sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexedTo" },
                 "Expected Sequence.flatMapIndexedTo synthetic member to link to kk_sequence_flatMapIndexedTo"
             )

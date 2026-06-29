@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Tests for companion object support (P5-73).
 ///
@@ -11,10 +12,10 @@ import XCTest
 /// Fix 2 – Parser unnamed companion object:
 ///   `companion object { ... }` (without a name) must not emit
 ///   "Expected declaration name" warning (KSWIFTK-PARSE-0002).
-final class CompanionObjectTests: XCTestCase {
+@Suite struct CompanionObjectTests {
     // MARK: - Fix 1: Type resolution short-name fallback for packaged types
 
-    func testPackagedClassInCompanionFunctionReturnTypeResolves() throws {
+    @Test func testPackagedClassInCompanionFunctionReturnTypeResolves() throws {
         let source = """
         package test
         class Foo
@@ -30,7 +31,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testPackagedClassInRegularFunctionReturnTypeResolves() throws {
+    @Test func testPackagedClassInRegularFunctionReturnTypeResolves() throws {
         let source = """
         package test
         class Foo
@@ -42,7 +43,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testPackagedClassInFunctionParameterTypeResolves() throws {
+    @Test func testPackagedClassInFunctionParameterTypeResolves() throws {
         let source = """
         package test
         class Foo
@@ -54,7 +55,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testNonPackagedTypeResolutionStillWorks() throws {
+    @Test func testNonPackagedTypeResolutionStillWorks() throws {
         let source = """
         class Foo
         fun makeFoo(): Foo = Foo()
@@ -65,7 +66,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testBuiltinTypesResolveInPackagedContext() throws {
+    @Test func testBuiltinTypesResolveInPackagedContext() throws {
         let source = """
         package test
         fun intFn(): Int = 1
@@ -79,7 +80,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
-    func testUnresolvedTypeStillReportsDiagnostic() throws {
+    @Test func testUnresolvedTypeStillReportsDiagnostic() throws {
         let source = """
         package test
         fun bad(): NoSuchType = 1
@@ -90,7 +91,7 @@ final class CompanionObjectTests: XCTestCase {
         assertHasDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testMultiplePackagedClassesResolveIndependently() throws {
+    @Test func testMultiplePackagedClassesResolveIndependently() throws {
         let source = """
         package test
         class Alpha
@@ -106,7 +107,7 @@ final class CompanionObjectTests: XCTestCase {
 
     // MARK: - Fix 2: Parser unnamed companion object
 
-    func testUnnamedCompanionObjectProducesNoParseWarning() throws {
+    @Test func testUnnamedCompanionObjectProducesNoParseWarning() throws {
         let source = """
         class Foo {
             companion object {
@@ -120,7 +121,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-PARSE-0002", in: ctx)
     }
 
-    func testNamedCompanionObjectProducesNoParseWarning() throws {
+    @Test func testNamedCompanionObjectProducesNoParseWarning() throws {
         let source = """
         class Foo {
             companion object Factory {
@@ -134,7 +135,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-PARSE-0002", in: ctx)
     }
 
-    func testNonCompanionObjectWithNameProducesNoWarning() throws {
+    @Test func testNonCompanionObjectWithNameProducesNoWarning() throws {
         let source = """
         object MySingleton {
             fun value(): Int = 42
@@ -148,7 +149,7 @@ final class CompanionObjectTests: XCTestCase {
 
     // MARK: - Combined: companion object in packaged context
 
-    func testUnnamedCompanionInPackagedClassResolvesReturnType() throws {
+    @Test func testUnnamedCompanionInPackagedClassResolvesReturnType() throws {
         let source = """
         package test
         class Result
@@ -165,7 +166,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testNamedCompanionInPackagedClassResolvesReturnType() throws {
+    @Test func testNamedCompanionInPackagedClassResolvesReturnType() throws {
         let source = """
         package test
         class Config
@@ -182,7 +183,7 @@ final class CompanionObjectTests: XCTestCase {
         assertNoDiagnostic("KSWIFTK-SEMA-0025", in: ctx)
     }
 
-    func testCompanionObjectWithMultipleFunctions() throws {
+    @Test func testCompanionObjectWithMultipleFunctions() throws {
         let source = """
         package test
         class Item
@@ -202,7 +203,7 @@ final class CompanionObjectTests: XCTestCase {
 
     // MARK: - KIR emission for companion object
 
-    func testCompanionObjectKIREmissionSucceeds() throws {
+    @Test func testCompanionObjectKIREmissionSucceeds() throws {
         let source = """
         class Foo {
             companion object {
@@ -213,12 +214,12 @@ final class CompanionObjectTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
-        let module = try XCTUnwrap(ctx.kir)
-        XCTAssertGreaterThanOrEqual(module.functionCount, 1)
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        let module = try #require(ctx.kir)
+        #expect(module.functionCount >= 1)
     }
 
-    func testPackagedCompanionObjectKIREmissionSucceeds() throws {
+    @Test func testPackagedCompanionObjectKIREmissionSucceeds() throws {
         let source = """
         package test
         class Foo
@@ -231,6 +232,7 @@ final class CompanionObjectTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
     }
 }
+#endif

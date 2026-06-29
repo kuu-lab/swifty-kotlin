@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 // MARK: - DataFlow + Sema Regression Tests
 
@@ -9,7 +10,7 @@ import XCTest
 //          TypeCheck/TypeCheckSemaPhase.swift (51.4%)
 
 extension DataFlowAndSemaRegressionTests {
-    func testClassWithTypeParametersDefinesVariance() throws {
+    @Test func testClassWithTypeParametersDefinesVariance() throws {
         let source = """
         class Box<out T>(val value: T)
         fun main(): Int = 0
@@ -17,17 +18,17 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let boxSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "Box"
             }
-            XCTAssertNotNil(boxSymbol)
+            #expect(boxSymbol != nil)
         }
     }
 
     // MARK: - ExprInference: typed local declaration
 
-    func testTypedLocalDeclarationInfersCorrectly() throws {
+    @Test func testTypedLocalDeclarationInfersCorrectly() throws {
         let source = """
         fun main(): Int {
             val x: Int = 42
@@ -37,17 +38,17 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let xSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "x" && symbol.kind == .local
             }
-            XCTAssertNotNil(xSymbol)
+            #expect(xSymbol != nil)
         }
     }
 
     // MARK: - ExprInference: val reassignment diagnostic
 
-    func testValReassignmentEmitsDiagnostic() throws {
+    @Test func testValReassignmentEmitsDiagnostic() throws {
         let source = """
         fun main(): Int {
             val x = 1
@@ -64,7 +65,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: do-while loop
 
-    func testDoWhileLoopInfersUnitType() throws {
+    @Test func testDoWhileLoopInfersUnitType() throws {
         let source = """
         fun main(): Int {
             var x = 0
@@ -77,12 +78,13 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testDoWhileConditionCanReferenceBodyLocal() throws {
+    @Test func testDoWhileConditionCanReferenceBodyLocal() throws {
         let source = """
         fun main(): Int {
             var loops = 0
@@ -101,7 +103,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testDoWhileBodyLocalDoesNotLeakOutsideLoop() throws {
+    @Test func testDoWhileBodyLocalDoesNotLeakOutsideLoop() throws {
         let source = """
         fun main(): Int {
             do {
@@ -117,7 +119,7 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 
-    func testDoWhileInlineBodyAssignmentTypeChecks() throws {
+    @Test func testDoWhileInlineBodyAssignmentTypeChecks() throws {
         let source = """
         fun main(): Int {
             var x = 0
@@ -135,7 +137,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: compound assignment operators
 
-    func testCompoundAssignmentOperators() throws {
+    @Test func testCompoundAssignmentOperators() throws {
         let source = """
         fun main(): Int {
             var x = 10
@@ -156,7 +158,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: compound assign on val
 
-    func testCompoundAssignOnValEmitsDiagnostic() throws {
+    @Test func testCompoundAssignOnValEmitsDiagnostic() throws {
         let source = """
         fun main(): Int {
             val x = 5
@@ -173,7 +175,7 @@ extension DataFlowAndSemaRegressionTests {
 
     // MARK: - ExprInference: when expression
 
-    func testWhenExpressionInference() throws {
+    @Test func testWhenExpressionInference() throws {
         let source = """
         fun classify(x: Int): String {
             return when (x) {
@@ -187,14 +189,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: return expression
 
-    func testReturnExpressionInference() throws {
+    @Test func testReturnExpressionInference() throws {
         let source = """
         fun earlyReturn(flag: Boolean): Int {
             if (flag) return 42
@@ -205,69 +208,73 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "earlyReturn", in: module, interner: ctx.interner)
             let returnCount = body.filter { instruction in
                 if case .returnValue = instruction { return true }
                 return false
             }.count
-            XCTAssertGreaterThanOrEqual(returnCount, 2)
+            #expect(returnCount >= 2)
         }
     }
 
     // MARK: - ExprInference: Long/Float/Double/Char literals
 
-    func testLongLiteralInference() throws {
+    @Test func testLongLiteralInference() throws {
         let source = """
         fun main(): Long = 42L
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testFloatLiteralInference() throws {
+    @Test func testFloatLiteralInference() throws {
         let source = """
         fun main(): Float = 1.5f
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testDoubleLiteralInference() throws {
+    @Test func testDoubleLiteralInference() throws {
         let source = """
         fun main(): Double = 3.14
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testCharLiteralInference() throws {
+    @Test func testCharLiteralInference() throws {
         let source = """
         fun main(): Char = 'A'
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: is check and as cast
 
-    func testIsCheckInfersBoolean() throws {
+    @Test func testIsCheckInfersBoolean() throws {
         let source = """
         fun check(x: Any): Boolean = x is Int
         fun main() = check(42)
@@ -275,12 +282,13 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testSafeCastInfersNullableType() throws {
+    @Test func testSafeCastInfersNullableType() throws {
         let source = """
         fun tryCast(x: Any): Int? = x as? Int
         fun main() = tryCast(42)
@@ -288,12 +296,13 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
-    func testHardCastInference() throws {
+    @Test func testHardCastInference() throws {
         let source = """
         fun forceCast(x: Any): Int = x as Int
         fun main() = forceCast(42)
@@ -301,14 +310,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: null assert
 
-    func testNullAssertInfersNonNullable() throws {
+    @Test func testNullAssertInfersNonNullable() throws {
         let source = """
         fun forceUnwrap(x: Int?): Int = x!!
         fun main() = forceUnwrap(42)
@@ -316,14 +326,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: elvis operator
 
-    func testElvisOperatorInference() throws {
+    @Test func testElvisOperatorInference() throws {
         let source = """
         fun fallback(x: Int?): Int = x ?: 0
         fun main() = fallback(null)
@@ -331,14 +342,15 @@ extension DataFlowAndSemaRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(sema.bindings.exprTypes.isEmpty)
+            let sema = try #require(ctx.sema)
+            let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
+            #expect(!exprTypesEmpty)
         }
     }
 
     // MARK: - ExprInference: break/continue outside loop
 
-    func testBreakOutsideLoopEmitsDiagnostic() throws {
+    @Test func testBreakOutsideLoopEmitsDiagnostic() throws {
         let source = """
         fun main(): Int {
             break
@@ -352,3 +364,4 @@ extension DataFlowAndSemaRegressionTests {
         }
     }
 }
+#endif

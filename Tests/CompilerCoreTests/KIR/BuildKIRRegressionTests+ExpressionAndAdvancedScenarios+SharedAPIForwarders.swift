@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testDirectSharedAPICallForwardersAreReachable() {
+    @Test func testDirectSharedAPICallForwardersAreReachable() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -115,12 +116,12 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        XCTAssertFalse(emit.instructions.isEmpty)
-        XCTAssertTrue(callees.contains("kk_array_get"))
-        XCTAssertTrue(callees.contains("kk_array_set"))
+        #expect(!(emit.instructions.isEmpty))
+        #expect(callees.contains("kk_array_get"))
+        #expect(callees.contains("kk_array_set"))
     }
 
-    func testDirectSharedAPIControlFlowForwardersAreReachable() {
+    @Test func testDirectSharedAPIControlFlowForwardersAreReachable() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let boolType = fixture.types.make(.primitive(.boolean, .nonNull))
@@ -211,13 +212,13 @@ extension BuildKIRRegressionTests {
             emit: &emit
         )
 
-        XCTAssertTrue(emit.instructions.contains { instruction in
+        #expect(emit.instructions.contains { instruction in
             if case .label = instruction { return true }
             return false
         })
     }
 
-    func testDirectMemberCallWithInvokeOperatorRoutesToInvokeCallee() {
+    @Test func testDirectMemberCallWithInvokeOperatorRoutesToInvokeCallee() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -289,18 +290,18 @@ extension BuildKIRRegressionTests {
             if case .call = instruction { return true }
             return false
         }) else {
-            XCTFail("Expected member invoke call instruction")
+            Issue.record("Expected member invoke call instruction")
             return
         }
         guard case let .call(chosen, loweredCallee, _, _, _, _, _, _) = callInstruction else {
-            XCTFail("Expected .call instruction")
+            Issue.record("Expected .call instruction")
             return
         }
-        XCTAssertEqual(chosen, invoke)
-        XCTAssertEqual(fixture.interner.resolve(loweredCallee), "invoke")
+        #expect(chosen == invoke)
+        #expect(fixture.interner.resolve(loweredCallee) == "invoke")
     }
 
-    func testDirectSafeMemberCallWithInvokeOperatorRoutesToInvokeCallee() {
+    @Test func testDirectSafeMemberCallWithInvokeOperatorRoutesToInvokeCallee() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -368,18 +369,18 @@ extension BuildKIRRegressionTests {
             if case .call = instruction { return true }
             return false
         }) else {
-            XCTFail("Expected safe member invoke call instruction")
+            Issue.record("Expected safe member invoke call instruction")
             return
         }
         guard case let .call(chosen, loweredCallee, _, _, _, _, _, _) = callInstruction else {
-            XCTFail("Expected .call instruction")
+            Issue.record("Expected .call instruction")
             return
         }
-        XCTAssertEqual(chosen, invoke)
-        XCTAssertEqual(fixture.interner.resolve(loweredCallee), "invoke")
+        #expect(chosen == invoke)
+        #expect(fixture.interner.resolve(loweredCallee) == "invoke")
     }
 
-    func testDirectMemberCallMutableMapPutAllFallsBackToRuntimeCallee() {
+    @Test func testDirectMemberCallMutableMapPutAllFallsBackToRuntimeCallee() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let anyType = fixture.types.anyType
@@ -432,11 +433,11 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        XCTAssertTrue(callees.contains("kk_mutable_map_putAll"))
-        XCTAssertFalse(callees.contains("putAll"))
+        #expect(callees.contains("kk_mutable_map_putAll"))
+        #expect(!(callees.contains("putAll")))
     }
 
-    func testDirectSharedAPILambdaAndObjectForwardersAreReachable() {
+    @Test func testDirectSharedAPILambdaAndObjectForwardersAreReachable() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -496,6 +497,7 @@ extension BuildKIRRegressionTests {
             emit: &emit
         )
 
-        XCTAssertFalse(fixture.kirArena.declarations.isEmpty)
+        #expect(!(fixture.kirArena.declarations.isEmpty))
     }
 }
+#endif

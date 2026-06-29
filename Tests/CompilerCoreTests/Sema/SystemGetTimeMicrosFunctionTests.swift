@@ -1,11 +1,13 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-SYSTEM-FN-002: `fun getTimeMicros(): Long` in kotlin.system.
 ///
 /// Verifies the function resolves cleanly when imported in a source file.
-final class SystemGetTimeMicrosFunctionTests: XCTestCase {
+@Suite
+struct SystemGetTimeMicrosFunctionTests {
+    @Test
     func testGetTimeMicrosFunctionResolvesInSource() throws {
         let source = """
         import kotlin.system.getTimeMicros
@@ -21,18 +23,18 @@ final class SystemGetTimeMicrosFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Expected kotlin.system.getTimeMicros to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "system", "getTimeMicros"].map { ctx.interner.intern($0) }
             let links = Set(
                 sema.symbols.lookupAll(fqName: fq)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            XCTAssertTrue(
+            #expect(
                 links.contains("kk_system_getTimeMicros"),
                 "kotlin.system.getTimeMicros must link to kk_system_getTimeMicros; got: \(links)"
             )

@@ -1,17 +1,19 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Mutable-collection, Map, Build, Grouping, and zip/sort/conversion
 /// test methods of `ListSyntheticMemberLinkTests`, split out to keep
 /// each test source focused.
 extension ListSyntheticMemberLinkTests {
+    @Test
     func testListSortedAndSortedDescendingHaveComparableUpperBound() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let baseFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -23,37 +25,35 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in memberCases {
-                let symbolID = try XCTUnwrap(
-                    sema.symbols.lookupAll(
+                let symbolID = try #require(sema.symbols.lookupAll(
                         fqName: baseFQName + [ctx.interner.intern(memberName)]
-                    ).first(where: { sema.symbols.externalLinkName(for: $0) == externalLinkName }),
-                    "Expected synthetic List member \(memberName) to be registered"
-                )
-                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbolID))
-                XCTAssertEqual(signature.typeParameterUpperBoundsList.count, 1)
+                    ).first(where: { sema.symbols.externalLinkName(for: $0) == externalLinkName }))
+                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+                #expect(signature.typeParameterUpperBoundsList.count == 1)
                 let upperBounds = signature.typeParameterUpperBoundsList[0]
-                XCTAssertEqual(upperBounds.count, 1, "Expected Comparable upper bound for \(memberName) element type")
+                #expect(upperBounds.count == 1, "Expected Comparable upper bound for \(memberName) element type")
 
                 guard case let .classType(boundType) = sema.types.kind(of: upperBounds[0]) else {
-                    return XCTFail("Expected \(memberName) upper bound to be a class type")
+                    Issue.record("Expected \(memberName) upper bound to be a class type"); return
                 }
 
-                XCTAssertEqual(boundType.classSymbol, sema.types.comparableInterfaceSymbol)
-                XCTAssertEqual(boundType.args.count, 1)
+                #expect(boundType.classSymbol == sema.types.comparableInterfaceSymbol)
+                #expect(boundType.args.count == 1)
 
                 guard case let .invariant(argumentType) = boundType.args[0] else {
-                    return XCTFail("Expected \(memberName) upper bound to reference invariant element type")
+                    Issue.record("Expected \(memberName) upper bound to reference invariant element type"); return
                 }
 
                 let expectedElementType = sema.types.make(.typeParam(TypeParamType(
                     symbol: signature.typeParameterSymbols[0],
                     nullability: .nonNull
                 )))
-                XCTAssertEqual(argumentType, expectedElementType)
+                #expect(argumentType == expectedElementType)
             }
         }
     }
 
+    @Test
     func testListSortedAndSortedDescendingRequireComparableElements() throws {
         let source = """
         class Box
@@ -70,10 +70,11 @@ extension ListSyntheticMemberLinkTests {
             try? SemaPhase().run(ctx)
 
             let boundDiagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-BOUND" }
-            XCTAssertEqual(boundDiagnostics.count, 2, "Expected bound diagnostics for sorted/sortedDescending")
+            #expect(boundDiagnostics.count == 2, "Expected bound diagnostics for sorted/sortedDescending")
         }
     }
 
+    @Test
     func testListConversionMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun convert(values: List<Int>) {
@@ -87,8 +88,8 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
                 "toMutableList": "kk_list_to_mutable_list",
@@ -98,39 +99,32 @@ extension ListSyntheticMemberLinkTests {
 
             for (memberName, externalLinkName) in expectedExternalLinks {
                 if memberName == "addAll" {
-                    let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+                    let symbol = try #require(sema.symbols.lookup(fqName: [
                         ctx.interner.intern("kotlin"),
                         ctx.interner.intern("collections"),
                         ctx.interner.intern("MutableSet"),
                         ctx.interner.intern(memberName),
                     ]))
-                    XCTAssertEqual(
-                        sema.symbols.externalLinkName(for: symbol),
-                        externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
-                    )
+                    #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 } else {
                     // Exclude bundled stdlib files (FileIDs 0 and 1) to avoid matching
                     // internal calls like `result.add(element)` inside bundled Set HOFs.
-                    let callExpr = try XCTUnwrap(firstExprID(in: ast) { id, expr in
+                    let callExpr = try #require(firstExprID(in: ast) { id, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                         guard ctx.interner.resolve(callee) == memberName else { return false }
                         if let range = ast.arena.exprRange(id), range.start.file.rawValue < 2 {
                             return false
                         }
                         return true
-                    }, "Expected member call to \(memberName) in AST")
-                    let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                    XCTAssertEqual(
-                        sema.symbols.externalLinkName(for: chosenCallee),
-                        externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
-                    )
+                    })
+                    let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
             }
         }
     }
 
+    @Test
     func testCollectionAndIterableConversionMembersUseRuntimeExternalLinks() throws {
         let cases: [SyntheticMemberCallCase] = [
             .init(
@@ -180,6 +174,7 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
     func testSetBinaryMembersKeepSetResultTypeInFallbackPath() throws {
         let source = """
         fun combine(values: Set<Int>, other: Set<Int>) {
@@ -193,8 +188,8 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let expectedMembers = Set(["intersect", "union", "subtract"])
             let setResultTypes: [String: TypeID] = Dictionary(uniqueKeysWithValues: ast.arena.exprs.indices.compactMap { index in
                 let exprID = ExprID(rawValue: Int32(index))
@@ -212,30 +207,28 @@ extension ListSyntheticMemberLinkTests {
                 return (memberName, type)
             })
 
-            XCTAssertEqual(setResultTypes.keys.count, expectedMembers.count)
+            #expect(setResultTypes.keys.count == expectedMembers.count)
 
             for memberName in expectedMembers {
-                let type = try XCTUnwrap(setResultTypes[memberName], "Expected inferred type for \(memberName)")
+                let type = try #require(setResultTypes[memberName])
                 guard case let .classType(classType) = sema.types.kind(of: type) else {
-                    return XCTFail("Expected \(memberName) to infer as Set<Int>, got \(sema.types.kind(of: type))")
+                    Issue.record("Expected \(memberName) to infer as Set<Int>, got \(sema.types.kind(of: type))"); return
                 }
-                XCTAssertEqual(
-                    try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(classType.classSymbol)?.name)),
-                    "Set"
-                )
-                XCTAssertEqual(classType.args.count, 1, "Expected Set<Int> type argument for \(memberName)")
+                #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Set")
+                #expect(classType.args.count == 1, "Expected Set<Int> type argument for \(memberName)")
                 let elementType: TypeID
                 switch classType.args[0] {
                 case let .invariant(type), let .out(type), let .in(type):
                     elementType = type
                 case .star:
-                    return XCTFail("Expected concrete Set element projection for \(memberName)")
+                    Issue.record("Expected concrete Set element projection for \(memberName)"); return
                 }
-                XCTAssertEqual(sema.types.kind(of: elementType), .primitive(.int, .nonNull))
+                #expect(sema.types.kind(of: elementType) == .primitive(.int, .nonNull))
             }
         }
     }
 
+    @Test
     func testListUnzipUsesRuntimeExternalLinkAndReturnsPairOfLists() throws {
         let source = """
         fun split(values: List<Pair<Int, String>>) {
@@ -247,29 +240,23 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected List.unzip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.unzip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "unzip"
-            }, "Expected values.unzip() member call in AST")
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_list_unzip")
+            })
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_unzip")
 
-            let resultType = try XCTUnwrap(sema.bindings.exprType(for: callExpr))
+            let resultType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(pairType) = sema.types.kind(of: resultType) else {
-                return XCTFail("Expected List.unzip to return Pair<List<Int>, List<String>>")
+                Issue.record("Expected List.unzip to return Pair<List<Int>, List<String>>"); return
             }
-            XCTAssertEqual(
-                try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(pairType.classSymbol)?.name)),
-                "Pair"
-            )
-            XCTAssertEqual(pairType.args.count, 2)
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(pairType.classSymbol)?.name)) == "Pair")
+            #expect(pairType.args.count == 2)
 
             let firstListType = try projectedType(pairType.args[0])
             let secondListType = try projectedType(pairType.args[1])
@@ -278,6 +265,7 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
     func testSequenceJoinToStringUsesRuntimeExternalLink() throws {
         let source = """
         fun render(values: Sequence<Int>) {
@@ -293,17 +281,18 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "joinToString"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_sequence_joinToString")
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_sequence_joinToString")
         }
     }
 
+    @Test
     func testSequenceReduceIndexedOrNullUsesRuntimeExternalLink() throws {
         let source = """
         fun render(values: Sequence<Int>) {
@@ -318,25 +307,20 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let sequenceReduceIndexedOrNullSymbol = try XCTUnwrap(
-                sema.symbols.lookup(
+            let sema = try #require(ctx.sema)
+            let sequenceReduceIndexedOrNullSymbol = try #require(sema.symbols.lookup(
                     fqName: [
                         ctx.interner.intern("kotlin"),
                         ctx.interner.intern("sequences"),
                         ctx.interner.intern("Sequence"),
                         ctx.interner.intern("reduceIndexedOrNull"),
                     ]
-                ),
-                "Expected synthetic Sequence.reduceIndexedOrNull member to be registered"
-            )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: sequenceReduceIndexedOrNullSymbol),
-                "kk_sequence_reduceIndexedOrNull"
-            )
+                ))
+            #expect(sema.symbols.externalLinkName(for: sequenceReduceIndexedOrNullSymbol) == "kk_sequence_reduceIndexedOrNull")
         }
     }
 
+    @Test
     func testListFlatMapRegistersRuntimeExternalLink() throws {
         let source = """
         fun render(values: List<String>) {
@@ -352,7 +336,7 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -360,30 +344,31 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("flatMap"),
             ]
             let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            XCTAssertEqual(symbols.count, 1, "Expected one synthetic List.flatMap overload")
+            #expect(symbols.count == 1, "Expected one synthetic List.flatMap overload")
 
-            let symbol = try XCTUnwrap(symbols.first)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_list_flatMap")
+            let symbol = try #require(symbols.first)
+            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_list_flatMap")
 
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
                   let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
             else {
-                return XCTFail("Expected List.flatMap to return List<R>")
+                Issue.record("Expected List.flatMap to return List<R>"); return
             }
-            XCTAssertEqual(ctx.interner.resolve(returnSymbol.name), "List")
+            #expect(ctx.interner.resolve(returnSymbol.name) == "List")
 
-            let transformType = try XCTUnwrap(signature.parameterTypes.first)
+            let transformType = try #require(signature.parameterTypes.first)
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
                   case let .classType(transformReturnClassType) = sema.types.kind(of: sema.types.makeNonNullable(functionType.returnType)),
                   let transformReturnSymbol = sema.symbols.symbol(transformReturnClassType.classSymbol)
             else {
-                return XCTFail("Expected List.flatMap transform to return Collection<R>")
+                Issue.record("Expected List.flatMap transform to return Collection<R>"); return
             }
-            XCTAssertEqual(ctx.interner.resolve(transformReturnSymbol.name), "Collection")
+            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "Collection")
         }
     }
 
+    @Test
     func testSequenceFlatMapIndexedRegistersIterableAndSequenceOverloads() throws {
         let source = """
         fun render(values: Sequence<Int>) {
@@ -401,7 +386,7 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("sequences"),
@@ -409,8 +394,8 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("flatMapIndexed"),
             ]
             let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            XCTAssertEqual(symbols.count, 2, "Expected Iterable and Sequence flatMapIndexed overloads")
-            XCTAssertTrue(symbols.allSatisfy {
+            #expect(symbols.count == 2, "Expected Iterable and Sequence flatMapIndexed overloads")
+            #expect(symbols.allSatisfy {
                 sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexed"
             })
 
@@ -422,11 +407,12 @@ extension ListSyntheticMemberLinkTests {
                 else { return nil }
                 return ctx.interner.resolve(returnSymbol.name)
             }
-            XCTAssertTrue(transformReturnTypeNames.contains("Iterable"))
-            XCTAssertTrue(transformReturnTypeNames.contains("Sequence"))
+            #expect(transformReturnTypeNames.contains("Iterable"))
+            #expect(transformReturnTypeNames.contains("Sequence"))
         }
     }
 
+    @Test
     func testSequenceShuffledUsesRuntimeExternalLinks() throws {
         let source = """
         import kotlin.random.Random
@@ -444,7 +430,7 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fqName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("sequences"),
@@ -454,11 +440,12 @@ extension ListSyntheticMemberLinkTests {
             let externalLinks = Set(sema.symbols.lookupAll(fqName: fqName).compactMap {
                 sema.symbols.externalLinkName(for: $0)
             })
-            XCTAssertTrue(externalLinks.contains("kk_sequence_shuffled"))
-            XCTAssertTrue(externalLinks.contains("kk_sequence_shuffled_random"))
+            #expect(externalLinks.contains("kk_sequence_shuffled"))
+            #expect(externalLinks.contains("kk_sequence_shuffled_random"))
         }
     }
 
+    @Test
     func testSequenceRequireNoNullsSyntheticStubHasRuntimeExternalLink() throws {
         let source = """
         fun render(values: Sequence<Int?>) {
@@ -474,19 +461,20 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fqName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("sequences"),
                 ctx.interner.intern("Sequence"),
                 ctx.interner.intern("requireNoNulls"),
             ]
-            XCTAssertTrue(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+            #expect(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
                 sema.symbols.externalLinkName(for: candidate) == "kk_sequence_requireNoNulls"
             })
         }
     }
 
+    @Test
     func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
@@ -509,8 +497,8 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedExternalLinks: [(String, Int, String)] = [
                 ("add", 1, "kk_mutable_list_add"),
@@ -528,20 +516,17 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
-                let callExpr = try XCTUnwrap(lastExprID(in: ast) { _, expr in
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
-                }, "Expected member call to \(memberName) with \(argumentCount) arguments in AST")
-                let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
-                    "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)"
-                )
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
             }
         }
     }
 
+    @Test
     func testMutableListBulkMutationFallbacksReturnBoolean() throws {
         let source = """
         fun mutate(): Boolean {
@@ -556,44 +541,31 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             for memberName in ["addAll", "removeAll", "retainAll"] {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let symbolID = try XCTUnwrap(
-                    sema.symbols.lookup(
+                })
+                let symbolID = try #require(sema.symbols.lookup(
                         fqName: [
                             ctx.interner.intern("kotlin"),
                             ctx.interner.intern("collections"),
                             ctx.interner.intern("MutableList"),
                             ctx.interner.intern(memberName),
                         ]
-                    ),
-                    "Expected synthetic MutableList member \(memberName) to be registered"
-                )
+                    ))
 
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: symbolID),
-                    "kk_mutable_list_\(memberName)",
-                    "Expected \(memberName) to resolve to runtime extern"
-                )
-                XCTAssertEqual(
-                    sema.bindings.exprTypes[callExpr],
-                    sema.types.booleanType,
-                    "Expected \(memberName) to return Boolean"
-                )
-                XCTAssertFalse(
-                    sema.bindings.isCollectionExpr(callExpr),
-                    "Expected \(memberName) result to remain a scalar Boolean"
-                )
+                #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_mutable_list_\(memberName)", "Expected \(memberName) to resolve to runtime extern")
+                #expect(sema.bindings.exprTypes[callExpr] == sema.types.booleanType, "Expected \(memberName) to return Boolean")
+                #expect(!(sema.bindings.isCollectionExpr(callExpr)), "Expected \(memberName) result to remain a scalar Boolean")
             }
         }
     }
 
+    @Test
     func testMutableCollectionSequenceAddAllMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun appendCollection(collection: MutableCollection<Int>, source: Sequence<Int>) = collection.addAll(source)
@@ -605,8 +577,8 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let expectedExternalLinks = [
                 "collection": "kk_mutable_collection_addAll_sequence",
                 "list": "kk_mutable_list_addAll_sequence",
@@ -614,7 +586,7 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (receiverName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(receiver, callee, _, valueArgs, _) = expr,
                           ctx.interner.resolve(callee) == "addAll",
                           valueArgs.count == 1,
@@ -623,18 +595,15 @@ extension ListSyntheticMemberLinkTests {
                         return false
                     }
                     return ctx.interner.resolve(name) == receiverName
-                }, "Expected \(receiverName).addAll(source) call in AST")
-                let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
-                    "Expected \(receiverName).addAll(Sequence) to resolve to \(externalLinkName)"
-                )
-                XCTAssertEqual(sema.bindings.exprType(for: callExpr), sema.types.booleanType)
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(externalLinkName)")
+                #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
             }
         }
     }
 
+    @Test
     func testMutableListSortMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
@@ -648,8 +617,8 @@ extension ListSyntheticMemberLinkTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
@@ -661,21 +630,18 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
+                })
                 if let chosenCallee = sema.bindings.callBinding(for: callExpr)?.chosenCallee {
-                    XCTAssertEqual(
-                        sema.symbols.externalLinkName(for: chosenCallee),
-                        externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
-                    )
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
             }
         }
     }
 
+    @Test
     func testListPrimitiveArrayConversionsUseRuntimeExternalLinks() throws {
         let cases: [SyntheticMemberCallCase] = [
             .init(
@@ -745,12 +711,13 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
     func testMutableListBulkMutationMembersUseInvariantReceiverTypes() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
             let ownerFQName = [
                 interner.intern("kotlin"),
@@ -759,18 +726,19 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["addAll", "removeAll", "retainAll"] {
-                let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: ownerFQName + [interner.intern(memberName)]))
-                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbolID))
-                guard case let .classType(receiverType) = sema.types.kind(of: try XCTUnwrap(signature.receiverType)) else {
-                    return XCTFail("Expected \(memberName) to use MutableList receiver type")
+                let symbolID = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern(memberName)]))
+                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+                guard case let .classType(receiverType) = sema.types.kind(of: try #require(signature.receiverType)) else {
+                    Issue.record("Expected \(memberName) to use MutableList receiver type"); return
                 }
-                guard case .invariant = try XCTUnwrap(receiverType.args.first) else {
-                    return XCTFail("Expected \(memberName) receiver projection to remain invariant")
+                guard case .invariant = try #require(receiverType.args.first) else {
+                    Issue.record("Expected \(memberName) receiver projection to remain invariant"); return
                 }
             }
         }
     }
 
+    @Test
     func testMutableListBulkCollectionMembersAcceptCollectionOfSameElementType() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
@@ -786,8 +754,8 @@ extension ListSyntheticMemberLinkTests {
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
                 "addAll": "kk_mutable_list_addAll",
@@ -796,26 +764,23 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
-                )
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
         }
     }
 
+    @Test
     func testMutableListBulkCollectionMembersKeepInvariantReceiverType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let mutableListFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -823,34 +788,28 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["addAll", "removeAll", "retainAll"] {
-                let symbolID = try XCTUnwrap(
-                    sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]),
-                    "Expected synthetic MutableList member \(memberName) to be registered"
-                )
-                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbolID))
-                let receiverType = try XCTUnwrap(signature.receiverType)
+                let symbolID = try #require(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
+                let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+                let receiverType = try #require(signature.receiverType)
                 guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
-                    return XCTFail("Expected \(memberName) receiver to be a class type")
+                    Issue.record("Expected \(memberName) receiver to be a class type"); return
                 }
-                guard case .invariant = try XCTUnwrap(receiverClassType.args.first) else {
-                    return XCTFail(
-                        "Expected \(memberName) receiver to keep invariant element type, got \(sema.types.renderType(receiverType))"
-                    )
+                guard case .invariant = try #require(receiverClassType.args.first) else {
+                    Issue.record("Expected \(memberName) receiver to keep invariant element type, got \(sema.types.renderType(receiverType))"); return
                 }
 
-                let parameterType = try XCTUnwrap(signature.parameterTypes.first)
+                let parameterType = try #require(signature.parameterTypes.first)
                 guard case let .classType(parameterClassType) = sema.types.kind(of: parameterType) else {
-                    return XCTFail("Expected \(memberName) parameter to be a class type")
+                    Issue.record("Expected \(memberName) parameter to be a class type"); return
                 }
-                guard case .out = try XCTUnwrap(parameterClassType.args.first) else {
-                    return XCTFail(
-                        "Expected \(memberName) parameter to remain covariant Collection<out E>, got \(sema.types.renderType(parameterType))"
-                    )
+                guard case .out = try #require(parameterClassType.args.first) else {
+                    Issue.record("Expected \(memberName) parameter to remain covariant Collection<out E>, got \(sema.types.renderType(parameterType))"); return
                 }
             }
         }
     }
 
+    @Test
     func testOutProjectedMutableListBlocksBulkMutationMembers() throws {
         let source = """
         fun mutate(values: MutableList<out Number>) {
@@ -865,11 +824,12 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-VAR-OUT" }
-            XCTAssertEqual(diagnostics.count, 3, "Projected MutableList bulk writes should be rejected")
+            #expect(diagnostics.count == 3, "Projected MutableList bulk writes should be rejected")
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         }
     }
 
+    @Test
     func testListSortMembersRemainUnavailableOnImmutableList() throws {
         let source = """
         fun mutate(values: List<Int>) {
@@ -883,27 +843,22 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             for memberName in ["sort", "sortBy", "sortByDescending"] {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                XCTAssertNil(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected immutable List.\(memberName) to remain unresolved"
-                )
+                })
+                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected immutable List.\(memberName) to remain unresolved")
             }
 
-            XCTAssertFalse(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected diagnostics for immutable List.sort* calls"
-            )
+            #expect(!(ctx.diagnostics.diagnostics.isEmpty), "Expected diagnostics for immutable List.sort* calls")
         }
     }
 
+    @Test
     func testMutableListBulkOperationsAcceptListArguments() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {
@@ -920,6 +875,7 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
     func testMutableListMatchesTransitiveCollectionConstraint() throws {
         let source = """
         fun <T> consume(values: Collection<T>): T? = values.firstOrNull()
@@ -933,23 +889,21 @@ extension ListSyntheticMemberLinkTests {
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let consumeCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let consumeCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
                 return ctx.interner.resolve(name) == "consume"
-            }, "Expected consume(values) call in AST")
+            })
 
-            XCTAssertNotNil(
-                sema.bindings.callBinding(for: consumeCall)?.chosenCallee,
-                "Expected MutableList<Int> to satisfy Collection<T> through transitive lifting"
-            )
+            #expect(sema.bindings.callBinding(for: consumeCall)?.chosenCallee != nil, "Expected MutableList<Int> to satisfy Collection<T> through transitive lifting")
         }
     }
 
+    @Test
     func testListIteratorMemberResolvesWithoutTypeConstraintFailure() throws {
         let source = """
         class IntContainer(private val elements: List<Int>) {
@@ -963,26 +917,21 @@ extension ListSyntheticMemberLinkTests {
 
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let iteratorCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let iteratorCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "iterator"
-            }, "Expected List.iterator() call in AST")
+            })
 
-            let chosenCallee = try XCTUnwrap(
-                sema.bindings.callBinding(for: iteratorCall)?.chosenCallee,
-                "Expected List.iterator() to resolve"
-            )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_range_iterator"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: iteratorCall)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_range_iterator")
         }
     }
 
     /// Regression: listOf(...).contains/isEmpty must not emit KSWIFTK-SEMA-VAR-OUT.
     /// The synthetic List type uses .out projection; variance relaxation must apply.
+    @Test
     func testListOfContainsAndIsEmptyDoNotEmitVarOut() throws {
         let source = """
         fun main() {
@@ -996,8 +945,8 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
             var containsCalls: [ExprID] = []
             for index in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(index))
@@ -1007,21 +956,18 @@ extension ListSyntheticMemberLinkTests {
                 else { continue }
                 containsCalls.append(exprID)
             }
-            XCTAssertEqual(containsCalls.count, 2)
+            #expect(containsCalls.count == 2)
             for callID in containsCalls {
                 let binding = sema.bindings.callBinding(for: callID)
-                XCTAssertNotNil(binding?.chosenCallee, "contains should resolve")
+                #expect(binding?.chosenCallee != nil, "contains should resolve")
                 if let chosen = binding?.chosenCallee {
-                    XCTAssertEqual(
-                        sema.symbols.externalLinkName(for: chosen),
-                        "kk_list_contains",
-                        "contains should resolve to kk_list_contains"
-                    )
+                    #expect(sema.symbols.externalLinkName(for: chosen) == "kk_list_contains", "contains should resolve to kk_list_contains")
                 }
             }
         }
     }
 
+    @Test
     func testListElementAtUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
@@ -1033,23 +979,18 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "elementAt"
             })
-            let chosenCallee = try XCTUnwrap(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "elementAt should resolve"
-            )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_list_elementAt"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAt")
         }
     }
 
+    @Test
     func testListElementAtOrNullUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
@@ -1061,23 +1002,18 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "elementAtOrNull"
             })
-            let chosenCallee = try XCTUnwrap(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "elementAtOrNull should resolve"
-            )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_list_elementAtOrNull"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_elementAtOrNull")
         }
     }
 
+    @Test
     func testSetMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun check(values: Set<Int>) {
@@ -1089,174 +1025,166 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "contains"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_set_contains",
-                "Expected contains to resolve to kk_set_contains"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_set_contains", "Expected contains to resolve to kk_set_contains")
         }
     }
 
+    @Test
     func testSetRegistersCollectionAsNominalSupertype() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let setSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let sema = try #require(ctx.sema)
+            let setSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("Set"),
             ]))
-            let collectionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let collectionSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("Collection"),
             ]))
 
-            XCTAssertEqual(
-                sema.types.directNominalSupertypes(for: setSymbol),
-                [collectionSymbol],
-                "Expected Set to register Collection as its nominal supertype"
-            )
+            #expect(sema.types.directNominalSupertypes(for: setSymbol) == [collectionSymbol], "Expected Set to register Collection as its nominal supertype")
         }
     }
 
+    @Test
     func testContainsAllMembersUseCollectionRuntimeExternalLinks() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let listContainsAll = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let sema = try #require(ctx.sema)
+            let listContainsAll = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("List"),
                 ctx.interner.intern("containsAll"),
             ]))
-            let setContainsAll = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let setContainsAll = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("Set"),
                 ctx.interner.intern("containsAll"),
             ]))
 
-            XCTAssertEqual(sema.symbols.externalLinkName(for: listContainsAll), "kk_list_containsAll")
-            XCTAssertEqual(sema.symbols.externalLinkName(for: setContainsAll), "kk_set_containsAll")
+            #expect(sema.symbols.externalLinkName(for: listContainsAll) == "kk_list_containsAll")
+            #expect(sema.symbols.externalLinkName(for: setContainsAll) == "kk_set_containsAll")
         }
     }
 
+    @Test
     func testSetContainsAllUsesCollectionParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let setContainsAll = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let sema = try #require(ctx.sema)
+            let setContainsAll = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("Set"),
                 ctx.interner.intern("containsAll"),
             ]))
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: setContainsAll))
-            let parameterType = try XCTUnwrap(signature.parameterTypes.first)
+            let signature = try #require(sema.symbols.functionSignature(for: setContainsAll))
+            let parameterType = try #require(signature.parameterTypes.first)
 
             guard case let .classType(collectionType) = sema.types.kind(of: parameterType) else {
-                return XCTFail("Set.containsAll should accept Collection<E>")
+                Issue.record("Set.containsAll should accept Collection<E>"); return
             }
 
-            XCTAssertEqual(
-                try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(collectionType.classSymbol)?.name)),
-                "Collection"
-            )
-            guard case let .out(elementType) = try XCTUnwrap(collectionType.args.first) else {
-                return XCTFail("Collection parameter should preserve the element projection")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(collectionType.classSymbol)?.name)) == "Collection")
+            guard case let .out(elementType) = try #require(collectionType.args.first) else {
+                Issue.record("Collection parameter should preserve the element projection"); return
             }
-            let typeParamSymbol = try XCTUnwrap(signature.typeParameterSymbols.first)
+            let typeParamSymbol = try #require(signature.typeParameterSymbols.first)
             let expectedElementType = sema.types.make(.typeParam(TypeParamType(
                 symbol: typeParamSymbol,
                 nullability: .nonNull
             )))
-            XCTAssertEqual(elementType, expectedElementType)
+            #expect(elementType == expectedElementType)
         }
     }
 
+    @Test
     func testContainsMembersAreMarkedOperatorFunctions() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let listContains = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let sema = try #require(ctx.sema)
+            let listContains = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("List"),
                 ctx.interner.intern("contains"),
             ]))
-            let setContains = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let setContains = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("Set"),
                 ctx.interner.intern("contains"),
             ]))
-            let stringContains = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let stringContains = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("text"),
                 ctx.interner.intern("contains"),
             ]))
 
-            XCTAssertTrue(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
-            XCTAssertTrue(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
-            XCTAssertTrue(sema.symbols.symbol(stringContains)?.flags.contains(.operatorFunction) == true)
+            #expect(sema.symbols.symbol(listContains)?.flags.contains(.operatorFunction) == true)
+            #expect(sema.symbols.symbol(setContains)?.flags.contains(.operatorFunction) == true)
+            #expect(sema.symbols.symbol(stringContains)?.flags.contains(.operatorFunction) == true)
         }
     }
 
+    @Test
     func testWithIndexUsesIterableOfIndexedValueSignature() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let withIndexSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let sema = try #require(ctx.sema)
+            let withIndexSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("List"),
                 ctx.interner.intern("withIndex"),
             ]))
-            let indexedValueSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let indexedValueSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("IndexedValue"),
             ]))
-            let indexedValueRecord = try XCTUnwrap(sema.symbols.symbol(indexedValueSymbol))
-            XCTAssertEqual(indexedValueRecord.kind, .class)
-            XCTAssertTrue(indexedValueRecord.flags.contains(.dataType))
+            let indexedValueRecord = try #require(sema.symbols.symbol(indexedValueSymbol))
+            #expect(indexedValueRecord.kind == .class)
+            #expect(indexedValueRecord.flags.contains(.dataType))
 
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: withIndexSymbol))
+            let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
             guard case let .classType(iterableType) = sema.types.kind(of: signature.returnType) else {
-                return XCTFail("Expected withIndex() to return Iterable<IndexedValue<T>>")
+                Issue.record("Expected withIndex() to return Iterable<IndexedValue<T>>"); return
             }
-            XCTAssertEqual(
-                try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(iterableType.classSymbol)?.name)),
-                "Iterable"
-            )
-            guard case let .out(elementType) = try XCTUnwrap(iterableType.args.first),
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(iterableType.classSymbol)?.name)) == "Iterable")
+            guard case let .out(elementType) = try #require(iterableType.args.first),
                   case let .classType(indexedValueType) = sema.types.kind(of: elementType)
             else {
-                return XCTFail("Expected Iterable element type to be IndexedValue")
+                Issue.record("Expected Iterable element type to be IndexedValue"); return
             }
-            XCTAssertEqual(indexedValueType.classSymbol, indexedValueSymbol)
+            #expect(indexedValueType.classSymbol == indexedValueSymbol)
         }
     }
 
+    @Test
     func testMutableSetMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableSet<Int>) {
@@ -1272,7 +1200,7 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
                 "add": "kk_mutable_set_add",
@@ -1282,27 +1210,32 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+                let symbol = try #require(sema.symbols.lookup(fqName: [
                     ctx.interner.intern("kotlin"),
                     ctx.interner.intern("collections"),
                     ctx.interner.intern("MutableSet"),
                     ctx.interner.intern(memberName),
                 ]))
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: symbol),
-                    externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
-                )
+                #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
+
+            let addAllSymbol = try #require(sema.symbols.lookup(fqName: [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("MutableSet"),
+                ctx.interner.intern("addAll"),
+            ]))
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_set_addAll", "Expected addAll to resolve to kk_mutable_set_addAll")
         }
     }
 
+    @Test
     func testMutableListBulkMutationMembersUseInvariantReceiverType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let mutableListFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -1310,74 +1243,71 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["addAll", "removeAll", "retainAll"] {
-                let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
-                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-                let receiverType = try XCTUnwrap(signature.receiverType)
+                let symbol = try #require(sema.symbols.lookup(fqName: mutableListFQName + [ctx.interner.intern(memberName)]))
+                let signature = try #require(sema.symbols.functionSignature(for: symbol))
+                let receiverType = try #require(signature.receiverType)
 
                 guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
                       let firstArg = receiverClassType.args.first
                 else {
-                    return XCTFail("Expected MutableList.\(memberName) receiver to be a class type")
+                    Issue.record("Expected MutableList.\(memberName) receiver to be a class type"); return
                 }
 
                 guard case .invariant = firstArg else {
-                    return XCTFail("Expected MutableList.\(memberName) receiver to remain invariant")
+                    Issue.record("Expected MutableList.\(memberName) receiver to remain invariant"); return
                 }
             }
         }
     }
 
+    @Test
     func testMutableSetClearIsNotMarkedOperatorFunction() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let clearSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let sema = try #require(ctx.sema)
+            let clearSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("MutableSet"),
                 ctx.interner.intern("clear"),
             ]))
 
-            XCTAssertFalse(
-                sema.symbols.symbol(clearSymbol)?.flags.contains(.operatorFunction) == true,
-                "MutableSet.clear should not be registered as an operator function"
-            )
+            #expect(!(sema.symbols.symbol(clearSymbol)?.flags.contains(.operatorFunction) == true), "MutableSet.clear should not be registered as an operator function")
         }
     }
 
+    @Test
     func testMutableSetAddAllUsesCollectionParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let symbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("MutableSet"),
                 interner.intern("addAll"),
             ]))
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            let parameterType = try XCTUnwrap(signature.parameterTypes.first)
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            let parameterType = try #require(signature.parameterTypes.first)
 
             guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
-                return XCTFail("Expected MutableSet.addAll to take a collection type")
+                Issue.record("Expected MutableSet.addAll to take a collection type"); return
             }
-            XCTAssertEqual(
-                try interner.resolve(XCTUnwrap(sema.symbols.symbol(classType.classSymbol)?.name)),
-                "Collection"
-            )
-            guard case let .out(elementType) = try XCTUnwrap(classType.args.first),
+            #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Collection")
+            guard case let .out(elementType) = try #require(classType.args.first),
                   case .typeParam = sema.types.kind(of: elementType)
             else {
-                return XCTFail("Expected MutableSet.addAll parameter to use Collection<out E>")
+                Issue.record("Expected MutableSet.addAll parameter to use Collection<out E>"); return
             }
         }
     }
 
+    @Test
     func testMutableCollectionArrayAddAllOverloadsUseRuntimeExternalLinks() throws {
         let cases: [(String, String, String)] = [
             (
@@ -1402,33 +1332,27 @@ extension ListSyntheticMemberLinkTests {
                 let ctx = makeCompilationContext(inputs: [path])
                 try runSema(ctx)
 
-                let ast = try XCTUnwrap(ctx.ast)
-                let sema = try XCTUnwrap(ctx.sema)
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let ast = try #require(ctx.ast)
+                let sema = try #require(ctx.sema)
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "addAll"
-                }, "Expected \(receiverName).addAll(Array) call in AST")
-                let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedExternalLink,
-                    "Expected \(receiverName).addAll(Array) to resolve to \(expectedExternalLink)"
-                )
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedExternalLink)")
 
-                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: chosenCallee))
-                let parameterType = try XCTUnwrap(signature.parameterTypes.first)
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let parameterType = try #require(signature.parameterTypes.first)
                 guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
-                    return XCTFail("Expected \(receiverName).addAll(Array) to take an Array parameter")
+                    Issue.record("Expected \(receiverName).addAll(Array) to take an Array parameter"); return
                 }
-                XCTAssertEqual(
-                    try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(classType.classSymbol)?.name)),
-                    "Array"
-                )
+                #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Array")
             }
         }
     }
 
+    @Test
     func testMutableCollectionIterableAddAllOverloadsUseRuntimeExternalLinks() throws {
         let cases: [(String, String, String)] = [
             (
@@ -1458,29 +1382,22 @@ extension ListSyntheticMemberLinkTests {
                 let ctx = makeCompilationContext(inputs: [path])
                 try runSema(ctx)
 
-                let ast = try XCTUnwrap(ctx.ast)
-                let sema = try XCTUnwrap(ctx.sema)
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let ast = try #require(ctx.ast)
+                let sema = try #require(ctx.sema)
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "addAll"
-                }, "Expected \(receiverName).addAll(Iterable) call in AST")
-                let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedExternalLink,
-                    "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedExternalLink)"
-                )
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedExternalLink)")
 
-                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: chosenCallee))
-                let parameterType = try XCTUnwrap(signature.parameterTypes.first)
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let parameterType = try #require(signature.parameterTypes.first)
                 guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
-                    return XCTFail("Expected \(receiverName).addAll(Iterable) to take an Iterable parameter")
+                    Issue.record("Expected \(receiverName).addAll(Iterable) to take an Iterable parameter"); return
                 }
-                XCTAssertEqual(
-                    try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(classType.classSymbol)?.name)),
-                    "Iterable"
-                )
+                #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Iterable")
             }
         }
     }
@@ -1488,6 +1405,7 @@ extension ListSyntheticMemberLinkTests {
     /// Map member calls (containsKey, put, remove) go through the collection-fallback
     /// inference path which does not record a callBinding. Instead we verify that the
     /// synthetic symbols in the symbol table carry the correct external link names.
+    @Test
     func testMapSyntheticSymbolsHaveCorrectExternalLinkNames() throws {
         let source = """
         fun noop() {}
@@ -1495,7 +1413,7 @@ extension ListSyntheticMemberLinkTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
             let kotlinCollections = ["kotlin", "collections"].map { interner.intern($0) }
@@ -1529,19 +1447,13 @@ extension ListSyntheticMemberLinkTests {
 
             for (ownerFQ, memberName, expectedExternal) in expectedLinks {
                 let memberFQ = ownerFQ + [interner.intern(memberName)]
-                let symbolID = try XCTUnwrap(
-                    sema.symbols.lookup(fqName: memberFQ),
-                    "Symbol for \(memberName) not found in symbol table"
-                )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: symbolID),
-                    expectedExternal,
-                    "Expected \(memberName) to have external link \(expectedExternal)"
-                )
+                let symbolID = try #require(sema.symbols.lookup(fqName: memberFQ))
+                #expect(sema.symbols.externalLinkName(for: symbolID) == expectedExternal, "Expected \(memberName) to have external link \(expectedExternal)")
             }
         }
     }
 
+    @Test
     func testMapWithDefaultSurfaceResolvesDefaultLambda() throws {
         let source = """
         fun probe(values: Map<Int, Int>): Int {
@@ -1554,19 +1466,17 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected Map.withDefault surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Map.withDefault surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
+    @Test
     func testIndexedAndAggregateListMembersAreInlineSynthetic() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let listFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -1574,17 +1484,15 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["sumOf", "forEachIndexed", "mapIndexed", "filterIndexed"] {
-                let symbolID = try XCTUnwrap(
-                    sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]),
-                    "Expected synthetic List member \(memberName) to be registered"
-                )
-                let flags = try XCTUnwrap(sema.symbols.symbol(symbolID)?.flags)
-                XCTAssertTrue(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
-                XCTAssertTrue(flags.contains(.synthetic), "Expected \(memberName) to be synthetic")
+                let symbolID = try #require(sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]))
+                let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
+                #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
+                #expect(flags.contains(.synthetic), "Expected \(memberName) to be synthetic")
             }
         }
     }
 
+    @Test
     func testListFilterIndexedUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
@@ -1597,23 +1505,18 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "filterIndexed"
             })
-            let chosenCallee = try XCTUnwrap(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "filterIndexed should resolve"
-            )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_list_filterIndexed"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIndexed")
         }
     }
 
+    @Test
     func testListFilterIsInstanceUsesRuntimeExternalLink() throws {
         let source = """
         fun main() {
@@ -1625,29 +1528,24 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "filterIsInstance"
             })
-            let chosenCallee = try XCTUnwrap(
-                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                "filterIsInstance should resolve"
-            )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_list_filterIsInstance"
-            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIsInstance")
         }
     }
 
+    @Test
     func testMapHigherOrderMembersAreInlineAndToListPreservesPairType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let mapFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -1655,34 +1553,30 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for memberName in ["forEach", "map", "filter", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo"] {
-                let symbolID = try XCTUnwrap(
-                    sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern(memberName)]),
-                    "Expected synthetic Map member \(memberName) to be registered"
-                )
-                let flags = try XCTUnwrap(sema.symbols.symbol(symbolID)?.flags)
-                XCTAssertTrue(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
+                let symbolID = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern(memberName)]))
+                let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
+                #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
             }
 
-            let toListSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern("toList")])
-            )
-            let toListSignature = try XCTUnwrap(sema.symbols.functionSignature(for: toListSymbol))
+            let toListSymbol = try #require(sema.symbols.lookup(fqName: mapFQName + [ctx.interner.intern("toList")]))
+            let toListSignature = try #require(sema.symbols.functionSignature(for: toListSymbol))
             guard case let .classType(listType) = sema.types.kind(of: toListSignature.returnType) else {
-                return XCTFail("Expected Map.toList to return List<Pair<K, V>>")
+                Issue.record("Expected Map.toList to return List<Pair<K, V>>"); return
             }
-            let listName = try XCTUnwrap(sema.symbols.symbol(listType.classSymbol)?.name)
-            XCTAssertEqual(ctx.interner.resolve(listName), "List")
-            let firstListArg = try XCTUnwrap(listType.args.first)
+            let listName = try #require(sema.symbols.symbol(listType.classSymbol)?.name)
+            #expect(ctx.interner.resolve(listName) == "List")
+            let firstListArg = try #require(listType.args.first)
             guard case let .out(pairTypeID) = firstListArg,
                   case let .classType(pairType) = sema.types.kind(of: pairTypeID)
             else {
-                return XCTFail("Expected Map.toList element type to be Pair")
+                Issue.record("Expected Map.toList element type to be Pair"); return
             }
-            let pairName = try XCTUnwrap(sema.symbols.symbol(pairType.classSymbol)?.name)
-            XCTAssertEqual(ctx.interner.resolve(pairName), "Pair")
+            let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
+            #expect(ctx.interner.resolve(pairName) == "Pair")
         }
     }
 
+    @Test
     func testMapEntryToPairSurfaceIsRegistered() throws {
         let source = """
         fun probe(values: Map<String, Int>): List<Pair<String, Int>> {
@@ -1694,33 +1588,28 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected Map.Entry.toPair surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Map.Entry.toPair surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let entryFQName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
                 ctx.interner.intern("Map"),
                 ctx.interner.intern("Entry"),
             ]
-            let toPairSymbol = try XCTUnwrap(
-                sema.symbols.lookup(fqName: entryFQName + [ctx.interner.intern("toPair")]),
-                "Expected Map.Entry.toPair to be registered"
-            )
-            XCTAssertEqual(sema.symbols.externalLinkName(for: toPairSymbol), "kk_map_entry_to_pair")
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: toPairSymbol))
+            let toPairSymbol = try #require(sema.symbols.lookup(fqName: entryFQName + [ctx.interner.intern("toPair")]))
+            #expect(sema.symbols.externalLinkName(for: toPairSymbol) == "kk_map_entry_to_pair")
+            let signature = try #require(sema.symbols.functionSignature(for: toPairSymbol))
             guard case let .classType(pairType) = sema.types.kind(of: signature.returnType) else {
-                return XCTFail("Expected Map.Entry.toPair to return Pair<K, V>")
+                Issue.record("Expected Map.Entry.toPair to return Pair<K, V>"); return
             }
-            let pairName = try XCTUnwrap(sema.symbols.symbol(pairType.classSymbol)?.name)
-            XCTAssertEqual(ctx.interner.resolve(pairName), "Pair")
-            XCTAssertEqual(pairType.args.count, 2)
+            let pairName = try #require(sema.symbols.symbol(pairType.classSymbol)?.name)
+            #expect(ctx.interner.resolve(pairName) == "Pair")
+            #expect(pairType.args.count == 2)
         }
     }
 
+    @Test
     func testBuildListInfersElementTypeFromBuilderCalls() throws {
         let source = """
         fun render(): List<Int> = buildList {
@@ -1733,43 +1622,44 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
 
-            let buildListCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let buildListCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
                 return ctx.interner.resolve(name) == "buildList"
             })
-            let buildListType = try XCTUnwrap(sema.bindings.exprType(for: buildListCall))
+            let buildListType = try #require(sema.bindings.exprType(for: buildListCall))
             guard case let .classType(listType) = sema.types.kind(of: buildListType) else {
-                return XCTFail("Expected buildList(...) to produce a class type")
+                Issue.record("Expected buildList(...) to produce a class type"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(listType.classSymbol)?.name)), "List")
-            guard case let .out(elementType) = try XCTUnwrap(listType.args.first) else {
-                return XCTFail("Expected List element type argument")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List")
+            guard case let .out(elementType) = try #require(listType.args.first) else {
+                Issue.record("Expected List element type argument"); return
             }
-            XCTAssertEqual(elementType, sema.types.intType)
+            #expect(elementType == sema.types.intType)
 
             // Use lastExprID to skip bundled stdlib's thisRef expressions
-            let explicitThis = try XCTUnwrap(lastExprID(in: ast) { _, expr in
+            let explicitThis = try #require(lastExprID(in: ast) { _, expr in
                 if case .thisRef = expr { return true }
                 return false
             })
-            let explicitThisType = try XCTUnwrap(sema.bindings.exprType(for: explicitThis))
+            let explicitThisType = try #require(sema.bindings.exprType(for: explicitThis))
             guard case let .classType(receiverType) = sema.types.kind(of: explicitThisType) else {
-                return XCTFail("Expected builder receiver to be a class type")
+                Issue.record("Expected builder receiver to be a class type"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(receiverType.classSymbol)?.name)), "MutableList")
-            guard case let .invariant(receiverElementType) = try XCTUnwrap(receiverType.args.first) else {
-                return XCTFail("Expected MutableList element type argument")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(receiverType.classSymbol)?.name)) == "MutableList")
+            guard case let .invariant(receiverElementType) = try #require(receiverType.args.first) else {
+                Issue.record("Expected MutableList element type argument"); return
             }
-            XCTAssertEqual(receiverElementType, sema.types.intType)
+            #expect(receiverElementType == sema.types.intType)
         }
     }
 
+    @Test
     func testBuildMapInfersKeyAndValueTypesFromBuilderCalls() throws {
         let source = """
         fun render(): Map<String, Int> = buildMap {
@@ -1782,51 +1672,52 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
 
-            let buildMapCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let buildMapCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
                 return ctx.interner.resolve(name) == "buildMap"
             })
-            let buildMapType = try XCTUnwrap(sema.bindings.exprType(for: buildMapCall))
+            let buildMapType = try #require(sema.bindings.exprType(for: buildMapCall))
             guard case let .classType(mapType) = sema.types.kind(of: buildMapType) else {
-                return XCTFail("Expected buildMap(...) to produce a class type")
+                Issue.record("Expected buildMap(...) to produce a class type"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(mapType.classSymbol)?.name)), "Map")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(mapType.classSymbol)?.name)) == "Map")
             guard mapType.args.count >= 2,
                   case let .out(keyType) = mapType.args[0],
                   case let .out(valueType) = mapType.args[1]
             else {
-                return XCTFail("Expected Map key/value type arguments")
+                Issue.record("Expected Map key/value type arguments"); return
             }
-            XCTAssertEqual(keyType, sema.types.stringType)
-            XCTAssertEqual(valueType, sema.types.intType)
+            #expect(keyType == sema.types.stringType)
+            #expect(valueType == sema.types.intType)
 
             // Use lastExprID to skip bundled stdlib's thisRef expressions
-            let explicitThis = try XCTUnwrap(lastExprID(in: ast) { _, expr in
+            let explicitThis = try #require(lastExprID(in: ast) { _, expr in
                 if case .thisRef = expr { return true }
                 return false
             })
-            let explicitThisType = try XCTUnwrap(sema.bindings.exprType(for: explicitThis))
+            let explicitThisType = try #require(sema.bindings.exprType(for: explicitThis))
             guard case let .classType(receiverType) = sema.types.kind(of: explicitThisType) else {
-                return XCTFail("Expected builder receiver to be a class type")
+                Issue.record("Expected builder receiver to be a class type"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(receiverType.classSymbol)?.name)), "MutableMap")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(receiverType.classSymbol)?.name)) == "MutableMap")
             guard receiverType.args.count >= 2,
                   case let .invariant(receiverKeyType) = receiverType.args[0],
                   case let .invariant(receiverValueType) = receiverType.args[1]
             else {
-                return XCTFail("Expected MutableMap key/value type arguments")
+                Issue.record("Expected MutableMap key/value type arguments"); return
             }
-            XCTAssertEqual(receiverKeyType, sema.types.stringType)
-            XCTAssertEqual(receiverValueType, sema.types.intType)
+            #expect(receiverKeyType == sema.types.stringType)
+            #expect(receiverValueType == sema.types.intType)
         }
     }
 
+    @Test
     func testMapKeysToResolvesWithMutableMapDestination() throws {
         let source = """
         fun remap(values: Map<Int, String>, destination: MutableMap<Int, String>): MutableMap<Int, String> {
@@ -1840,23 +1731,21 @@ extension ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected Map.mapKeysTo surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Map.mapKeysTo surface to resolve cleanly, got: \(diagnosticSummary)")
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Map", "mapKeysTo"]
                 .map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: memberFQName))
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_map_mapKeysTo")
+            let symbol = try #require(sema.symbols.lookup(fqName: memberFQName))
+            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_map_mapKeysTo")
 
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            XCTAssertEqual(signature.parameterTypes.count, 2)
-            XCTAssertEqual(signature.returnType, signature.parameterTypes[0])
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(signature.parameterTypes.count == 2)
+            #expect(signature.returnType == signature.parameterTypes[0])
         }
     }
 
+    @Test
     func testMapValuesToResolvesWithMutableMapDestination() throws {
         let source = """
         fun remap(values: Map<Int, String>, destination: MutableMap<Int, Int>): MutableMap<Int, Int> {
@@ -1870,103 +1759,94 @@ extension ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected Map.mapValuesTo surface to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected Map.mapValuesTo surface to resolve cleanly, got: \(diagnosticSummary)")
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = ["kotlin", "collections", "Map", "mapValuesTo"]
                 .map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: memberFQName))
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_map_mapValuesTo")
+            let symbol = try #require(sema.symbols.lookup(fqName: memberFQName))
+            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_map_mapValuesTo")
 
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            XCTAssertEqual(signature.parameterTypes.count, 2)
-            XCTAssertEqual(signature.returnType, signature.parameterTypes[0])
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(signature.parameterTypes.count == 2)
+            #expect(signature.returnType == signature.parameterTypes[0])
         }
     }
 
+    @Test
     func testMutableMapPutAllUsesProjectedMapParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let symbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("MutableMap"),
                 interner.intern("putAll"),
             ]))
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            let parameterType = try XCTUnwrap(signature.parameterTypes.first)
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            let parameterType = try #require(signature.parameterTypes.first)
 
             guard case let .classType(classType) = sema.types.kind(of: parameterType) else {
-                return XCTFail("Expected MutableMap.putAll to take a map type")
+                Issue.record("Expected MutableMap.putAll to take a map type"); return
             }
-            XCTAssertEqual(
-                try interner.resolve(XCTUnwrap(sema.symbols.symbol(classType.classSymbol)?.name)),
-                "Map"
-            )
+            #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Map")
             guard classType.args.count == 2,
                   case let .out(keyType) = classType.args[0],
                   case let .out(valueType) = classType.args[1],
                   case .typeParam = sema.types.kind(of: keyType),
                   case .typeParam = sema.types.kind(of: valueType)
             else {
-                return XCTFail("Expected MutableMap.putAll parameter to use projected Map<K, V>")
+                Issue.record("Expected MutableMap.putAll parameter to use projected Map<K, V>"); return
             }
         }
     }
 
+    @Test
     func testGroupingEachCountToUsesProjectedMutableMapParameterType() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let symbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("Grouping"),
                 interner.intern("eachCountTo"),
             ]))
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_grouping_eachCountTo")
-            XCTAssertEqual(signature.parameterTypes.count, 1)
-            XCTAssertEqual(signature.returnType, signature.parameterTypes[0])
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_grouping_eachCountTo")
+            #expect(signature.parameterTypes.count == 1)
+            #expect(signature.returnType == signature.parameterTypes[0])
 
-            let receiverType = try XCTUnwrap(signature.receiverType)
+            let receiverType = try #require(signature.receiverType)
             guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
-                return XCTFail("Expected Grouping.eachCountTo receiver to be a class type")
+                Issue.record("Expected Grouping.eachCountTo receiver to be a class type"); return
             }
-            XCTAssertEqual(
-                try interner.resolve(XCTUnwrap(sema.symbols.symbol(receiverClassType.classSymbol)?.name)),
-                "Grouping"
-            )
+            #expect(try interner.resolve(#require(sema.symbols.symbol(receiverClassType.classSymbol)?.name)) == "Grouping")
 
-            let parameterType = try XCTUnwrap(signature.parameterTypes.first)
+            let parameterType = try #require(signature.parameterTypes.first)
             guard case let .classType(parameterClassType) = sema.types.kind(of: parameterType) else {
-                return XCTFail("Expected eachCountTo to take a MutableMap type")
+                Issue.record("Expected eachCountTo to take a MutableMap type"); return
             }
-            XCTAssertEqual(
-                try interner.resolve(XCTUnwrap(sema.symbols.symbol(parameterClassType.classSymbol)?.name)),
-                "MutableMap"
-            )
-            XCTAssertEqual(parameterClassType.args.count, 2)
+            #expect(try interner.resolve(#require(sema.symbols.symbol(parameterClassType.classSymbol)?.name)) == "MutableMap")
+            #expect(parameterClassType.args.count == 2)
             guard case let .in(keyProjection) = parameterClassType.args[0],
                   case .typeParam = sema.types.kind(of: keyProjection),
                   case let .invariant(valueType) = parameterClassType.args[1]
             else {
-                return XCTFail("Expected eachCountTo parameter to use MutableMap<in K, Int>")
+                Issue.record("Expected eachCountTo parameter to use MutableMap<in K, Int>"); return
             }
-            XCTAssertEqual(valueType, sema.types.intType)
+            #expect(valueType == sema.types.intType)
         }
     }
 
+    @Test
     func testBuildListCapacityOverloadResolves() throws {
         let source = """
         fun render(): List<Int> = buildList(4) {
@@ -1979,28 +1859,29 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
 
-            let buildListCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let buildListCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
                 return ctx.interner.resolve(name) == "buildList"
             })
-            let buildListType = try XCTUnwrap(sema.bindings.exprType(for: buildListCall))
+            let buildListType = try #require(sema.bindings.exprType(for: buildListCall))
             guard case let .classType(listType) = sema.types.kind(of: buildListType) else {
-                return XCTFail("Expected buildList(capacity) to produce a class type")
+                Issue.record("Expected buildList(capacity) to produce a class type"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(listType.classSymbol)?.name)), "List")
-            guard case let .out(elementType) = try XCTUnwrap(listType.args.first) else {
-                return XCTFail("Expected List element type argument")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List")
+            guard case let .out(elementType) = try #require(listType.args.first) else {
+                Issue.record("Expected List element type argument"); return
             }
-            XCTAssertEqual(elementType, sema.types.intType)
+            #expect(elementType == sema.types.intType)
         }
     }
 
+    @Test
     func testListZipWithNextOverloadsInferReturnTypes() throws {
         let source = """
         fun pairs(values: List<Int>) = values.zipWithNext()
@@ -2011,10 +1892,7 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected List.zipWithNext overloads to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.zipWithNext overloads to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             func projectedType(_ projection: TypeArg) -> TypeID? {
                 switch projection {
@@ -2025,39 +1903,40 @@ extension ListSyntheticMemberLinkTests {
                 }
             }
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let noArgCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let noArgCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "zipWithNext" && args.isEmpty
-            }, "Expected values.zipWithNext() call")
-            let transformCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            })
+            let transformCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "zipWithNext" && args.count == 1
-            }, "Expected values.zipWithNext { ... } call")
+            })
 
-            let noArgType = try XCTUnwrap(sema.bindings.exprType(for: noArgCall))
+            let noArgType = try #require(sema.bindings.exprType(for: noArgCall))
             guard case let .classType(noArgListType) = sema.types.kind(of: noArgType),
-                  let pairType = projectedType(try XCTUnwrap(noArgListType.args.first)),
+                  let pairType = projectedType(try #require(noArgListType.args.first)),
                   case let .classType(pairClassType) = sema.types.kind(of: pairType)
             else {
-                return XCTFail("Expected zipWithNext() to return List<Pair<Int, Int>>")
+                Issue.record("Expected zipWithNext() to return List<Pair<Int, Int>>"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(noArgListType.classSymbol)?.name)), "List")
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(pairClassType.classSymbol)?.name)), "Pair")
-            XCTAssertEqual(pairClassType.args.compactMap(projectedType), [sema.types.intType, sema.types.intType])
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(noArgListType.classSymbol)?.name)) == "List")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(pairClassType.classSymbol)?.name)) == "Pair")
+            #expect(pairClassType.args.compactMap(projectedType) == [sema.types.intType, sema.types.intType])
 
-            let transformType = try XCTUnwrap(sema.bindings.exprType(for: transformCall))
+            let transformType = try #require(sema.bindings.exprType(for: transformCall))
             guard case let .classType(transformListType) = sema.types.kind(of: transformType),
-                  let transformElementType = projectedType(try XCTUnwrap(transformListType.args.first))
+                  let transformElementType = projectedType(try #require(transformListType.args.first))
             else {
-                return XCTFail("Expected zipWithNext(transform) to return List<Int>")
+                Issue.record("Expected zipWithNext(transform) to return List<Int>"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(transformListType.classSymbol)?.name)), "List")
-            XCTAssertEqual(transformElementType, sema.types.intType)
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(transformListType.classSymbol)?.name)) == "List")
+            #expect(transformElementType == sema.types.intType)
         }
     }
 
+    @Test
     func testListZipUsesRuntimeExternalLinkAndReturnsPairList() throws {
         let source = """
         fun zipValues(values: List<Int>, labels: List<String>) = values.zip(labels)
@@ -2067,58 +1946,56 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
-                ctx.diagnostics.diagnostics.isEmpty,
-                "Expected List.zip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
-            )
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.zip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "zip" && args.count == 1
-            }, "Expected values.zip(labels) call in AST")
+            })
 
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_list_zip")
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_zip")
 
-            let callType = try XCTUnwrap(sema.bindings.exprType(for: callExpr))
+            let callType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(listType) = sema.types.kind(of: callType) else {
-                return XCTFail("Expected List.zip to return a List type")
+                Issue.record("Expected List.zip to return a List type"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(listType.classSymbol)?.name)), "List")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List")
             let pairType: TypeID
-            switch try XCTUnwrap(listType.args.first) {
+            switch try #require(listType.args.first) {
             case let .invariant(type), let .out(type), let .in(type):
                 pairType = type
             case .star:
-                return XCTFail("Expected List.zip to return a concrete Pair projection")
+                Issue.record("Expected List.zip to return a concrete Pair projection"); return
             }
             guard case let .classType(pairClassType) = sema.types.kind(of: pairType) else {
-                return XCTFail("Expected List.zip to return List<Pair<Int, String>>, got \(sema.types.kind(of: pairType))")
+                Issue.record("Expected List.zip to return List<Pair<Int, String>>, got \(sema.types.kind(of: pairType))"); return
             }
-            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(pairClassType.classSymbol)?.name)), "Pair")
-            XCTAssertEqual(pairClassType.args.count, 2)
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(pairClassType.classSymbol)?.name)) == "Pair")
+            #expect(pairClassType.args.count == 2)
 
             let firstArgument: TypeID
             switch pairClassType.args[0] {
             case let .invariant(type), let .out(type), let .in(type):
                 firstArgument = type
             case .star:
-                return XCTFail("Expected concrete Pair first argument")
+                Issue.record("Expected concrete Pair first argument"); return
             }
             let secondArgument: TypeID
             switch pairClassType.args[1] {
             case let .invariant(type), let .out(type), let .in(type):
                 secondArgument = type
             case .star:
-                return XCTFail("Expected concrete Pair second argument")
+                Issue.record("Expected concrete Pair second argument"); return
             }
-            XCTAssertEqual(firstArgument, sema.types.intType)
-            XCTAssertEqual(secondArgument, sema.types.stringType)
+            #expect(firstArgument == sema.types.intType)
+            #expect(secondArgument == sema.types.stringType)
         }
     }
 
+    @Test
     func testStringAsIterableImplicitReceiverDoesNotExposeListOnlyMembers() throws {
         let source = """
         fun probe(): Char = with("hello") {
@@ -2135,6 +2012,7 @@ extension ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
     func testListFlatMapIndexedRegistersRuntimeExternalLink() throws {
         let source = """
         fun render(values: List<String>) {
@@ -2150,7 +2028,7 @@ extension ListSyntheticMemberLinkTests {
             assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("collections"),
@@ -2158,33 +2036,34 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("flatMapIndexed"),
             ]
             let symbols = sema.symbols.lookupAll(fqName: memberFQName)
-            XCTAssertEqual(symbols.count, 1, "Expected one synthetic List.flatMapIndexed overload")
+            #expect(symbols.count == 1, "Expected one synthetic List.flatMapIndexed overload")
 
-            let symbol = try XCTUnwrap(symbols.first)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_list_flatMapIndexed")
+            let symbol = try #require(symbols.first)
+            #expect(sema.symbols.externalLinkName(for: symbol) == "kk_list_flatMapIndexed")
 
-            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
             guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType),
                   let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
             else {
-                return XCTFail("Expected List.flatMapIndexed to return List<R>")
+                Issue.record("Expected List.flatMapIndexed to return List<R>"); return
             }
-            XCTAssertEqual(ctx.interner.resolve(returnSymbol.name), "List")
+            #expect(ctx.interner.resolve(returnSymbol.name) == "List")
 
-            let transformType = try XCTUnwrap(signature.parameterTypes.first)
+            let transformType = try #require(signature.parameterTypes.first)
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
                   case let .classType(transformReturnClassType) = sema.types.kind(of: sema.types.makeNonNullable(functionType.returnType)),
                   let transformReturnSymbol = sema.symbols.symbol(transformReturnClassType.classSymbol)
             else {
-                return XCTFail("Expected List.flatMapIndexed transform to return Collection<R>")
+                Issue.record("Expected List.flatMapIndexed transform to return Collection<R>"); return
             }
-            XCTAssertEqual(functionType.params.count, 2, "Expected flatMapIndexed transform to take (index, element)")
-            XCTAssertEqual(functionType.params.first, sema.types.intType)
-            XCTAssertNotEqual(functionType.params.last, sema.types.intType, "Second transform parameter should be the list element type, not Int")
-            XCTAssertEqual(ctx.interner.resolve(transformReturnSymbol.name), "Collection")
+            #expect(functionType.params.count == 2, "Expected flatMapIndexed transform to take (index, element)")
+            #expect(functionType.params.first == sema.types.intType)
+            #expect(functionType.params.last != sema.types.intType, "Second transform parameter should be the list element type, not Int")
+            #expect(ctx.interner.resolve(transformReturnSymbol.name) == "Collection")
         }
     }
 
+    @Test
     func testListToBooleanArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Boolean>) {
@@ -2195,24 +2074,25 @@ extension ListSyntheticMemberLinkTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toBooleanArray"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_list_toBooleanArray")
-            let resultType = try XCTUnwrap(sema.bindings.exprTypes[callExpr])
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toBooleanArray")
+            let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
             else {
-                return XCTFail("Expected toBooleanArray to return BooleanArray")
+                Issue.record("Expected toBooleanArray to return BooleanArray"); return
             }
-            XCTAssertEqual(ctx.interner.resolve(symbol.name), "BooleanArray")
+            #expect(ctx.interner.resolve(symbol.name) == "BooleanArray")
         }
     }
 
+    @Test
     func testListToShortArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Short>) {
@@ -2223,24 +2103,25 @@ extension ListSyntheticMemberLinkTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toShortArray"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_list_toShortArray")
-            let resultType = try XCTUnwrap(sema.bindings.exprTypes[callExpr])
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toShortArray")
+            let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
             else {
-                return XCTFail("Expected toShortArray to return ShortArray")
+                Issue.record("Expected toShortArray to return ShortArray"); return
             }
-            XCTAssertEqual(ctx.interner.resolve(symbol.name), "ShortArray")
+            #expect(ctx.interner.resolve(symbol.name) == "ShortArray")
         }
     }
 
+    @Test
     func testListToDoubleArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Double>) {
@@ -2251,24 +2132,25 @@ extension ListSyntheticMemberLinkTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toDoubleArray"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_list_toDoubleArray")
-            let resultType = try XCTUnwrap(sema.bindings.exprTypes[callExpr])
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toDoubleArray")
+            let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
             else {
-                return XCTFail("Expected toDoubleArray to return DoubleArray")
+                Issue.record("Expected toDoubleArray to return DoubleArray"); return
             }
-            XCTAssertEqual(ctx.interner.resolve(symbol.name), "DoubleArray")
+            #expect(ctx.interner.resolve(symbol.name) == "DoubleArray")
         }
     }
 
+    @Test
     func testListToFloatArrayUsesRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<Float>) {
@@ -2279,21 +2161,22 @@ extension ListSyntheticMemberLinkTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "toFloatArray"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_list_toFloatArray")
-            let resultType = try XCTUnwrap(sema.bindings.exprTypes[callExpr])
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_toFloatArray")
+            let resultType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(classType) = sema.types.kind(of: resultType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
             else {
-                return XCTFail("Expected toFloatArray to return FloatArray")
+                Issue.record("Expected toFloatArray to return FloatArray"); return
             }
-            XCTAssertEqual(ctx.interner.resolve(symbol.name), "FloatArray")
+            #expect(ctx.interner.resolve(symbol.name) == "FloatArray")
         }
     }
 }
+#endif

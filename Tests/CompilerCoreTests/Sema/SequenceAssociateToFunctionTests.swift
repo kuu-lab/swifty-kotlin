@@ -1,12 +1,13 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-008: Validates that `Sequence<T>.associateTo(destination, transform)`
 /// resolves through Sema, populating a `MutableMap<K, V>` using the Pair-returning
 /// transform and returning the destination map.
 /// Runtime link name involved: `kk_sequence_associateTo`.
-final class SequenceAssociateToFunctionTests: XCTestCase {
-    func testSequenceAssociateToResolvesInSource() throws {
+@Suite
+struct SequenceAssociateToFunctionTests {
+    @Test func testSequenceAssociateToResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun fillByLength(): MutableMap<Int, String> {
             val dest = mutableMapOf<Int, String>()
@@ -22,9 +23,9 @@ final class SequenceAssociateToFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
-            "Expected Sequence.associateTo to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            Comment(rawValue: "Expected Sequence.associateTo to type-check, got: \(errors.map { "\($0.code): \($0.message)" })")
         )
     }
 }

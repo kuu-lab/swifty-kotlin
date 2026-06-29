@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class CharSyntheticMemberLinkTests: XCTestCase {
+@Suite
+struct CharSyntheticMemberLinkTests {
     private func externalLink(
         for member: String,
         parameterCount: Int = 0,
@@ -23,7 +25,18 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    func testCharPredicateStubsHaveCorrectExternalLinks() throws {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test func testCharPredicateStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
@@ -50,15 +63,11 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         ]
 
         for (member, expectedLink) in expected {
-            XCTAssertEqual(
-                externalLink(for: member, sema: sema, interner: interner),
-                expectedLink,
-                "Char.\(member) should link to \(expectedLink)"
-            )
+            #expect(externalLink(for: member, sema: sema, interner: interner) == expectedLink, "Char.\(member) should link to \(expectedLink)")
         }
     }
 
-    func testIntDigitToCharStubsHaveCorrectExternalLinks() throws {
+    @Test func testIntDigitToCharStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [(parameterCount: Int, expectedLink: String)] = [
@@ -67,40 +76,34 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         ]
 
         for item in expected {
-            XCTAssertEqual(
-                externalLink(
+            #expect(externalLink(
                     for: "digitToChar",
                     parameterCount: item.parameterCount,
                     sema: sema,
                     interner: interner,
                     receiverType: sema.types.intType
-                ),
-                item.expectedLink,
-                "Int.digitToChar overload with \(item.parameterCount) parameter(s) should link to \(item.expectedLink)"
-            )
+                ) == item.expectedLink, "Int.digitToChar overload with \(item.parameterCount) parameter(s) should link to \(item.expectedLink)")
         }
     }
 
-    func testKotlinTextPackageIsParentedUnderKotlinPackage() throws {
+    @Test func testKotlinTextPackageIsParentedUnderKotlinPackage() throws {
         let (sema, interner) = try makeSema()
 
-        let kotlinSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [interner.intern("kotlin")]))
-        let kotlinTextSymbol = try XCTUnwrap(
-            sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("text")])
-        )
+        let kotlinSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin")]))
+        let kotlinTextSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("text")]))
 
-        XCTAssertEqual(sema.symbols.parentSymbol(for: kotlinTextSymbol), kotlinSymbol)
+        #expect(sema.symbols.parentSymbol(for: kotlinTextSymbol) == kotlinSymbol)
     }
 
-    func testCharCategoryEnumSurfaceIsRegistered() throws {
+    @Test func testCharCategoryEnumSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
-        let charCategorySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let charCategorySymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
             interner.intern("CharCategory"),
         ]))
-        XCTAssertEqual(sema.symbols.symbol(charCategorySymbol)?.kind, .enumClass)
+        #expect(sema.symbols.symbol(charCategorySymbol)?.kind == .enumClass)
 
         let charCategoryType = sema.types.make(.classType(ClassType(
             classSymbol: charCategorySymbol,
@@ -141,43 +144,43 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         ]
 
         for entry in entries {
-            let entrySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+            let entrySymbol = try #require(sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("text"),
                 interner.intern("CharCategory"),
                 interner.intern(entry),
             ]), "CharCategory.\(entry) must be registered")
-            XCTAssertEqual(sema.symbols.propertyType(for: entrySymbol), charCategoryType)
+            #expect(sema.symbols.propertyType(for: entrySymbol) == charCategoryType)
         }
     }
 
-    func testCharCategoryPropertyReturnsCharCategoryEnum() throws {
+    @Test func testCharCategoryPropertyReturnsCharCategoryEnum() throws {
         let (sema, interner) = try makeSema()
 
-        let charCategorySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let charCategorySymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
             interner.intern("CharCategory"),
         ]))
-        let categoryFunction = try XCTUnwrap(sema.symbols.lookupAll(fqName: [
+        let categoryFunction = try #require(sema.symbols.lookupAll(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
             interner.intern("category"),
         ]).first { symbolID in
             sema.symbols.functionSignature(for: symbolID)?.receiverType == sema.types.charType
         })
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: categoryFunction))
+        let signature = try #require(sema.symbols.functionSignature(for: categoryFunction))
         guard case let .classType(categoryClassType) = sema.types.kind(of: signature.returnType) else {
-            return XCTFail("Char.category should return kotlin.text.CharCategory")
+            Issue.record("Char.category should return kotlin.text.CharCategory"); return
         }
-        XCTAssertEqual(categoryClassType.classSymbol, charCategorySymbol)
+        #expect(categoryClassType.classSymbol == charCategorySymbol)
     }
 
-    func testCharDirectionalityReturnsEnumType() throws {
+    @Test func testCharDirectionalityReturnsEnumType() throws {
         let (sema, interner) = try makeSema()
 
         let enumFQName = ["kotlin", "text", "CharDirectionality"].map { interner.intern($0) }
-        let enumSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: enumFQName))
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
         let enumType = sema.types.make(.classType(ClassType(
             classSymbol: enumSymbol,
             args: [],
@@ -185,27 +188,27 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         )))
 
         let directionalityFQName = ["kotlin", "text", "directionality"].map { interner.intern($0) }
-        let directionalitySymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: directionalityFQName).first { symbolID in
+        let directionalitySymbol = try #require(sema.symbols.lookupAll(fqName: directionalityFQName).first { symbolID in
             sema.symbols.functionSignature(for: symbolID)?.receiverType == sema.types.charType
         })
-        XCTAssertEqual(sema.symbols.functionSignature(for: directionalitySymbol)?.returnType, enumType)
+        #expect(sema.symbols.functionSignature(for: directionalitySymbol)?.returnType == enumType)
 
         for entry in ["UNDEFINED", "LEFT_TO_RIGHT", "RIGHT_TO_LEFT_ARABIC", "COMMON_NUMBER_SEPARATOR", "WHITESPACE"] {
-            let entrySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: enumFQName + [interner.intern(entry)]))
-            XCTAssertEqual(sema.symbols.propertyType(for: entrySymbol), enumType)
+            let entrySymbol = try #require(sema.symbols.lookup(fqName: enumFQName + [interner.intern(entry)]))
+            #expect(sema.symbols.propertyType(for: entrySymbol) == enumType)
         }
     }
 
-    func testNativeCharCompanionHelpersAreRegistered() throws {
+    @Test func testNativeCharCompanionHelpersAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
-        let charSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let charSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("Char"),
         ]))
-        let companionSymbol = try XCTUnwrap(sema.symbols.companionObjectSymbol(for: charSymbol))
-        let companionInfo = try XCTUnwrap(sema.symbols.symbol(companionSymbol))
-        let charArraySymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: charSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        let charArraySymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("CharArray"),
         ]))
@@ -243,7 +246,7 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         ]
 
         for item in expected {
-            let functionSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: companionInfo.fqName + [
+            let functionSymbol = try #require(sema.symbols.lookupAll(fqName: companionInfo.fqName + [
                 interner.intern(item.name),
             ]).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
@@ -252,50 +255,38 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
                 return signature.parameterTypes == item.params
                     && signature.returnType == item.returnType
             })
-            XCTAssertEqual(sema.symbols.parentSymbol(for: functionSymbol), companionSymbol)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: functionSymbol), item.link)
-            XCTAssertTrue(
-                sema.symbols.annotations(for: functionSymbol).contains {
+            #expect(sema.symbols.parentSymbol(for: functionSymbol) == companionSymbol)
+            #expect(sema.symbols.externalLinkName(for: functionSymbol) == item.link)
+            #expect(sema.symbols.annotations(for: functionSymbol).contains {
                     $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
-                },
-                "Char.Companion.\(item.name) should require ExperimentalNativeApi"
-            )
+                }, "Char.Companion.\(item.name) should require ExperimentalNativeApi")
         }
     }
 
-    func testCharLocaleCaseStubHasCorrectExternalLink() throws {
+    @Test func testCharLocaleCaseStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "lowercase", parameterCount: 1, sema: sema, interner: interner),
-            "kk_char_lowercase_locale"
-        )
-        XCTAssertEqual(
-            externalLink(for: "uppercase", parameterCount: 1, sema: sema, interner: interner),
-            "kk_char_uppercase_locale"
-        )
+        #expect(externalLink(for: "lowercase", parameterCount: 1, sema: sema, interner: interner) == "kk_char_lowercase_locale")
+        #expect(externalLink(for: "uppercase", parameterCount: 1, sema: sema, interner: interner) == "kk_char_uppercase_locale")
     }
 
-    func testCharDigitToIntOrNullRadixStubHasCorrectExternalLink() throws {
+    @Test func testCharDigitToIntOrNullRadixStubHasCorrectExternalLink() throws {
         let (sema, interner) = try makeSema()
-        XCTAssertEqual(
-            externalLink(for: "digitToIntOrNull", parameterCount: 1, sema: sema, interner: interner),
-            "kk_char_digitToIntOrNull_radix"
-        )
+        #expect(externalLink(for: "digitToIntOrNull", parameterCount: 1, sema: sema, interner: interner) == "kk_char_digitToIntOrNull_radix")
     }
 
-    func testCharDigitToIntOrNullRadixResolvesInCallExpressions() throws {
+    @Test func testCharDigitToIntOrNullRadixResolvesInCallExpressions() throws {
         let source = """
         fun probe(ch: Char) { ch.digitToIntOrNull(16) }
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError)
+            #expect(!(ctx.diagnostics.hasError))
         }
     }
 
-    func testCharPredicateMembersResolveInCallExpressions() throws {
+    @Test func testCharPredicateMembersResolveInCallExpressions() throws {
         let source = """
         fun probe(ch: Char) {
             ch.isDigit()
@@ -328,8 +319,8 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedFunctionLinks: [String: String] = [
                 "isDigit": "kk_char_isDigit",
@@ -358,40 +349,32 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
             ]
 
             for (memberName, externalLinkName) in expectedFunctionLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 }, "Expected member call to \(memberName) in AST")
-                XCTAssertNotEqual(sema.bindings.exprTypes[callExpr], sema.types.errorType)
+                #expect(sema.bindings.exprTypes[callExpr] != sema.types.errorType)
                 if let chosenCallee = sema.bindings.callBinding(for: callExpr)?.chosenCallee
                     ?? sema.bindings.identifierSymbol(for: callExpr)
                 {
-                    XCTAssertEqual(
-                        sema.symbols.externalLinkName(for: chosenCallee),
-                        externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
-                    )
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
             }
 
             for (memberName, externalLinkName) in expectedPropertyLinks {
-                let propertyExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let propertyExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName && args.isEmpty
                 }, "Expected property access to \(memberName) in AST")
-                XCTAssertNotEqual(sema.bindings.exprTypes[propertyExpr], sema.types.errorType)
+                #expect(sema.bindings.exprTypes[propertyExpr] != sema.types.errorType)
                 if let chosenSymbol = sema.bindings.identifierSymbol(for: propertyExpr) {
-                    XCTAssertEqual(
-                        sema.symbols.externalLinkName(for: chosenSymbol),
-                        externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
-                    )
+                    #expect(sema.symbols.externalLinkName(for: chosenSymbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
             }
         }
     }
 
-    func testNativeCharCompanionHelpersResolveInCallExpressions() throws {
+    @Test func testNativeCharCompanionHelpersResolveInCallExpressions() throws {
         let source = #"""
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
@@ -407,8 +390,8 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
             let expectedFunctionLinks: [String: String] = [
                 "isSupplementaryCodePoint": "kk_char_isSupplementaryCodePoint",
@@ -418,19 +401,16 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
             ]
 
             for (memberName, externalLinkName) in expectedFunctionLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 }, "Expected companion call to \(memberName) in AST")
-                XCTAssertNotEqual(sema.bindings.exprTypes[callExpr], sema.types.errorType)
-                XCTAssertEqual(
-                    sema.bindings.callBinding(for: callExpr).flatMap { binding in
+                #expect(sema.bindings.exprTypes[callExpr] != sema.types.errorType)
+                #expect(sema.bindings.callBinding(for: callExpr).flatMap { binding in
                         sema.symbols.externalLinkName(for: binding.chosenCallee)
-                    },
-                    externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
-                )
+                    } == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
             }
         }
     }
 }
+#endif

@@ -1,21 +1,17 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropNativeFreeablePlacementSurfaceTests: XCTestCase {
-    func testNativeFreeablePlacementInterfaceSurfaceMatchesNativeShape() throws {
+@Suite
+struct NativeCInteropNativeFreeablePlacementSurfaceTests {
+    @Test func testNativeFreeablePlacementInterfaceSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected NativeFreeablePlacement surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(ctx.diagnostics.hasError), "Expected NativeFreeablePlacement surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+            try #require(sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) }), "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -32,13 +28,13 @@ final class NativeCInteropNativeFreeablePlacementSurfaceTests: XCTestCase {
         let nativePlacementSymbol = try cinteropSymbol("NativePlacement")
         let nativeFreeablePlacementType = try cinteropType("NativeFreeablePlacement")
 
-        XCTAssertEqual(sema.symbols.symbol(nativeFreeablePlacementSymbol)?.kind, .interface)
-        XCTAssertEqual(sema.symbols.propertyType(for: nativeFreeablePlacementSymbol), nativeFreeablePlacementType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: nativeFreeablePlacementSymbol), [nativePlacementSymbol])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: nativeFreeablePlacementSymbol), [nativePlacementSymbol])
+        #expect(sema.symbols.symbol(nativeFreeablePlacementSymbol)?.kind == .interface)
+        #expect(sema.symbols.propertyType(for: nativeFreeablePlacementSymbol) == nativeFreeablePlacementType)
+        #expect(sema.symbols.directSupertypes(for: nativeFreeablePlacementSymbol) == [nativePlacementSymbol])
+        #expect(sema.types.directNominalSupertypes(for: nativeFreeablePlacementSymbol) == [nativePlacementSymbol])
     }
 
-    func testNativeFreeablePlacementResolvesInSource() throws {
+    @Test func testNativeFreeablePlacementResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.NativeFreeablePlacement
         import kotlinx.cinterop.NativePlacement
@@ -49,9 +45,7 @@ final class NativeCInteropNativeFreeablePlacementSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected NativeFreeablePlacement to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected NativeFreeablePlacement to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

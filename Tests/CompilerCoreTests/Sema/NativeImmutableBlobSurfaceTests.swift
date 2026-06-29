@@ -1,8 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import Foundation
-import XCTest
+import Testing
 
-final class NativeImmutableBlobSurfaceTests: XCTestCase {
+private struct TestAbortError: Error {}
+
+@Suite
+struct NativeImmutableBlobSurfaceTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
         do {
@@ -16,27 +29,19 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
     private func symbol(
         _ fqPath: [String],
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> SymbolID {
-        try XCTUnwrap(
-            sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) }),
-            "\(fqPath.joined(separator: ".")) must be registered",
-            file: file,
-            line: line
-        )
+            let found = sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) })
+        return try #require(found, "\(fqPath.joined(separator: ".")) must be registered")
     }
 
     private func classType(
         _ fqPath: [String],
         sema: SemaModule,
         interner: StringInterner,
-        args: [TypeArg] = [],
-        file: StaticString = #filePath,
-        line: UInt = #line
+        args: [TypeArg] = []
     ) throws -> TypeID {
-        let classSymbol = try symbol(fqPath, sema: sema, interner: interner, file: file, line: line)
+        let classSymbol = try symbol(fqPath, sema: sema, interner: interner)
         return sema.types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: args,
@@ -46,11 +51,9 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
 
     private func immutableBlobType(
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> TypeID {
-        try classType(["kotlin", "native", "ImmutableBlob"], sema: sema, interner: interner, file: file, line: line)
+        try classType(["kotlin", "native", "ImmutableBlob"], sema: sema, interner: interner)
     }
 
     private func memberSignature(
@@ -58,13 +61,11 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
         parameters: [TypeID],
         returnType: TypeID,
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> (SymbolID, FunctionSignature) {
-        let ownerSymbol = try symbol(["kotlin", "native", "ImmutableBlob"], sema: sema, interner: interner, file: file, line: line)
-        let ownerFQName = try XCTUnwrap(sema.symbols.symbol(ownerSymbol)?.fqName, file: file, line: line)
-        let receiver = try immutableBlobType(sema: sema, interner: interner, file: file, line: line)
+        let ownerSymbol = try symbol(["kotlin", "native", "ImmutableBlob"], sema: sema, interner: interner)
+        let ownerFQName = try #require(sema.symbols.symbol(ownerSymbol)?.fqName)
+        let receiver = try immutableBlobType(sema: sema, interner: interner)
         let candidates = sema.symbols.lookupAll(fqName: ownerFQName + [interner.intern(name)])
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
@@ -78,8 +79,8 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected ImmutableBlob.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected ImmutableBlob.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw TestAbortError()
     }
 
     private func topLevelSignature(
@@ -88,9 +89,7 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
         parameters: [TypeID],
         returnType: TypeID,
         sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        interner: StringInterner
     ) throws -> (SymbolID, FunctionSignature) {
         let fqName = ["kotlin", "native", name].map { interner.intern($0) }
         let candidates = sema.symbols.lookupAll(fqName: fqName)
@@ -106,34 +105,36 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected kotlin.native.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected kotlin.native.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw TestAbortError()
     }
 
+    @Test
     func testImmutableBlobClassIsRegisteredWithDeprecationMetadata() throws {
         let (sema, interner) = try makeSema()
         let blob = try symbol(["kotlin", "native", "ImmutableBlob"], sema: sema, interner: interner)
         let annotations = sema.symbols.annotations(for: blob)
 
-        XCTAssertEqual(sema.symbols.symbol(blob)?.kind, .class)
-        XCTAssertTrue(
+        #expect(sema.symbols.symbol(blob)?.kind == .class)
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlin.Deprecated" },
             "ImmutableBlob must carry @Deprecated metadata"
         )
-        XCTAssertTrue(
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlin.DeprecatedSinceKotlin" },
             "ImmutableBlob must carry @DeprecatedSinceKotlin metadata"
         )
     }
 
+    @Test
     func testImmutableBlobMembersAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let blob = try symbol(["kotlin", "native", "ImmutableBlob"], sema: sema, interner: interner)
-        let ownerFQName = try XCTUnwrap(sema.symbols.symbol(blob)?.fqName)
-        let size = try XCTUnwrap(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("size")]))
+        let ownerFQName = try #require(sema.symbols.symbol(blob)?.fqName)
+        let size = try #require(sema.symbols.lookup(fqName: ownerFQName + [interner.intern("size")]))
         let byteIterator = try classType(["kotlin", "ByteIterator"], sema: sema, interner: interner)
 
-        XCTAssertEqual(sema.symbols.propertyType(for: size), sema.types.intType)
+        #expect(sema.symbols.propertyType(for: size) == sema.types.intType)
         let (getSymbol, _) = try memberSignature(
             named: "get",
             parameters: [sema.types.intType],
@@ -141,7 +142,7 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(sema.symbols.symbol(getSymbol)?.flags.contains(.operatorFunction) == true)
+        #expect(sema.symbols.symbol(getSymbol)?.flags.contains(.operatorFunction) == true)
         let (iteratorSymbol, iteratorSignature) = try memberSignature(
             named: "iterator",
             parameters: [],
@@ -149,10 +150,11 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(sema.symbols.symbol(iteratorSymbol)?.flags.contains(.operatorFunction) == true)
-        XCTAssertTrue(iteratorSignature.parameterTypes.isEmpty)
+        #expect(sema.symbols.symbol(iteratorSymbol)?.flags.contains(.operatorFunction) == true)
+        #expect(iteratorSignature.parameterTypes.isEmpty)
     }
 
+    @Test
     func testImmutableBlobFactoryIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let blobType = try immutableBlobType(sema: sema, interner: interner)
@@ -166,17 +168,18 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
         )
         let annotations = sema.symbols.annotations(for: factory)
 
-        XCTAssertEqual(signature.valueParameterIsVararg, [true])
-        XCTAssertTrue(
+        #expect(signature.valueParameterIsVararg == [true])
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlin.Deprecated" },
             "immutableBlobOf must carry @Deprecated metadata"
         )
-        XCTAssertTrue(
+        #expect(
             annotations.contains { $0.annotationFQName == "kotlin.DeprecatedSinceKotlin" },
             "immutableBlobOf must carry @DeprecatedSinceKotlin metadata"
         )
     }
 
+    @Test
     func testImmutableBlobExtensionFunctionsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let blobType = try immutableBlobType(sema: sema, interner: interner)
@@ -230,16 +233,17 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
             interner: interner
         )
 
-        XCTAssertEqual(toByteArray.valueParameterHasDefaultValues, [true, true])
-        XCTAssertEqual(toUByteArray.valueParameterHasDefaultValues, [true, true])
-        XCTAssertEqual(asCPointer.valueParameterHasDefaultValues, [true])
-        XCTAssertEqual(asUCPointer.valueParameterHasDefaultValues, [true])
-        XCTAssertTrue(
+        #expect(toByteArray.valueParameterHasDefaultValues == [true, true])
+        #expect(toUByteArray.valueParameterHasDefaultValues == [true, true])
+        #expect(asCPointer.valueParameterHasDefaultValues == [true])
+        #expect(asUCPointer.valueParameterHasDefaultValues == [true])
+        #expect(
             sema.symbols.annotations(for: toUByteArraySymbol).contains { $0.annotationFQName == "kotlin.ExperimentalUnsignedTypes" },
             "toUByteArray must carry @ExperimentalUnsignedTypes metadata"
         )
     }
 
+    @Test
     func testImmutableBlobSurfaceResolvesInSource() {
         let source = """
         @file:OptIn(kotlin.ExperimentalUnsignedTypes::class)
@@ -259,9 +263,10 @@ final class NativeImmutableBlobSurfaceTests: XCTestCase {
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
 
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected ImmutableBlob surface to type-check, got \(errors)"
         )
     }
 }
+#endif

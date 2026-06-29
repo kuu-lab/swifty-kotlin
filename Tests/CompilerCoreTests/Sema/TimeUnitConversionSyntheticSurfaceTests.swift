@@ -1,10 +1,26 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Surface coverage for STDLIB-TIME-FN-012: `DurationUnit.toTimeUnit()` and the
 /// synthetic `java.util.concurrent.TimeUnit` enum it returns.
-final class TimeUnitConversionSyntheticSurfaceTests: XCTestCase {
+@Suite
+struct TimeUnitConversionSyntheticSurfaceTests {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected TimeUnit surface source to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+            result = (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test
     func testTimeUnitEnumEntriesAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let timeUnitFQName = [
@@ -13,8 +29,8 @@ final class TimeUnitConversionSyntheticSurfaceTests: XCTestCase {
             interner.intern("concurrent"),
             interner.intern("TimeUnit"),
         ]
-        let timeUnitSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: timeUnitFQName))
-        XCTAssertEqual(sema.symbols.symbol(timeUnitSymbol)?.kind, .enumClass)
+        let timeUnitSymbol = try #require(sema.symbols.lookup(fqName: timeUnitFQName))
+        #expect(sema.symbols.symbol(timeUnitSymbol)?.kind == .enumClass)
 
         let timeUnitType = sema.types.make(.classType(ClassType(
             classSymbol: timeUnitSymbol,
@@ -31,19 +47,20 @@ final class TimeUnitConversionSyntheticSurfaceTests: XCTestCase {
             "DAYS",
         ]
         for entry in entries {
-            let entrySymbol = try XCTUnwrap(
+            let entrySymbol = try #require(
                 sema.symbols.lookup(fqName: timeUnitFQName + [interner.intern(entry)]),
                 "TimeUnit.\(entry) must be registered"
             )
-            XCTAssertEqual(sema.symbols.parentSymbol(for: entrySymbol), timeUnitSymbol)
-            XCTAssertEqual(sema.symbols.propertyType(for: entrySymbol), timeUnitType)
+            #expect(sema.symbols.parentSymbol(for: entrySymbol) == timeUnitSymbol)
+            #expect(sema.symbols.propertyType(for: entrySymbol) == timeUnitType)
         }
     }
 
+    @Test
     func testToTimeUnitExtensionFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
-        let durationUnitSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
             interner.intern("time"),
             interner.intern("DurationUnit"),
@@ -53,7 +70,7 @@ final class TimeUnitConversionSyntheticSurfaceTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let timeUnitSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: [
+        let timeUnitSymbol = try #require(sema.symbols.lookup(fqName: [
             interner.intern("java"),
             interner.intern("util"),
             interner.intern("concurrent"),
@@ -70,7 +87,7 @@ final class TimeUnitConversionSyntheticSurfaceTests: XCTestCase {
             interner.intern("time"),
             interner.intern("toTimeUnit"),
         ]
-        let functionSymbol = try XCTUnwrap(
+        let functionSymbol = try #require(
             sema.symbols.lookupAll(fqName: toTimeUnitFQName).first(where: { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == durationUnitType
@@ -78,13 +95,14 @@ final class TimeUnitConversionSyntheticSurfaceTests: XCTestCase {
             "kotlin.time.toTimeUnit with a DurationUnit receiver must be registered"
         )
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
-        XCTAssertEqual(signature.receiverType, durationUnitType)
-        XCTAssertEqual(signature.returnType, timeUnitType)
-        XCTAssertTrue(signature.parameterTypes.isEmpty)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: functionSymbol), "kk_duration_unit_to_time_unit")
+        let signature = try #require(sema.symbols.functionSignature(for: functionSymbol))
+        #expect(signature.receiverType == durationUnitType)
+        #expect(signature.returnType == timeUnitType)
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(sema.symbols.externalLinkName(for: functionSymbol) == "kk_duration_unit_to_time_unit")
     }
 
+    @Test
     func testToTimeUnitResolvesInSource() throws {
         let source = """
         import java.util.concurrent.TimeUnit

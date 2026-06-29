@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ExperimentalBitwiseFunctionTests: XCTestCase {
-    func testByteAndShortBitwiseFunctionsResolveThroughKotlinExperimentalImports() throws {
+@Suite
+struct ExperimentalBitwiseFunctionTests {
+    @Test func testByteAndShortBitwiseFunctionsResolveThroughKotlinExperimentalImports() throws {
         let source = """
         import kotlin.experimental.and
         import kotlin.experimental.inv
@@ -27,13 +29,14 @@ final class ExperimentalBitwiseFunctionTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertTrue(
-            ctx.diagnostics.diagnostics.isEmpty,
+        let diagnosticsEmpty = ctx.diagnostics.diagnostics.isEmpty
+        #expect(
+            diagnosticsEmpty,
             "Expected kotlin.experimental Byte/Short bitwise imports to resolve cleanly, got \(ctx.diagnostics.diagnostics)"
         )
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let bitwiseNames: Set<String> = ["and", "inv", "or", "xor"]
         var seenCalls: [String: Int] = [:]
 
@@ -48,13 +51,14 @@ final class ExperimentalBitwiseFunctionTests: XCTestCase {
             }
 
             seenCalls[name, default: 0] += 1
-            XCTAssertEqual(sema.bindings.exprTypes[receiver], sema.types.intType)
-            XCTAssertEqual(sema.bindings.exprTypes[exprID], sema.types.intType)
+            #expect(sema.bindings.exprTypes[receiver] == sema.types.intType)
+            #expect(sema.bindings.exprTypes[exprID] == sema.types.intType)
             for arg in args {
-                XCTAssertEqual(sema.bindings.exprTypes[arg.expr], sema.types.intType)
+                #expect(sema.bindings.exprTypes[arg.expr] == sema.types.intType)
             }
         }
 
-        XCTAssertEqual(seenCalls, ["and": 2, "inv": 2, "or": 2, "xor": 2])
+        #expect(seenCalls == ["and": 2, "inv": 2, "or": 2, "xor": 2])
     }
 }
+#endif

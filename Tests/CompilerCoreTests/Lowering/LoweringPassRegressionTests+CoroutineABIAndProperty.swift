@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringPassRegressionTests {
     // MARK: - Coroutine Launcher Arg Tests
 
+    @Test
     func testCoroutineLauncherWithArgBearingSuspendFunctionGeneratesThunk() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -75,33 +77,34 @@ extension LoweringPassRegressionTests {
             guard case let .function(fn) = decl else { return nil }
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
         }
-        XCTAssertEqual(thunkFunctions.count, 1)
-        let thunk = try XCTUnwrap(thunkFunctions.first)
-        XCTAssertEqual(thunk.params.count, 1)
+        #expect(thunkFunctions.count == 1)
+        let thunk = try #require(thunkFunctions.first)
+        #expect(thunk.params.count == 1)
 
         let thunkCallees = thunk.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
-        XCTAssertTrue(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
+        #expect(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
+        #expect(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_continuation_new"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertTrue(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
-        XCTAssertFalse(mainCallees.contains("runBlocking"))
+        #expect(mainCallees.contains("kk_coroutine_continuation_new"))
+        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
+        #expect(!mainCallees.contains("runBlocking"))
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testCoroutineLauncherZeroArgSuspendStillUsesOriginalPath() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -166,19 +169,20 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_kxmini_run_blocking"))
-        XCTAssertFalse(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_kxmini_run_blocking"))
+        #expect(!mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
+        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testCreateCoroutineUninterceptedWithoutReceiverLoweringUsesCompletionState() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -244,21 +248,22 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_continuation_new"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_state_set_completion"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertFalse(mainCallees.contains("createCoroutineUnintercepted"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(!mainCallees.contains("kk_coroutine_continuation_new"))
+        #expect(!mainCallees.contains("kk_coroutine_state_set_completion"))
+        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!mainCallees.contains("createCoroutineUnintercepted"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testCreateCoroutineWithoutReceiverLoweringUsesCompletionState() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -324,18 +329,19 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        XCTAssertFalse(mainCallees.contains("createCoroutine"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(!mainCallees.contains("createCoroutine"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testCreateCoroutineUninterceptedWithReceiverLoweringStoresReceiverArg() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -403,21 +409,22 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_continuation_new"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_state_set_completion"))
-        XCTAssertFalse(mainCallees.contains("createCoroutineUnintercepted"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!mainCallees.contains("kk_coroutine_continuation_new"))
+        #expect(!mainCallees.contains("kk_coroutine_state_set_completion"))
+        #expect(!mainCallees.contains("createCoroutineUnintercepted"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testStartCoroutineUninterceptedOrReturnLoweringUsesRuntimeEntryPoint() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -483,19 +490,20 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        XCTAssertTrue(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
-        XCTAssertFalse(mainCallees.contains("startCoroutineUninterceptedOrReturn"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
+        #expect(!mainCallees.contains("startCoroutineUninterceptedOrReturn"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testStartCoroutineUninterceptedOrReturnWithReceiverStoresReceiverArg() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -563,20 +571,21 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertTrue(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
-        XCTAssertFalse(mainCallees.contains("startCoroutineUninterceptedOrReturn"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
+        #expect(!mainCallees.contains("startCoroutineUninterceptedOrReturn"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testStartCoroutineWithoutReceiverLoweringCreatesAndResumesContinuation() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -641,21 +650,22 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_continuation_resume"))
-        XCTAssertFalse(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertFalse(mainCallees.contains("startCoroutine"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(mainCallees.contains("kk_coroutine_continuation_resume"))
+        #expect(!mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
+        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!mainCallees.contains("startCoroutine"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testStartCoroutineWithReceiverLoweringStoresReceiverArgAndResumesContinuation() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -722,21 +732,22 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_continuation_resume"))
-        XCTAssertFalse(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
-        XCTAssertFalse(mainCallees.contains("startCoroutine"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains("kk_coroutine_continuation_resume"))
+        #expect(!mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
+        #expect(!mainCallees.contains("startCoroutine"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testCoroutineLauncherWithSuspendLambdaCapturesGeneratesThunk() throws {
         // Simulates: val x = 42; runBlocking { x }
         // The lambda captures `x`, so it has 1 capture param and 0 value params.
@@ -810,37 +821,40 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
+        // Should generate a thunk for the lambda (1 capture param)
         let thunkFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
             guard case let .function(fn) = decl else { return nil }
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
         }
-        XCTAssertEqual(thunkFunctions.count, 1)
-        let thunk = try XCTUnwrap(thunkFunctions.first)
-        XCTAssertEqual(thunk.params.count, 1)
+        #expect(thunkFunctions.count == 1)
+        let thunk = try #require(thunkFunctions.first)
+        #expect(thunk.params.count == 1)
 
         let thunkCallees = thunk.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
-        XCTAssertTrue(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
+        #expect(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
+        #expect(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
 
+        // Main should use the _with_cont path and store capture via arg_set
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_continuation_new"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertTrue(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
-        XCTAssertFalse(mainCallees.contains("runBlocking"))
+        #expect(mainCallees.contains("kk_coroutine_continuation_new"))
+        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
+        #expect(!mainCallees.contains("runBlocking"))
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testCoroutineLauncherWithZeroCapturesSuspendLambdaUsesOriginalPath() throws {
         // Simulates: runBlocking { 42 }
         // The lambda has no captures and no value params → uses zero-arg path.
@@ -910,20 +924,23 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_kxmini_run_blocking"))
-        XCTAssertFalse(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
-        XCTAssertFalse(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        // Zero-arg path: should use kk_kxmini_run_blocking, NOT _with_cont
+        #expect(mainCallees.contains("kk_kxmini_run_blocking"))
+        #expect(!mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
+        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
+    @Test
     func testCoroutineLauncherLaunchWithSuspendLambdaCapturesGeneratesThunk() throws {
+        // Verify that launch correctly handles lambdas with captures
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -995,22 +1012,23 @@ extension LoweringPassRegressionTests {
             guard case let .function(fn) = decl else { return nil }
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
         }
-        XCTAssertEqual(thunkFunctions.count, 1)
+        #expect(thunkFunctions.count == 1)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            XCTFail("expected lowered main function")
+            Issue.record("expected lowered main function")
             return
         }
         let mainCallees = loweredMain.body.compactMap { instruction -> String? in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
             return interner.resolve(callee)
         }
-        XCTAssertTrue(mainCallees.contains("kk_kxmini_launch_with_cont"))
-        XCTAssertTrue(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        XCTAssertFalse(mainCallees.contains("launch"))
+        #expect(mainCallees.contains("kk_kxmini_launch_with_cont"))
+        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!mainCallees.contains("launch"))
 
-        XCTAssertFalse(ctx.diagnostics.diagnostics.contains { $0.severity == .error })
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
     // MARK: - ABI Boxing/Unboxing Tests
 }
+#endif

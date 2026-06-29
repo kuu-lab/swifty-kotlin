@@ -1,8 +1,26 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class NativeCInteropAutofreeScopeSurfaceTests: XCTestCase {
+private struct _TestHelperFailure: Error {}
+
+@Suite
+struct NativeCInteropAutofreeScopeSurfaceTests {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Expected C interop AutofreeScope surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+            result = (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
     private func symbol(
         _ fqPath: [String],
         sema: SemaModule,
@@ -10,12 +28,8 @@ final class NativeCInteropAutofreeScopeSurfaceTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> SymbolID {
-        try XCTUnwrap(
-            sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) }),
-            "\(fqPath.joined(separator: ".")) must be registered",
-            file: file,
-            line: line
-        )
+            let found = sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) })
+        return try #require(found, "\(fqPath.joined(separator: ".")) must be registered")
     }
 
     private func classType(
@@ -43,7 +57,7 @@ final class NativeCInteropAutofreeScopeSurfaceTests: XCTestCase {
         line: UInt = #line
     ) throws -> (SymbolID, FunctionSignature) {
         let autofreeScopeSymbol = try symbol(["kotlinx", "cinterop", "AutofreeScope"], sema: sema, interner: interner, file: file, line: line)
-        let ownerFQName = try XCTUnwrap(sema.symbols.symbol(autofreeScopeSymbol)?.fqName, file: file, line: line)
+        let ownerFQName = try #require(sema.symbols.symbol(autofreeScopeSymbol)?.fqName)
         let receiver = try classType(["kotlinx", "cinterop", "AutofreeScope"], sema: sema, interner: interner, file: file, line: line)
         let candidates = sema.symbols.lookupAll(fqName: ownerFQName + [interner.intern(name)])
         for candidate in candidates {
@@ -58,37 +72,37 @@ final class NativeCInteropAutofreeScopeSurfaceTests: XCTestCase {
             }
         }
 
-        XCTFail("Expected AutofreeScope.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })", file: file, line: line)
-        throw XCTestError(.failureWhileWaiting)
+        Issue.record("Expected AutofreeScope.\(name) signature, got \(candidates.compactMap { sema.symbols.functionSignature(for: $0) })")
+        throw _TestHelperFailure()
     }
 
-    func testAutofreeScopeClassAndSupportSymbolsAreRegistered() throws {
+    @Test func testAutofreeScopeClassAndSupportSymbolsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let autofreeScopeSymbol = try symbol(["kotlinx", "cinterop", "AutofreeScope"], sema: sema, interner: interner)
         let deferScopeSymbol = try symbol(["kotlinx", "cinterop", "DeferScope"], sema: sema, interner: interner)
         let nativePlacementSymbol = try symbol(["kotlinx", "cinterop", "NativePlacement"], sema: sema, interner: interner)
 
-        XCTAssertEqual(sema.symbols.symbol(autofreeScopeSymbol)?.kind, .class)
-        XCTAssertTrue(sema.symbols.symbol(autofreeScopeSymbol)?.flags.contains(.abstractType) == true)
-        XCTAssertEqual(sema.symbols.symbol(deferScopeSymbol)?.kind, .class)
-        XCTAssertTrue(sema.symbols.symbol(deferScopeSymbol)?.flags.contains(.openType) == true)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: autofreeScopeSymbol), [deferScopeSymbol, nativePlacementSymbol])
+        #expect(sema.symbols.symbol(autofreeScopeSymbol)?.kind == .class)
+        #expect(sema.symbols.symbol(autofreeScopeSymbol)?.flags.contains(.abstractType) == true)
+        #expect(sema.symbols.symbol(deferScopeSymbol)?.kind == .class)
+        #expect(sema.symbols.symbol(deferScopeSymbol)?.flags.contains(.openType) == true)
+        #expect(sema.symbols.directSupertypes(for: autofreeScopeSymbol) == [deferScopeSymbol, nativePlacementSymbol])
     }
 
-    func testAutofreeScopeConstructorIsRegistered() throws {
+    @Test func testAutofreeScopeConstructorIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let autofreeScopeSymbol = try symbol(["kotlinx", "cinterop", "AutofreeScope"], sema: sema, interner: interner)
-        let autofreeScopeFQName = try XCTUnwrap(sema.symbols.symbol(autofreeScopeSymbol)?.fqName)
+        let autofreeScopeFQName = try #require(sema.symbols.symbol(autofreeScopeSymbol)?.fqName)
         let autofreeScopeType = try classType(["kotlinx", "cinterop", "AutofreeScope"], sema: sema, interner: interner)
         let constructors = sema.symbols.lookupAll(fqName: autofreeScopeFQName + [interner.intern("<init>")])
 
-        let signature = try XCTUnwrap(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
+        let signature = try #require(constructors.compactMap { sema.symbols.functionSignature(for: $0) }.first {
             $0.parameterTypes.isEmpty && $0.returnType == autofreeScopeType
         })
-        XCTAssertEqual(signature.valueParameterHasDefaultValues, [])
+        #expect(signature.valueParameterHasDefaultValues == [])
     }
 
-    func testAutofreeScopeAllocOverloadsAreRegistered() throws {
+    @Test func testAutofreeScopeAllocOverloadsAreRegistered() throws {
         let (sema, interner) = try makeSema()
         let nativePointedType = try classType(["kotlinx", "cinterop", "NativePointed"], sema: sema, interner: interner)
 
@@ -99,7 +113,7 @@ final class NativeCInteropAutofreeScopeSurfaceTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(sema.symbols.symbol(longAlloc)?.flags.isSuperset(of: [.abstractType, .overrideMember]) == true)
+        #expect(sema.symbols.symbol(longAlloc)?.flags.isSuperset(of: [.abstractType, .overrideMember]) == true)
 
         let (intAlloc, _) = try autofreeScopeMemberSignature(
             named: "alloc",
@@ -108,10 +122,10 @@ final class NativeCInteropAutofreeScopeSurfaceTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(sema.symbols.symbol(intAlloc)?.flags.contains(.openType) == true)
+        #expect(sema.symbols.symbol(intAlloc)?.flags.contains(.openType) == true)
     }
 
-    func testAutofreeScopeResolvesInSource() throws {
+    @Test func testAutofreeScopeResolvesInSource() throws {
         _ = try makeSema(source: """
         import kotlinx.cinterop.AutofreeScope
         import kotlinx.cinterop.NativePointed
@@ -126,3 +140,4 @@ final class NativeCInteropAutofreeScopeSurfaceTests: XCTestCase {
         """)
     }
 }
+#endif

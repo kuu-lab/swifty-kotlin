@@ -1,42 +1,56 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class CoroutineSyntheticStubTests: XCTestCase {
+@Suite
+struct CoroutineSyntheticStubTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (try #require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test
     func testEmptyCoroutineContextIsRegisteredAsSyntheticObject() throws {
         let (sema, interner) = try makeSema()
 
         let coroutineContextFQName = ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) }
-        let coroutineContextSymbol = try XCTUnwrap(
+        let coroutineContextSymbol = try #require(
             sema.symbols.lookup(fqName: coroutineContextFQName),
             "Expected kotlin.coroutines.CoroutineContext to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(coroutineContextSymbol)?.kind, .interface)
+        #expect(sema.symbols.symbol(coroutineContextSymbol)?.kind == .interface)
 
         let emptyCoroutineContextFQName = ["kotlin", "coroutines", "EmptyCoroutineContext"].map { interner.intern($0) }
-        let emptyCoroutineContextSymbol = try XCTUnwrap(
+        let emptyCoroutineContextSymbol = try #require(
             sema.symbols.lookup(fqName: emptyCoroutineContextFQName),
             "Expected kotlin.coroutines.EmptyCoroutineContext to be registered"
         )
-        let emptyCoroutineContextInfo = try XCTUnwrap(sema.symbols.symbol(emptyCoroutineContextSymbol))
-        XCTAssertEqual(emptyCoroutineContextInfo.kind, .object)
-        XCTAssertTrue(emptyCoroutineContextInfo.flags.contains(.synthetic))
+        let emptyCoroutineContextInfo = try #require(sema.symbols.symbol(emptyCoroutineContextSymbol))
+        #expect(emptyCoroutineContextInfo.kind == .object)
+        #expect(emptyCoroutineContextInfo.flags.contains(.synthetic))
 
         let expectedEmptyCoroutineContextType = sema.types.make(.classType(ClassType(
             classSymbol: emptyCoroutineContextSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(
-            sema.symbols.propertyType(for: emptyCoroutineContextSymbol),
+        #expect(
+            sema.symbols.propertyType(for: emptyCoroutineContextSymbol) ==
             expectedEmptyCoroutineContextType
         )
-        XCTAssertEqual(
-            sema.symbols.directSupertypes(for: emptyCoroutineContextSymbol),
+        #expect(
+            sema.symbols.directSupertypes(for: emptyCoroutineContextSymbol) ==
             [coroutineContextSymbol]
         )
     }
 
+    @Test
     func testEmptyCoroutineContextResolvesThroughWithContext() throws {
         let source = """
         import kotlin.coroutines.EmptyCoroutineContext
@@ -51,10 +65,11 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty)
+            #expect(ctx.diagnostics.diagnostics.isEmpty)
         }
     }
 
+    @Test
     func testCoroutineSuspendedTopLevelValIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = [
@@ -64,44 +79,46 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             "COROUTINE_SUSPENDED",
         ].map { interner.intern($0) }
 
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED to be registered"
         )
-        let semanticSymbol = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(semanticSymbol.kind, .property)
-        XCTAssertEqual(semanticSymbol.visibility, .public)
-        XCTAssertTrue(semanticSymbol.flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.propertyType(for: symbol), sema.types.nullableAnyType)
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: symbol),
+        let semanticSymbol = try #require(sema.symbols.symbol(symbol))
+        #expect(semanticSymbol.kind == .property)
+        #expect(semanticSymbol.visibility == .public)
+        #expect(semanticSymbol.flags.contains(.synthetic))
+        #expect(sema.symbols.propertyType(for: symbol) == sema.types.nullableAnyType)
+        #expect(
+            sema.symbols.externalLinkName(for: symbol) ==
             "kk_coroutine_suspended"
         )
     }
 
+    @Test
     func testCoroutineContextTopLevelPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "coroutineContext"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
+        let symbol = try #require(
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.coroutines.coroutineContext to be registered"
         )
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(info.kind, .property)
-        XCTAssertEqual(info.visibility, .public)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_coroutine_current_context")
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .property)
+        #expect(info.visibility == .public)
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: symbol) == "kk_coroutine_current_context")
 
-        let coroutineContextSymbol = try XCTUnwrap(
+        let coroutineContextSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) })
         )
-        guard case let .classType(propertyType) = sema.types.kind(of: try XCTUnwrap(sema.symbols.propertyType(for: symbol))) else {
-            return XCTFail("Expected coroutineContext property type to be CoroutineContext")
+        guard case let .classType(propertyType) = sema.types.kind(of: try #require(sema.symbols.propertyType(for: symbol))) else {
+            Issue.record("Expected coroutineContext property type to be CoroutineContext"); return
         }
-        XCTAssertEqual(propertyType.classSymbol, coroutineContextSymbol)
-        XCTAssertTrue(propertyType.args.isEmpty)
+        #expect(propertyType.classSymbol == coroutineContextSymbol)
+        #expect(propertyType.args.isEmpty)
     }
 
+    @Test
     func testCoroutineContextTopLevelPropertyResolvesInSuspendSource() throws {
         let source = """
         import kotlin.coroutines.CoroutineContext
@@ -116,29 +133,30 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty)
+            #expect(ctx.diagnostics.diagnostics.isEmpty)
         }
     }
 
+    @Test
     func testSuspendCoroutineUninterceptedOrReturnStubIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "intrinsics", "suspendCoroutineUninterceptedOrReturn"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
-        XCTAssertEqual(info.kind, .function)
-        XCTAssertTrue(info.flags.contains(.synthetic))
-        XCTAssertTrue(info.flags.contains(.inlineFunction))
-        XCTAssertTrue(info.flags.contains(.suspendFunction))
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .function)
+        #expect(info.flags.contains(.synthetic))
+        #expect(info.flags.contains(.inlineFunction))
+        #expect(info.flags.contains(.suspendFunction))
 
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
-        XCTAssertTrue(signature.isSuspend)
-        XCTAssertEqual(signature.typeParameterSymbols.count, 1)
-        XCTAssertEqual(signature.parameterTypes.count, 1)
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        #expect(signature.isSuspend)
+        #expect(signature.typeParameterSymbols.count == 1)
+        #expect(signature.parameterTypes.count == 1)
 
         let continuationFQName = ["kotlin", "coroutines", "Continuation"].map { interner.intern($0) }
-        let continuationSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: continuationFQName))
-        XCTAssertEqual(sema.types.nominalTypeParameterSymbols(for: continuationSymbol).count, 1)
-        let typeParamSymbol = try XCTUnwrap(signature.typeParameterSymbols.first)
+        let continuationSymbol = try #require(sema.symbols.lookup(fqName: continuationFQName))
+        #expect(sema.types.nominalTypeParameterSymbols(for: continuationSymbol).count == 1)
+        let typeParamSymbol = try #require(signature.typeParameterSymbols.first)
         let typeParamType = sema.types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
             nullability: .nonNull
@@ -155,128 +173,130 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             nullability: .nonNull
         )))
 
-        XCTAssertEqual(signature.parameterTypes.first, expectedBlockType)
-        XCTAssertEqual(signature.returnType, typeParamType)
+        #expect(signature.parameterTypes.first == expectedBlockType)
+        #expect(signature.returnType == typeParamType)
     }
 
+    @Test
     func testSuspendCoroutineAndContinuationSignatures() throws {
         let (sema, interner) = try makeSema()
 
         let continuationFQName = ["kotlin", "coroutines", "Continuation"].map { interner.intern($0) }
-        let continuationSymbol = try XCTUnwrap(
+        let continuationSymbol = try #require(
             sema.symbols.lookup(fqName: continuationFQName),
             "Expected kotlin.coroutines.Continuation to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(continuationSymbol)?.kind, .interface)
+        #expect(sema.symbols.symbol(continuationSymbol)?.kind == .interface)
 
         let continuationTypeParams = sema.types.nominalTypeParameterSymbols(for: continuationSymbol)
-        XCTAssertEqual(continuationTypeParams.count, 1)
-        XCTAssertEqual(sema.types.nominalTypeParameterVariances(for: continuationSymbol), [.invariant])
+        #expect(continuationTypeParams.count == 1)
+        #expect(sema.types.nominalTypeParameterVariances(for: continuationSymbol) == [.invariant])
 
-        _ = try XCTUnwrap(sema.symbols.propertyType(for: continuationSymbol))
+        _ = try #require(sema.symbols.propertyType(for: continuationSymbol))
 
-        let contextSymbol = try XCTUnwrap(
+        let contextSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "coroutines", "Continuation", "context"].map { interner.intern($0) })
         )
-        XCTAssertEqual(sema.symbols.externalLinkName(for: contextSymbol), "kk_coroutine_continuation_context")
-        guard case let .classType(contextType) = sema.types.kind(of: try XCTUnwrap(sema.symbols.propertyType(for: contextSymbol))) else {
-            return XCTFail("Expected continuation.context to be a class type")
+        #expect(sema.symbols.externalLinkName(for: contextSymbol) == "kk_coroutine_continuation_context")
+        guard case let .classType(contextType) = sema.types.kind(of: try #require(sema.symbols.propertyType(for: contextSymbol))) else {
+            Issue.record("Expected continuation.context to be a class type"); return
         }
-        XCTAssertEqual(
-            contextType.classSymbol,
-            try XCTUnwrap(sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) }))
+        #expect(
+            try contextType.classSymbol ==
+            #require(sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) }))
         )
-        XCTAssertTrue(contextType.args.isEmpty)
+        #expect(contextType.args.isEmpty)
 
         let resumeWithFQName = ["kotlin", "coroutines", "Continuation", "resumeWith"].map { interner.intern($0) }
-        let resumeWithSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: resumeWithFQName))
-        let resumeWithSignature = try XCTUnwrap(sema.symbols.functionSignature(for: resumeWithSymbol))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: resumeWithSymbol), "kk_coroutine_continuation_resume_with")
-        guard case let .classType(resumeWithReceiverType) = sema.types.kind(of: try XCTUnwrap(resumeWithSignature.receiverType)) else {
-            return XCTFail("Expected resumeWith receiver to be Continuation<T>")
+        let resumeWithSymbol = try #require(sema.symbols.lookup(fqName: resumeWithFQName))
+        let resumeWithSignature = try #require(sema.symbols.functionSignature(for: resumeWithSymbol))
+        #expect(sema.symbols.externalLinkName(for: resumeWithSymbol) == "kk_coroutine_continuation_resume_with")
+        guard case let .classType(resumeWithReceiverType) = sema.types.kind(of: try #require(resumeWithSignature.receiverType)) else {
+            Issue.record("Expected resumeWith receiver to be Continuation<T>"); return
         }
-        XCTAssertEqual(resumeWithReceiverType.classSymbol, continuationSymbol)
-        XCTAssertEqual(resumeWithReceiverType.args.count, 1)
-        XCTAssertEqual(resumeWithSignature.parameterTypes.count, 1)
-        XCTAssertEqual(resumeWithSignature.returnType, sema.types.unitType)
-        XCTAssertEqual(resumeWithSignature.classTypeParameterCount, 1)
+        #expect(resumeWithReceiverType.classSymbol == continuationSymbol)
+        #expect(resumeWithReceiverType.args.count == 1)
+        #expect(resumeWithSignature.parameterTypes.count == 1)
+        #expect(resumeWithSignature.returnType == sema.types.unitType)
+        #expect(resumeWithSignature.classTypeParameterCount == 1)
 
-        let resultSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: ["kotlin", "Result"].map { interner.intern($0) }))
+        let resultSymbol = try #require(sema.symbols.lookup(fqName: ["kotlin", "Result"].map { interner.intern($0) }))
         guard case let .classType(resumeWithParameterType) = sema.types.kind(of: resumeWithSignature.parameterTypes[0]) else {
-            return XCTFail("Expected resumeWith parameter to be Result<T>")
+            Issue.record("Expected resumeWith parameter to be Result<T>"); return
         }
-        XCTAssertEqual(resumeWithParameterType.classSymbol, resultSymbol)
-        XCTAssertEqual(resumeWithParameterType.args.count, 1)
+        #expect(resumeWithParameterType.classSymbol == resultSymbol)
+        #expect(resumeWithParameterType.args.count == 1)
 
         let resumeFQName = ["kotlin", "coroutines", "resume"].map { interner.intern($0) }
-        let resumeSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: resumeFQName))
-        let resumeSignature = try XCTUnwrap(sema.symbols.functionSignature(for: resumeSymbol))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: resumeSymbol), "kk_coroutine_continuation_resume")
-        guard case let .classType(resumeReceiverType) = sema.types.kind(of: try XCTUnwrap(resumeSignature.receiverType)) else {
-            return XCTFail("Expected resume receiver to be Continuation<T>")
+        let resumeSymbol = try #require(sema.symbols.lookup(fqName: resumeFQName))
+        let resumeSignature = try #require(sema.symbols.functionSignature(for: resumeSymbol))
+        #expect(sema.symbols.externalLinkName(for: resumeSymbol) == "kk_coroutine_continuation_resume")
+        guard case let .classType(resumeReceiverType) = sema.types.kind(of: try #require(resumeSignature.receiverType)) else {
+            Issue.record("Expected resume receiver to be Continuation<T>"); return
         }
-        XCTAssertEqual(resumeReceiverType.classSymbol, continuationSymbol)
-        XCTAssertEqual(resumeReceiverType.args.count, 1)
-        let resumeParameterType = try XCTUnwrap(resumeSignature.parameterTypes.first)
+        #expect(resumeReceiverType.classSymbol == continuationSymbol)
+        #expect(resumeReceiverType.args.count == 1)
+        let resumeParameterType = try #require(resumeSignature.parameterTypes.first)
         guard case let .typeParam(resumeTypeParam) = sema.types.kind(of: resumeParameterType) else {
-            return XCTFail("Expected resume parameter to be the continuation type parameter, got \(sema.types.renderType(resumeParameterType))")
+            Issue.record("Expected resume parameter to be the continuation type parameter, got \(sema.types.renderType(resumeParameterType))"); return
         }
-        XCTAssertNotEqual(resumeTypeParam.symbol.rawValue, -1)
-        XCTAssertEqual(resumeSignature.returnType, sema.types.unitType)
-        XCTAssertEqual(resumeSignature.classTypeParameterCount, 1)
+        #expect(resumeTypeParam.symbol.rawValue != -1)
+        #expect(resumeSignature.returnType == sema.types.unitType)
+        #expect(resumeSignature.classTypeParameterCount == 1)
 
         let resumeWithExceptionFQName = ["kotlin", "coroutines", "resumeWithException"].map { interner.intern($0) }
-        let resumeWithExceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: resumeWithExceptionFQName))
-        let resumeWithExceptionSignature = try XCTUnwrap(sema.symbols.functionSignature(for: resumeWithExceptionSymbol))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: resumeWithExceptionSymbol), "kk_coroutine_continuation_resume_with_exception")
-        guard case let .classType(resumeWithExceptionReceiverType) = sema.types.kind(of: try XCTUnwrap(resumeWithExceptionSignature.receiverType)) else {
-            return XCTFail("Expected resumeWithException receiver to be Continuation<T>")
+        let resumeWithExceptionSymbol = try #require(sema.symbols.lookup(fqName: resumeWithExceptionFQName))
+        let resumeWithExceptionSignature = try #require(sema.symbols.functionSignature(for: resumeWithExceptionSymbol))
+        #expect(sema.symbols.externalLinkName(for: resumeWithExceptionSymbol) == "kk_coroutine_continuation_resume_with_exception")
+        guard case let .classType(resumeWithExceptionReceiverType) = sema.types.kind(of: try #require(resumeWithExceptionSignature.receiverType)) else {
+            Issue.record("Expected resumeWithException receiver to be Continuation<T>"); return
         }
-        XCTAssertEqual(resumeWithExceptionReceiverType.classSymbol, continuationSymbol)
-        XCTAssertEqual(resumeWithExceptionReceiverType.args.count, 1)
-        XCTAssertEqual(resumeWithExceptionSignature.parameterTypes.count, 1)
-        XCTAssertEqual(resumeWithExceptionSignature.returnType, sema.types.unitType)
-        XCTAssertEqual(resumeWithExceptionSignature.classTypeParameterCount, 1)
+        #expect(resumeWithExceptionReceiverType.classSymbol == continuationSymbol)
+        #expect(resumeWithExceptionReceiverType.args.count == 1)
+        #expect(resumeWithExceptionSignature.parameterTypes.count == 1)
+        #expect(resumeWithExceptionSignature.returnType == sema.types.unitType)
+        #expect(resumeWithExceptionSignature.classTypeParameterCount == 1)
 
         let suspendCoroutineFQName = ["kotlin", "coroutines", "suspendCoroutine"].map { interner.intern($0) }
-        let suspendCoroutineSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: suspendCoroutineFQName))
-        let suspendCoroutineSignature = try XCTUnwrap(sema.symbols.functionSignature(for: suspendCoroutineSymbol))
-        XCTAssertTrue(sema.symbols.symbol(suspendCoroutineSymbol)?.flags.contains(.synthetic) == true)
-        XCTAssertTrue(sema.symbols.symbol(suspendCoroutineSymbol)?.flags.contains(.inlineFunction) == true)
-        XCTAssertEqual(sema.symbols.externalLinkName(for: suspendCoroutineSymbol), "kk_suspend_coroutine")
-        XCTAssertTrue(suspendCoroutineSignature.isSuspend)
-        XCTAssertEqual(suspendCoroutineSignature.typeParameterSymbols.count, 1)
-        XCTAssertEqual(suspendCoroutineSignature.returnType, sema.types.make(.typeParam(TypeParamType(
+        let suspendCoroutineSymbol = try #require(sema.symbols.lookup(fqName: suspendCoroutineFQName))
+        let suspendCoroutineSignature = try #require(sema.symbols.functionSignature(for: suspendCoroutineSymbol))
+        #expect(sema.symbols.symbol(suspendCoroutineSymbol)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(suspendCoroutineSymbol)?.flags.contains(.inlineFunction) == true)
+        #expect(sema.symbols.externalLinkName(for: suspendCoroutineSymbol) == "kk_suspend_coroutine")
+        #expect(suspendCoroutineSignature.isSuspend)
+        #expect(suspendCoroutineSignature.typeParameterSymbols.count == 1)
+        #expect(suspendCoroutineSignature.returnType == sema.types.make(.typeParam(TypeParamType(
             symbol: suspendCoroutineSignature.typeParameterSymbols[0],
             nullability: .nonNull
         ))))
     }
 
+    @Test
     func testCancellationExceptionClassAndConstructorsAreRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let cancellationFQName = ["kotlin", "coroutines", "cancellation", "CancellationException"].map {
             interner.intern($0)
         }
-        let cancellationSymbol = try XCTUnwrap(
+        let cancellationSymbol = try #require(
             sema.symbols.lookup(fqName: cancellationFQName),
             "Expected kotlin.coroutines.cancellation.CancellationException to be registered"
         )
-        XCTAssertEqual(sema.symbols.symbol(cancellationSymbol)?.kind, .class)
-        XCTAssertTrue(sema.symbols.symbol(cancellationSymbol)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(cancellationSymbol)?.kind == .class)
+        #expect(sema.symbols.symbol(cancellationSymbol)?.flags.contains(.synthetic) == true)
 
-        let exceptionSymbol = try XCTUnwrap(
+        let exceptionSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "Exception"].map { interner.intern($0) })
         )
-        XCTAssertTrue(sema.symbols.directSupertypes(for: cancellationSymbol).contains(exceptionSymbol))
+        #expect(sema.symbols.directSupertypes(for: cancellationSymbol).contains(exceptionSymbol))
 
-        let throwableSymbol = try XCTUnwrap(
+        let throwableSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "Throwable"].map { interner.intern($0) })
         )
 
         let ctorFQName = cancellationFQName + [interner.intern("<init>")]
         let constructors = sema.symbols.lookupAll(fqName: ctorFQName)
-        XCTAssertEqual(constructors.count, 4)
+        #expect(constructors.count == 4)
 
         let nullableThrowableType = sema.types.make(.classType(ClassType(
             classSymbol: throwableSymbol,
@@ -290,14 +310,15 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             [sema.types.stringType, nullableThrowableType],
         ]
         let actualParameterTypes = Set(constructors.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes })
-        XCTAssertEqual(actualParameterTypes, expectedParameterTypes)
+        #expect(actualParameterTypes == expectedParameterTypes)
 
-        let causeConstructor = try XCTUnwrap(constructors.first { symbol in
+        let causeConstructor = try #require(constructors.first { symbol in
             sema.symbols.functionSignature(for: symbol)?.parameterTypes == [sema.types.stringType, nullableThrowableType]
         })
-        XCTAssertEqual(sema.symbols.externalLinkName(for: causeConstructor), "kk_throwable_new_with_cause")
+        #expect(sema.symbols.externalLinkName(for: causeConstructor) == "kk_throwable_new_with_cause")
     }
 
+    @Test
     func testSuspendCoroutineIntrinsicCanBeShadowedByUserFunction() throws {
         let source = """
         fun suspendCoroutineUninterceptedOrReturn(block: (Any?) -> Any?): Any? = block(null)
@@ -311,11 +332,11 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError)
+            #expect(!(ctx.diagnostics.hasError))
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else {
@@ -324,13 +345,14 @@ final class CoroutineSyntheticStubTests: XCTestCase {
                 return ctx.interner.resolve(calleeName) == "suspendCoroutineUninterceptedOrReturn"
             })
 
-            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            let chosenInfo = try XCTUnwrap(sema.symbols.symbol(chosenCallee))
-            XCTAssertFalse(chosenInfo.flags.contains(.synthetic))
+            #expect(sema.bindings.stdlibSpecialCallKind(for: callExpr) == nil)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let chosenInfo = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(!(chosenInfo.flags.contains(.synthetic)))
         }
     }
 
+    @Test
     func testSuspendCoroutineIntrinsicResolvesThroughImport() throws {
         let source = """
         import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
@@ -346,12 +368,12 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let suspendCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let suspendCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else {
@@ -359,11 +381,12 @@ final class CoroutineSyntheticStubTests: XCTestCase {
                 }
                 return ctx.interner.resolve(calleeName) == "suspendCoroutineUninterceptedOrReturn"
             })
-            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: suspendCall)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), nil)
+            let chosenCallee = try #require(sema.bindings.callBinding(for: suspendCall)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
     }
 
+    @Test
     func testSuspendCoroutineResolvesInSource() throws {
         let source = """
         import kotlin.coroutines.*
@@ -379,12 +402,12 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let suspendCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let suspendCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else {
@@ -392,11 +415,12 @@ final class CoroutineSyntheticStubTests: XCTestCase {
                 }
                 return ctx.interner.resolve(calleeName) == "suspendCoroutine"
             })
-            let chosenSuspendCoroutine = try XCTUnwrap(sema.bindings.callBinding(for: suspendCall)?.chosenCallee)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenSuspendCoroutine), "kk_suspend_coroutine")
+            let chosenSuspendCoroutine = try #require(sema.bindings.callBinding(for: suspendCall)?.chosenCallee)
+            #expect(sema.symbols.externalLinkName(for: chosenSuspendCoroutine) == "kk_suspend_coroutine")
         }
     }
 
+    @Test
     func testResumeWithExceptionResolvesInSource() throws {
         let source = """
         import kotlin.coroutines.*
@@ -412,11 +436,11 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
 
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
 
-            _ = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            _ = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, calleeName, _, _, _) = expr else {
                     return false
                 }
@@ -425,6 +449,7 @@ final class CoroutineSyntheticStubTests: XCTestCase {
         }
     }
 
+    @Test
     func testContinuationContextResolvesInSource() throws {
         let source = """
         import kotlin.coroutines.*
@@ -441,10 +466,11 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
         }
     }
 
+    @Test
     func testResumeWithResolvesInSource() throws {
         let source = """
         import kotlin.coroutines.*
@@ -460,18 +486,19 @@ final class CoroutineSyntheticStubTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
         }
     }
 
+    @Test
     func testCancellationExceptionCauseConstructorIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let cancellationFQName = ["kotlin", "coroutines", "cancellation", "CancellationException"].map {
             interner.intern($0)
         }
-        let cancellationSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: cancellationFQName))
-        let throwableSymbol = try XCTUnwrap(
+        let cancellationSymbol = try #require(sema.symbols.lookup(fqName: cancellationFQName))
+        let throwableSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "Throwable"].map { interner.intern($0) })
         )
         let nullableThrowableType = sema.types.make(.classType(ClassType(
@@ -481,11 +508,12 @@ final class CoroutineSyntheticStubTests: XCTestCase {
         )))
 
         let constructors = sema.symbols.lookupAll(fqName: cancellationFQName + [interner.intern("<init>")])
-        let causeConstructor = try XCTUnwrap(constructors.first { symbol in
+        let causeConstructor = try #require(constructors.first { symbol in
             sema.symbols.functionSignature(for: symbol)?.parameterTypes == [nullableThrowableType]
         })
-        let causeSignature = try XCTUnwrap(sema.symbols.functionSignature(for: causeConstructor))
-        XCTAssertEqual(causeSignature.returnType, sema.symbols.propertyType(for: cancellationSymbol))
-        XCTAssertEqual(sema.symbols.externalLinkName(for: causeConstructor), "kk_throwable_new_cause")
+        let causeSignature = try #require(sema.symbols.functionSignature(for: causeConstructor))
+        #expect(causeSignature.returnType == sema.symbols.propertyType(for: cancellationSymbol))
+        #expect(sema.symbols.externalLinkName(for: causeConstructor) == "kk_throwable_new_cause")
     }
 }
+#endif

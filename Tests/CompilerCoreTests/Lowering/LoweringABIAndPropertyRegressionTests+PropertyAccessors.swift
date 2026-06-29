@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - Property Lowering Tests
 
+    @Test
     func testPropertyLoweringRewritesGetterCallToDirectAccessorSymbol() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -51,7 +53,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = try runLowering(module: module, interner: interner, moduleName: "PropGetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected function")
+            Issue.record("expected function")
             return
         }
 
@@ -60,13 +62,14 @@ extension LoweringABIAndPropertyRegressionTests {
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
             return sym
         }
-        XCTAssertTrue(callSymbols.contains(expectedGetterSymbol),
+        #expect(callSymbols.contains(expectedGetterSymbol),
                       "Expected synthetic getter symbol \(expectedGetterSymbol), got: \(callSymbols)")
 
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertFalse(callees.contains("kk_property_access"))
+        #expect(!callees.contains("kk_property_access"))
     }
 
+    @Test
     func testPropertyLoweringRewritesSetterCallToDirectAccessorSymbol() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -114,7 +117,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = try runLowering(module: module, interner: interner, moduleName: "PropSetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected function")
+            Issue.record("expected function")
             return
         }
 
@@ -123,13 +126,14 @@ extension LoweringABIAndPropertyRegressionTests {
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
             return sym
         }
-        XCTAssertTrue(callSymbols.contains(expectedSetterSymbol),
+        #expect(callSymbols.contains(expectedSetterSymbol),
                       "Expected synthetic setter symbol \(expectedSetterSymbol), got: \(callSymbols)")
 
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertFalse(callees.contains("kk_property_access"))
+        #expect(!callees.contains("kk_property_access"))
     }
 
+    @Test
     func testPropertyLoweringPreservesGetSetCallsWithoutSymbol() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -165,15 +169,16 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = try runLowering(module: module, interner: interner, moduleName: "PropNoSym")
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected function")
+            Issue.record("expected function")
             return
         }
 
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("get"))
-        XCTAssertFalse(callees.contains("kk_property_access"))
+        #expect(callees.contains("get"))
+        #expect(!callees.contains("kk_property_access"))
     }
 
+    @Test
     func testPropertyLoweringRewritesBackingFieldCopyToDirectSetterCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -222,7 +227,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = try runLowering(module: module, interner: interner, moduleName: "BFSetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected function")
+            Issue.record("expected function")
             return
         }
 
@@ -231,20 +236,21 @@ extension LoweringABIAndPropertyRegressionTests {
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
             return sym
         }
-        XCTAssertTrue(callSymbols.contains(expectedSetterSymbol),
+        #expect(callSymbols.contains(expectedSetterSymbol),
                       "Expected setter symbol \(expectedSetterSymbol) for backing field copy, got: \(callSymbols)")
 
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("set"))
-        XCTAssertFalse(callees.contains("kk_property_access"))
+        #expect(callees.contains("set"))
+        #expect(!callees.contains("kk_property_access"))
 
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasCopy, "Backing field copy should have been rewritten to a setter call")
+        #expect(!hasCopy, "Backing field copy should have been rewritten to a setter call")
     }
 
+    @Test
     func testPropertyLoweringRewritesComputedPropertySymbolRefToGetterCall() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -301,7 +307,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = try runLowering(module: module, interner: interner, moduleName: "ComputedProp", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected function")
+            Issue.record("expected function")
             return
         }
 
@@ -310,7 +316,7 @@ extension LoweringABIAndPropertyRegressionTests {
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
             return sym
         }
-        XCTAssertTrue(callSymbols.contains(expectedGetterSymbol),
+        #expect(callSymbols.contains(expectedGetterSymbol),
                       "Expected getter call for computed property, got: \(callSymbols)")
 
         let hasSymbolRef = lowered.body.contains { instruction in
@@ -322,10 +328,11 @@ extension LoweringABIAndPropertyRegressionTests {
             }
             return false
         }
-        XCTAssertFalse(hasSymbolRef,
+        #expect(!hasSymbolRef,
                        "constValue(.symbolRef) for computed property should have been rewritten to a getter call")
     }
 
+    @Test
     func testPropertyLoweringPreservesBackedPropertySymbolRef() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -373,7 +380,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = try runLowering(module: module, interner: interner, moduleName: "BackedProp", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(funcID) else {
-            XCTFail("expected function")
+            Issue.record("expected function")
             return
         }
 
@@ -386,10 +393,11 @@ extension LoweringABIAndPropertyRegressionTests {
             }
             return false
         }
-        XCTAssertTrue(hasSymbolRef,
+        #expect(hasSymbolRef,
                       "constValue(.symbolRef) for backed property should NOT be rewritten")
     }
 
+    @Test
     func testGetterOnlyComputedPropertyEmitsNoGlobal() throws {
         let source = """
         package test
@@ -406,7 +414,7 @@ extension LoweringABIAndPropertyRegressionTests {
         try runToLowering(ctx)
 
         guard let module = ctx.kir else {
-            XCTFail("KIR module not available")
+            Issue.record("KIR module not available")
             return
         }
 
@@ -423,18 +431,18 @@ extension LoweringABIAndPropertyRegressionTests {
         let computedSymbols = globalSymbols.filter { sym in
             ctx.sema?.symbols.symbol(sym)?.name == computedName
         }
-        XCTAssertTrue(computedSymbols.isEmpty,
+        #expect(computedSymbols.isEmpty,
                       "Getter-only computed property should NOT have a KIRGlobal, found: \(computedSymbols)")
 
         let backedName = interner.intern("backed")
         let backedSymbols = globalSymbols.filter { sym in
             ctx.sema?.symbols.symbol(sym)?.name == backedName
         }
-        XCTAssertFalse(backedSymbols.isEmpty,
+        #expect(!backedSymbols.isEmpty,
                        "Var property with backing field should have a KIRGlobal")
 
-        let sema = try XCTUnwrap(ctx.sema, "Sema module not available")
-        let computedPropertySymbol = try XCTUnwrap(
+        let sema = try #require(ctx.sema, "Sema module not available")
+        let computedPropertySymbol = try #require(
             sema.symbols.allSymbols().first(where: { symbol in
                 symbol.kind == .property && symbol.name == computedName
             }),
@@ -450,10 +458,11 @@ extension LoweringABIAndPropertyRegressionTests {
             }
             return kirFunc.symbol
         }
-        XCTAssertTrue(getterSymbols.contains(expectedGetterSymbol),
+        #expect(getterSymbols.contains(expectedGetterSymbol),
                       "Getter accessor symbol for computed property should be emitted. expected=\(expectedGetterSymbol), actual=\(getterSymbols)")
     }
 
+    @Test
     func testGetterOnlyComputedPropertyOverrideEmitsAccessors() throws {
         let source = """
         package test
@@ -470,7 +479,7 @@ extension LoweringABIAndPropertyRegressionTests {
         try runToLowering(ctx)
 
         guard let module = ctx.kir else {
-            XCTFail("KIR module not available")
+            Issue.record("KIR module not available")
             return
         }
 
@@ -486,8 +495,8 @@ extension LoweringABIAndPropertyRegressionTests {
             return kirFunc
         }
 
-        XCTAssertGreaterThanOrEqual(
-            getterFunctions.count, 2,
+        #expect(
+            getterFunctions.count >= 2,
             "Both base and override should emit getter accessors, found: \(getterFunctions.count)"
         )
 
@@ -501,10 +510,11 @@ extension LoweringABIAndPropertyRegressionTests {
         let labelGlobals = globalSymbols.filter { sym in
             ctx.sema?.symbols.symbol(sym)?.name == labelName
         }
-        XCTAssertTrue(labelGlobals.isEmpty,
+        #expect(labelGlobals.isEmpty,
                       "Getter-only computed property override should NOT have a KIRGlobal, found: \(labelGlobals)")
     }
 
+    @Test
     func testCustomGetterSetterPropertyEmitsAccessorsAndBackingField() throws {
         let source = """
         package test
@@ -521,7 +531,7 @@ extension LoweringABIAndPropertyRegressionTests {
         try runToLowering(ctx)
 
         guard let module = ctx.kir else {
-            XCTFail("KIR module not available")
+            Issue.record("KIR module not available")
             return
         }
 
@@ -538,14 +548,14 @@ extension LoweringABIAndPropertyRegressionTests {
         let countGlobals = globalSymbols.filter { sym in
             ctx.sema?.symbols.symbol(sym)?.name == countName
         }
-        XCTAssertFalse(countGlobals.isEmpty,
+        #expect(!countGlobals.isEmpty,
                        "Var property with custom getter/setter should have a KIRGlobal")
 
         let labelName = interner.intern("label")
         let labelGlobals = globalSymbols.filter { sym in
             ctx.sema?.symbols.symbol(sym)?.name == labelName
         }
-        XCTAssertTrue(labelGlobals.isEmpty,
+        #expect(labelGlobals.isEmpty,
                       "Getter-only computed property should NOT have a KIRGlobal, found: \(labelGlobals)")
 
         let getName = interner.intern("get")
@@ -557,12 +567,13 @@ extension LoweringABIAndPropertyRegressionTests {
             }
             return kirFunc
         }
-        XCTAssertGreaterThanOrEqual(
-            getterFunctions.count, 1,
+        #expect(
+            getterFunctions.count >= 1,
             "Should have at least 1 getter accessor (for label)"
         )
     }
 
+    @Test
     func testTopLevelGetterOnlyComputedPropertyEmitsNoGlobal() throws {
         let source = """
         package test
@@ -578,7 +589,7 @@ extension LoweringABIAndPropertyRegressionTests {
         try runToLowering(ctx)
 
         guard let module = ctx.kir else {
-            XCTFail("KIR module not available")
+            Issue.record("KIR module not available")
             return
         }
 
@@ -596,7 +607,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let computedGlobals = globalSymbols.filter { sym in
             ctx.sema?.symbols.symbol(sym)?.name == computedName
         }
-        XCTAssertTrue(
+        #expect(
             computedGlobals.isEmpty,
             "Top-level getter-only computed property should NOT have a KIRGlobal"
         )
@@ -606,13 +617,13 @@ extension LoweringABIAndPropertyRegressionTests {
         let storedGlobals = globalSymbols.filter { sym in
             ctx.sema?.symbols.symbol(sym)?.name == storedName
         }
-        XCTAssertFalse(storedGlobals.isEmpty,
+        #expect(!storedGlobals.isEmpty,
                        "Top-level stored property should have a KIRGlobal")
 
         // Verify that readComputed() was lowered so that the read of
         // "computed" became a getter accessor call (not loadGlobal).
-        let sema = try XCTUnwrap(ctx.sema)
-        let computedPropSym = try XCTUnwrap(
+        let sema = try #require(ctx.sema)
+        let computedPropSym = try #require(
             sema.symbols.allSymbols().first(where: {
                 $0.kind == .property && $0.name == computedName
             }),
@@ -628,7 +639,7 @@ extension LoweringABIAndPropertyRegressionTests {
                   kirFunc.name == readName else { return nil }
             return kirFunc
         }.first
-        let reader = try XCTUnwrap(readerFn, "readComputed not found")
+        let reader = try #require(readerFn, "readComputed not found")
 
         let hasGetterCall = reader.body.contains { inst in
             if case let .call(symbol, _, _, _, _, _, _, _) = inst {
@@ -636,7 +647,7 @@ extension LoweringABIAndPropertyRegressionTests {
             }
             return false
         }
-        XCTAssertTrue(
+        #expect(
             hasGetterCall,
             "Read of top-level computed property should lower to getter call"
         )
@@ -648,9 +659,10 @@ extension LoweringABIAndPropertyRegressionTests {
             }
             return false
         }
-        XCTAssertFalse(
-            hasLoadGlobal,
+        #expect(
+            !hasLoadGlobal,
             "loadGlobal for computed property should be rewritten"
         )
     }
 }
+#endif

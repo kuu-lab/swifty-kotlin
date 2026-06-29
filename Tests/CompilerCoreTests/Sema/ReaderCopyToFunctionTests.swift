@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Sema-surface tests for `kotlin.io.copyTo` extension function on
 /// `java.io.Reader` (STDLIB-IO-FN-014).
@@ -11,14 +12,15 @@ import XCTest
 /// The runtime link names exercised here are:
 ///   - `kk_reader_copyTo` (explicit bufferSize)
 ///   - `kk_reader_copyTo_default` (omitted bufferSize, uses the JVM default)
-final class ReaderCopyToFunctionTests: XCTestCase {
+@Suite
+struct ReaderCopyToFunctionTests {
 
     // MARK: - Helpers
 
 
     // MARK: - Two-arg overload resolves and types as Long
 
-    func testReaderCopyToWithExplicitBufferSizeResolves() throws {
+    @Test func testReaderCopyToWithExplicitBufferSizeResolves() throws {
         let source = """
         import java.io.BufferedReader
         import java.io.BufferedWriter
@@ -36,16 +38,16 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Reader.copyTo(out, bufferSize) extension function in kotlin.io should resolve: \(diagnostics)"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "Reader.copyTo(out, bufferSize) extension function in kotlin.io should resolve: \(diagnostics)")
             )
         }
     }
 
     // MARK: - Default-bufferSize overload (no second argument) resolves
 
-    func testReaderCopyToWithDefaultBufferSizeResolves() throws {
+    @Test func testReaderCopyToWithDefaultBufferSizeResolves() throws {
         let source = """
         import java.io.BufferedReader
         import java.io.BufferedWriter
@@ -63,16 +65,16 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Reader.copyTo(out) with default bufferSize should resolve: \(diagnostics)"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "Reader.copyTo(out) with default bufferSize should resolve: \(diagnostics)")
             )
         }
     }
 
     // MARK: - Reader / Writer are registered in java.io
 
-    func testReaderAndWriterTypesAreRegistered() throws {
+    @Test func testReaderAndWriterTypesAreRegistered() throws {
         let source = """
         import java.io.Reader
         import java.io.Writer
@@ -84,22 +86,22 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "java.io.Reader / java.io.Writer should be declared as synthetic class symbols: \(diagnostics)"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "java.io.Reader / java.io.Writer should be declared as synthetic class symbols: \(diagnostics)")
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
-            XCTAssertNotNil(symbols.lookup(fqName: ["java", "io", "Reader"].map(interner.intern)))
-            XCTAssertNotNil(symbols.lookup(fqName: ["java", "io", "Writer"].map(interner.intern)))
+            #expect(symbols.lookup(fqName: ["java", "io", "Reader"].map(interner.intern)) != nil)
+            #expect(symbols.lookup(fqName: ["java", "io", "Writer"].map(interner.intern)) != nil)
         }
     }
 
     // MARK: - BufferedReader / BufferedWriter are Reader / Writer subtypes
 
-    func testBufferedReaderAndWriterFlowThroughReaderWriterReceivers() throws {
+    @Test func testBufferedReaderAndWriterFlowThroughReaderWriterReceivers() throws {
         // `Reader.copyTo(out: Writer, ...)` must accept BufferedReader / BufferedWriter
         // as receiver / argument because BufferedReader extends Reader and
         // BufferedWriter extends Writer in the JDK class hierarchy.  This test
@@ -118,16 +120,16 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "BufferedReader / BufferedWriter should satisfy the Reader / Writer surface of copyTo: \(diagnostics)"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "BufferedReader / BufferedWriter should satisfy the Reader / Writer surface of copyTo: \(diagnostics)")
             )
         }
     }
 
     // MARK: - External link name is wired through to kk_reader_copyTo
 
-    func testReaderCopyToExternalLinkNameIsRegisteredOnSymbol() throws {
+    @Test func testReaderCopyToExternalLinkNameIsRegisteredOnSymbol() throws {
         let source = """
         import java.io.Reader
         import java.io.Writer
@@ -141,14 +143,14 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let readerSymbol = try XCTUnwrap(
+            let readerSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "Reader"].map(interner.intern))
             )
-            let writerSymbol = try XCTUnwrap(
+            let writerSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "Writer"].map(interner.intern))
             )
             let readerType = types.make(.classType(ClassType(
@@ -162,7 +164,7 @@ final class ReaderCopyToFunctionTests: XCTestCase {
                 fqName: ["kotlin", "io", "copyTo"].map(interner.intern)
             )
 
-            let twoArg = try XCTUnwrap(copyToCandidates.first { symbolID in
+            let twoArg = try #require(copyToCandidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -170,13 +172,13 @@ final class ReaderCopyToFunctionTests: XCTestCase {
                     && signature.parameterTypes == [writerType, types.intType]
                     && signature.returnType == types.longType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: twoArg), "kk_reader_copyTo")
+            #expect(symbols.externalLinkName(for: twoArg) == "kk_reader_copyTo")
 
-            let twoArgSignature = try XCTUnwrap(symbols.functionSignature(for: twoArg))
-            XCTAssertEqual(twoArgSignature.valueParameterHasDefaultValues, [false, false])
-            XCTAssertEqual(twoArgSignature.valueParameterIsVararg, [false, false])
+            let twoArgSignature = try #require(symbols.functionSignature(for: twoArg))
+            #expect(twoArgSignature.valueParameterHasDefaultValues == [false, false])
+            #expect(twoArgSignature.valueParameterIsVararg == [false, false])
 
-            let oneArg = try XCTUnwrap(copyToCandidates.first { symbolID in
+            let oneArg = try #require(copyToCandidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -184,13 +186,13 @@ final class ReaderCopyToFunctionTests: XCTestCase {
                     && signature.parameterTypes == [writerType]
                     && signature.returnType == types.longType
             })
-            XCTAssertEqual(symbols.externalLinkName(for: oneArg), "kk_reader_copyTo_default")
+            #expect(symbols.externalLinkName(for: oneArg) == "kk_reader_copyTo_default")
         }
     }
 
     // MARK: - Call site binds to the expected copyTo overload
 
-    func testReaderCopyToCallSiteBindsToRegisteredSymbol() throws {
+    @Test func testReaderCopyToCallSiteBindsToRegisteredSymbol() throws {
         let source = """
         import java.io.File
         import kotlin.io.copyTo
@@ -208,11 +210,11 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
-            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
 
             let callExprs = memberCallExprIDs(named: "copyTo", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2, "Expected two copyTo call sites")
+            #expect(callExprs.count == 2, "Expected two copyTo call sites")
 
             let externalNames: [String?] = callExprs.compactMap { exprID in
                 guard let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee else {
@@ -220,14 +222,14 @@ final class ReaderCopyToFunctionTests: XCTestCase {
                 }
                 return sema.symbols.externalLinkName(for: chosen)
             }
-            XCTAssertTrue(externalNames.contains("kk_reader_copyTo"))
-            XCTAssertTrue(externalNames.contains("kk_reader_copyTo_default"))
+            #expect(externalNames.contains("kk_reader_copyTo"))
+            #expect(externalNames.contains("kk_reader_copyTo_default"))
         }
     }
 
     // MARK: - Closeable .use {} continues to work after Reader / Writer hoisting
 
-    func testBufferedReaderAndWriterRemainCloseable() throws {
+    @Test func testBufferedReaderAndWriterRemainCloseable() throws {
         // STDLIB-IO-FN-014 moves the BufferedReader / BufferedWriter -> Closeable
         // edge through the new Reader / Writer intermediaries.  Make sure the
         // `.use { }` extension still resolves on both.
@@ -251,10 +253,11 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "BufferedReader / BufferedWriter must remain Closeable after the Reader/Writer hoist: \(diagnostics)"
+            #expect(
+                !(ctx.diagnostics.hasError),
+                Comment(rawValue: "BufferedReader / BufferedWriter must remain Closeable after the Reader/Writer hoist: \(diagnostics)")
             )
         }
     }
 }
+#endif

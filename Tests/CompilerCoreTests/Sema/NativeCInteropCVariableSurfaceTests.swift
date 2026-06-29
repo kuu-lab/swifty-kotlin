@@ -1,21 +1,21 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NativeCInteropCVariableSurfaceTests: XCTestCase {
+@Suite
+struct NativeCInteropCVariableSurfaceTests {
+    @Test
     func testCVariableClassSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CVariable surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
-        )
-        let sema = try XCTUnwrap(ctx.sema)
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected CVariable surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
         let interner = ctx.interner
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
-            try XCTUnwrap(
-                sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) }),
-                "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
-            )
+                let found = sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) })
+            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
@@ -34,31 +34,31 @@ final class NativeCInteropCVariableSurfaceTests: XCTestCase {
         let nativePtrType = try cinteropType("NativePtr")
         let cVariableType = try cinteropType("CVariable")
         let cVariableTypeClassType = try cinteropType("CVariable", "Type")
-        let fqName = try XCTUnwrap(sema.symbols.symbol(cVariableSymbol)?.fqName)
-        let typeFQName = try XCTUnwrap(sema.symbols.symbol(cVariableTypeSymbol)?.fqName)
-        let flags = try XCTUnwrap(sema.symbols.symbol(cVariableSymbol)?.flags)
-        let typeFlags = try XCTUnwrap(sema.symbols.symbol(cVariableTypeSymbol)?.flags)
+        let fqName = try #require(sema.symbols.symbol(cVariableSymbol)?.fqName)
+        let typeFQName = try #require(sema.symbols.symbol(cVariableTypeSymbol)?.fqName)
+        let flags = try #require(sema.symbols.symbol(cVariableSymbol)?.flags)
+        let typeFlags = try #require(sema.symbols.symbol(cVariableTypeSymbol)?.flags)
 
-        XCTAssertEqual(sema.symbols.symbol(cVariableSymbol)?.kind, .class)
-        XCTAssertTrue(flags.contains(.abstractType))
-        XCTAssertEqual(sema.symbols.propertyType(for: cVariableSymbol), cVariableType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: cVariableSymbol), [cPointedSymbol])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: cVariableSymbol), [cPointedSymbol])
+        #expect(sema.symbols.symbol(cVariableSymbol)?.kind == .class)
+        #expect(flags.contains(.abstractType))
+        #expect(sema.symbols.propertyType(for: cVariableSymbol) == cVariableType)
+        #expect(sema.symbols.directSupertypes(for: cVariableSymbol) == [cPointedSymbol])
+        #expect(sema.types.directNominalSupertypes(for: cVariableSymbol) == [cPointedSymbol])
 
         let constructors = sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")])
-        let constructorSignature = try XCTUnwrap(constructors.compactMap {
+        let constructorSignature = try #require(constructors.compactMap {
             sema.symbols.functionSignature(for: $0)
         }.first {
             $0.parameterTypes == [nativePtrType] && $0.returnType == cVariableType
         })
-        XCTAssertEqual(constructorSignature.valueParameterHasDefaultValues, [false])
+        #expect(constructorSignature.valueParameterHasDefaultValues == [false])
 
-        XCTAssertEqual(sema.symbols.symbol(cVariableTypeSymbol)?.kind, .class)
-        XCTAssertTrue(typeFlags.contains(.openType))
-        XCTAssertEqual(sema.symbols.propertyType(for: cVariableTypeSymbol), cVariableTypeClassType)
-        XCTAssertEqual(sema.symbols.directSupertypes(for: cVariableTypeSymbol), [])
-        XCTAssertEqual(sema.types.directNominalSupertypes(for: cVariableTypeSymbol), [])
-        XCTAssertTrue(
+        #expect(sema.symbols.symbol(cVariableTypeSymbol)?.kind == .class)
+        #expect(typeFlags.contains(.openType))
+        #expect(sema.symbols.propertyType(for: cVariableTypeSymbol) == cVariableTypeClassType)
+        #expect(sema.symbols.directSupertypes(for: cVariableTypeSymbol) == [])
+        #expect(sema.types.directNominalSupertypes(for: cVariableTypeSymbol) == [])
+        #expect(
             sema.symbols.annotations(for: cVariableTypeSymbol).contains {
                 $0.annotationFQName == "kotlin.Deprecated" &&
                     $0.arguments == ["message = \"Use sizeOf<T>() or alignOf<T>() instead.\""]
@@ -66,20 +66,21 @@ final class NativeCInteropCVariableSurfaceTests: XCTestCase {
         )
 
         let typeConstructors = sema.symbols.lookupAll(fqName: typeFQName + [interner.intern("<init>")])
-        let typeConstructorSignature = try XCTUnwrap(typeConstructors.compactMap {
+        let typeConstructorSignature = try #require(typeConstructors.compactMap {
             sema.symbols.functionSignature(for: $0)
         }.first {
             $0.parameterTypes == [sema.types.longType, sema.types.intType]
                 && $0.returnType == cVariableTypeClassType
         })
-        XCTAssertEqual(typeConstructorSignature.valueParameterHasDefaultValues, [false, false])
+        #expect(typeConstructorSignature.valueParameterHasDefaultValues == [false, false])
 
-        let sizeSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: typeFQName + [interner.intern("size")]))
-        XCTAssertEqual(sema.symbols.propertyType(for: sizeSymbol), sema.types.longType)
-        let alignSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: typeFQName + [interner.intern("align")]))
-        XCTAssertEqual(sema.symbols.propertyType(for: alignSymbol), sema.types.intType)
+        let sizeSymbol = try #require(sema.symbols.lookup(fqName: typeFQName + [interner.intern("size")]))
+        #expect(sema.symbols.propertyType(for: sizeSymbol) == sema.types.longType)
+        let alignSymbol = try #require(sema.symbols.lookup(fqName: typeFQName + [interner.intern("align")]))
+        #expect(sema.symbols.propertyType(for: alignSymbol) == sema.types.intType)
     }
 
+    @Test
     func testCVariableResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointed
@@ -97,9 +98,9 @@ final class NativeCInteropCVariableSurfaceTests: XCTestCase {
         """)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected CVariable members to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected CVariable members to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

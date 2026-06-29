@@ -1,9 +1,11 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class SymbolTableTests: XCTestCase {
+@Suite
+struct SymbolTableTests {
     // MARK: - Define & Symbol
 
+    @Test
     func testDefineReturnsUniqueIDs() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -21,16 +23,18 @@ final class SymbolTableTests: XCTestCase {
             declSite: nil,
             visibility: .internal
         )
-        XCTAssertNotEqual(id1, id2)
-        XCTAssertEqual(symbols.count, 2)
+        #expect(id1 != id2)
+        #expect(symbols.count == 2)
     }
 
+    @Test
     func testSymbolReturnsNilForInvalidID() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.symbol(SymbolID.invalid))
-        XCTAssertNil(symbols.symbol(SymbolID(rawValue: 999)))
+        #expect(symbols.symbol(SymbolID.invalid) == nil)
+        #expect(symbols.symbol(SymbolID(rawValue: 999)) == nil)
     }
 
+    @Test
     func testSymbolPreservesFields() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -43,50 +47,55 @@ final class SymbolTableTests: XCTestCase {
             visibility: .private,
             flags: .mutable
         )
-        let sym = try XCTUnwrap(symbols.symbol(id))
-        XCTAssertEqual(sym.kind, .property)
-        XCTAssertEqual(sym.name, interner.intern("x"))
-        XCTAssertEqual(sym.fqName, [interner.intern("pkg"), interner.intern("x")])
-        XCTAssertEqual(sym.declSite, range)
-        XCTAssertEqual(sym.visibility, .private)
-        XCTAssertTrue(sym.flags.contains(.mutable))
+        let sym = try #require(symbols.symbol(id))
+        #expect(sym.kind == .property)
+        #expect(sym.name == interner.intern("x"))
+        #expect(sym.fqName == [interner.intern("pkg"), interner.intern("x")])
+        #expect(sym.declSite == range)
+        #expect(sym.visibility == .private)
+        #expect(sym.flags.contains(.mutable))
     }
 
     // MARK: - Count & allSymbols
 
+    @Test
     func testCountReflectsSymbolCount() {
         let interner = StringInterner()
         let symbols = SymbolTable()
-        XCTAssertEqual(symbols.count, 0)
+        #expect(symbols.count == 0)
         _ = symbols.define(kind: .local, name: interner.intern("x"), fqName: [interner.intern("x")], declSite: nil, visibility: .internal)
-        XCTAssertEqual(symbols.count, 1)
+        #expect(symbols.count == 1)
     }
 
+    @Test
     func testAllSymbolsReturnsAll() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         _ = symbols.define(kind: .local, name: interner.intern("a"), fqName: [interner.intern("a")], declSite: nil, visibility: .internal)
         _ = symbols.define(kind: .function, name: interner.intern("b"), fqName: [interner.intern("b")], declSite: nil, visibility: .public)
         let all = symbols.allSymbols()
-        XCTAssertEqual(all.count, 2)
+        #expect(all.count == 2)
     }
 
     // MARK: - Lookup by FQ Name
 
+    @Test
     func testLookupByFQName() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let fqName = [interner.intern("com"), interner.intern("example"), interner.intern("Foo")]
         let id = symbols.define(kind: .class, name: interner.intern("Foo"), fqName: fqName, declSite: nil, visibility: .public)
-        XCTAssertEqual(symbols.lookup(fqName: fqName), id)
+        #expect(symbols.lookup(fqName: fqName) == id)
     }
 
+    @Test
     func testLookupByFQNameReturnsNilForUnknown() {
         let interner = StringInterner()
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.lookup(fqName: [interner.intern("unknown")]))
+        #expect(symbols.lookup(fqName: [interner.intern("unknown")]) == nil)
     }
 
+    @Test
     func testLookupAllByFQName() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -94,59 +103,65 @@ final class SymbolTableTests: XCTestCase {
         let id1 = symbols.define(kind: .function, name: interner.intern("fn"), fqName: fqName, declSite: nil, visibility: .public)
         let id2 = symbols.define(kind: .function, name: interner.intern("fn"), fqName: fqName, declSite: nil, visibility: .public)
         let all = symbols.lookupAll(fqName: fqName)
-        XCTAssertEqual(all.count, 2)
-        XCTAssertTrue(all.contains(id1))
-        XCTAssertTrue(all.contains(id2))
+        #expect(all.count == 2)
+        #expect(all.contains(id1))
+        #expect(all.contains(id2))
     }
 
+    @Test
     func testLookupAllReturnsEmptyForUnknown() {
         let interner = StringInterner()
         let symbols = SymbolTable()
-        XCTAssertEqual(symbols.lookupAll(fqName: [interner.intern("nope")]), [])
+        #expect(symbols.lookupAll(fqName: [interner.intern("nope")]) == [])
     }
 
     // MARK: - Overloading
 
+    @Test
     func testFunctionsCanCoexistAsOverloads() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let fqName = [interner.intern("fn")]
         let id1 = symbols.define(kind: .function, name: interner.intern("fn"), fqName: fqName, declSite: nil, visibility: .public)
         let id2 = symbols.define(kind: .function, name: interner.intern("fn"), fqName: fqName, declSite: nil, visibility: .public)
-        XCTAssertNotEqual(id1, id2)
-        XCTAssertEqual(symbols.lookupAll(fqName: fqName), [id1, id2])
-        XCTAssertEqual(symbols.lookup(fqName: fqName), id1)
+        #expect(id1 != id2)
+        #expect(symbols.lookupAll(fqName: fqName) == [id1, id2])
+        #expect(symbols.lookup(fqName: fqName) == id1)
     }
 
+    @Test
     func testConstructorsCanCoexistAsOverloads() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let fqName = [interner.intern("init")]
         let id1 = symbols.define(kind: .constructor, name: interner.intern("init"), fqName: fqName, declSite: nil, visibility: .public)
         let id2 = symbols.define(kind: .constructor, name: interner.intern("init"), fqName: fqName, declSite: nil, visibility: .public)
-        XCTAssertNotEqual(id1, id2)
+        #expect(id1 != id2)
     }
 
+    @Test
     func testNonOverloadableKindsReturnExistingID() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let fqName = [interner.intern("MyClass")]
         let id1 = symbols.define(kind: .class, name: interner.intern("MyClass"), fqName: fqName, declSite: nil, visibility: .public)
         let id2 = symbols.define(kind: .class, name: interner.intern("MyClass"), fqName: fqName, declSite: nil, visibility: .public)
-        XCTAssertEqual(id1, id2)
-        XCTAssertEqual(symbols.count, 1)
+        #expect(id1 == id2)
+        #expect(symbols.count == 1)
     }
 
+    @Test
     func testFunctionCanCoexistWithNominalTypeUsingSameName() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let fqName = [interner.intern("x")]
         let id1 = symbols.define(kind: .class, name: interner.intern("x"), fqName: fqName, declSite: nil, visibility: .public)
         let id2 = symbols.define(kind: .function, name: interner.intern("x"), fqName: fqName, declSite: nil, visibility: .public)
-        XCTAssertNotEqual(id1, id2)
-        XCTAssertEqual(symbols.count, 2)
+        #expect(id1 != id2)
+        #expect(symbols.count == 2)
     }
 
+    @Test
     func testFunctionCanCoexistWithPropertyUsingSameNameInReverseDeclarationOrder() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -166,11 +181,12 @@ final class SymbolTableTests: XCTestCase {
             visibility: .public
         )
 
-        XCTAssertNotEqual(propertyID, functionID)
-        XCTAssertEqual(symbols.count, 2)
-        XCTAssertEqual(symbols.lookupAll(fqName: fqName), [propertyID, functionID])
+        #expect(propertyID != functionID)
+        #expect(symbols.count == 2)
+        #expect(symbols.lookupAll(fqName: fqName) == [propertyID, functionID])
     }
 
+    @Test
     func testExpectAnnotationClassCanCoexistWithActualTypeAlias() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -197,13 +213,14 @@ final class SymbolTableTests: XCTestCase {
             flags: [.actualDeclaration]
         )
 
-        XCTAssertNotEqual(expectID, actualID)
-        XCTAssertEqual(symbols.count, 2)
-        XCTAssertEqual(symbols.lookupAll(fqName: fqName).count, 2)
-        XCTAssertEqual(try XCTUnwrap(symbols.symbol(expectID)).kind, .annotationClass)
-        XCTAssertEqual(try XCTUnwrap(symbols.symbol(actualID)).kind, .typeAlias)
+        #expect(expectID != actualID)
+        #expect(symbols.count == 2)
+        #expect(symbols.lookupAll(fqName: fqName).count == 2)
+        #expect(try #require(symbols.symbol(expectID)).kind == .annotationClass)
+        #expect(try #require(symbols.symbol(actualID)).kind == .typeAlias)
     }
 
+    @Test
     func testActualTypeAliasCanCoexistWithExpectAnnotationClassInReverseOrder() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -230,15 +247,16 @@ final class SymbolTableTests: XCTestCase {
             flags: [.expectDeclaration]
         )
 
-        XCTAssertNotEqual(expectID, actualID)
-        XCTAssertEqual(symbols.count, 2)
-        XCTAssertEqual(symbols.lookupAll(fqName: fqName).count, 2)
-        XCTAssertEqual(try XCTUnwrap(symbols.symbol(expectID)).kind, .annotationClass)
-        XCTAssertEqual(try XCTUnwrap(symbols.symbol(actualID)).kind, .typeAlias)
+        #expect(expectID != actualID)
+        #expect(symbols.count == 2)
+        #expect(symbols.lookupAll(fqName: fqName).count == 2)
+        #expect(try #require(symbols.symbol(expectID)).kind == .annotationClass)
+        #expect(try #require(symbols.symbol(actualID)).kind == .typeAlias)
     }
 
     // MARK: - Function Signatures
 
+    @Test
     func testSetAndGetFunctionSignature() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -247,18 +265,20 @@ final class SymbolTableTests: XCTestCase {
         let intType = types.make(.primitive(.int, .nonNull))
         let sig = FunctionSignature(parameterTypes: [intType], returnType: intType)
         symbols.setFunctionSignature(sig, for: id)
-        let retrieved = try XCTUnwrap(symbols.functionSignature(for: id))
-        XCTAssertEqual(retrieved.parameterTypes, [intType])
-        XCTAssertEqual(retrieved.returnType, intType)
+        let retrieved = try #require(symbols.functionSignature(for: id))
+        #expect(retrieved.parameterTypes == [intType])
+        #expect(retrieved.returnType == intType)
     }
 
+    @Test
     func testFunctionSignatureReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.functionSignature(for: SymbolID(rawValue: 0)))
+        #expect(symbols.functionSignature(for: SymbolID(rawValue: 0)) == nil)
     }
 
     // MARK: - Property Types
 
+    @Test
     func testSetAndGetPropertyType() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -266,30 +286,34 @@ final class SymbolTableTests: XCTestCase {
         let id = symbols.define(kind: .property, name: interner.intern("p"), fqName: [interner.intern("p")], declSite: nil, visibility: .public)
         let intType = types.make(.primitive(.int, .nonNull))
         symbols.setPropertyType(intType, for: id)
-        XCTAssertEqual(symbols.propertyType(for: id), intType)
+        #expect(symbols.propertyType(for: id) == intType)
     }
 
+    @Test
     func testPropertyTypeReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.propertyType(for: SymbolID(rawValue: 0)))
+        #expect(symbols.propertyType(for: SymbolID(rawValue: 0)) == nil)
     }
 
     // MARK: - Direct Supertypes / Subtypes
 
+    @Test
     func testSetAndGetDirectSupertypes() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let parent = symbols.define(kind: .class, name: interner.intern("Parent"), fqName: [interner.intern("Parent")], declSite: nil, visibility: .public)
         let child = symbols.define(kind: .class, name: interner.intern("Child"), fqName: [interner.intern("Child")], declSite: nil, visibility: .public)
         symbols.setDirectSupertypes([parent], for: child)
-        XCTAssertEqual(symbols.directSupertypes(for: child), [parent])
+        #expect(symbols.directSupertypes(for: child) == [parent])
     }
 
+    @Test
     func testDirectSupertypesReturnsEmptyForUnset() {
         let symbols = SymbolTable()
-        XCTAssertEqual(symbols.directSupertypes(for: SymbolID(rawValue: 99)), [])
+        #expect(symbols.directSupertypes(for: SymbolID(rawValue: 99)) == [])
     }
 
+    @Test
     func testDirectSubtypes() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -299,20 +323,22 @@ final class SymbolTableTests: XCTestCase {
         symbols.setDirectSupertypes([parent], for: child1)
         symbols.setDirectSupertypes([parent], for: child2)
         let subtypes = symbols.directSubtypes(of: parent)
-        XCTAssertEqual(subtypes.count, 2)
-        XCTAssertTrue(subtypes.contains(child1))
-        XCTAssertTrue(subtypes.contains(child2))
+        #expect(subtypes.count == 2)
+        #expect(subtypes.contains(child1))
+        #expect(subtypes.contains(child2))
     }
 
+    @Test
     func testDirectSubtypesReturnsEmptyWhenNone() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let id = symbols.define(kind: .class, name: interner.intern("A"), fqName: [interner.intern("A")], declSite: nil, visibility: .public)
-        XCTAssertEqual(symbols.directSubtypes(of: id), [])
+        #expect(symbols.directSubtypes(of: id) == [])
     }
 
     // MARK: - NominalLayout / Hint
 
+    @Test
     func testSetAndGetNominalLayout() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -326,14 +352,16 @@ final class SymbolTableTests: XCTestCase {
             superClass: nil
         )
         symbols.setNominalLayout(layout, for: id)
-        XCTAssertEqual(symbols.nominalLayout(for: id), layout)
+        #expect(symbols.nominalLayout(for: id) == layout)
     }
 
+    @Test
     func testNominalLayoutReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.nominalLayout(for: SymbolID(rawValue: 0)))
+        #expect(symbols.nominalLayout(for: SymbolID(rawValue: 0)) == nil)
     }
 
+    @Test
     func testSetAndGetNominalLayoutHint() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -345,26 +373,29 @@ final class SymbolTableTests: XCTestCase {
             declaredItableSize: nil
         )
         symbols.setNominalLayoutHint(hint, for: id)
-        XCTAssertEqual(symbols.nominalLayoutHint(for: id), hint)
+        #expect(symbols.nominalLayoutHint(for: id) == hint)
     }
 
     // MARK: - External Link Name
 
+    @Test
     func testSetAndGetExternalLinkName() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let id = symbols.define(kind: .function, name: interner.intern("f"), fqName: [interner.intern("f")], declSite: nil, visibility: .public)
         symbols.setExternalLinkName("_custom_link_name", for: id)
-        XCTAssertEqual(symbols.externalLinkName(for: id), "_custom_link_name")
+        #expect(symbols.externalLinkName(for: id) == "_custom_link_name")
     }
 
+    @Test
     func testExternalLinkNameReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.externalLinkName(for: SymbolID(rawValue: 0)))
+        #expect(symbols.externalLinkName(for: SymbolID(rawValue: 0)) == nil)
     }
 
     // MARK: - TypeAlias Underlying Type
 
+    @Test
     func testSetAndGetTypeAliasUnderlyingType() {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -372,22 +403,24 @@ final class SymbolTableTests: XCTestCase {
         let id = symbols.define(kind: .typeAlias, name: interner.intern("MyInt"), fqName: [interner.intern("MyInt")], declSite: nil, visibility: .public)
         let intType = types.make(.primitive(.int, .nonNull))
         symbols.setTypeAliasUnderlyingType(intType, for: id)
-        XCTAssertEqual(symbols.typeAliasUnderlyingType(for: id), intType)
+        #expect(symbols.typeAliasUnderlyingType(for: id) == intType)
     }
 
+    @Test
     func testTypeAliasUnderlyingTypeReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.typeAliasUnderlyingType(for: SymbolID(rawValue: 0)))
+        #expect(symbols.typeAliasUnderlyingType(for: SymbolID(rawValue: 0)) == nil)
     }
 
     // MARK: - Parent Symbol
 
+    @Test
     func testSetAndGetParentSymbol() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let parent = symbols.define(kind: .class, name: interner.intern("P"), fqName: [interner.intern("P")], declSite: nil, visibility: .public)
         let child = symbols.define(kind: .function, name: interner.intern("f"), fqName: [interner.intern("P"), interner.intern("f")], declSite: nil, visibility: .public)
         symbols.setParentSymbol(parent, for: child)
-        XCTAssertEqual(symbols.parentSymbol(for: child), parent)
+        #expect(symbols.parentSymbol(for: child) == parent)
     }
 }

@@ -1,11 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LibMetadataImportIntegrationTests: XCTestCase {
+@Suite
+struct LibMetadataImportIntegrationTests {
     // MARK: - Manifest Schema Validation Tests
 
-    func testManifestMissingFormatVersionEmitsError() throws {
+    @Test func testManifestMissingFormatVersionEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -37,11 +39,11 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
             let noSymbols = ctx.sema?.symbols.allSymbols().contains { symbol in
                 ctx.interner.resolve(symbol.name) == "foo" && symbol.flags.contains(.synthetic)
             }
-            XCTAssertFalse(noSymbols ?? false)
+            #expect(!(noSymbols ?? false))
         }
     }
 
-    func testManifestUnsupportedFormatVersionEmitsError() throws {
+    @Test func testManifestUnsupportedFormatVersionEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -74,7 +76,7 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
         }
     }
 
-    func testManifestMissingModuleNameEmitsError() throws {
+    @Test func testManifestMissingModuleNameEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -106,7 +108,7 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
         }
     }
 
-    func testManifestEmptyModuleNameEmitsError() throws {
+    @Test func testManifestEmptyModuleNameEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -139,7 +141,7 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
         }
     }
 
-    func testManifestUnsupportedKotlinLanguageVersionEmitsError() throws {
+    @Test func testManifestUnsupportedKotlinLanguageVersionEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -173,7 +175,7 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
         }
     }
 
-    func testManifestIncompatibleTargetEmitsErrorAndSkipsLibrary() throws {
+    @Test func testManifestIncompatibleTargetEmitsErrorAndSkipsLibrary() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -208,11 +210,11 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
             let hasImported = ctx.sema?.symbols.allSymbols().contains { symbol in
                 ctx.interner.resolve(symbol.name) == "fn" && symbol.flags.contains(.synthetic)
             }
-            XCTAssertFalse(hasImported ?? false)
+            #expect(!(hasImported ?? false))
         }
     }
 
-    func testManifestCompatibleTargetDoesNotEmitTargetError() throws {
+    @Test func testManifestCompatibleTargetDoesNotEmitTargetError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -252,7 +254,7 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
         }
     }
 
-    func testManifestMissingMetadataFileEmitsError() throws {
+    @Test func testManifestMissingMetadataFileEmitsError() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -284,7 +286,7 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
         }
     }
 
-    func testManifestMissingObjectFileEmitsWarning() throws {
+    @Test func testManifestMissingObjectFileEmitsWarning() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -321,11 +323,11 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
             let pathWarnings = ctx.diagnostics.diagnostics.filter {
                 $0.code == "KSWIFTK-LIB-0014" && $0.severity == .warning
             }
-            XCTAssertFalse(pathWarnings.isEmpty)
+            #expect(!pathWarnings.isEmpty)
         }
     }
 
-    func testManifestMissingInlineKIRDirEmitsWarning() throws {
+    @Test func testManifestMissingInlineKIRDirEmitsWarning() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let libDir = baseDir.appendingPathExtension("kklib")
@@ -362,7 +364,8 @@ final class LibMetadataImportIntegrationTests: XCTestCase {
             let pathWarnings = ctx.diagnostics.diagnostics.filter {
                 $0.code == "KSWIFTK-LIB-0014" && $0.severity == .warning
             }
-            XCTAssertFalse(pathWarnings.isEmpty)
+            #expect(!pathWarnings.isEmpty)
         }
     }
 }
+#endif

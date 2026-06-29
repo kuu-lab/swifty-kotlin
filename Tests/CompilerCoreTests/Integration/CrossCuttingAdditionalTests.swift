@@ -1,10 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 // MARK: - SymbolTable Missing Accessor Tests
 
-final class SymbolTableAdditionalTests: XCTestCase {
-    func testLookupByShortNameReturnsMatchingSymbols() {
+@Suite struct SymbolTableAdditionalTests {
+    @Test func testLookupByShortNameReturnsMatchingSymbols() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let name = interner.intern("foo")
@@ -23,18 +24,18 @@ final class SymbolTableAdditionalTests: XCTestCase {
             visibility: .public
         )
         let results = symbols.lookupByShortName(name)
-        XCTAssertTrue(results.contains(id1))
-        XCTAssertTrue(results.contains(id2))
-        XCTAssertEqual(results.count, 2)
+        #expect(results.contains(id1))
+        #expect(results.contains(id2))
+        #expect(results.count == 2)
     }
 
-    func testLookupByShortNameReturnsEmptyForUnknown() {
+    @Test func testLookupByShortNameReturnsEmptyForUnknown() {
         let interner = StringInterner()
         let symbols = SymbolTable()
-        XCTAssertEqual(symbols.lookupByShortName(interner.intern("missing")), [])
+        #expect(symbols.lookupByShortName(interner.intern("missing")) == [])
     }
 
-    func testSetAndGetSupertypeTypeArgs() {
+    @Test func testSetAndGetSupertypeTypeArgs() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
@@ -56,19 +57,19 @@ final class SymbolTableAdditionalTests: XCTestCase {
         let args: [TypeArg] = [.invariant(intType), .out(types.anyType)]
         symbols.setSupertypeTypeArgs(args, for: child, supertype: parent)
         let retrieved = symbols.supertypeTypeArgs(for: child, supertype: parent)
-        XCTAssertEqual(retrieved, args)
+        #expect(retrieved == args)
     }
 
-    func testSupertypeTypeArgsReturnsEmptyForUnset() {
+    @Test func testSupertypeTypeArgsReturnsEmptyForUnset() {
         let symbols = SymbolTable()
         let result = symbols.supertypeTypeArgs(
             for: SymbolID(rawValue: 0),
             supertype: SymbolID(rawValue: 1)
         )
-        XCTAssertEqual(result, [])
+        #expect(result == [])
     }
 
-    func testSetAndGetBackingFieldSymbol() {
+    @Test func testSetAndGetBackingFieldSymbol() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let prop = symbols.define(
@@ -86,46 +87,46 @@ final class SymbolTableAdditionalTests: XCTestCase {
             visibility: .private
         )
         symbols.setBackingFieldSymbol(backingField, for: prop)
-        XCTAssertEqual(symbols.backingFieldSymbol(for: prop), backingField)
+        #expect(symbols.backingFieldSymbol(for: prop) == backingField)
     }
 
-    func testBackingFieldSymbolReturnsNilForUnset() {
+    @Test func testBackingFieldSymbolReturnsNilForUnset() {
         let symbols = SymbolTable()
-        XCTAssertNil(symbols.backingFieldSymbol(for: SymbolID(rawValue: 0)))
+        #expect(symbols.backingFieldSymbol(for: SymbolID(rawValue: 0)) == nil)
     }
 }
 
 // MARK: - BindingTable Read-Side Accessor Tests
 
-final class BindingTableAdditionalTests: XCTestCase {
-    func testExprTypeForMethod() {
+@Suite struct BindingTableAdditionalTests {
+    @Test func testExprTypeForMethod() {
         let bindings = BindingTable()
         let types = TypeSystem()
         let expr = ExprID(rawValue: 1)
         let intType = types.make(.primitive(.int, .nonNull))
         bindings.bindExprType(expr, type: intType)
-        XCTAssertEqual(bindings.exprType(for: expr), intType)
+        #expect(bindings.exprType(for: expr) == intType)
     }
 
-    func testExprTypeForReturnsNilWhenUnbound() {
+    @Test func testExprTypeForReturnsNilWhenUnbound() {
         let bindings = BindingTable()
-        XCTAssertNil(bindings.exprType(for: ExprID(rawValue: 99)))
+        #expect(bindings.exprType(for: ExprID(rawValue: 99)) == nil)
     }
 
-    func testIdentifierSymbolForMethod() {
+    @Test func testIdentifierSymbolForMethod() {
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 1)
         let sym = SymbolID(rawValue: 1)
         bindings.bindIdentifier(expr, symbol: sym)
-        XCTAssertEqual(bindings.identifierSymbol(for: expr), sym)
+        #expect(bindings.identifierSymbol(for: expr) == sym)
     }
 
-    func testIdentifierSymbolForReturnsNilWhenUnbound() {
+    @Test func testIdentifierSymbolForReturnsNilWhenUnbound() {
         let bindings = BindingTable()
-        XCTAssertNil(bindings.identifierSymbol(for: ExprID(rawValue: 99)))
+        #expect(bindings.identifierSymbol(for: ExprID(rawValue: 99)) == nil)
     }
 
-    func testCallBindingForMethod() {
+    @Test func testCallBindingForMethod() {
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 1)
         let binding = CallBinding(
@@ -135,47 +136,47 @@ final class BindingTableAdditionalTests: XCTestCase {
         )
         bindings.bindCall(expr, binding: binding)
         let retrieved = bindings.callBinding(for: expr)
-        XCTAssertNotNil(retrieved)
-        XCTAssertEqual(retrieved?.chosenCallee, SymbolID(rawValue: 1))
-        XCTAssertEqual(retrieved?.parameterMapping, [0: 1, 1: 0])
+        #expect(retrieved != nil)
+        #expect(retrieved?.chosenCallee == SymbolID(rawValue: 1))
+        #expect(retrieved?.parameterMapping == [0: 1, 1: 0])
     }
 
-    func testCallBindingForReturnsNilWhenUnbound() {
+    @Test func testCallBindingForReturnsNilWhenUnbound() {
         let bindings = BindingTable()
-        XCTAssertNil(bindings.callBinding(for: ExprID(rawValue: 99)))
+        #expect(bindings.callBinding(for: ExprID(rawValue: 99)) == nil)
     }
 
-    func testDeclSymbolForMethod() {
+    @Test func testDeclSymbolForMethod() {
         let bindings = BindingTable()
         let decl = DeclID(rawValue: 1)
         let sym = SymbolID(rawValue: 1)
         bindings.bindDecl(decl, symbol: sym)
-        XCTAssertEqual(bindings.declSymbol(for: decl), sym)
+        #expect(bindings.declSymbol(for: decl) == sym)
     }
 
-    func testDeclSymbolForReturnsNilWhenUnbound() {
+    @Test func testDeclSymbolForReturnsNilWhenUnbound() {
         let bindings = BindingTable()
-        XCTAssertNil(bindings.declSymbol(for: DeclID(rawValue: 99)))
+        #expect(bindings.declSymbol(for: DeclID(rawValue: 99)) == nil)
     }
 
-    func testIsSuperCallExprMarkAndCheck() {
+    @Test func testIsSuperCallExprMarkAndCheck() {
         let bindings = BindingTable()
         let expr = ExprID(rawValue: 1)
-        XCTAssertFalse(bindings.isSuperCallExpr(expr))
+        #expect(!(bindings.isSuperCallExpr(expr)))
         bindings.markSuperCall(expr)
-        XCTAssertTrue(bindings.isSuperCallExpr(expr))
+        #expect(bindings.isSuperCallExpr(expr))
     }
 
-    func testIsSuperCallExprReturnsFalseForUnmarked() {
+    @Test func testIsSuperCallExprReturnsFalseForUnmarked() {
         let bindings = BindingTable()
-        XCTAssertFalse(bindings.isSuperCallExpr(ExprID(rawValue: 999)))
+        #expect(!(bindings.isSuperCallExpr(ExprID(rawValue: 999))))
     }
 }
 
 // MARK: - TypeSystem Nominal Supertype TypeArgs Tests
 
-final class TypeSystemAdditionalTests: XCTestCase {
-    func testSetAndGetNominalSupertypeTypeArgs() {
+@Suite struct TypeSystemAdditionalTests {
+    @Test func testSetAndGetNominalSupertypeTypeArgs() {
         let ts = TypeSystem()
         let child = SymbolID(rawValue: 0)
         let parent = SymbolID(rawValue: 1)
@@ -183,53 +184,53 @@ final class TypeSystemAdditionalTests: XCTestCase {
         let args: [TypeArg] = [.invariant(intType), .out(ts.anyType)]
         ts.setNominalSupertypeTypeArgs(args, for: child, supertype: parent)
         let retrieved = ts.nominalSupertypeTypeArgs(for: child, supertype: parent)
-        XCTAssertEqual(retrieved, args)
+        #expect(retrieved == args)
     }
 
-    func testNominalSupertypeTypeArgsReturnsEmptyForUnset() {
+    @Test func testNominalSupertypeTypeArgsReturnsEmptyForUnset() {
         let ts = TypeSystem()
         let result = ts.nominalSupertypeTypeArgs(
             for: SymbolID(rawValue: 0),
             supertype: SymbolID(rawValue: 1)
         )
-        XCTAssertEqual(result, [])
+        #expect(result == [])
     }
 }
 
 // MARK: - ASTArena Edge Case Tests
 
-final class ASTArenaAdditionalTests: XCTestCase {
-    func testDeclReturnsNilForInvalidID() {
+@Suite struct ASTArenaAdditionalTests {
+    @Test func testDeclReturnsNilForInvalidID() {
         let arena = ASTArena()
         // DeclID uses Int32, so -1 is the canonical .invalid sentinel
-        XCTAssertNil(arena.decl(DeclID.invalid))
+        #expect(arena.decl(DeclID.invalid) == nil)
     }
 
-    func testDeclReturnsNilForOutOfRangeID() {
+    @Test func testDeclReturnsNilForOutOfRangeID() {
         let arena = ASTArena()
-        XCTAssertNil(arena.decl(DeclID(rawValue: 999)))
+        #expect(arena.decl(DeclID(rawValue: 999)) == nil)
     }
 
-    func testTypeRefReturnsNilForInvalidID() {
+    @Test func testTypeRefReturnsNilForInvalidID() {
         let arena = ASTArena()
-        XCTAssertNil(arena.typeRef(TypeRefID(rawValue: -1)))
+        #expect(arena.typeRef(TypeRefID(rawValue: -1)) == nil)
     }
 
-    func testTypeRefReturnsNilForOutOfRangeID() {
+    @Test func testTypeRefReturnsNilForOutOfRangeID() {
         let arena = ASTArena()
-        XCTAssertNil(arena.typeRef(TypeRefID(rawValue: 999)))
+        #expect(arena.typeRef(TypeRefID(rawValue: 999)) == nil)
     }
 }
 
 // MARK: - DataFlowAnalyzer Struct Init Edge Cases
 
-final class DataFlowStructTests: XCTestCase {
-    func testDataFlowStateDefaultInit() {
+@Suite struct DataFlowStructTests {
+    @Test func testDataFlowStateDefaultInit() {
         let state = DataFlowState()
-        XCTAssertTrue(state.variables.isEmpty)
+        #expect(state.variables.isEmpty)
     }
 
-    func testVariableFlowStateEquality() {
+    @Test func testVariableFlowStateEquality() {
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
         let a = VariableFlowState(
@@ -247,11 +248,11 @@ final class DataFlowStructTests: XCTestCase {
             nullability: .nullable,
             isStable: true
         )
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
+        #expect(a == b)
+        #expect(a != c)
     }
 
-    func testWhenBranchSummaryAutoDerivation() {
+    @Test func testWhenBranchSummaryAutoDerivation() {
         // When hasTrueCase/hasFalseCase are not explicitly provided,
         // they should be derived from coveredSymbols containing
         // InternedString(rawValue: 1) and InternedString(rawValue: 2).
@@ -265,22 +266,22 @@ final class DataFlowStructTests: XCTestCase {
             coveredSymbols: [trueSymbol, falseSymbol],
             hasElse: false
         )
-        XCTAssertTrue(summaryBoth.hasTrueCase)
-        XCTAssertTrue(summaryBoth.hasFalseCase)
+        #expect(summaryBoth.hasTrueCase)
+        #expect(summaryBoth.hasFalseCase)
 
         let summaryTrueOnly = WhenBranchSummary(
             coveredSymbols: [trueSymbol],
             hasElse: false
         )
-        XCTAssertTrue(summaryTrueOnly.hasTrueCase)
-        XCTAssertFalse(summaryTrueOnly.hasFalseCase)
+        #expect(summaryTrueOnly.hasTrueCase)
+        #expect(!(summaryTrueOnly.hasFalseCase))
 
         let summaryNone = WhenBranchSummary(
             coveredSymbols: [],
             hasElse: false
         )
-        XCTAssertFalse(summaryNone.hasTrueCase)
-        XCTAssertFalse(summaryNone.hasFalseCase)
+        #expect(!(summaryNone.hasTrueCase))
+        #expect(!(summaryNone.hasFalseCase))
 
         // Explicit override should take precedence
         let summaryExplicit = WhenBranchSummary(
@@ -289,39 +290,39 @@ final class DataFlowStructTests: XCTestCase {
             hasTrueCase: true,
             hasFalseCase: true
         )
-        XCTAssertTrue(summaryExplicit.hasTrueCase)
-        XCTAssertTrue(summaryExplicit.hasFalseCase)
+        #expect(summaryExplicit.hasTrueCase)
+        #expect(summaryExplicit.hasFalseCase)
     }
 }
 
 // MARK: - DiagnosticEngine.hasError Tests
 
-final class DiagnosticEngineAdditionalTests: XCTestCase {
-    func testHasErrorReturnsFalseWhenEmpty() {
+@Suite struct DiagnosticEngineAdditionalTests {
+    @Test func testHasErrorReturnsFalseWhenEmpty() {
         let engine = DiagnosticEngine()
-        XCTAssertFalse(engine.hasError)
+        #expect(!(engine.hasError))
     }
 
-    func testHasErrorReturnsFalseWithOnlyWarnings() {
+    @Test func testHasErrorReturnsFalseWithOnlyWarnings() {
         let engine = DiagnosticEngine()
         engine.warning("W001", "some warning", range: nil)
         engine.note("N001", "some note", range: nil)
         engine.info("I001", "some info", range: nil)
-        XCTAssertFalse(engine.hasError)
+        #expect(!(engine.hasError))
     }
 
-    func testHasErrorReturnsTrueWithError() {
+    @Test func testHasErrorReturnsTrueWithError() {
         let engine = DiagnosticEngine()
         engine.warning("W001", "some warning", range: nil)
         engine.error("E001", "some error", range: nil)
-        XCTAssertTrue(engine.hasError)
+        #expect(engine.hasError)
     }
 }
 
 // MARK: - CallableValueCallBinding and CatchClauseBinding Init Tests
 
-final class BindingModelAdditionalTests: XCTestCase {
-    func testCallableValueCallBindingInit() {
+@Suite struct BindingModelAdditionalTests {
+    @Test func testCallableValueCallBindingInit() {
         let types = TypeSystem()
         let fnType = types.make(.functionType(FunctionType(
             params: [types.make(.primitive(.int, .nonNull))],
@@ -332,12 +333,12 @@ final class BindingModelAdditionalTests: XCTestCase {
             functionType: fnType,
             parameterMapping: [0: 0]
         )
-        XCTAssertEqual(binding.target, .symbol(SymbolID(rawValue: 1)))
-        XCTAssertEqual(binding.functionType, fnType)
-        XCTAssertEqual(binding.parameterMapping, [0: 0])
+        #expect(binding.target == .symbol(SymbolID(rawValue: 1)))
+        #expect(binding.functionType == fnType)
+        #expect(binding.parameterMapping == [0: 0])
     }
 
-    func testCallableValueCallBindingNilTarget() {
+    @Test func testCallableValueCallBindingNilTarget() {
         let types = TypeSystem()
         let fnType = types.make(.functionType(FunctionType(
             params: [],
@@ -348,30 +349,31 @@ final class BindingModelAdditionalTests: XCTestCase {
             functionType: fnType,
             parameterMapping: [:]
         )
-        XCTAssertNil(binding.target)
-        XCTAssertEqual(binding.functionType, fnType)
+        #expect(binding.target == nil)
+        #expect(binding.functionType == fnType)
     }
 
-    func testCatchClauseBindingDefaultParameterSymbol() {
+    @Test func testCatchClauseBindingDefaultParameterSymbol() {
         let types = TypeSystem()
         let binding = CatchClauseBinding(parameterType: types.anyType)
-        XCTAssertEqual(binding.parameterSymbol, .invalid)
-        XCTAssertEqual(binding.parameterType, types.anyType)
+        #expect(binding.parameterSymbol == .invalid)
+        #expect(binding.parameterType == types.anyType)
     }
 
-    func testCatchClauseBindingWithExplicitSymbol() {
+    @Test func testCatchClauseBindingWithExplicitSymbol() {
         let types = TypeSystem()
         let sym = SymbolID(rawValue: 1)
         let binding = CatchClauseBinding(parameterSymbol: sym, parameterType: types.anyType)
-        XCTAssertEqual(binding.parameterSymbol, sym)
+        #expect(binding.parameterSymbol == sym)
     }
 
-    func testCallableTargetEquality() {
+    @Test func testCallableTargetEquality() {
         let sym1 = SymbolID(rawValue: 1)
         let sym2 = SymbolID(rawValue: 2)
-        XCTAssertEqual(CallableTarget.symbol(sym1), CallableTarget.symbol(sym1))
-        XCTAssertNotEqual(CallableTarget.symbol(sym1), CallableTarget.symbol(sym2))
-        XCTAssertEqual(CallableTarget.localValue(sym1), CallableTarget.localValue(sym1))
-        XCTAssertNotEqual(CallableTarget.symbol(sym1), CallableTarget.localValue(sym1))
+        #expect(CallableTarget.symbol(sym1) == CallableTarget.symbol(sym1))
+        #expect(CallableTarget.symbol(sym1) != CallableTarget.symbol(sym2))
+        #expect(CallableTarget.localValue(sym1) == CallableTarget.localValue(sym1))
+        #expect(CallableTarget.symbol(sym1) != CallableTarget.localValue(sym1))
     }
 }
+#endif

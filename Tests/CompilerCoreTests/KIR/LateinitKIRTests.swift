@@ -1,9 +1,11 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LateinitKIRTests: XCTestCase {
-    func testLateinitReadEmitsGetOrThrowCall() throws {
+@Suite @MainActor
+struct LateinitKIRTests {
+    @Test func testLateinitReadEmitsGetOrThrowCall() throws {
         let source = """
         class Box {
             lateinit var name: String
@@ -14,19 +16,19 @@ final class LateinitKIRTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError,
+            #expect(!(ctx.diagnostics.hasError),
                            "lateinit read should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "read", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_lateinit_get_or_throw"),
+            #expect(callees.contains("kk_lateinit_get_or_throw"),
                           "Expected kk_lateinit_get_or_throw in read body, got: \(callees)")
         }
     }
 
-    func testLateinitIsInitializedEmitsRuntimeCheck() throws {
+    @Test func testLateinitIsInitializedEmitsRuntimeCheck() throws {
         let source = """
         class Box {
             lateinit var name: String
@@ -37,15 +39,16 @@ final class LateinitKIRTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError,
+            #expect(!(ctx.diagnostics.hasError),
                            "lateinit isInitialized should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "ready", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_lateinit_is_initialized"),
+            #expect(callees.contains("kk_lateinit_is_initialized"),
                           "Expected kk_lateinit_is_initialized in ready body, got: \(callees)")
         }
     }
 }
+#endif
