@@ -15,9 +15,9 @@ jobs:
     name: Duplicate Code Detection
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '18'
       - name: Install jscpd
@@ -44,7 +44,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -57,7 +57,7 @@ jobs:
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
@@ -72,13 +72,13 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
@@ -139,7 +139,7 @@ jobs:
             build-jobs: "4"
             needs-llvm: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -158,7 +158,7 @@ jobs:
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
@@ -201,19 +201,19 @@ jobs:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
           swift-version: "6.2"
       - name: Cache Kotlin compiler and coroutines jar
         id: cache-kotlin
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/kotlin-tools
           key: kotlin-tools-${{ env.KOTLIN_VERSION }}-coroutines-${{ env.KOTLINX_COROUTINES_VERSION }}
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -236,7 +236,7 @@ jobs:
           fi
           echo "KOTLINC_CLASSPATH=${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" >> "$GITHUB_ENV"
       - name: Cache SPM build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
@@ -275,7 +275,7 @@ jobs:
           exit 1
       - name: Upload kotlinc diff failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kotlinc-diff-regression-${{ github.run_id }}-shard${{ matrix.shard }}
           path: |

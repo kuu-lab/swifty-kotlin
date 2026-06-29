@@ -135,10 +135,10 @@ struct ComparatorSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let callExpr = try #require(allExprIDs(in: ast) { id, expr in
-                // Skip bundled stdlib files (FileID 0 = collections, 1 = text);
+                // Skip bundled stdlib files (FileID 0 = collections, 1 = text, 2 = sequences, 3 = time, 4 = file IO);
                 // maxWith/minWith bodies also call comparator.compare, which would
                 // otherwise shadow the user's call with a lower ExprID.
-                if let range = ast.arena.exprRange(id), range.start.file.rawValue < 2 {
+                if let range = ast.arena.exprRange(id), range.start.file.rawValue < 5 {
                     return false
                 }
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
