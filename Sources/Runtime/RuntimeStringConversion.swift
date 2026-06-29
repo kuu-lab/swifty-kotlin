@@ -532,6 +532,22 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     return registerRuntimeObject(box)
 }
 
+@_cdecl("kk_string_toBigDecimalOrNull")
+public func kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
+          let str = extractString(from: ptr)
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigDecimalOrNull received invalid string handle")
+    }
+    // No whitespace trimming: Kotlin/JVM returns null for whitespace-wrapped
+    // input because the underlying BigDecimal parser rejects it.
+    guard isValidBigDecimalFormat(str) else {
+        return runtimeNullSentinelInt
+    }
+    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    return registerRuntimeObject(box)
+}
+
 @_cdecl("kk_string_toBigInteger")
 public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

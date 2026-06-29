@@ -1,21 +1,28 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class KIRBuildClassLoweringTests: XCTestCase {
-    func testBuildKIRPhaseThrowsInvalidInputWhenASTOrSemaMissing() {
+@Suite @MainActor
+struct KIRBuildClassLoweringTests {
+    @Test func testBuildKIRPhaseThrowsInvalidInputWhenASTOrSemaMissing() {
         let ctx = makeCompilationContext(inputs: [])
 
-        XCTAssertThrowsError(try BuildKIRPhase().run(ctx)) { error in
-            guard case let CompilerPipelineError.invalidInput(message) = error else {
-                XCTFail("Expected invalidInput, got: \(error)")
+        do {
+            try BuildKIRPhase().run(ctx)
+            Issue.record("Expected invalidInput, got no error")
+        } catch let error as CompilerPipelineError {
+            guard case let .invalidInput(message) = error else {
+                Issue.record("Expected invalidInput, got: \(error)")
                 return
             }
-            XCTAssertTrue(message.contains("Sema phase did not run"))
+            #expect(message.contains("Sema phase did not run"))
+        } catch {
+            Issue.record("Expected CompilerPipelineError, got: \(error)")
         }
     }
 
-    func testBuildKIRPhaseEmitsWarningWhenNoFunctionsAreLowered() throws {
+    @Test func testBuildKIRPhaseEmitsWarningWhenNoFunctionsAreLowered() throws {
         let ctx = makeCompilationContext(inputs: [])
         let astArena = ASTArena()
         let ast = ASTModule(
@@ -39,12 +46,12 @@ final class KIRBuildClassLoweringTests: XCTestCase {
 
         try BuildKIRPhase().run(ctx)
 
-        let module = try XCTUnwrap(ctx.kir)
-        XCTAssertEqual(module.functionCount, 0)
+        let module = try #require(ctx.kir)
+        #expect(module.functionCount == 0)
         assertHasDiagnostic("KSWIFTK-KIR-0001", in: ctx)
     }
 
-    func testBuildKIRPhaseProducesModuleForValidInput() throws {
+    @Test func testBuildKIRPhaseProducesModuleForValidInput() throws {
         let source = """
         fun answer(): Int = 42
         """
@@ -54,13 +61,13 @@ final class KIRBuildClassLoweringTests: XCTestCase {
             try runSema(ctx)
             try BuildKIRPhase().run(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertGreaterThanOrEqual(module.functionCount, 1)
+            let module = try #require(ctx.kir)
+            #expect(module.functionCount >= 1)
             assertNoDiagnostic("KSWIFTK-KIR-0001", in: ctx)
         }
     }
 
-    func testClassLoweringSynthesizesCompanionInitializerFunction() throws {
+    @Test func testClassLoweringSynthesizesCompanionInitializerFunction() throws {
         let source = """
         class Host {
             companion object {
@@ -74,20 +81,20 @@ final class KIRBuildClassLoweringTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let functionNames = module.arena.declarations.compactMap { decl -> String? in
                 guard case let .function(function) = decl else { return nil }
                 return ctx.interner.resolve(function.name)
             }
 
-            XCTAssertTrue(
+            #expect(
                 functionNames.contains(where: { $0.hasPrefix("__companion_init_") }),
                 "Expected synthesized companion initializer, got: \(functionNames)"
             )
         }
     }
 
-    func testClassLoweringGeneratesConstructorDefaultStubForSecondaryConstructor() throws {
+    @Test func testClassLoweringGeneratesConstructorDefaultStubForSecondaryConstructor() throws {
         let source = """
         class Box {
             constructor(value: Int = 7)
@@ -99,21 +106,21 @@ final class KIRBuildClassLoweringTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let functionNames = module.arena.declarations.compactMap { decl -> String? in
                 guard case let .function(function) = decl else { return nil }
                 return ctx.interner.resolve(function.name)
             }
 
             // Secondary constructor defaults should generate a default stub path.
-            XCTAssertTrue(
+            #expect(
                 functionNames.contains(where: { $0.hasPrefix("Box") }),
                 "Expected lowered Box constructor-related functions, got: \(functionNames)"
             )
         }
     }
 
-    func testClassLoweringLowersSecondaryConstructorSuperDelegation() throws {
+    @Test func testClassLoweringLowersSecondaryConstructorSuperDelegation() throws {
         let source = """
         open class Base(x: Int)
         class Child : Base {
@@ -126,24 +133,24 @@ final class KIRBuildClassLoweringTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let childConstructors = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else { return nil }
                 return ctx.interner.resolve(function.name) == "Child" ? function : nil
             }
 
-            XCTAssertFalse(childConstructors.isEmpty)
+            #expect(!childConstructors.isEmpty)
             let hasInitDelegationCall = childConstructors.contains { function in
                 function.body.contains { instruction in
                     guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                     return ctx.interner.resolve(callee) == "<init>"
                 }
             }
-            XCTAssertTrue(hasInitDelegationCall, "Expected <init> delegation call in Child constructors")
+            #expect(hasInitDelegationCall, "Expected <init> delegation call in Child constructors")
         }
     }
 
-    func testClassLoweringLowersDelegatedPropertyInitializationPath() throws {
+    @Test func testClassLoweringLowersDelegatedPropertyInitializationPath() throws {
         let source = """
         class DelegateBox {
             operator fun provideDelegate(thisRef: Any?, property: String): DelegateBox = this
@@ -161,19 +168,19 @@ final class KIRBuildClassLoweringTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let ownerConstructor = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else { return nil }
                 return ctx.interner.resolve(function.name) == "Owner" ? function : nil
             }.first
 
-            let body = try XCTUnwrap(ownerConstructor?.body)
+            let body = try #require(ownerConstructor?.body)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("DelegateBox"), "Expected delegate constructor call, got: \(callees)")
+            #expect(callees.contains("DelegateBox"), "Expected delegate constructor call, got: \(callees)")
         }
     }
 
-    func testClassLoweringEmitsDelegationForwarderEvenWithNoDispatchTargets() throws {
+    @Test func testClassLoweringEmitsDelegationForwarderEvenWithNoDispatchTargets() throws {
         let source = """
         interface EventSink {
             fun send(message: String): Int
@@ -188,17 +195,17 @@ final class KIRBuildClassLoweringTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
 
             let forwardingFunctions = loweredFunctions(in: module).filter {
                 hasCall(named: "kk_array_get", in: $0.body, interner: ctx.interner)
             }
 
-            XCTAssertEqual(forwardingFunctions.count, 1, "Expected one delegation forwarder with no dispatch target match")
+            #expect(forwardingFunctions.count == 1, "Expected one delegation forwarder with no dispatch target match")
 
             let forwardingBody = forwardingFunctions[0].body
             let callees = extractCallees(from: forwardingBody, interner: ctx.interner)
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_abort_unreachable"),
                 "Expected explicit abort fallback in delegation forwarder, got: \(callees)"
             )
@@ -210,11 +217,11 @@ final class KIRBuildClassLoweringTests: XCTestCase {
                 }
                 return arguments.count
             }
-            XCTAssertEqual(abortCallArgumentCounts, [1], "Expected kk_abort_unreachable to receive null outThrown.")
+            #expect(abortCallArgumentCounts == [1], "Expected kk_abort_unreachable to receive null outThrown.")
         }
     }
 
-    func testClassLoweringResolvesDelegationDispatchByExactSignature() throws {
+    @Test func testClassLoweringResolvesDelegationDispatchByExactSignature() throws {
         let source = """
         interface ComparableInput {
             fun evaluate(value: Int): Int
@@ -234,14 +241,14 @@ final class KIRBuildClassLoweringTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
 
             let forwarderFunction = loweredFunctions(in: module).first {
                 ctx.interner.resolve($0.name) == "evaluate"
                     && hasCall(named: "kk_object_type_id", in: $0.body, interner: ctx.interner)
             }
 
-            let forwardingBody = try XCTUnwrap(
+            let forwardingBody = try #require(
                 forwarderFunction,
                 "Expected delegation forwarder for ComparableInput.evaluate()"
             ).body
@@ -261,12 +268,11 @@ final class KIRBuildClassLoweringTests: XCTestCase {
                 return symbol
             }
 
-            XCTAssertEqual(
-                nonSyntheticOverrideCalls.isEmpty,
-                false,
+            #expect(
+                nonSyntheticOverrideCalls.isEmpty == false,
                 "Expected delegation forwarder to call non-synthetic override target for ComparableInput.evaluate, got: \(delegateCallSymbols)"
             )
-            XCTAssertTrue(
+            #expect(
                 delegateCallSymbols.allSatisfy { symbol in
                     guard let signatureSymbol = ctx.sema?.symbols.symbol(symbol) else {
                         return false
@@ -318,3 +324,4 @@ final class KIRBuildClassLoweringTests: XCTestCase {
         }
     }
 }
+#endif

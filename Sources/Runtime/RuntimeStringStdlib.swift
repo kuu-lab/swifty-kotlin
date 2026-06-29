@@ -304,6 +304,55 @@ public func kk_string_subSequence(
     kk_string_substring(strRaw, startRaw, endRaw, 1, outThrown)
 }
 
+// STDLIB-TEXT-FN-068: String.slice(indices: IntRange)
+@_cdecl("kk_string_slice_range")
+public func kk_string_slice_range(
+    _ strRaw: Int,
+    _ rangeRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        return runtimeMakeStringRaw("")
+    }
+    if range.first > range.last {
+        return runtimeMakeStringRaw("")
+    }
+    return kk_string_substring(strRaw, range.first, range.last + 1, 1, outThrown)
+}
+
+// STDLIB-TEXT-FN-068: String.slice(indices: Iterable<Int>)
+@_cdecl("kk_string_slice_iterable")
+public func kk_string_slice_iterable(
+    _ strRaw: Int,
+    _ indicesRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    let length = scalars.count
+    let indexElements: [Int]
+    if let indexList = runtimeListBox(from: indicesRaw) {
+        indexElements = indexList.elements
+    } else if let indexSet = runtimeSetBox(from: indicesRaw) {
+        indexElements = indexSet.elements
+    } else {
+        return runtimeMakeStringRaw("")
+    }
+    var result: [UnicodeScalar] = []
+    for rawIdx in indexElements {
+        let idx = kk_unbox_int(rawIdx)
+        if idx < 0 || idx >= length {
+            runtimeSetThrown(
+                outThrown,
+                message: "IndexOutOfBoundsException: index \(idx) out of range [0, \(length))"
+            )
+            return 0
+        }
+        result.append(scalars[idx])
+    }
+    return runtimeMakeStringRaw(runtimeStringFromScalars(result))
+}
+
 private func runtimeStringCodePointCount(
     units: [UInt16],
     startIndex: Int,
@@ -748,48 +797,6 @@ public func kk_string_contains_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ igno
     }
     return kk_box_bool(0)
 }
-// MARK: - Bridge functions for replace operations (MIGRATION-TEXT-005)
-
-@_cdecl("__string_replace")
-public func __string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    return kk_string_replace(strRaw, oldRaw, newRaw)
-}
-
-@_cdecl("__string_replace_ignoreCase")
-public func __string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    return kk_string_replace_ignoreCase(strRaw, oldRaw, newRaw, ignoreCaseRaw)
-}
-
-@_cdecl("__string_replace_char")
-public func __string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
-    return kk_string_replace_char(strRaw, oldCharRaw, newCharRaw)
-}
-
-@_cdecl("__string_replace_char_ignoreCase")
-public func __string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    return kk_string_replace_char_ignoreCase(strRaw, oldCharRaw, newCharRaw, ignoreCaseRaw)
-}
-
-@_cdecl("__string_removePrefix")
-public func __string_removePrefix(_ strRaw: Int, _ prefixRaw: Int) -> Int {
-    return kk_string_removePrefix(strRaw, prefixRaw)
-}
-
-@_cdecl("__string_removeSuffix")
-public func __string_removeSuffix(_ strRaw: Int, _ suffixRaw: Int) -> Int {
-    return kk_string_removeSuffix(strRaw, suffixRaw)
-}
-
-@_cdecl("__string_removeSurrounding")
-public func __string_removeSurrounding(_ strRaw: Int, _ delimiterRaw: Int) -> Int {
-    return kk_string_removeSurrounding(strRaw, delimiterRaw)
-}
-
-@_cdecl("__string_removeSurrounding_pair")
-public func __string_removeSurrounding_pair(_ strRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int) -> Int {
-    return kk_string_removeSurrounding_pair(strRaw, prefixRaw, suffixRaw)
-}
-
 // MARK: - Bridge functions for case conversion (MIGRATION-TEXT-005)
 
 @_cdecl("__string_lowercase")

@@ -1,0 +1,80 @@
+@testable import CompilerCore
+@testable import CompilerBackend
+import Foundation
+import XCTest
+
+extension CodegenBackendIntegrationTests {
+    func testCodegenCompilesCharEdgeCases() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        fun main() {
+            println('5'.digitToInt())
+            println('9'.digitToInt())
+            println('a'.digitToIntOrNull())
+            println('a'.digitToIntOrNull(16))
+
+            try {
+                println('z'.digitToInt())
+            } catch (e: Throwable) {
+                println("invalid-char")
+            }
+
+            println(5.digitToChar())
+            println(10.digitToChar(16))
+            try {
+                println(10.digitToChar())
+            } catch (e: Throwable) {
+                println("invalid-digit-to-char")
+            }
+
+            println('ß'.uppercase())
+            println('ß'.uppercaseChar())
+            println('İ'.lowercase())
+            println('İ'.lowercaseChar())
+            println('ǆ'.titlecaseChar())
+            println('ß'.titlecaseChar())
+            println('A'.isDefined())
+            println(Char.isSupplementaryCodePoint(0x10000))
+            println(Char.isSurrogatePair('\\uD800', '\\uDC00'))
+            val bmp = Char.toChars(65)
+            println(bmp.size)
+            println(bmp[0])
+            val pair = Char.toChars(0x10000)
+            println(pair.size)
+            println(Char.toCodePoint(pair[0], pair[1]))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharEdgeCases",
+            expected:
+                """
+                5
+                9
+                null
+                10
+                invalid-char
+                5
+                A
+                invalid-digit-to-char
+                SS
+                ß
+                i\u{0307}
+                i
+                ǅ
+                ß
+                true
+                true
+                true
+                1
+                A
+                2
+                65536
+                """
+                + "\n"
+        )
+    }
+}
+

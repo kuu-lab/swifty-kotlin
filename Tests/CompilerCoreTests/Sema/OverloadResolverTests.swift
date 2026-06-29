@@ -1,13 +1,15 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class OverloadResolverTests: XCTestCase {
+@Suite
+struct OverloadResolverTests {
     func makeEnv() -> (resolver: OverloadResolver, types: TypeSystem, symbols: SymbolTable, interner: StringInterner, ctx: SemaModule) {
         let setup = makeSemaModule()
         return (OverloadResolver(), setup.types, setup.symbols, setup.interner, setup.ctx)
     }
 
-    func testResolveCallReturnsNoViableDiagnosticAfterAllCandidateFilters() {
+    @Test func testResolveCallReturnsNoViableDiagnosticAfterAllCandidateFilters() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -83,13 +85,13 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.substitutedTypeArguments, [:])
-        XCTAssertEqual(resolved.parameterMapping, [:])
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0002")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.substitutedTypeArguments == [:])
+        #expect(resolved.parameterMapping == [:])
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
     }
 
-    func testResolveCallReturnsAmbiguousDiagnosticForMultipleViableCandidates() {
+    @Test func testResolveCallReturnsAmbiguousDiagnosticForMultipleViableCandidates() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -130,11 +132,11 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0003")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0003")
     }
 
-    func testResolveCallReturnsChosenCandidateAndIdentityMapping() {
+    @Test func testResolveCallReturnsChosenCandidateAndIdentityMapping() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -165,13 +167,13 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, constructor)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.parameterMapping, [0: 0, 1: 1])
-        XCTAssertEqual(resolved.substitutedTypeArguments, [:])
+        #expect(resolved.chosenCallee == constructor)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0, 1: 1])
+        #expect(resolved.substitutedTypeArguments == [:])
     }
 
-    func testResolveCallPrefersMostSpecificCandidate() {
+    @Test func testResolveCallPrefersMostSpecificCandidate() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -214,11 +216,11 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, intSpecific)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == intSpecific)
+        #expect(resolved.diagnostic == nil)
     }
 
-    func testResolveCallInfersGenericTypeArgumentFromParameter() {
+    @Test func testResolveCallInfersGenericTypeArgumentFromParameter() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -259,13 +261,13 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, generic)
-        XCTAssertNil(resolved.diagnostic)
-        XCTAssertEqual(resolved.substitutedTypeArguments.count, 1)
-        XCTAssertEqual(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)], intType)
+        #expect(resolved.chosenCallee == generic)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.substitutedTypeArguments.count == 1)
+        #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
     }
 
-    func testResolveCallReturnsConstraintDiagnosticForGenericMismatch() {
+    @Test func testResolveCallReturnsConstraintDiagnosticForGenericMismatch() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -307,11 +309,11 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-TYPE-0001")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-TYPE-0001")
     }
 
-    func testResolveCallSkipsExtensionCandidateWithoutReceiver() {
+    @Test func testResolveCallSkipsExtensionCandidateWithoutReceiver() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -345,11 +347,11 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0002")
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
     }
 
-    func testResolveCallAcceptsExtensionCandidateWithImplicitReceiver() {
+    @Test func testResolveCallAcceptsExtensionCandidateWithImplicitReceiver() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -384,8 +386,8 @@ final class OverloadResolverTests: XCTestCase {
             ctx: ctx
         )
 
-        XCTAssertEqual(resolved.chosenCallee, ext)
-        XCTAssertNil(resolved.diagnostic)
+        #expect(resolved.chosenCallee == ext)
+        #expect(resolved.diagnostic == nil)
     }
 
     func defineSymbol(
@@ -405,3 +407,4 @@ final class OverloadResolverTests: XCTestCase {
         )
     }
 }
+#endif

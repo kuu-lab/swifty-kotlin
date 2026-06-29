@@ -631,6 +631,40 @@ extension CallTypeChecker {
                 return (keyType, valueType)
             }()
 
+            func bindBundledListAggregateSource(typeArguments: [TypeID]) {
+                guard (!isSequenceReceiver || isListFactoryReceiver),
+                      isConcreteListLikeType(receiverType, sema: sema, interner: interner) || isListFactoryReceiver
+                else {
+                    return
+                }
+                let sourceFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    calleeName,
+                ]
+                guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          symbol.declSite != nil,
+                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          signature.parameterTypes.count == args.count,
+                          let signatureReceiver = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner)
+                }) else {
+                    return
+                }
+                sema.bindings.bindCall(id, binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: typeArguments,
+                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                ))
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            }
+
             let resultType: TypeID
             let destinationCollectionHOFs: Set = [
                 "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
@@ -2068,7 +2102,40 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
                 }
+                // If the receiver call has explicit type arguments (e.g. listOf<Int>())
+                // and the explicit element type is a known non-collection, flatten() is
+                // invalid — reject before the type-inference result can mask the error.
+                // This handles cases where kswiftc infers List<Any> despite <Int> being
+                // written explicitly (type-inference gap for empty collection literals).
+                if !isSequenceReceiver,
+                   let receiverExpr = ast.arena.expr(receiverID),
+                   case let .call(_, receiverTypeArgs, _, _) = receiverExpr,
+                   let firstTypeArgID = receiverTypeArgs.first
+                {
+                    let explicitElemType = driver.helpers.resolveTypeRef(firstTypeArgID, ast: ast, sema: sema, interner: interner)
+                    if !isCollectionLikeType(explicitElemType, sema: sema, interner: interner) {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-0024",
+                            "Unresolved member function 'flatten'.",
+                            range: range
+                        )
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                }
                 let extractedInner = getCollectionElementType(collectionElementType, sema: sema, interner: interner)
+                // Reject when the element type is a KNOWN non-collection (e.g. Int).
+                if !isSequenceReceiver && extractedInner == sema.types.anyType
+                    && collectionElementType != sema.types.anyType
+                    && !isCollectionLikeType(collectionElementType, sema: sema, interner: interner) {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "Unresolved member function 'flatten'.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
                 let flattenedElementType = extractedInner != sema.types.anyType
                     ? extractedInner
                     : collectionElementType
@@ -2646,6 +2713,13 @@ extension CallTypeChecker {
                     ))
                     sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
                 }
+            }
+
+            if ["fold", "foldRight", "scan", "runningFold"].contains(calleeStr), args.count == 2 {
+                let initialType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+                bindBundledListAggregateSource(typeArguments: [collectionElementType, initialType])
+            } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull"), args.count == 1 {
+                bindBundledListAggregateSource(typeArguments: [collectionElementType])
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType

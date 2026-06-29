@@ -1,8 +1,20 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class MathSyntheticTopLevelLinkTests: XCTestCase {
+@Suite
+struct MathSyntheticTopLevelLinkTests {
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (#require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "math", member].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
@@ -28,7 +40,7 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
         return nil
     }
 
-    func testMathTopLevelSymbolsLinkToRuntimeFunctions() throws {
+    @Test func testMathTopLevelSymbolsLinkToRuntimeFunctions() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
@@ -40,16 +52,15 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
         ]
 
         for (name, expectedLink) in expected {
-            XCTAssertEqual(
-                externalLink(for: name, sema: sema, interner: interner),
-                expectedLink,
+            #expect(
+                externalLink(for: name, sema: sema, interner: interner) == expectedLink,
                 "\(name) in kotlin.math should link to runtime"
             )
         }
     }
 
     // STDLIB-500..509: Float overloads resolve alongside Double overloads
-    func testFloatMathOverloadsHaveExternalLinks() throws {
+    @Test func testFloatMathOverloadsHaveExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         // Each of these names should have at least two overloads registered
@@ -84,14 +95,14 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
             let hasFloatLink = allSymbols.contains { sym in
                 sema.symbols.externalLinkName(for: sym) == expectedLink
             }
-            XCTAssertTrue(
+            #expect(
                 hasFloatLink,
                 "Float overload for \(name) should link to \(expectedLink)"
             )
         }
     }
 
-    func testMathTopLevelCallsResolveWithKotlinMathImport() throws {
+    @Test func testMathTopLevelCallsResolveWithKotlinMathImport() throws {
         let source = """
         import kotlin.math.*
 
@@ -106,8 +117,8 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             var absCalls: [ExprID] = []
             var callByName: [String: [ExprID]] = [:]
 
@@ -123,7 +134,7 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
                 }
             }
 
-            XCTAssertEqual(absCalls.count, 2, "Expected int and double abs calls")
+            #expect(absCalls.count == 2, "Expected int and double abs calls")
 
             let expectedOrder: [(String, String)] = [
                 ("abs", "kk_math_abs_int"),
@@ -148,20 +159,19 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
                     return candidates[selectedIndex]
                 }()
 
-                let chosenCallee = try XCTUnwrap(
+                let chosenCallee = try #require(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected chosen callee for \(name)"
                 )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLink,
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == expectedLink,
                     "Expected \(name) to resolve"
                 )
             }
         }
     }
 
-    func testFloatingPrecisionHelpersResolveWithKotlinMathImport() throws {
+    @Test func testFloatingPrecisionHelpersResolveWithKotlinMathImport() throws {
         let source = """
         import kotlin.math.*
 
@@ -179,8 +189,8 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let expectedLinks = [
                 "kk_double_ulp",
                 "kk_double_nextUp",
@@ -206,12 +216,12 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
             }
 
             for expected in expectedLinks {
-                XCTAssertTrue(resolvedLinks.contains(expected), "Expected \(expected) to be resolved")
+                #expect(resolvedLinks.contains(expected), "Expected \(expected) to be resolved")
             }
         }
     }
 
-    func testMathExtensionPropertySymbolsUseOfficialShape() throws {
+    @Test func testMathExtensionPropertySymbolsUseOfficialShape() throws {
         let (sema, interner) = try makeSema()
         let expected: [(String, TypeID, TypeID, String)] = [
             ("absoluteValue", sema.types.doubleType, sema.types.doubleType, "kk_math_abs"),
@@ -227,21 +237,21 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
         ]
 
         for (name, receiverType, returnType, expectedLink) in expected {
-            let symbols = try XCTUnwrap(
+            let symbols = try #require(
                 mathExtensionProperty(named: name, receiverType: receiverType, sema: sema, interner: interner),
                 "Expected \(name) extension property for \(sema.types.renderType(receiverType))"
             )
-            XCTAssertEqual(sema.symbols.propertyType(for: symbols.property), returnType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbols.property), expectedLink)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: symbols.getter), expectedLink)
-            let getterSignature = try XCTUnwrap(sema.symbols.functionSignature(for: symbols.getter))
-            XCTAssertEqual(getterSignature.receiverType, receiverType)
-            XCTAssertEqual(getterSignature.parameterTypes, [])
-            XCTAssertEqual(getterSignature.returnType, returnType)
+            #expect(sema.symbols.propertyType(for: symbols.property) == returnType)
+            #expect(sema.symbols.externalLinkName(for: symbols.property) == expectedLink)
+            #expect(sema.symbols.externalLinkName(for: symbols.getter) == expectedLink)
+            let getterSignature = try #require(sema.symbols.functionSignature(for: symbols.getter))
+            #expect(getterSignature.receiverType == receiverType)
+            #expect(getterSignature.parameterTypes == [])
+            #expect(getterSignature.returnType == returnType)
         }
     }
 
-    func testMathExtensionPropertiesResolveWithKotlinMathImport() throws {
+    @Test func testMathExtensionPropertiesResolveWithKotlinMathImport() throws {
         let source = """
         import kotlin.math.*
 
@@ -263,9 +273,9 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected math extension properties to resolve without diagnostics.")
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            #expect(!(ctx.diagnostics.hasError), "Expected math extension properties to resolve without diagnostics.")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
             let propertyNames: Set<String> = ["absoluteValue", "sign", "ulp"]
             var resolvedLinks: [String] = []
             for exprIndex in ast.arena.exprs.indices {
@@ -293,12 +303,12 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
                 "kk_float_ulp",
                 "kk_double_ulp",
             ] {
-                XCTAssertTrue(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
+                #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
             }
         }
     }
 
-    func testDoublePowMemberCallResolvesViaMathExtensionStub() throws {
+    @Test func testDoublePowMemberCallResolvesViaMathExtensionStub() throws {
         let source = """
         import kotlin.math.*
 
@@ -311,11 +321,11 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected Double.pow member call to resolve without diagnostics.")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            #expect(!(ctx.diagnostics.hasError), "Expected Double.pow member call to resolve without diagnostics.")
 
-            let callExpr = try XCTUnwrap(
+            let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "pow"
@@ -323,18 +333,17 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
                 "Expected pow member call expression"
             )
 
-            let chosenCallee = try XCTUnwrap(
+            let chosenCallee = try #require(
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected chosen callee for Double.pow"
             )
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_math_pow"
+            #expect(
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_math_pow"
             )
         }
     }
 
-    func testRemainingFloatingMathMemberCallsResolveViaDefaultImport() throws {
+    @Test func testRemainingFloatingMathMemberCallsResolveViaDefaultImport() throws {
         let source = """
         import kotlin.math.*
 
@@ -357,9 +366,9 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Expected remaining math member calls to resolve without diagnostics.")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            #expect(!(ctx.diagnostics.hasError), "Expected remaining math member calls to resolve without diagnostics.")
 
             var resolvedLinks: [String] = []
             for exprIndex in ast.arena.exprs.indices {
@@ -388,8 +397,9 @@ final class MathSyntheticTopLevelLinkTests: XCTestCase {
                 "kk_math_withSign_float",
                 "kk_math_withSign_float_int",
             ] {
-                XCTAssertTrue(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
+                #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
             }
         }
     }
 }
+#endif

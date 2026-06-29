@@ -1,5 +1,5 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-014: Validates that `String.encodeToByteArray()` and its overloads
 /// resolve through Sema and link to the correct runtime entries.
@@ -12,8 +12,9 @@ import XCTest
 /// The synthetic extension functions are registered in
 /// `HeaderHelpers+SyntheticStringStubs.swift` (STDLIB-573/STDLIB-581), and the
 /// runtime implementation lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
-final class StringEncodeToByteArrayFunctionTests: XCTestCase {
-    func testEncodeToByteArrayNoArgResolvesInSource() throws {
+@Suite
+struct StringEncodeToByteArrayFunctionTests {
+    @Test func testEncodeToByteArrayNoArgResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun encode(s: String): ByteArray {
             return s.encodeToByteArray()
@@ -25,13 +26,13 @@ final class StringEncodeToByteArrayFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected encodeToByteArray() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testEncodeToByteArrayRangeResolvesInSource() throws {
+    @Test func testEncodeToByteArrayRangeResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun encodeSlice(s: String): ByteArray {
             return s.encodeToByteArray(1, 4)
@@ -43,13 +44,13 @@ final class StringEncodeToByteArrayFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected encodeToByteArray(startIndex, endIndex) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testEncodeToByteArrayCharsetResolvesInSource() throws {
+    @Test func testEncodeToByteArrayCharsetResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun encodeWithCharset(s: String): ByteArray {
             return s.encodeToByteArray(Charsets.UTF_8)
@@ -61,13 +62,13 @@ final class StringEncodeToByteArrayFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected encodeToByteArray(charset) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testEncodeToByteArrayChainedWithDecodeToStringResolvesInSource() throws {
+    @Test func testEncodeToByteArrayChainedWithDecodeToStringResolvesInSource() throws {
         // Validates that the returned ByteArray supports decodeToString
         let ctx = makeContextFromSource("""
         fun roundTrip(s: String): String {
@@ -76,7 +77,7 @@ final class StringEncodeToByteArrayFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected encodeToByteArray().decodeToString() chain to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

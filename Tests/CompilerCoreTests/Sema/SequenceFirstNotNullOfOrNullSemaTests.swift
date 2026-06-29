@@ -1,9 +1,10 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class SequenceFirstNotNullOfOrNullSemaTests: XCTestCase {
-    func testSequenceFirstNotNullOfOrNullInfersNullableTransformResult() throws {
+@Suite
+struct SequenceFirstNotNullOfOrNullSemaTests {
+    @Test func testSequenceFirstNotNullOfOrNullInfersNullableTransformResult() throws {
         let source = """
         fun probe(values: Sequence<Int>) {
             val result: String? = values.firstNotNullOfOrNull { if (it > 1) "hit" else null }
@@ -15,21 +16,20 @@ final class SequenceFirstNotNullOfOrNullSemaTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
-                "Expected firstNotNullOfOrNull to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+                Comment(rawValue: "Expected firstNotNullOfOrNull to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
             )
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "firstNotNullOfOrNull"
             })
 
-            XCTAssertEqual(
-                sema.bindings.exprType(for: callExpr),
-                sema.types.makeNullable(sema.types.stringType)
+            #expect(
+                sema.bindings.exprType(for: callExpr) == sema.types.makeNullable(sema.types.stringType)
             )
 
             let fqName = [
@@ -38,9 +38,10 @@ final class SequenceFirstNotNullOfOrNullSemaTests: XCTestCase {
                 ctx.interner.intern("Sequence"),
                 ctx.interner.intern("firstNotNullOfOrNull"),
             ]
-            XCTAssertTrue(sema.symbols.lookupAll(fqName: fqName).contains { candidate in
+            let v = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
                 sema.symbols.externalLinkName(for: candidate) == "kk_sequence_firstNotNullOfOrNull"
-            })
+            }
+            #expect(v)
         }
     }
 }

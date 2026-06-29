@@ -1,9 +1,13 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
+
+// MARK: - CLASS-001: End-to-end companion object (factory, const val, singleton)
 
 extension CompanionObjectTests {
-    func testCompanionFactoryFunctionResolvesEndToEnd() throws {
+    /// Verify `Foo.create()` companion factory resolves through sema with no errors.
+    @Test func testCompanionFactoryFunctionResolvesEndToEnd() throws {
         let source = """
         package test
         class Foo(val x: Int) {
@@ -18,13 +22,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for Foo.create(), got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
-    func testCompanionConstValAccessResolvesEndToEnd() throws {
+    /// Verify `Foo.MAX_COUNT` const val access resolves through sema with no errors.
+    @Test func testCompanionConstValAccessResolvesEndToEnd() throws {
         let source = """
         package test
         class Foo {
@@ -39,13 +44,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors for Foo.MAX_COUNT, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
-    func testCompanionFactoryAndConstValCombinedEndToEnd() throws {
+    /// Combined: factory function + const val in the same companion, used from main.
+    @Test func testCompanionFactoryAndConstValCombinedEndToEnd() throws {
         let source = """
         package test
         class Foo(val x: Int) {
@@ -62,13 +68,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no sema errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
-    func testCompanionFactoryAndConstValKIRLowering() throws {
+    /// Verify companion factory + const val lowers to KIR with companion init synthesized.
+    @Test func testCompanionFactoryAndConstValKIRLowering() throws {
         let source = """
         package test
         class Foo(val x: Int) {
@@ -85,29 +92,32 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
         let functionNames = module.arena.declarations.compactMap { decl -> String? in
             guard case let .function(function) = decl else { return nil }
             return ctx.interner.resolve(function.name)
         }
 
-        XCTAssertTrue(
+        // Companion initializer must be synthesized
+        #expect(
             functionNames.contains(where: { $0.hasPrefix("__companion_init_") }),
             "Expected synthesized companion initializer, got: \(functionNames)"
         )
 
-        XCTAssertTrue(
+        // The create function must be lowered
+        #expect(
             functionNames.contains("create"),
             "Expected companion function 'create' in KIR, got: \(functionNames)"
         )
     }
 
-    func testCompanionSingletonInitSynthesizedExactlyOnce() throws {
+    /// Verify exactly one companion singleton init function is synthesized.
+    @Test func testCompanionSingletonInitSynthesizedExactlyOnce() throws {
         let source = """
         class Host {
             companion object {
@@ -122,25 +132,26 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 
-        let module = try XCTUnwrap(ctx.kir)
+        let module = try #require(ctx.kir)
+        // Verify companion init function exists
         let companionInits = module.arena.declarations.compactMap { decl -> String? in
             guard case let .function(function) = decl else { return nil }
             let name = ctx.interner.resolve(function.name)
             return name.hasPrefix("__companion_init_") ? name : nil
         }
-        XCTAssertEqual(
-            companionInits.count,
-            1,
+        #expect(
+            companionInits.count == 1,
             "Expected exactly one companion initializer, got \(companionInits.count): \(companionInits)"
         )
     }
 
-    func testNamedCompanionFactoryResolvesEndToEnd() throws {
+    /// Named companion object should resolve factory calls via `ClassName.factoryFn()`.
+    @Test func testNamedCompanionFactoryResolvesEndToEnd() throws {
         let source = """
         package test
         class Widget {
@@ -155,13 +166,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no errors for named companion factory, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
-    func testCompanionObjectFullPipelineLowering() throws {
+    /// Companion lowering through the full pipeline including LoweringPhase.
+    @Test func testCompanionObjectFullPipelineLowering() throws {
         let source = """
         class Foo(val x: Int) {
             companion object {
@@ -177,13 +189,14 @@ extension CompanionObjectTests {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
 
-        XCTAssertFalse(
-            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+        #expect(
+            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
             "Expected no errors after full lowering, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
 
-    func testCompanionPropertyInitializerInKIRBody() throws {
+    /// Companion object with property initializer generates correct KIR body.
+    @Test func testCompanionPropertyInitializerInKIRBody() throws {
         let source = """
         class Config {
             companion object {
@@ -197,23 +210,26 @@ extension CompanionObjectTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            XCTAssertFalse(
-                ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+            #expect(
+                !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
                 "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
             )
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
+            // Find the companion init function and verify it has a copy instruction
+            // (property initialization writes the initial value)
             let companionInitFn = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else { return nil }
                 let name = ctx.interner.resolve(function.name)
                 return name.hasPrefix("__companion_init_") ? function : nil
             }.first
-            let initBody = try XCTUnwrap(companionInitFn, "Expected companion init function").body
+            let initBody = try #require(companionInitFn, "Expected companion init function").body
             let hasCopy = initBody.contains { instruction in
                 if case .copy = instruction { return true }
                 return false
             }
-            XCTAssertTrue(hasCopy, "Expected copy instruction in companion init body for property initialization")
+            #expect(hasCopy, "Expected copy instruction in companion init body for property initialization")
         }
     }
 }
+#endif

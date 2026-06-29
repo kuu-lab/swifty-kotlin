@@ -3,6 +3,17 @@
 ///
 /// Specialized lowering families live in adjacent `CallLowerer+*MemberCall*.swift` files.
 extension CallLowerer {
+    private static let kclassMembers: Set<String> = [
+        "isInstance", "cast", "safeCast", "members", "constructors", "primaryConstructor",
+        "properties", "memberProperties", "declaredMemberProperties",
+        "functions", "memberFunctions", "declaredMemberFunctions",
+        "isFinal", "isOpen", "isAbstract", "visibility",
+        "isData", "isSealed", "isValue",
+        "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
+        "typeParameters", "supertypes",
+        "annotations", "findAnnotation", "findAssociatedObject",
+    ]
+
     func lowerMemberCallExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -246,17 +257,7 @@ extension CallLowerer {
             // STDLIB-REFLECT-061: properties, memberProperties, functions, memberFunctions, declaredMemberProperties, declaredMemberFunctions
             // STDLIB-REFLECT-060 / STDLIB-REFLECT-064: basic metadata and primaryConstructor
             // STDLIB-REFLECT-065: annotations, findAnnotation
-            let kclassCallees: Set<String> = [
-                "isInstance", "cast", "safeCast", "members", "constructors", "primaryConstructor",
-                "properties", "memberProperties", "declaredMemberProperties",
-                "functions", "memberFunctions", "declaredMemberFunctions",
-                "isFinal", "isOpen", "isAbstract", "visibility",
-                "isData", "isSealed", "isValue",
-                "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
-                "typeParameters", "supertypes",
-                "annotations", "findAnnotation", "findAssociatedObject",
-            ]
-            if kclassCallees.contains(callee) {
+            if CallLowerer.kclassMembers.contains(callee) {
                 return lowerKClassReflectMemberCall(
                     exprID,
                     classRefTargetType: classRefTargetType,
@@ -280,17 +281,7 @@ extension CallLowerer {
            isKClassReceiverType(receiverType, sema: sema, interner: interner)
         {
             let callee = interner.resolve(calleeName)
-            let kclassVarCallees: Set<String> = [
-                "isInstance", "cast", "safeCast", "members", "constructors", "primaryConstructor",
-                "properties", "memberProperties", "declaredMemberProperties",
-                "functions", "memberFunctions", "declaredMemberFunctions",
-                "isFinal", "isOpen", "isAbstract", "visibility",
-                "isData", "isSealed", "isValue",
-                "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
-                "typeParameters", "supertypes",
-                "annotations", "findAnnotation", "findAssociatedObject",
-            ]
-            if kclassVarCallees.contains(callee) {
+            if CallLowerer.kclassMembers.contains(callee) {
                 return lowerKClassVarReflectMemberCall(
                     exprID,
                     receiverExpr: receiverExpr,

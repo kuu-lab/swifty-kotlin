@@ -1,9 +1,42 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class UuidPutUuidSemaTests: XCTestCase {
+// MARK: - ByteArray.putUuid / ByteArray.uuid sema stub tests
+//
+// Verifies that the two kotlin.uuid extension functions on ByteArray are
+// registered with the correct ABI link names, receiver types, parameter types,
+// return types, and @ExperimentalUuidApi opt-in annotations.
 
+@Suite
+struct UuidPutUuidSemaTests {
+
+    // MARK: - Shared fixture
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    private func allExternalLinks(
+        fqPath: [String],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Set<String> {
+        let interned = fqPath.map { interner.intern($0) }
+        return Set(
+            sema.symbols.lookupAll(fqName: interned)
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
+    }
+
+    /// Finds the first symbol at `fqPath` whose receiver type matches `byteArraySymbol`.
     private func findByteArrayExtensionSymbol(
         fqPath: [String],
         byteArraySymbol: SymbolID,
@@ -27,6 +60,7 @@ final class UuidPutUuidSemaTests: XCTestCase {
 
     // MARK: - putUuid registration
 
+    @Test
     func testPutUuidExtensionFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -34,19 +68,20 @@ final class UuidPutUuidSemaTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_byteArray_putUuid"),
             "ByteArray.putUuid must link to kk_byteArray_putUuid; found: \(links)"
         )
     }
 
+    @Test
     func testPutUuidHasByteArrayReceiver() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(
+        let byteArraySym = try #require(
             byteArraySymbol(sema: sema, interner: interner),
             "kotlin.ByteArray must be registered"
         )
-        let sym = try XCTUnwrap(
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "putUuid"],
                 byteArraySymbol: byteArraySym,
@@ -55,18 +90,19 @@ final class UuidPutUuidSemaTests: XCTestCase {
             ),
             "ByteArray.putUuid extension function must be registered with ByteArray receiver"
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
-        let receiverType = try XCTUnwrap(sig.receiverType)
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
+        let receiverType = try #require(sig.receiverType)
         guard case .classType(let ct) = sema.types.kind(of: receiverType) else {
-            XCTFail("putUuid receiver must be a class type"); return
+            Issue.record("putUuid receiver must be a class type"); return
         }
-        XCTAssertEqual(ct.classSymbol, byteArraySym, "putUuid receiver must be kotlin.ByteArray")
+        #expect(ct.classSymbol == byteArraySym, "putUuid receiver must be kotlin.ByteArray")
     }
 
+    @Test
     func testPutUuidHasTwoParameters() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(byteArraySymbol(sema: sema, interner: interner))
-        let sym = try XCTUnwrap(
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "putUuid"],
                 byteArraySymbol: byteArraySym,
@@ -74,14 +110,15 @@ final class UuidPutUuidSemaTests: XCTestCase {
                 interner: interner
             )
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
-        XCTAssertEqual(sig.parameterTypes.count, 2, "putUuid must take exactly 2 parameters (at: Int, uuid: Uuid)")
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
+        #expect(sig.parameterTypes.count == 2, "putUuid must take exactly 2 parameters (at: Int, uuid: Uuid)")
     }
 
+    @Test
     func testPutUuidFirstParameterIsInt() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(byteArraySymbol(sema: sema, interner: interner))
-        let sym = try XCTUnwrap(
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "putUuid"],
                 byteArraySymbol: byteArraySym,
@@ -89,17 +126,18 @@ final class UuidPutUuidSemaTests: XCTestCase {
                 interner: interner
             )
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.intType,
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
+        #expect(
+            sig.parameterTypes[0] == sema.types.intType,
             "putUuid first parameter (at) must be Int"
         )
     }
 
+    @Test
     func testPutUuidSecondParameterIsUuid() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(byteArraySymbol(sema: sema, interner: interner))
-        let sym = try XCTUnwrap(
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "putUuid"],
                 byteArraySymbol: byteArraySym,
@@ -107,21 +145,22 @@ final class UuidPutUuidSemaTests: XCTestCase {
                 interner: interner
             )
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try XCTUnwrap(sema.symbols.lookup(fqName: uuidFQ))
+        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
 
         guard case .classType(let ct) = sema.types.kind(of: sig.parameterTypes[1]) else {
-            XCTFail("putUuid second parameter must be a class type"); return
+            Issue.record("putUuid second parameter must be a class type"); return
         }
-        XCTAssertEqual(ct.classSymbol, uuidSym, "putUuid second parameter (uuid) must be kotlin.uuid.Uuid")
+        #expect(ct.classSymbol == uuidSym, "putUuid second parameter (uuid) must be kotlin.uuid.Uuid")
     }
 
+    @Test
     func testPutUuidReturnsUnit() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(byteArraySymbol(sema: sema, interner: interner))
-        let sym = try XCTUnwrap(
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "putUuid"],
                 byteArraySymbol: byteArraySym,
@@ -129,19 +168,20 @@ final class UuidPutUuidSemaTests: XCTestCase {
                 interner: interner
             )
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
-        XCTAssertEqual(
-            sig.returnType, sema.types.unitType,
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
+        #expect(
+            sig.returnType == sema.types.unitType,
             "putUuid must return Unit"
         )
     }
 
+    @Test
     func testPutUuidIsTaggedExperimentalUuidApi() throws {
         let (sema, interner) = try makeSema()
         let interned = ["kotlin", "uuid", "putUuid"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: interned)
-        XCTAssertFalse(syms.isEmpty, "putUuid must be registered")
-        XCTAssertTrue(
+        #expect(!syms.isEmpty, "putUuid must be registered")
+        #expect(
             syms.contains { sym in
                 sema.symbols.annotations(for: sym).contains {
                     $0.annotationFQName == "kotlin.uuid.ExperimentalUuidApi"
@@ -153,6 +193,7 @@ final class UuidPutUuidSemaTests: XCTestCase {
 
     // MARK: - uuid(at:) registration
 
+    @Test
     func testUuidAtExtensionFunctionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -160,16 +201,17 @@ final class UuidPutUuidSemaTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_byteArray_uuid"),
             "ByteArray.uuid must link to kk_byteArray_uuid; found: \(links)"
         )
     }
 
+    @Test
     func testUuidAtHasByteArrayReceiver() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(byteArraySymbol(sema: sema, interner: interner))
-        let sym = try XCTUnwrap(
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "uuid"],
                 byteArraySymbol: byteArraySym,
@@ -178,18 +220,19 @@ final class UuidPutUuidSemaTests: XCTestCase {
             ),
             "ByteArray.uuid extension function must be registered with ByteArray receiver"
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
-        let receiverType = try XCTUnwrap(sig.receiverType)
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
+        let receiverType = try #require(sig.receiverType)
         guard case .classType(let ct) = sema.types.kind(of: receiverType) else {
-            XCTFail("uuid receiver must be a class type"); return
+            Issue.record("uuid receiver must be a class type"); return
         }
-        XCTAssertEqual(ct.classSymbol, byteArraySym, "uuid receiver must be kotlin.ByteArray")
+        #expect(ct.classSymbol == byteArraySym, "uuid receiver must be kotlin.ByteArray")
     }
 
+    @Test
     func testUuidAtHasOneParameter() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(byteArraySymbol(sema: sema, interner: interner))
-        let sym = try XCTUnwrap(
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "uuid"],
                 byteArraySymbol: byteArraySym,
@@ -197,18 +240,19 @@ final class UuidPutUuidSemaTests: XCTestCase {
                 interner: interner
             )
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
-        XCTAssertEqual(sig.parameterTypes.count, 1, "uuid(at:) must take exactly 1 parameter")
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.intType,
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
+        #expect(sig.parameterTypes.count == 1, "uuid(at:) must take exactly 1 parameter")
+        #expect(
+            sig.parameterTypes[0] == sema.types.intType,
             "uuid(at:) parameter (at) must be Int"
         )
     }
 
+    @Test
     func testUuidAtReturnsUuid() throws {
         let (sema, interner) = try makeSema()
-        let byteArraySym = try XCTUnwrap(byteArraySymbol(sema: sema, interner: interner))
-        let sym = try XCTUnwrap(
+        let byteArraySym = try #require(byteArraySymbol(sema: sema, interner: interner))
+        let sym = try #require(
             findByteArrayExtensionSymbol(
                 fqPath: ["kotlin", "uuid", "uuid"],
                 byteArraySymbol: byteArraySym,
@@ -216,23 +260,24 @@ final class UuidPutUuidSemaTests: XCTestCase {
                 interner: interner
             )
         )
-        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: sym))
+        let sig = try #require(sema.symbols.functionSignature(for: sym))
 
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try XCTUnwrap(sema.symbols.lookup(fqName: uuidFQ))
+        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
 
         guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
-            XCTFail("uuid(at:) return type must be a class type"); return
+            Issue.record("uuid(at:) return type must be a class type"); return
         }
-        XCTAssertEqual(ct.classSymbol, uuidSym, "uuid(at:) must return kotlin.uuid.Uuid")
+        #expect(ct.classSymbol == uuidSym, "uuid(at:) must return kotlin.uuid.Uuid")
     }
 
+    @Test
     func testUuidAtIsTaggedExperimentalUuidApi() throws {
         let (sema, interner) = try makeSema()
         let interned = ["kotlin", "uuid", "uuid"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: interned)
-        XCTAssertFalse(syms.isEmpty, "uuid(at:) must be registered")
-        XCTAssertTrue(
+        #expect(!syms.isEmpty, "uuid(at:) must be registered")
+        #expect(
             syms.contains { sym in
                 sema.symbols.annotations(for: sym).contains {
                     $0.annotationFQName == "kotlin.uuid.ExperimentalUuidApi"
@@ -244,15 +289,16 @@ final class UuidPutUuidSemaTests: XCTestCase {
 
     // MARK: - Both functions distinct
 
+    @Test
     func testPutUuidAndUuidAtAreDistinctSymbols() throws {
         let (sema, interner) = try makeSema()
         let putUuidFQ = ["kotlin", "uuid", "putUuid"].map { interner.intern($0) }
         let uuidFQ = ["kotlin", "uuid", "uuid"].map { interner.intern($0) }
         let putUuidSyms = Set(sema.symbols.lookupAll(fqName: putUuidFQ))
         let uuidSyms = Set(sema.symbols.lookupAll(fqName: uuidFQ))
-        XCTAssertFalse(putUuidSyms.isEmpty, "putUuid must be registered")
-        XCTAssertFalse(uuidSyms.isEmpty, "uuid(at:) must be registered")
-        XCTAssertTrue(
+        #expect(!putUuidSyms.isEmpty, "putUuid must be registered")
+        #expect(!uuidSyms.isEmpty, "uuid(at:) must be registered")
+        #expect(
             putUuidSyms.isDisjoint(with: uuidSyms),
             "putUuid and uuid(at:) must have distinct SymbolIDs"
         )

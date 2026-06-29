@@ -1,7 +1,8 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 extension TypeCheckHelpersCoverageTests {
+    @Test
     func testEmitVisibilityErrorAndBindErrorType() throws {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
@@ -25,27 +26,28 @@ extension TypeCheckHelpersCoverageTests {
         let protectedSymbol = fixture.symbols.symbol(protectedSymbolID)
 
         try helpers.emitVisibilityError(
-            for: XCTUnwrap(privateSymbol),
+            for: try #require(privateSymbol),
             name: "privateFn",
             range: makeRange(),
             diagnostics: fixture.diagnostics
         )
         try helpers.emitVisibilityError(
-            for: XCTUnwrap(protectedSymbol),
+            for: try #require(protectedSymbol),
             name: "protectedFn",
             range: makeRange(),
             diagnostics: fixture.diagnostics
         )
 
-        XCTAssertTrue(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
-        XCTAssertTrue(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0041" })
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0041" })
 
         let exprID = ExprID(rawValue: 123)
         let result = helpers.bindAndReturnErrorType(exprID, sema: fixture.sema)
-        XCTAssertEqual(result, fixture.types.errorType)
-        XCTAssertEqual(fixture.bindings.exprType(for: exprID), fixture.types.errorType)
+        #expect(result == fixture.types.errorType)
+        #expect(fixture.bindings.exprType(for: exprID) == fixture.types.errorType)
     }
 
+    @Test
     func testStableLocalSymbolIterableAndBuiltinReturnTypes() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
@@ -73,10 +75,10 @@ extension TypeCheckHelpersCoverageTests {
             visibility: .public
         )
 
-        XCTAssertTrue(helpers.isStableLocalSymbol(stableLocal, sema: fixture.sema))
-        XCTAssertFalse(helpers.isStableLocalSymbol(mutableLocal, sema: fixture.sema))
-        XCTAssertFalse(helpers.isStableLocalSymbol(fnSymbol, sema: fixture.sema))
-        XCTAssertFalse(helpers.isStableLocalSymbol(SymbolID(rawValue: 999), sema: fixture.sema))
+        #expect(helpers.isStableLocalSymbol(stableLocal, sema: fixture.sema))
+        #expect(!(helpers.isStableLocalSymbol(mutableLocal, sema: fixture.sema)))
+        #expect(!(helpers.isStableLocalSymbol(fnSymbol, sema: fixture.sema)))
+        #expect(!(helpers.isStableLocalSymbol(SymbolID(rawValue: 999), sema: fixture.sema)))
 
         let intArraySymbol = fixture.symbols.define(
             kind: .class,
@@ -89,104 +91,105 @@ extension TypeCheckHelpersCoverageTests {
             .classType(ClassType(classSymbol: intArraySymbol, args: [], nullability: .nonNull))
         )
 
-        XCTAssertEqual(
-            helpers.arrayElementType(for: intArrayType, sema: fixture.sema, interner: fixture.interner),
+        #expect(
+            helpers.arrayElementType(for: intArrayType, sema: fixture.sema, interner: fixture.interner) ==
             fixture.types.intType
         )
-        XCTAssertNil(
-            helpers.arrayElementType(for: fixture.types.intType, sema: fixture.sema, interner: fixture.interner)
+        #expect(
+            helpers.arrayElementType(for: fixture.types.intType, sema: fixture.sema, interner: fixture.interner) == nil
         )
 
-        XCTAssertEqual(
-            helpers.iterableElementType(for: fixture.types.intType, isRangeExpr: true, sema: fixture.sema, interner: fixture.interner),
+        #expect(
+            helpers.iterableElementType(for: fixture.types.intType, isRangeExpr: true, sema: fixture.sema, interner: fixture.interner) ==
             fixture.types.intType
         )
-        XCTAssertEqual(
-            helpers.iterableElementType(for: intArrayType, isRangeExpr: false, sema: fixture.sema, interner: fixture.interner),
+        #expect(
+            helpers.iterableElementType(for: intArrayType, isRangeExpr: false, sema: fixture.sema, interner: fixture.interner) ==
             fixture.types.intType
         )
 
-        XCTAssertEqual(
+        #expect(
             helpers.kxMiniCoroutineBuiltinReturnType(
                 calleeName: fixture.interner.intern("runBlocking"),
                 argumentCount: 1,
                 sema: fixture.sema,
                 interner: fixture.interner
-            ),
+            ) ==
             fixture.types.anyType
         )
-        XCTAssertEqual(
+        #expect(
             helpers.kxMiniCoroutineBuiltinReturnType(
                 calleeName: fixture.interner.intern("launch"),
                 argumentCount: 1,
                 sema: fixture.sema,
                 interner: fixture.interner
-            ),
+            ) ==
             fixture.types.anyType
         )
-        XCTAssertEqual(
+        #expect(
             helpers.kxMiniCoroutineBuiltinReturnType(
                 calleeName: fixture.interner.intern("kk_array_get"),
                 argumentCount: 2,
                 sema: fixture.sema,
                 interner: fixture.interner
-            ),
+            ) ==
             fixture.types.anyType
         )
-        XCTAssertEqual(
+        #expect(
             helpers.kxMiniCoroutineBuiltinReturnType(
                 calleeName: fixture.interner.intern("kk_list_get"),
                 argumentCount: 2,
                 sema: fixture.sema,
                 interner: fixture.interner
-            ),
+            ) ==
             fixture.types.anyType
         )
-        XCTAssertNil(
+        #expect(
             helpers.kxMiniCoroutineBuiltinReturnType(
                 calleeName: fixture.interner.intern("unknown"),
                 argumentCount: 1,
                 sema: fixture.sema,
                 interner: fixture.interner
-            )
+            ) == nil
         )
-        XCTAssertNil(
+        #expect(
             helpers.kxMiniCoroutineBuiltinReturnType(
                 calleeName: nil,
                 argumentCount: 1,
                 sema: fixture.sema,
                 interner: fixture.interner
-            )
+            ) == nil
         )
     }
 
+    @Test
     func testResolveBuiltinAndTypeRefVariants() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
 
-        XCTAssertEqual(
-            helpers.resolveBuiltinTypeName(fixture.interner.intern("Int"), types: fixture.types, interner: fixture.interner),
+        #expect(
+            helpers.resolveBuiltinTypeName(fixture.interner.intern("Int"), types: fixture.types, interner: fixture.interner) ==
             fixture.types.intType
         )
-        XCTAssertEqual(
+        #expect(
             helpers.resolveBuiltinTypeName(
                 fixture.interner.intern("Any"),
                 nullability: .nullable,
                 types: fixture.types,
                 interner: fixture.interner
-            ),
+            ) ==
             fixture.types.nullableAnyType
         )
-        XCTAssertEqual(
+        #expect(
             helpers.resolveBuiltinTypeName(
                 fixture.interner.intern("Nothing"),
                 nullability: .nullable,
                 types: fixture.types,
                 interner: fixture.interner
-            ),
+            ) ==
             fixture.types.nullableNothingType
         )
-        XCTAssertNil(helpers.resolveBuiltinTypeName(fixture.interner.intern("Unknown"), types: fixture.types, interner: fixture.interner))
+        #expect(helpers.resolveBuiltinTypeName(fixture.interner.intern("Unknown"), types: fixture.types, interner: fixture.interner) == nil)
 
         let intRef = fixture.astArena.appendTypeRef(
             .named(path: [fixture.interner.intern("Int")], args: [], nullable: false)
@@ -199,18 +202,18 @@ extension TypeCheckHelpersCoverageTests {
         )
         let intersectionRef = fixture.astArena.appendTypeRef(.intersection(parts: [intRef, nullableIntRef]))
 
-        XCTAssertEqual(
-            helpers.resolveTypeRef(intRef, ast: fixture.ast, sema: fixture.sema, interner: fixture.interner),
+        #expect(
+            helpers.resolveTypeRef(intRef, ast: fixture.ast, sema: fixture.sema, interner: fixture.interner) ==
             fixture.types.intType
         )
 
         let resolvedFn = helpers.resolveTypeRef(fnRef, ast: fixture.ast, sema: fixture.sema, interner: fixture.interner)
         if case let .functionType(ft) = fixture.types.kind(of: resolvedFn) {
-            XCTAssertEqual(ft.params, [fixture.types.intType])
-            XCTAssertEqual(ft.returnType, fixture.types.make(.primitive(.int, .nullable)))
-            XCTAssertTrue(ft.isSuspend)
+            #expect(ft.params == [fixture.types.intType])
+            #expect(ft.returnType == fixture.types.make(.primitive(.int, .nullable)))
+            #expect(ft.isSuspend)
         } else {
-            XCTFail("Expected functionType")
+            Issue.record("Expected functionType")
         }
 
         let resolvedIntersection = helpers.resolveTypeRef(
@@ -220,9 +223,9 @@ extension TypeCheckHelpersCoverageTests {
             interner: fixture.interner
         )
         if case let .intersection(parts) = fixture.types.kind(of: resolvedIntersection) {
-            XCTAssertEqual(parts.count, 2)
+            #expect(parts.count == 2)
         } else {
-            XCTFail("Expected intersection")
+            Issue.record("Expected intersection")
         }
 
         let unresolvedRef = fixture.astArena.appendTypeRef(
@@ -235,15 +238,16 @@ extension TypeCheckHelpersCoverageTests {
             interner: fixture.interner,
             diagnostics: fixture.diagnostics
         )
-        XCTAssertEqual(unresolved, fixture.types.errorType)
-        XCTAssertTrue(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0025" })
+        #expect(unresolved == fixture.types.errorType)
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0025" })
 
-        XCTAssertEqual(
-            helpers.resolveTypeRef(TypeRefID(rawValue: 9999), ast: fixture.ast, sema: fixture.sema, interner: fixture.interner),
+        #expect(
+            helpers.resolveTypeRef(TypeRefID(rawValue: 9999), ast: fixture.ast, sema: fixture.sema, interner: fixture.interner) ==
             fixture.types.errorType
         )
     }
 
+    @Test
     func testResolveAnnotatedExtensionFunctionTypeVariants() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
@@ -288,13 +292,13 @@ extension TypeCheckHelpersCoverageTests {
         )
 
         if case let .functionType(ft) = fixture.types.kind(of: resolved) {
-            XCTAssertEqual(ft.receiver, fixture.types.intType)
-            XCTAssertEqual(ft.params, [fixture.types.intType])
-            XCTAssertEqual(ft.returnType, fixture.types.intType)
-            XCTAssertFalse(ft.isSuspend)
-            XCTAssertEqual(ft.nullability, .nonNull)
+            #expect(ft.receiver == fixture.types.intType)
+            #expect(ft.params == [fixture.types.intType])
+            #expect(ft.returnType == fixture.types.intType)
+            #expect(!(ft.isSuspend))
+            #expect(ft.nullability == .nonNull)
         } else {
-            XCTFail("Expected extension function type to normalize to functionType")
+            Issue.record("Expected extension function type to normalize to functionType")
         }
 
         let listRef = fixture.astArena.appendTypeRef(
@@ -311,7 +315,7 @@ extension TypeCheckHelpersCoverageTests {
             diagnostics: fixture.diagnostics
         )
 
-        XCTAssertEqual(invalidResult, fixture.types.errorType)
-        XCTAssertTrue(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-EXTFN-TYPE" })
+        #expect(invalidResult == fixture.types.errorType)
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-EXTFN-TYPE" })
     }
 }

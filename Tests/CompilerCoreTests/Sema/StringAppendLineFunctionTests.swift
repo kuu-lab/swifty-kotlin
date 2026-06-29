@@ -1,15 +1,16 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-004: Validates that `StringBuilder.appendLine` overloads resolve
 /// through Sema, dispatching to the runtime link names
 /// `kk_string_builder_append_line_obj` (value overload) and
 /// `kk_string_builder_append_line_noarg_obj` (no-arg overload).
-final class StringAppendLineFunctionTests: XCTestCase {
+@Suite
+struct StringAppendLineFunctionTests {
 
     // MARK: - appendLine(value) overload
 
-    func testAppendLineWithValueResolvesWithoutErrors() throws {
+    @Test func testAppendLineWithValueResolvesWithoutErrors() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -20,7 +21,7 @@ final class StringAppendLineFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected appendLine(String) to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -28,7 +29,7 @@ final class StringAppendLineFunctionTests: XCTestCase {
 
     // MARK: - appendLine() no-arg overload
 
-    func testAppendLineNoArgResolvesWithoutErrors() throws {
+    @Test func testAppendLineNoArgResolvesWithoutErrors() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -38,7 +39,7 @@ final class StringAppendLineFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected appendLine() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -46,7 +47,7 @@ final class StringAppendLineFunctionTests: XCTestCase {
 
     // MARK: - appendLine returns StringBuilder (chaining)
 
-    func testAppendLineChainingResolvesWithoutErrors() throws {
+    @Test func testAppendLineChainingResolvesWithoutErrors() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val result = StringBuilder()
@@ -59,7 +60,7 @@ final class StringAppendLineFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected chained appendLine calls to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -67,7 +68,7 @@ final class StringAppendLineFunctionTests: XCTestCase {
 
     // MARK: - Runtime link name registration
 
-    func testAppendLineWithValueLinksToCorrectRuntimeSymbol() throws {
+    @Test func testAppendLineWithValueLinksToCorrectRuntimeSymbol() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -87,17 +88,16 @@ final class StringAppendLineFunctionTests: XCTestCase {
             guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
             return sig.parameterTypes.count == 1
         }
-        XCTAssertNotNil(valueOverload, "appendLine(value) overload should be registered")
+        #expect(valueOverload != nil, "appendLine(value) overload should be registered")
         if let sym = valueOverload {
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: sym),
-                "kk_string_builder_append_line_obj",
+            #expect(
+                sema.symbols.externalLinkName(for: sym) == "kk_string_builder_append_line_obj",
                 "appendLine(value) should link to kk_string_builder_append_line_obj"
             )
         }
     }
 
-    func testAppendLineNoArgLinksToCorrectRuntimeSymbol() throws {
+    @Test func testAppendLineNoArgLinksToCorrectRuntimeSymbol() throws {
         let ctx = makeContextFromSource("""
         fun main() {
             val sb = StringBuilder()
@@ -117,11 +117,10 @@ final class StringAppendLineFunctionTests: XCTestCase {
             guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
             return sig.parameterTypes.isEmpty
         }
-        XCTAssertNotNil(noArgOverload, "appendLine() no-arg overload should be registered")
+        #expect(noArgOverload != nil, "appendLine() no-arg overload should be registered")
         if let sym = noArgOverload {
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: sym),
-                "kk_string_builder_append_line_noarg_obj",
+            #expect(
+                sema.symbols.externalLinkName(for: sym) == "kk_string_builder_append_line_noarg_obj",
                 "appendLine() should link to kk_string_builder_append_line_noarg_obj"
             )
         }

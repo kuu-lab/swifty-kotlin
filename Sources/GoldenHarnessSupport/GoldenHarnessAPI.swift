@@ -77,19 +77,27 @@ public enum GoldenHarness {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        drain(pipe: stdout, into: stdoutAccumulator)
-        drain(pipe: stderr, into: stderrAccumulator)
-        defer {
-            stdoutHandle.readabilityHandler = nil
-            stderrHandle.readabilityHandler = nil
+        // Drain stdout and stderr on dedicated background threads so the subprocess
+        // is never stalled by a full pipe buffer (~64 KB on Linux). A single
+        // readDataToEndOfFile() per pipe reads all bytes in arrival order without
+        // the data-interleaving race that occurs when readabilityHandler callbacks
+        // run concurrently with a subsequent readDataToEndOfFile() call.
+        let ioGroup = DispatchGroup()
+        ioGroup.enter()
+        DispatchQueue.global(qos: .utility).async {
+            stdoutAccumulator.append(stdoutHandle.readDataToEndOfFile())
+            ioGroup.leave()
+        }
+        ioGroup.enter()
+        DispatchQueue.global(qos: .utility).async {
+            stderrAccumulator.append(stderrHandle.readDataToEndOfFile())
+            ioGroup.leave()
         }
 
+        let terminatedSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in terminatedSemaphore.signal() }
         try process.run()
-        let deadline = Date().addingTimeInterval(subprocessTimeout)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: processPollIntervalSeconds)
-        }
-        if process.isRunning {
+        if terminatedSemaphore.wait(timeout: .now() + subprocessTimeout) == .timedOut {
             process.terminate()
             // Wait for process to exit after terminate to avoid zombie processes
             let terminateDeadline = Date().addingTimeInterval(terminationGracePeriodSeconds)
@@ -110,12 +118,10 @@ public enum GoldenHarness {
                 while process.isRunning, Date() < sigkillDeadline {
                     Thread.sleep(forTimeInterval: processPollIntervalSeconds)
                 }
-                // Verify process exited after SIGKILL
-                if process.isRunning {
-                    // Process is still running despite SIGKILL - this is unusual but possible
-                    // Include this information in the error message
-                }
             }
+            // Process has exited (or survived SIGKILL). The write ends of the pipes are
+            // now closed, so the reader tasks reach EOF and complete.
+            ioGroup.wait()
             let stderrText = String(data: stderrAccumulator.snapshot(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let errorMessage = process.isRunning
                 ? "Worker timed out and survived SIGKILL. \(stderrText)"
@@ -123,15 +129,8 @@ public enum GoldenHarness {
             throw GoldenHarnessAPIError.workerTimedOut(errorMessage)
         }
 
-        // Process has terminated, so stop event-based drain and read remaining data
-        stdoutHandle.readabilityHandler = nil
-        stderrHandle.readabilityHandler = nil
-
-        // Read any remaining data from pipes (safe since process has terminated)
-        let remainingStdout = stdoutHandle.readDataToEndOfFile()
-        let remainingStderr = stderrHandle.readDataToEndOfFile()
-        stdoutAccumulator.append(remainingStdout)
-        stderrAccumulator.append(remainingStderr)
+        // Process terminated normally; wait for readers to finish collecting all data.
+        ioGroup.wait()
 
         let stdoutData = stdoutAccumulator.snapshot()
         let stderrData = stderrAccumulator.snapshot()
@@ -191,7 +190,7 @@ public enum GoldenHarness {
         case .diagnostics:
             GoldenHarnessDiagnosticsComparisonNormalizer.normalize(output)
         case .lexer, .parser:
-            output
+            GoldenHarnessFileIDNormalizer.normalize(output)
         }
     }
 
@@ -274,19 +273,16 @@ public enum GoldenHarness {
         throw GoldenHarnessAPIError.workerExecutableNotFound("\(workerName) (searched: \(searchedPaths))")
     }
 
-    private static func drain(
-        pipe: Pipe,
-        into accumulator: DataAccumulator
-    ) {
-        let handle = pipe.fileHandleForReading
-        handle.readabilityHandler = { readableHandle in
-            let data = readableHandle.availableData
-            if data.isEmpty {
-                readableHandle.readabilityHandler = nil
-                return
-            }
-            accumulator.append(data)
-        }
+}
+
+private enum GoldenHarnessFileIDNormalizer {
+    // swiftlint:disable:next force_try
+    private static let fileIDRegex = try! NSRegularExpression(pattern: "f\\d+:")
+
+    static func normalize(_ output: String) -> String {
+        let nsOutput = output as NSString
+        let range = NSRange(location: 0, length: nsOutput.length)
+        return fileIDRegex.stringByReplacingMatches(in: output, range: range, withTemplate: "f0:")
     }
 }
 
@@ -341,15 +337,41 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     private static let localNameOrdinalRegex = try! NSRegularExpression(pattern: "(__local_)(\\d+)")
     // swiftlint:disable:next force_try
     private static let forVarOrdinalRegex = try! NSRegularExpression(pattern: "(__for_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let destructuringOrdinalRegex = try! NSRegularExpression(pattern: "(__destructuring_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let forDestructuringOrdinalRegex = try! NSRegularExpression(pattern: "(__for_destructuring_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let tryOrdinalRegex = try! NSRegularExpression(pattern: "(__try_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let whenOrdinalRegex = try! NSRegularExpression(pattern: "(__when_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let localFunOrdinalRegex = try! NSRegularExpression(pattern: "(__localfun_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let exprIDRegex = try! NSRegularExpression(pattern: "(?<=[ =:\\[(,>])(e)(\\d+)(?![a-zA-Z_])")
+    // swiftlint:disable:next force_try
+    private static let declIDRegex = try! NSRegularExpression(pattern: "(decl d)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let typeIDRegex = try! NSRegularExpression(pattern: "(?<=[ =\\[(,])(t)(\\d+)(?![a-zA-Z_])")
 
     static func normalize(_ output: String) -> String {
         var normalized = output
+        // Scope prefix ordinals
         normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: tpScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: syntheticScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: localNameOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: forDestructuringOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: forVarOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: destructuringOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: tryOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: whenOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: localFunOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: negativeSymbolReferenceRegex)
+        // Arena allocation IDs
+        normalized = rewriteOrdinalMatches(in: normalized, regex: exprIDRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: declIDRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: typeIDRegex)
         return normalized
     }
 
@@ -400,12 +422,10 @@ private final class DataAccumulator: @unchecked Sendable {
     private var buffer = Data()
 
     func append(_ data: Data) {
-        guard !data.isEmpty else {
-            return
-        }
+        guard !data.isEmpty else { return }
         lock.lock()
+        defer { lock.unlock() }
         buffer.append(data)
-        lock.unlock()
     }
 
     func snapshot() -> Data {

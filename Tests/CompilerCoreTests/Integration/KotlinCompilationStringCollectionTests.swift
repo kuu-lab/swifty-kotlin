@@ -1,13 +1,14 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Integration tests for the String stdlib extensions and mutable collection
 /// operations added or improved in this PR (string-stdlib-and-runtime-parity).
-final class KotlinCompilationStringCollectionTests: XCTestCase {
+@Suite struct KotlinCompilationStringCollectionTests {
     // MARK: - String case conversion
 
-    func testCompile_string_lowercase() throws {
+    @Test func testCompile_string_lowercase() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "Hello World"
@@ -16,7 +17,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_uppercase() throws {
+    @Test func testCompile_string_uppercase() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello world"
@@ -25,7 +26,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_localeAwareOperations() throws {
+    @Test func testCompile_string_localeAwareOperations() throws {
         try assertKotlinCompilesToKIR("""
         import java.util.Locale
 
@@ -37,7 +38,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_normalize() throws {
+    @Test func testCompile_string_normalize() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "e\\u0301"
@@ -49,7 +50,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - String nullable conversions
 
-    func testCompile_string_toIntOrNull_validInput() throws {
+    @Test func testCompile_string_toIntOrNull_validInput() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result: Int? = "42".toIntOrNull()
@@ -57,7 +58,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_toIntOrNull_invalidInput() throws {
+    @Test func testCompile_string_toIntOrNull_invalidInput() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result: Int? = "abc".toIntOrNull()
@@ -65,7 +66,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_toDoubleOrNull() throws {
+    @Test func testCompile_string_toDoubleOrNull() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result: Double? = "3.14".toDoubleOrNull()
@@ -73,7 +74,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_toBigDecimal() throws {
+    @Test func testCompile_string_toBigDecimal() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigDecimal
 
@@ -84,7 +85,19 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_toBigInteger() throws {
+    @Test func testCompile_string_toBigDecimalOrNull() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigDecimal
+
+        fun main() {
+            val result: BigDecimal? = "3.14e2".toBigDecimalOrNull()
+            val fallback: BigDecimal = "not-a-number".toBigDecimalOrNull() ?: "0".toBigDecimal()
+            val text = fallback.toString()
+        }
+        """)
+    }
+
+    @Test func testCompile_string_toBigInteger() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger
 
@@ -97,7 +110,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - String search
 
-    func testCompile_string_indexOf() throws {
+    @Test func testCompile_string_indexOf() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello world"
@@ -106,7 +119,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_lastIndexOf() throws {
+    @Test func testCompile_string_lastIndexOf() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "aababc"
@@ -117,7 +130,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - String transformation
 
-    func testCompile_string_repeat() throws {
+    @Test func testCompile_string_repeat() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "ab".repeat(3)
@@ -125,7 +138,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_reversed() throws {
+    @Test func testCompile_string_reversed() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello".reversed()
@@ -133,7 +146,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_toList() throws {
+    @Test func testCompile_string_toList() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val chars = "hello".toList()
@@ -143,7 +156,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - STDLIB-TEXT-FN-108: String.toSortedSet()
 
-    func testCompile_string_toSortedSet() throws {
+    @Test func testCompile_string_toSortedSet() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val chars = "hello".toSortedSet()
@@ -151,7 +164,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_charSequence_toSortedSet() throws {
+    @Test func testCompile_charSequence_toSortedSet() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val text: CharSequence = "hello"
@@ -162,7 +175,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - String padding
 
-    func testCompile_string_padStart() throws {
+    @Test func testCompile_string_padStart() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "42".padStart(5, '0')
@@ -170,7 +183,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_padEnd() throws {
+    @Test func testCompile_string_padEnd() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hi".padEnd(5, '-')
@@ -180,7 +193,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - String slicing
 
-    func testCompile_string_drop() throws {
+    @Test func testCompile_string_drop() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello".drop(2)
@@ -188,7 +201,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_take() throws {
+    @Test func testCompile_string_take() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello".take(3)
@@ -196,7 +209,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_dropLast() throws {
+    @Test func testCompile_string_dropLast() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello".dropLast(2)
@@ -204,7 +217,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_takeLast() throws {
+    @Test func testCompile_string_takeLast() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = "hello".takeLast(3)
@@ -214,7 +227,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - Mutable collections
 
-    func testCompile_collection_mutableListOf_addRemove() throws {
+    @Test func testCompile_collection_mutableListOf_addRemove() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val list = mutableListOf(1, 2, 3)
@@ -224,7 +237,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_mutableListOf_clear() throws {
+    @Test func testCompile_collection_mutableListOf_clear() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val list = mutableListOf("a", "b", "c")
@@ -233,7 +246,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_setOf() throws {
+    @Test func testCompile_collection_setOf() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = setOf(1, 2, 3)
@@ -242,7 +255,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_mutableSetOf_addRemove() throws {
+    @Test func testCompile_collection_mutableSetOf_addRemove() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val s = mutableSetOf(1, 2)
@@ -252,7 +265,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_mutableMapOf_putRemove() throws {
+    @Test func testCompile_collection_mutableMapOf_putRemove() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val m = mutableMapOf("a" to 1)
@@ -262,7 +275,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_buildMap() throws {
+    @Test func testCompile_collection_buildMap() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val m = buildMap {
@@ -273,7 +286,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_listConversions() throws {
+    @Test func testCompile_collection_listConversions() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val list = listOf(3, 1, 2)
@@ -285,7 +298,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_collection_listSortingHOFs() throws {
+    @Test func testCompile_collection_listSortingHOFs() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val list = listOf(3, 1, 2)
@@ -428,7 +441,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
 
     // MARK: - Chained string operations
 
-    func testCompile_string_chainedOperations() throws {
+    @Test func testCompile_string_chainedOperations() throws {
         try assertKotlinCompilesToKIR("""
         fun normalize(s: String): String {
             return s.trim().lowercase()
@@ -437,7 +450,7 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
-    func testCompile_string_nullableChain() throws {
+    @Test func testCompile_string_nullableChain() throws {
         try assertKotlinCompilesToKIR("""
         fun tryParse(s: String?): Int {
             return s?.toIntOrNull() ?: 0
@@ -446,3 +459,4 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 }
+#endif

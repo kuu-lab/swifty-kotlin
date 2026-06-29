@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-PATH-FN-042: Validates that the `writer` extension function on
 /// `kotlin.io.path.Path` is wired through Sema with the expected
@@ -12,11 +13,12 @@ import XCTest
 ///         charset: Charset = Charsets.UTF_8,
 ///         vararg options: OpenOption
 ///     ): BufferedWriter
-final class PathWriterFunctionTests: XCTestCase {
+@Suite
+struct PathWriterFunctionTests {
 
     // MARK: - Basic resolution
 
-    func testPathWriterDefaultCharsetResolves() throws {
+    @Test func testPathWriterDefaultCharsetResolves() throws {
         let source = """
         import java.io.BufferedWriter
         import java.nio.file.OpenOption
@@ -30,14 +32,14 @@ final class PathWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.writer() with default charset should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWriterExplicitCharsetResolves() throws {
+    @Test func testPathWriterExplicitCharsetResolves() throws {
         let source = """
         import java.io.BufferedWriter
         import java.nio.file.OpenOption
@@ -52,14 +54,14 @@ final class PathWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.writer(charset) should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWriterWithOpenOptionResolves() throws {
+    @Test func testPathWriterWithOpenOptionResolves() throws {
         let source = """
         import java.io.BufferedWriter
         import java.nio.file.OpenOption
@@ -75,14 +77,14 @@ final class PathWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.writer(charset, options) should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWriterReturnTypeIsBufferedWriter() throws {
+    @Test func testPathWriterReturnTypeIsBufferedWriter() throws {
         let source = """
         import java.io.BufferedWriter
         import kotlin.io.path.Path
@@ -98,7 +100,7 @@ final class PathWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.writer() return type should be BufferedWriter: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -107,7 +109,7 @@ final class PathWriterFunctionTests: XCTestCase {
 
     // MARK: - Chained member calls
 
-    func testPathWriterChainedWriteFlushCloseResolve() throws {
+    @Test func testPathWriterChainedWriteFlushCloseResolve() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.writer
@@ -125,14 +127,14 @@ final class PathWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Chained BufferedWriter member calls after Path.writer() should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathWriterUseBlockResolves() throws {
+    @Test func testPathWriterUseBlockResolves() throws {
         let source = """
         import kotlin.io.path.Path
         import kotlin.io.path.writer
@@ -146,7 +148,7 @@ final class PathWriterFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.writer().use { } should resolve: \(errors.map { "\($0.code): \($0.message)" })"
             )
@@ -155,7 +157,7 @@ final class PathWriterFunctionTests: XCTestCase {
 
     // MARK: - Sema surface inspection
 
-    func testPathWriterExtensionFunctionSurfaceIsRegistered() throws {
+    @Test func testPathWriterExtensionFunctionSurfaceIsRegistered() throws {
         let source = """
         import java.io.BufferedWriter
         import java.nio.file.OpenOption
@@ -169,26 +171,26 @@ final class PathWriterFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { filePath in
             let ctx = makeCompilationContext(inputs: [filePath])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Path.writer(charset, options) should resolve without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let pathSymbol = try XCTUnwrap(
+            let pathSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern))
             )
-            let charsetSymbol = try XCTUnwrap(
+            let charsetSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern))
             )
-            let openOptionSymbol = try XCTUnwrap(
+            let openOptionSymbol = try #require(
                 symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern))
             )
-            let bufferedWriterSymbol = try XCTUnwrap(
+            let bufferedWriterSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern))
             )
 
@@ -200,7 +202,7 @@ final class PathWriterFunctionTests: XCTestCase {
             let writerSymbols = symbols.lookupAll(
                 fqName: ["kotlin", "io", "path", "writer"].map(interner.intern)
             )
-            let writer = try XCTUnwrap(
+            let writer = try #require(
                 writerSymbols.first { symbolID in
                     guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                     return signature.receiverType == pathType
@@ -210,18 +212,17 @@ final class PathWriterFunctionTests: XCTestCase {
                 "Expected kotlin.io.path.writer with receiver=Path, params=[Charset, OpenOption], ret=BufferedWriter"
             )
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: writer),
-                "kk_path_writer"
+            #expect(
+                symbols.externalLinkName(for: writer) == "kk_path_writer"
             )
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: writer))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, true])
+            let signature = try #require(symbols.functionSignature(for: writer))
+            #expect(signature.valueParameterHasDefaultValues == [true, false])
+            #expect(signature.valueParameterIsVararg == [false, true])
         }
     }
 
-    func testPathWriterCallBindingAndReturnType() throws {
+    @Test func testPathWriterCallBindingAndReturnType() throws {
         let source = """
         import java.io.BufferedWriter
         import java.nio.file.OpenOption
@@ -239,18 +240,18 @@ final class PathWriterFunctionTests: XCTestCase {
         try withTemporaryFile(contents: source) { filePath in
             let ctx = makeCompilationContext(inputs: [filePath])
             try runSema(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !ctx.diagnostics.hasError,
                 "Path.writer() calls should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
-            let ast = try XCTUnwrap(ctx.ast)
+            let ast = try #require(ctx.ast)
 
-            let bufferedWriterSymbol = try XCTUnwrap(
+            let bufferedWriterSymbol = try #require(
                 symbols.lookup(fqName: ["java", "io", "BufferedWriter"].map(interner.intern))
             )
             let bufferedWriterType = types.make(.classType(ClassType(
@@ -265,10 +266,11 @@ final class PathWriterFunctionTests: XCTestCase {
                 else { return nil }
                 return exprID
             }
-            XCTAssertEqual(callExprs.count, 2)
+            #expect(callExprs.count == 2)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], bufferedWriterType)
+                #expect(sema.bindings.exprTypes[callExpr] == bufferedWriterType)
             }
         }
     }
 }
+#endif

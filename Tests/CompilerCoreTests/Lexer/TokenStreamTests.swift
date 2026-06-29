@@ -1,45 +1,52 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class TokenStreamTests: XCTestCase {
+@Suite
+struct TokenStreamTests {
+    @Test
     func testPeekReturnsSyntheticEOFForEmptyStreamAndNegativeOffset() {
         let stream = TokenStream([])
 
-        XCTAssertEqual(stream.peek().kind, .eof)
-        XCTAssertEqual(stream.peek(-1).kind, .eof)
+        #expect(stream.peek().kind == .eof)
+        #expect(stream.peek(-1).kind == .eof)
     }
 
+    @Test
     func testPeekReturnsInRangeTokenAndEOFForOutOfRange() {
         let interner = StringInterner()
         let first = makeToken(kind: .identifier(interner.intern("first")))
         let second = makeToken(kind: .identifier(interner.intern("second")), start: 1, end: 2)
         let stream = TokenStream([first, second])
 
-        XCTAssertEqual(stream.peek(0), first)
-        XCTAssertEqual(stream.peek(1), second)
-        XCTAssertEqual(stream.peek(2).kind, .eof)
+        #expect(stream.peek(0) == first)
+        #expect(stream.peek(1) == second)
+        #expect(stream.peek(2).kind == .eof)
     }
 
+    @Test
     func testAdvanceStopsAtEndWithoutOverflowingIndex() {
         let token = makeToken(kind: .keyword(.fun))
         let stream = TokenStream([token])
 
-        XCTAssertEqual(stream.advance(), token)
-        XCTAssertEqual(stream.index, 1)
-        XCTAssertEqual(stream.advance().kind, .eof)
-        XCTAssertEqual(stream.index, 1)
+        #expect(stream.advance() == token)
+        #expect(stream.index == 1)
+        #expect(stream.advance().kind == .eof)
+        #expect(stream.index == 1)
     }
 
+    @Test
     func testAtEOFReflectsCurrentCursorState() {
         let nonEmpty = TokenStream([makeToken(kind: .keyword(.if))])
-        XCTAssertFalse(nonEmpty.atEOF())
+        #expect(!(nonEmpty.atEOF()))
         _ = nonEmpty.advance()
-        XCTAssertTrue(nonEmpty.atEOF())
+        #expect(nonEmpty.atEOF())
 
         let empty = TokenStream([])
-        XCTAssertTrue(empty.atEOF())
+        #expect(empty.atEOF())
     }
 
+    @Test
     func testConsumeIfConsumesOnlyWhenPredicateMatches() {
         let interner = StringInterner()
         let first = makeToken(kind: .identifier(interner.intern("x")))
@@ -50,38 +57,47 @@ final class TokenStreamTests: XCTestCase {
             if case .identifier = token.kind { return true }
             return false
         }
-        XCTAssertEqual(consumed, first)
-        XCTAssertEqual(stream.index, 1)
+        #expect(consumed == first)
+        #expect(stream.index == 1)
 
         let notConsumed = stream.consumeIf { token in
             if case .keyword = token.kind { return true }
             return false
         }
-        XCTAssertNil(notConsumed)
-        XCTAssertEqual(stream.index, 1)
+        #expect(notConsumed == nil)
+        #expect(stream.index == 1)
     }
 
+    // MARK: - Additional Coverage
+
+    @Test
     func testPeekConsecutivePositiveOffsetsOutOfRange() {
         let interner = StringInterner()
         let token = makeToken(kind: .identifier(interner.intern("only")))
         let stream = TokenStream([token])
 
-        XCTAssertEqual(stream.peek(0), token)
+        // offset 0 is valid
+        #expect(stream.peek(0) == token)
+        // offsets 1..5 are all out of range → synthetic EOF
         for offset in 1 ... 5 {
-            XCTAssertEqual(stream.peek(offset).kind, .eof)
+            #expect(stream.peek(offset).kind == .eof, "peek(\(offset)) should return EOF for a single-element stream")
         }
     }
 
+    @Test
     func testConsecutiveAdvanceOnEmptyStream() {
         let stream = TokenStream([])
 
+        // Calling advance() repeatedly on an empty stream should always
+        // return synthetic EOF and never move the index past 0.
         for _ in 0 ..< 5 {
             let token = stream.advance()
-            XCTAssertEqual(token.kind, .eof)
-            XCTAssertEqual(stream.index, 0)
+            #expect(token.kind == .eof)
+            #expect(stream.index == 0)
         }
     }
 
+    @Test
     func testConsumeIfPredicateCanAccessTokenDetails() {
         let interner = StringInterner()
         let id = makeToken(kind: .identifier(interner.intern("hello")))
@@ -89,24 +105,27 @@ final class TokenStreamTests: XCTestCase {
         let num = makeToken(kind: .intLiteral("42"), start: 6, end: 8)
         let stream = TokenStream([id, plus, num])
 
+        // Complex predicate: identifier AND the interned name resolves to "hello"
         let matched = stream.consumeIf { token in
             if case let .identifier(interned) = token.kind {
                 return interner.resolve(interned) == "hello"
             }
             return false
         }
-        XCTAssertEqual(matched, id)
-        XCTAssertEqual(stream.index, 1)
+        #expect(matched == id)
+        #expect(stream.index == 1)
 
+        // Complex predicate: symbol that is either plus or minus
         let matchedSymbol = stream.consumeIf { token in
             if case let .symbol(sym) = token.kind {
                 return sym == .plus || sym == .minus
             }
             return false
         }
-        XCTAssertEqual(matchedSymbol, plus)
-        XCTAssertEqual(stream.index, 2)
+        #expect(matchedSymbol == plus)
+        #expect(stream.index == 2)
 
+        // Complex predicate that does NOT match: intLiteral with value > 100
         let noMatch = stream.consumeIf { token in
             if case let .intLiteral(value) = token.kind,
                let intValue = Int(value)
@@ -115,7 +134,8 @@ final class TokenStreamTests: XCTestCase {
             }
             return false
         }
-        XCTAssertNil(noMatch)
-        XCTAssertEqual(stream.index, 2)
+        #expect(noMatch == nil)
+        #expect(stream.index == 2)
     }
 }
+#endif

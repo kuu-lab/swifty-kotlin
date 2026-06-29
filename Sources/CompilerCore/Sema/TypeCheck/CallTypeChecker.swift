@@ -3086,6 +3086,15 @@ final class CallTypeChecker {
                         interner: interner,
                         elementType: explicitTypeArg
                     )
+                } else if let explicitTypeArg = explicitTypeArgs.first,
+                          name == "listOf" || name == "listOfNotNull"
+                {
+                    collectionType = makeSyntheticListType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: explicitTypeArg
+                    )
                 } else if calleeName == knownNames.emptyListFn {
                     collectionType = makeSyntheticListType(
                         symbols: sema.symbols,
@@ -3734,6 +3743,20 @@ final class CallTypeChecker {
                     case "toIntOrNull": sema.types.make(.primitive(.int, .nullable))
                     case "toDouble": sema.types.make(.primitive(.double, .nonNull))
                     case "toDoubleOrNull": sema.types.make(.primitive(.double, .nullable))
+                    case "toBigDecimal":
+                        makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
+                        )
+                    case "toBigDecimalOrNull":
+                        sema.types.makeNullable(makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
+                        ))
                     case "toBigIntegerOrNull":
                         sema.types.makeNullable(makeSyntheticNominalType(
                             symbols: sema.symbols,

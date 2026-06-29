@@ -1,9 +1,12 @@
+#if canImport(Testing)
 import Foundation
 @testable import LSPServer
-import XCTest
+import Testing
 
-final class JSONRPCTests: XCTestCase {
-    func testRoundTripSingleMessage() {
+@Suite("LSP.JSONRPC")
+struct JSONRPCTests {
+    @Test
+    func roundTripSingleMessage() {
         let message: [String: Any] = [
             "jsonrpc": "2.0",
             "id": 1,
@@ -14,35 +17,39 @@ final class JSONRPCTests: XCTestCase {
         let connection = JSONRPCConnection(input: input, output: MemoryOutputStream())
 
         let received = connection.receive()
-        XCTAssertEqual(received?["method"] as? String, "initialize")
-        XCTAssertEqual(received?["id"] as? Int, 1)
-        XCTAssertNil(connection.receive())
+        #expect((received?["method"] as? String) == "initialize")
+        #expect((received?["id"] as? Int) == 1)
+        #expect(connection.receive() == nil, "Stream should be exhausted after one message")
     }
 
-    func testReadsMultipleMessagesAcrossChunkBoundaries() {
+    @Test
+    func readsMultipleMessagesAcrossChunkBoundaries() {
         let first = LSPTestSupport.frame(["jsonrpc": "2.0", "method": "a"])
         let second = LSPTestSupport.frame(["jsonrpc": "2.0", "method": "b"])
+        // Split the combined stream at an arbitrary mid-point to exercise buffering.
         var combined = first
         combined.append(second)
         let mid = combined.count / 2
         let chunks = [combined.prefix(mid), combined.suffix(from: mid)].map { Data($0) }
 
         let connection = JSONRPCConnection(input: MemoryInputStream(chunks: chunks), output: MemoryOutputStream())
-        XCTAssertEqual(connection.receive()?["method"] as? String, "a")
-        XCTAssertEqual(connection.receive()?["method"] as? String, "b")
-        XCTAssertNil(connection.receive())
+        #expect((connection.receive()?["method"] as? String) == "a")
+        #expect((connection.receive()?["method"] as? String) == "b")
+        #expect(connection.receive() == nil)
     }
 
-    func testSendProducesParseableFrame() {
+    @Test
+    func sendProducesParseableFrame() {
         let output = MemoryOutputStream()
         let connection = JSONRPCConnection(input: MemoryInputStream(Data()), output: output)
         connection.send(["jsonrpc": "2.0", "id": 7, "result": NSNull()])
 
         let text = String(decoding: output.data, as: UTF8.self)
-        XCTAssertTrue(text.hasPrefix("Content-Length: "), "Frame must start with the header")
+        #expect(text.hasPrefix("Content-Length: "), "Frame must start with the header")
 
         let messages = LSPTestSupport.decodeMessages(from: output)
-        XCTAssertEqual(messages.count, 1)
-        XCTAssertEqual(messages.first?["id"] as? Int, 7)
+        #expect(messages.count == 1)
+        #expect((messages.first?["id"] as? Int) == 7)
     }
 }
+#endif

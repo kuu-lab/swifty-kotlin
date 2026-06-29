@@ -1,13 +1,14 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-050: Validates that `CharSequence.removePrefix(prefix)` resolves
 /// through Sema for `String` receivers across several invocation shapes (variable,
 /// literal, chained call, and conditional contexts). The synthetic stub is
 /// registered in `HeaderHelpers+SyntheticStringStubs.swift` and lowered to the
 /// runtime helper `kk_string_removePrefix` defined in `RuntimeStringStdlib.swift`.
-final class StringRemovePrefixFunctionTests: XCTestCase {
-    func testRemovePrefixResolvesInSource() throws {
+@Suite
+struct StringRemovePrefixFunctionTests {
+    @Test func testRemovePrefixResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun stripScheme(s: String): String {
             return s.removePrefix("https://")
@@ -31,7 +32,7 @@ final class StringRemovePrefixFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected removePrefix to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
@@ -39,26 +40,24 @@ final class StringRemovePrefixFunctionTests: XCTestCase {
 
     /// Confirms the synthetic stub for `String.removePrefix(prefix)` is registered
     /// with the expected runtime link name and `String -> String` shape.
-    func testRemovePrefixResolvesToRuntimeLink() throws {
+    @Test func testRemovePrefixResolvesToRuntimeLink() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "removePrefix"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
                 return signature.receiverType == sema.types.stringType
                     && signature.parameterTypes == [sema.types.stringType]
             })
-            XCTAssertEqual(
-                sema.symbols.externalLinkName(for: symbol),
-                "kk_string_removePrefix"
+            #expect(
+                sema.symbols.externalLinkName(for: symbol) == "kk_string_removePrefix"
             )
-            XCTAssertEqual(
-                sema.symbols.functionSignature(for: symbol)?.returnType,
-                sema.types.stringType,
+            #expect(
+                sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,
                 "String.removePrefix(prefix) should return String"
             )
         }

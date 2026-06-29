@@ -1,7 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class NumericModMemberCallTests: XCTestCase {
+@Suite
+struct NumericModMemberCallTests {
+    @Test
     func testNumericModMemberCallsInferKotlinReturnMatrix() throws {
         let source = """
         fun sample(b: Byte, s: Short, i: Int, l: Long, ub: UByte, us: UShort, ui: UInt, ul: ULong, f: Float, d: Double) {
@@ -19,10 +22,10 @@ final class NumericModMemberCallTests: XCTestCase {
 
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
 
-        let ast = try XCTUnwrap(ctx.ast)
-        let sema = try XCTUnwrap(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
         let modCalls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
             guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID) else {
@@ -31,7 +34,7 @@ final class NumericModMemberCallTests: XCTestCase {
             return ctx.interner.resolve(callee) == "mod" ? exprID : nil
         }
 
-        XCTAssertEqual(modCalls.count, 9, "Expected all mod calls to be present")
+        #expect(modCalls.count == 9, "Expected all mod calls to be present")
         let expectedTypes: [TypeID] = [
             sema.types.intType,
             sema.types.longType,
@@ -45,10 +48,11 @@ final class NumericModMemberCallTests: XCTestCase {
         ]
 
         for (exprID, expectedType) in zip(modCalls, expectedTypes) {
-            XCTAssertEqual(sema.bindings.exprTypes[exprID], expectedType)
+            #expect(sema.bindings.exprTypes[exprID] == expectedType)
         }
     }
 
+    @Test
     func testNumericModRejectsMixedSignedness() throws {
         let source = """
         fun sample(i: Int, l: Long, ui: UInt, ul: ULong) {
@@ -62,6 +66,7 @@ final class NumericModMemberCallTests: XCTestCase {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertGreaterThanOrEqual(errors.count, 4, "Expected mixed signedness mod calls to be rejected, got: \(ctx.diagnostics.diagnostics)")
+        #expect(errors.count >= 4, "Expected mixed signedness mod calls to be rejected, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

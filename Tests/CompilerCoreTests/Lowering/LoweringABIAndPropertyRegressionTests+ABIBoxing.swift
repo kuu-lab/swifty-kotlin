@@ -1,10 +1,12 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension LoweringABIAndPropertyRegressionTests {
     // MARK: - ABI Boxing/Unboxing Tests
 
+    @Test
     func testABILoweringBoxesIntArgumentForAnyParameter() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -74,9 +76,10 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Any? boxing, got: \(callees)")
+        #expect(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Any? boxing, got: \(callees)")
     }
 
+    @Test
     func testABILoweringBoxesBoolArgumentForAnyParameter() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -146,9 +149,10 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_box_bool"), "Expected kk_box_bool call for Bool -> Any? boxing, got: \(callees)")
+        #expect(callees.contains("kk_box_bool"), "Expected kk_box_bool call for Bool -> Any? boxing, got: \(callees)")
     }
 
+    @Test
     func testABILoweringBoxesIntToNullableIntParameter() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -218,9 +222,10 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Int? boxing, got: \(callees)")
+        #expect(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Int? boxing, got: \(callees)")
     }
 
+    @Test
     func testABILoweringUnboxesAnyReturnToIntResult() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -275,9 +280,10 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Any? -> Int unboxing, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Any? -> Int unboxing, got: \(callees)")
     }
 
+    @Test
     func testABILoweringUnboxesNullableIntReturnToNonNullInt() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -332,9 +338,10 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Int? -> Int unboxing, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Int? -> Int unboxing, got: \(callees)")
     }
 
+    @Test
     func testABILoweringBoxesReturnValueWhenFunctionReturnsAny() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -366,9 +373,10 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "returnBoxed", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_box_int"), "Expected kk_box_int before returnValue for Any? return type, got: \(callees)")
+        #expect(callees.contains("kk_box_int"), "Expected kk_box_int before returnValue for Any? return type, got: \(callees)")
     }
 
+    @Test
     func testABILoweringBoxesCopyFromIntToAnySlot() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -402,15 +410,16 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "copyBoxed", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_box_int"), "Expected kk_box_int for copy Int -> Any?, got: \(callees)")
+        #expect(callees.contains("kk_box_int"), "Expected kk_box_int for copy Int -> Any?, got: \(callees)")
         // Verify that the copy instruction was replaced (no copy should remain)
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasCopy, "Expected copy to be replaced with boxing call")
+        #expect(!hasCopy, "Expected copy to be replaced with boxing call")
     }
 
+    @Test
     func testABILoweringUnboxesCopyFromAnyToIntSlot() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -444,12 +453,13 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try findKIRFunction(named: "copyUnboxed", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
-        XCTAssertTrue(callees.contains("kk_unbox_int"), "Expected kk_unbox_int for copy Any? -> Int, got: \(callees)")
+        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int for copy Any? -> Int, got: \(callees)")
         // Verify that the copy instruction was replaced
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }
             return false
         }
-        XCTAssertFalse(hasCopy, "Expected copy to be replaced with unboxing call")
+        #expect(!hasCopy, "Expected copy to be replaced with unboxing call")
     }
 }
+#endif

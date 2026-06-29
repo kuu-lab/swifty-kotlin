@@ -1,12 +1,13 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-FN-042: Validates that `CharSequence.padStart(length, padChar)` resolves
 /// through Sema for `String` receivers using both overloads.
 /// - 1-arg overload (default padChar = ' ') resolves via bundled Kotlin stdlib.
 /// - 2-arg overload (explicit padChar) resolves via bundled Kotlin stdlib.
-final class StringPadStartFunctionTests: XCTestCase {
-    func testPadStartFunctionResolvesInSource() throws {
+@Suite
+struct StringPadStartFunctionTests {
+    @Test func testPadStartFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun leftPadDefault(s: String): String {
             return s.padStart(8)
@@ -26,7 +27,7 @@ final class StringPadStartFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected padStart to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )

@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-IO-PATH-FN-010: Validates that `kotlin.io.path.Path.copyToRecursively(...)` resolves
 /// through Sema for both overload shapes:
@@ -11,10 +12,11 @@ import XCTest
 /// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs.swift`, and are
 /// expected to bind to the runtime helpers declared in
 /// `Sources/RuntimeABI/RuntimeABISpec.swift`.
-final class PathCopyToRecursivelyFunctionTests: XCTestCase {
+@Suite
+struct PathCopyToRecursivelyFunctionTests {
     // MARK: - overwrite overload
 
-    func testPathCopyToRecursivelyOverwriteResolvesWithAllArguments() throws {
+    @Test func testPathCopyToRecursivelyOverwriteResolvesWithAllArguments() throws {
         let source = """
         import kotlin.Exception
         import kotlin.io.path.OnErrorResult
@@ -30,30 +32,30 @@ final class PathCopyToRecursivelyFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.copyToRecursively(target, onError, followLinks, overwrite) should resolve without errors, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathCopyToRecursivelyOverwriteSignatureAndRuntimeLink() throws {
+    @Test func testPathCopyToRecursivelyOverwriteSignatureAndRuntimeLink() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let pathSymbol = try XCTUnwrap(
+            let pathSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern))
             )
-            let exceptionSymbol = try XCTUnwrap(
+            let exceptionSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "Exception"].map(interner.intern))
             )
-            let onErrorResultSymbol = try XCTUnwrap(
+            let onErrorResultSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "OnErrorResult"].map(interner.intern))
             )
             let pathType = types.make(
@@ -75,29 +77,28 @@ final class PathCopyToRecursivelyFunctionTests: XCTestCase {
             let candidates = symbols.lookupAll(
                 fqName: ["kotlin", "io", "path", "copyToRecursively"].map(interner.intern)
             )
-            let overwriteOverload = try XCTUnwrap(candidates.first { symbolID in
+            let overwriteOverload = try #require(candidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType, onErrorType, types.booleanType, types.booleanType]
                     && signature.returnType == pathType
             }, "overwrite overload of copyToRecursively must be registered")
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: overwriteOverload),
-                "kk_path_copyToRecursively_overwrite",
+            #expect(
+                symbols.externalLinkName(for: overwriteOverload) == "kk_path_copyToRecursively_overwrite",
                 "overwrite overload must bind to kk_path_copyToRecursively_overwrite"
             )
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: overwriteOverload))
-            XCTAssertEqual(signature.receiverType, pathType)
-            XCTAssertEqual(signature.returnType, pathType)
-            XCTAssertEqual(signature.parameterTypes.count, 4)
+            let signature = try #require(symbols.functionSignature(for: overwriteOverload))
+            #expect(signature.receiverType == pathType)
+            #expect(signature.returnType == pathType)
+            #expect(signature.parameterTypes.count == 4)
         }
     }
 
     // MARK: - copyAction overload
 
-    func testPathCopyToRecursivelyCopyActionResolvesWithAllArguments() throws {
+    @Test func testPathCopyToRecursivelyCopyActionResolvesWithAllArguments() throws {
         let source = """
         import kotlin.Exception
         import kotlin.io.path.CopyActionContext
@@ -120,36 +121,36 @@ final class PathCopyToRecursivelyFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Path.copyToRecursively(target, onError, followLinks, copyAction) should resolve without errors, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
         }
     }
 
-    func testPathCopyToRecursivelyCopyActionSignatureAndRuntimeLink() throws {
+    @Test func testPathCopyToRecursivelyCopyActionSignatureAndRuntimeLink() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
             let types = sema.types
 
-            let pathSymbol = try XCTUnwrap(
+            let pathSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern))
             )
-            let exceptionSymbol = try XCTUnwrap(
+            let exceptionSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "Exception"].map(interner.intern))
             )
-            let onErrorResultSymbol = try XCTUnwrap(
+            let onErrorResultSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "OnErrorResult"].map(interner.intern))
             )
-            let copyActionContextSymbol = try XCTUnwrap(
+            let copyActionContextSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "CopyActionContext"].map(interner.intern))
             )
-            let copyActionResultSymbol = try XCTUnwrap(
+            let copyActionResultSymbol = try #require(
                 symbols.lookup(fqName: ["kotlin", "io", "path", "CopyActionResult"].map(interner.intern))
             )
             let pathType = types.make(
@@ -184,55 +185,54 @@ final class PathCopyToRecursivelyFunctionTests: XCTestCase {
             let candidates = symbols.lookupAll(
                 fqName: ["kotlin", "io", "path", "copyToRecursively"].map(interner.intern)
             )
-            let copyActionOverload = try XCTUnwrap(candidates.first { symbolID in
+            let copyActionOverload = try #require(candidates.first { symbolID in
                 guard let signature = symbols.functionSignature(for: symbolID) else { return false }
                 return signature.receiverType == pathType
                     && signature.parameterTypes == [pathType, onErrorType, types.booleanType, copyActionType]
                     && signature.returnType == pathType
             }, "copyAction overload of copyToRecursively must be registered")
 
-            XCTAssertEqual(
-                symbols.externalLinkName(for: copyActionOverload),
-                "kk_path_copyToRecursively_copyAction",
+            #expect(
+                symbols.externalLinkName(for: copyActionOverload) == "kk_path_copyToRecursively_copyAction",
                 "copyAction overload must bind to kk_path_copyToRecursively_copyAction"
             )
 
-            let signature = try XCTUnwrap(symbols.functionSignature(for: copyActionOverload))
-            XCTAssertEqual(signature.receiverType, pathType)
-            XCTAssertEqual(signature.returnType, pathType)
-            XCTAssertEqual(signature.parameterTypes.count, 4)
+            let signature = try #require(symbols.functionSignature(for: copyActionOverload))
+            #expect(signature.receiverType == pathType)
+            #expect(signature.returnType == pathType)
+            #expect(signature.parameterTypes.count == 4)
         }
     }
 
     // MARK: - both overloads registered
 
-    func testBothCopyToRecursivelyOverloadsAreRegistered() throws {
+    @Test func testBothCopyToRecursivelyOverloadsAreRegistered() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
             let interner = ctx.interner
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let symbols = sema.symbols
 
             let candidates = symbols.lookupAll(
                 fqName: ["kotlin", "io", "path", "copyToRecursively"].map(interner.intern)
             )
-            XCTAssertGreaterThanOrEqual(
-                candidates.count,
-                2,
+            #expect(
+                candidates.count >= 2,
                 "At least two copyToRecursively overloads (overwrite and copyAction) must be registered"
             )
 
             let linkNames = Set(candidates.compactMap { symbols.externalLinkName(for: $0) })
-            XCTAssertTrue(
+            #expect(
                 linkNames.contains("kk_path_copyToRecursively_overwrite"),
                 "overwrite overload must be present"
             )
-            XCTAssertTrue(
+            #expect(
                 linkNames.contains("kk_path_copyToRecursively_copyAction"),
                 "copyAction overload must be present"
             )
         }
     }
 }
+#endif

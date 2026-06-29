@@ -1,27 +1,40 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ExceptionSyntheticStubTests: XCTestCase {
-    func testNoWhenBranchMatchedExceptionSurfaceIsRegistered() throws {
+@Suite
+struct ExceptionSyntheticStubTests {
+    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = try (#require(ctx.sema), ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    @Test func testNoWhenBranchMatchedExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let noWhenFQName = ["kotlin", "NoWhenBranchMatchedException"].map { interner.intern($0) }
-        let noWhenSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: noWhenFQName))
-        XCTAssertEqual(sema.symbols.symbol(noWhenSymbol)?.kind, .class)
+        let noWhenSymbol = try #require(sema.symbols.lookup(fqName: noWhenFQName))
+        #expect(sema.symbols.symbol(noWhenSymbol)?.kind == .class)
 
         let runtimeExceptionFQName = ["kotlin", "RuntimeException"].map { interner.intern($0) }
-        let runtimeExceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: runtimeExceptionFQName))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: noWhenSymbol).contains(runtimeExceptionSymbol))
+        let runtimeExceptionSymbol = try #require(sema.symbols.lookup(fqName: runtimeExceptionFQName))
+        let supertypesContains = sema.symbols.directSupertypes(for: noWhenSymbol).contains(runtimeExceptionSymbol)
+        #expect(supertypesContains)
 
         let noWhenType = sema.types.make(.classType(ClassType(
             classSymbol: noWhenSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sema.symbols.propertyType(for: noWhenSymbol), noWhenType)
+        #expect(sema.symbols.propertyType(for: noWhenSymbol) == noWhenType)
 
         let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
-        let throwableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: throwableFQName))
+        let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
         let nullableThrowableType = sema.types.make(.classType(ClassType(
             classSymbol: throwableSymbol,
             args: [],
@@ -40,15 +53,15 @@ final class ExceptionSyntheticStubTests: XCTestCase {
             ([nullableThrowableType], "kk_no_when_branch_matched_exception_new_cause"),
         ]
         for (parameterTypes, externalLinkName) in expected {
-            let constructor = try XCTUnwrap(constructors.first {
+            let constructor = try #require(constructors.first {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
-            XCTAssertEqual(sema.symbols.functionSignature(for: constructor)?.returnType, noWhenType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: constructor), externalLinkName)
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == noWhenType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == externalLinkName)
         }
     }
 
-    func testNoWhenBranchMatchedExceptionResolvesInSource() throws {
+    @Test func testNoWhenBranchMatchedExceptionResolvesInSource() throws {
         _ = try makeSema(source: """
         fun noArg(): RuntimeException = NoWhenBranchMatchedException()
         fun message(message: String?): RuntimeException = NoWhenBranchMatchedException(message)
@@ -57,23 +70,24 @@ final class ExceptionSyntheticStubTests: XCTestCase {
         """)
     }
 
-    func testCharacterCodingExceptionSurfaceIsRegistered() throws {
+    @Test func testCharacterCodingExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let exceptionFQName = ["kotlin", "text", "CharacterCodingException"].map { interner.intern($0) }
-        let exceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: exceptionFQName))
-        XCTAssertEqual(sema.symbols.symbol(exceptionSymbol)?.kind, .class)
+        let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+        #expect(sema.symbols.symbol(exceptionSymbol)?.kind == .class)
 
         let rootExceptionFQName = ["kotlin", "Exception"].map { interner.intern($0) }
-        let rootExceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: rootExceptionFQName))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: exceptionSymbol).contains(rootExceptionSymbol))
+        let rootExceptionSymbol = try #require(sema.symbols.lookup(fqName: rootExceptionFQName))
+        let supertypesContains = sema.symbols.directSupertypes(for: exceptionSymbol).contains(rootExceptionSymbol)
+        #expect(supertypesContains)
 
         let exceptionType = sema.types.make(.classType(ClassType(
             classSymbol: exceptionSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sema.symbols.propertyType(for: exceptionSymbol), exceptionType)
+        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
 
         let nullableStringType = sema.types.makeNullable(sema.types.stringType)
         let constructorFQName = exceptionFQName + [interner.intern("<init>")]
@@ -85,15 +99,15 @@ final class ExceptionSyntheticStubTests: XCTestCase {
             ([nullableStringType], "kk_throwable_new"),
         ]
         for (parameterTypes, externalLinkName) in expected {
-            let constructor = try XCTUnwrap(constructors.first {
+            let constructor = try #require(constructors.first {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
-            XCTAssertEqual(sema.symbols.functionSignature(for: constructor)?.returnType, exceptionType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: constructor), externalLinkName)
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == externalLinkName)
         }
     }
 
-    func testCharacterCodingExceptionResolvesInSource() throws {
+    @Test func testCharacterCodingExceptionResolvesInSource() throws {
         _ = try makeSema(source: """
         import kotlin.text.CharacterCodingException
 
@@ -105,23 +119,24 @@ final class ExceptionSyntheticStubTests: XCTestCase {
         """)
     }
 
-    func testNoSuchFileExceptionSurfaceIsRegistered() throws {
+    @Test func testNoSuchFileExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let exceptionFQName = ["kotlin", "io", "NoSuchFileException"].map { interner.intern($0) }
-        let exceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: exceptionFQName))
-        XCTAssertEqual(sema.symbols.symbol(exceptionSymbol)?.kind, .class)
+        let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+        #expect(sema.symbols.symbol(exceptionSymbol)?.kind == .class)
 
         let rootExceptionFQName = ["kotlin", "Exception"].map { interner.intern($0) }
-        let rootExceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: rootExceptionFQName))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: exceptionSymbol).contains(rootExceptionSymbol))
+        let rootExceptionSymbol = try #require(sema.symbols.lookup(fqName: rootExceptionFQName))
+        let supertypesContains = sema.symbols.directSupertypes(for: exceptionSymbol).contains(rootExceptionSymbol)
+        #expect(supertypesContains)
 
         let exceptionType = sema.types.make(.classType(ClassType(
             classSymbol: exceptionSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sema.symbols.propertyType(for: exceptionSymbol), exceptionType)
+        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
 
         let constructorFQName = exceptionFQName + [interner.intern("<init>")]
         let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
@@ -132,15 +147,15 @@ final class ExceptionSyntheticStubTests: XCTestCase {
             ([sema.types.stringType], "kk_throwable_new"),
         ]
         for (parameterTypes, externalLinkName) in expected {
-            let constructor = try XCTUnwrap(constructors.first {
+            let constructor = try #require(constructors.first {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
-            XCTAssertEqual(sema.symbols.functionSignature(for: constructor)?.returnType, exceptionType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: constructor), externalLinkName)
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == externalLinkName)
         }
     }
 
-    func testNoSuchFileExceptionResolvesInSource() throws {
+    @Test func testNoSuchFileExceptionResolvesInSource() throws {
         _ = try makeSema(source: """
         import kotlin.io.NoSuchFileException
 
@@ -154,23 +169,24 @@ final class ExceptionSyntheticStubTests: XCTestCase {
 
     // MARK: - STDLIB-IO-TYPE-002: FileAlreadyExistsException
 
-    func testFileAlreadyExistsExceptionSurfaceIsRegistered() throws {
+    @Test func testFileAlreadyExistsExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let exceptionFQName = ["kotlin", "io", "FileAlreadyExistsException"].map { interner.intern($0) }
-        let exceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: exceptionFQName))
-        XCTAssertEqual(sema.symbols.symbol(exceptionSymbol)?.kind, .class)
+        let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+        #expect(sema.symbols.symbol(exceptionSymbol)?.kind == .class)
 
         let rootExceptionFQName = ["kotlin", "Exception"].map { interner.intern($0) }
-        let rootExceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: rootExceptionFQName))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: exceptionSymbol).contains(rootExceptionSymbol))
+        let rootExceptionSymbol = try #require(sema.symbols.lookup(fqName: rootExceptionFQName))
+        let supertypesContains = sema.symbols.directSupertypes(for: exceptionSymbol).contains(rootExceptionSymbol)
+        #expect(supertypesContains)
 
         let exceptionType = sema.types.make(.classType(ClassType(
             classSymbol: exceptionSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sema.symbols.propertyType(for: exceptionSymbol), exceptionType)
+        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
 
         let constructorFQName = exceptionFQName + [interner.intern("<init>")]
         let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
@@ -181,15 +197,15 @@ final class ExceptionSyntheticStubTests: XCTestCase {
             ([sema.types.stringType], "kk_throwable_new"),
         ]
         for (parameterTypes, externalLinkName) in expected {
-            let constructor = try XCTUnwrap(constructors.first {
+            let constructor = try #require(constructors.first {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
-            XCTAssertEqual(sema.symbols.functionSignature(for: constructor)?.returnType, exceptionType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: constructor), externalLinkName)
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == externalLinkName)
         }
     }
 
-    func testFileAlreadyExistsExceptionResolvesInSource() throws {
+    @Test func testFileAlreadyExistsExceptionResolvesInSource() throws {
         _ = try makeSema(source: """
         import kotlin.io.FileAlreadyExistsException
 
@@ -201,26 +217,27 @@ final class ExceptionSyntheticStubTests: XCTestCase {
         """)
     }
 
-    func testConcurrentModificationExceptionSurfaceIsRegistered() throws {
+    @Test func testConcurrentModificationExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let exceptionFQName = ["kotlin", "ConcurrentModificationException"].map { interner.intern($0) }
-        let exceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: exceptionFQName))
-        XCTAssertEqual(sema.symbols.symbol(exceptionSymbol)?.kind, .class)
+        let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+        #expect(sema.symbols.symbol(exceptionSymbol)?.kind == .class)
 
         let runtimeExceptionFQName = ["kotlin", "RuntimeException"].map { interner.intern($0) }
-        let runtimeExceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: runtimeExceptionFQName))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: exceptionSymbol).contains(runtimeExceptionSymbol))
+        let runtimeExceptionSymbol = try #require(sema.symbols.lookup(fqName: runtimeExceptionFQName))
+        let supertypesContains = sema.symbols.directSupertypes(for: exceptionSymbol).contains(runtimeExceptionSymbol)
+        #expect(supertypesContains)
 
         let exceptionType = sema.types.make(.classType(ClassType(
             classSymbol: exceptionSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sema.symbols.propertyType(for: exceptionSymbol), exceptionType)
+        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
 
         let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
-        let throwableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: throwableFQName))
+        let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
         let nullableThrowableType = sema.types.make(.classType(ClassType(
             classSymbol: throwableSymbol,
             args: [],
@@ -239,15 +256,15 @@ final class ExceptionSyntheticStubTests: XCTestCase {
             ([nullableThrowableType], "kk_concurrent_modification_exception_new_cause"),
         ]
         for (parameterTypes, externalLinkName) in expected {
-            let constructor = try XCTUnwrap(constructors.first {
+            let constructor = try #require(constructors.first {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
-            XCTAssertEqual(sema.symbols.functionSignature(for: constructor)?.returnType, exceptionType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: constructor), externalLinkName)
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == externalLinkName)
         }
     }
 
-    func testConcurrentModificationExceptionResolvesInSource() throws {
+    @Test func testConcurrentModificationExceptionResolvesInSource() throws {
         _ = try makeSema(source: """
         fun noArg(): RuntimeException = ConcurrentModificationException()
         fun message(message: String?): RuntimeException = ConcurrentModificationException(message)
@@ -256,23 +273,24 @@ final class ExceptionSyntheticStubTests: XCTestCase {
         """)
     }
 
-    func testArrayIndexOutOfBoundsExceptionSurfaceIsRegistered() throws {
+    @Test func testArrayIndexOutOfBoundsExceptionSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let exceptionFQName = ["kotlin", "ArrayIndexOutOfBoundsException"].map { interner.intern($0) }
-        let exceptionSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: exceptionFQName))
-        XCTAssertEqual(sema.symbols.symbol(exceptionSymbol)?.kind, .class)
+        let exceptionSymbol = try #require(sema.symbols.lookup(fqName: exceptionFQName))
+        #expect(sema.symbols.symbol(exceptionSymbol)?.kind == .class)
 
         let indexOutOfBoundsFQName = ["kotlin", "IndexOutOfBoundsException"].map { interner.intern($0) }
-        let indexOutOfBoundsSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: indexOutOfBoundsFQName))
-        XCTAssertTrue(sema.symbols.directSupertypes(for: exceptionSymbol).contains(indexOutOfBoundsSymbol))
+        let indexOutOfBoundsSymbol = try #require(sema.symbols.lookup(fqName: indexOutOfBoundsFQName))
+        let supertypesContains = sema.symbols.directSupertypes(for: exceptionSymbol).contains(indexOutOfBoundsSymbol)
+        #expect(supertypesContains)
 
         let exceptionType = sema.types.make(.classType(ClassType(
             classSymbol: exceptionSymbol,
             args: [],
             nullability: .nonNull
         )))
-        XCTAssertEqual(sema.symbols.propertyType(for: exceptionSymbol), exceptionType)
+        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
 
         let nullableStringType = sema.types.makeNullable(sema.types.stringType)
         let constructorFQName = exceptionFQName + [interner.intern("<init>")]
@@ -284,18 +302,19 @@ final class ExceptionSyntheticStubTests: XCTestCase {
             ([nullableStringType], "kk_array_index_out_of_bounds_exception_new_message"),
         ]
         for (parameterTypes, externalLinkName) in expected {
-            let constructor = try XCTUnwrap(constructors.first {
+            let constructor = try #require(constructors.first {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
-            XCTAssertEqual(sema.symbols.functionSignature(for: constructor)?.returnType, exceptionType)
-            XCTAssertEqual(sema.symbols.externalLinkName(for: constructor), externalLinkName)
+            #expect(sema.symbols.functionSignature(for: constructor)?.returnType == exceptionType)
+            #expect(sema.symbols.externalLinkName(for: constructor) == externalLinkName)
         }
     }
 
-    func testArrayIndexOutOfBoundsExceptionResolvesInSource() throws {
+    @Test func testArrayIndexOutOfBoundsExceptionResolvesInSource() throws {
         _ = try makeSema(source: """
         fun noArg(): IndexOutOfBoundsException = ArrayIndexOutOfBoundsException()
         fun message(message: String?): IndexOutOfBoundsException = ArrayIndexOutOfBoundsException(message)
         """)
     }
 }
+#endif

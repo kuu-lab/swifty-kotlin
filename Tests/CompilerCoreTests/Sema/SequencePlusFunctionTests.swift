@@ -1,10 +1,11 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// STDLIB-SEQ-FN-087: `kotlin.sequences.Sequence<T>.plus` の Sema 解決を検証する。
-final class SequencePlusFunctionTests: XCTestCase {
-    func testSequencePlusMemberCallResolvesToRuntimeABI() throws {
+@Suite
+struct SequencePlusFunctionTests {
+    @Test func testSequencePlusMemberCallResolvesToRuntimeABI() throws {
         let source = """
         fun probe(values: Sequence<Int>) {
             val combined: Sequence<Int> = values.plus(sequenceOf(3, 4))
@@ -17,12 +18,12 @@ final class SequencePlusFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Expected Sequence.plus member call to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 "kotlin", "sequences", "Sequence", "plus",
             ].map(ctx.interner.intern)
@@ -30,14 +31,14 @@ final class SequencePlusFunctionTests: XCTestCase {
                 sema.symbols.lookupAll(fqName: memberFQName)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            XCTAssertTrue(
+            #expect(
                 links.contains("kk_sequence_plus"),
                 "Expected Sequence.plus to link to kk_sequence_plus, got: \(links)"
             )
         }
     }
 
-    func testSequencePlusOperatorResolvesToRuntimeABI() throws {
+    @Test func testSequencePlusOperatorResolvesToRuntimeABI() throws {
         let source = """
         fun probe(values: Sequence<Int>): Sequence<Int> {
             return values + sequenceOf(3, 4)
@@ -49,12 +50,12 @@ final class SequencePlusFunctionTests: XCTestCase {
             try runSema(ctx)
 
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            XCTAssertTrue(
+            #expect(
                 errors.isEmpty,
                 "Expected Sequence + Sequence operator to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
             )
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let memberFQName = [
                 "kotlin", "sequences", "Sequence", "plus",
             ].map(ctx.interner.intern)
@@ -62,7 +63,7 @@ final class SequencePlusFunctionTests: XCTestCase {
                 sema.symbols.lookupAll(fqName: memberFQName)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            XCTAssertTrue(
+            #expect(
                 links.contains("kk_sequence_plus"),
                 "Expected Sequence + Sequence operator to resolve to kk_sequence_plus, got: \(links)"
             )

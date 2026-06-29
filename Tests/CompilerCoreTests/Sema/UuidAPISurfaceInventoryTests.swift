@@ -1,9 +1,46 @@
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class UuidAPISurfaceInventoryTests: XCTestCase {
+// MARK: - STDLIB-UUID-001 / STDLIB-UUID-002: kotlin.uuid.Uuid API surface inventory
+//
+// This file catalogues the Uuid-related symbols that the sema layer registers as
+// synthetic stubs and verifies that:
+//   • the kotlin.uuid package hierarchy is present after sema
+//   • Uuid class, Companion object, and all factory/instance members are wired to
+//     the correct ABI external-link names
+//   • implemented companion factories are tracked in one inventory
+//   • known pending companion members are tracked as gaps
+//   • Uuid.random() return type resolves to kotlin.uuid.Uuid
+//   • toString vs toHexString dispatch is tracked as separate links
+//   • toByteArray() and toLongs() are present with their signatures
+//   • @ExperimentalUuidApi opt-in marker: now synthesised (STDLIB-EXPERIMENTAL-ABI-001)
+//
+// Scope: sema / symbol-table level only.  Runtime correctness is in RuntimeUuidTests
+//        and the edge-case file added in PR #1221 (UUID-003).
+//
+// NOTE - known gaps detected during inventory:
+//   • No tracked companion-member gaps remain for the implemented UUID surface.
 
+@Suite
+struct UuidAPISurfaceInventoryTests {
+
+    // MARK: - Shared sema fixture
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        var result: (SemaModule, StringInterner)?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            result = (sema, ctx.interner)
+        }
+        return try #require(result)
+    }
+
+    // MARK: - Lookup helpers
+
+    /// Single external-link name for a fully-qualified symbol path.
     private func externalLink(
         fqPath: [String],
         sema: SemaModule,
@@ -12,6 +49,19 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         let interned = fqPath.map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: interned) else { return nil }
         return sema.symbols.externalLinkName(for: sym)
+    }
+
+    /// All external-link names registered under a fully-qualified symbol path.
+    private func allExternalLinks(
+        fqPath: [String],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Set<String> {
+        let interned = fqPath.map { interner.intern($0) }
+        return Set(
+            sema.symbols.lookupAll(fqName: interned)
+                .compactMap { sema.symbols.externalLinkName(for: $0) }
+        )
     }
 
     private func symbols(
@@ -60,43 +110,48 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 1. Package hierarchy and class registration
 
+    @Test
     func testKotlinUuidPackageIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid"].map { interner.intern($0) }
-        XCTAssertNotNil(
-            sema.symbols.lookup(fqName: fq),
+        #expect(
+            sema.symbols.lookup(fqName: fq) != nil,
             "kotlin.uuid package must be present in symbol table after sema"
         )
     }
 
+    @Test
     func testUuidClassIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
         let sym = sema.symbols.lookup(fqName: fq)
-        XCTAssertNotNil(sym, "kotlin.uuid.Uuid class must be present in symbol table after sema")
+        #expect(sym != nil, "kotlin.uuid.Uuid class must be present in symbol table after sema")
     }
 
+    @Test
     func testUuidClassKindIsClass() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq),
               let info = sema.symbols.symbol(sym) else {
-            XCTFail("kotlin.uuid.Uuid not found"); return
+            Issue.record("kotlin.uuid.Uuid not found"); return
         }
-        XCTAssertEqual(info.kind, .class, "kotlin.uuid.Uuid must be registered with kind=class")
+        #expect(info.kind == .class, "kotlin.uuid.Uuid must be registered with kind=class")
     }
 
+    @Test
     func testUuidCompanionObjectIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion"].map { interner.intern($0) }
-        XCTAssertNotNil(
-            sema.symbols.lookup(fqName: fq),
+        #expect(
+            sema.symbols.lookup(fqName: fq) != nil,
             "kotlin.uuid.Uuid.Companion object must be registered in symbol table"
         )
     }
 
     // MARK: - 2. Companion factory methods
 
+    @Test
     func testUuidRandomCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -104,37 +159,39 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_random"),
             "Uuid.random() must link to kk_uuid_random; found: \(links)"
         )
     }
 
+    @Test
     func testUuidRandomReturnTypeIsUuid() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "random"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.random() must be in symbol table")
-        let randomSym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.random() must be in symbol table")
+        let randomSym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: randomSym) else {
-            XCTFail("Uuid.random() has no function signature"); return
+            Issue.record("Uuid.random() has no function signature"); return
         }
         // The return type must not be Any/void — it must resolve to Uuid's class type.
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
         guard let uuidSym = sema.symbols.lookup(fqName: uuidFQ) else {
-            XCTFail("kotlin.uuid.Uuid class symbol missing"); return
+            Issue.record("kotlin.uuid.Uuid class symbol missing"); return
         }
         let returnTypeKind = sema.types.kind(of: sig.returnType)
         if case .classType(let ct) = returnTypeKind {
-            XCTAssertEqual(
-                ct.classSymbol, uuidSym,
+            #expect(
+                ct.classSymbol == uuidSym,
                 "Uuid.random() return type must be kotlin.uuid.Uuid"
             )
         } else {
-            XCTFail("Uuid.random() return type is not a class type; got \(returnTypeKind)")
+            Issue.record("Uuid.random() return type is not a class type; got \(returnTypeKind)")
         }
     }
 
+    @Test
     func testUuidParseCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -142,137 +199,144 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_parse"),
             "Uuid.parse(uuidString) must link to kk_uuid_parse; found: \(links)"
         )
     }
 
+    @Test
     func testUuidParseAcceptsStringParameter() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "parse"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.parse must be registered")
-        let parseSym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.parse must be registered")
+        let parseSym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: parseSym) else {
-            XCTFail("Uuid.parse has no signature"); return
+            Issue.record("Uuid.parse has no signature"); return
         }
-        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parse must take exactly 1 parameter")
+        #expect(sig.parameterTypes.count == 1, "Uuid.parse must take exactly 1 parameter")
         // String is a primitive type in the compiler's TypeSystem (stringType).
         // Verify the parameter resolves to the compiler's string type.
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.stringType,
+        #expect(
+            sig.parameterTypes[0] == sema.types.stringType,
             "Uuid.parse parameter must be of type String (sema.types.stringType)"
         )
     }
 
+    @Test
     func testUuidParseOrNullAcceptsStringParameterAndReturnsNullableUuid() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseOrNull"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.parseOrNull must be registered")
-        let parseOrNullSym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.parseOrNull must be registered")
+        let parseOrNullSym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: parseOrNullSym) else {
-            XCTFail("Uuid.parseOrNull has no signature"); return
+            Issue.record("Uuid.parseOrNull has no signature"); return
         }
-        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parseOrNull must take exactly 1 parameter")
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.stringType,
+        #expect(sig.parameterTypes.count == 1, "Uuid.parseOrNull must take exactly 1 parameter")
+        #expect(
+            sig.parameterTypes[0] == sema.types.stringType,
             "Uuid.parseOrNull parameter must be of type String (sema.types.stringType)"
         )
 
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try XCTUnwrap(sema.symbols.lookup(fqName: uuidFQ))
+        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
         guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
-            XCTFail("Uuid.parseOrNull return type must be a nullable Uuid class type")
+            Issue.record("Uuid.parseOrNull return type must be a nullable Uuid class type")
             return
         }
-        XCTAssertEqual(ct.classSymbol, uuidSym)
-        XCTAssertEqual(ct.nullability, .nullable)
+        #expect(ct.classSymbol == uuidSym)
+        #expect(ct.nullability == .nullable)
     }
 
+    @Test
     func testUuidParseHexAcceptsStringParameter() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseHex"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.parseHex must be registered")
-        let parseHexSym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.parseHex must be registered")
+        let parseHexSym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: parseHexSym) else {
-            XCTFail("Uuid.parseHex has no signature"); return
+            Issue.record("Uuid.parseHex has no signature"); return
         }
-        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parseHex must take exactly 1 parameter")
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.stringType,
+        #expect(sig.parameterTypes.count == 1, "Uuid.parseHex must take exactly 1 parameter")
+        #expect(
+            sig.parameterTypes[0] == sema.types.stringType,
             "Uuid.parseHex parameter must be of type String (sema.types.stringType)"
         )
     }
 
+    @Test
     func testUuidParseHexOrNullAcceptsStringParameterAndReturnsNullableUuid() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseHexOrNull"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.parseHexOrNull must be registered")
-        let parseHexOrNullSym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.parseHexOrNull must be registered")
+        let parseHexOrNullSym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: parseHexOrNullSym) else {
-            XCTFail("Uuid.parseHexOrNull has no signature"); return
+            Issue.record("Uuid.parseHexOrNull has no signature"); return
         }
-        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parseHexOrNull must take exactly 1 parameter")
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.stringType,
+        #expect(sig.parameterTypes.count == 1, "Uuid.parseHexOrNull must take exactly 1 parameter")
+        #expect(
+            sig.parameterTypes[0] == sema.types.stringType,
             "Uuid.parseHexOrNull parameter must be of type String (sema.types.stringType)"
         )
 
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try XCTUnwrap(sema.symbols.lookup(fqName: uuidFQ))
+        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
         guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
-            XCTFail("Uuid.parseHexOrNull return type must be a nullable Uuid class type")
+            Issue.record("Uuid.parseHexOrNull return type must be a nullable Uuid class type")
             return
         }
-        XCTAssertEqual(ct.classSymbol, uuidSym)
-        XCTAssertEqual(ct.nullability, .nullable)
+        #expect(ct.classSymbol == uuidSym)
+        #expect(ct.nullability == .nullable)
     }
 
+    @Test
     func testUuidParseHexDashAcceptsStringParameter() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseHexDash"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.parseHexDash must be registered")
-        let parseHexDashSym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.parseHexDash must be registered")
+        let parseHexDashSym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: parseHexDashSym) else {
-            XCTFail("Uuid.parseHexDash has no signature"); return
+            Issue.record("Uuid.parseHexDash has no signature"); return
         }
-        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parseHexDash must take exactly 1 parameter")
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.stringType,
+        #expect(sig.parameterTypes.count == 1, "Uuid.parseHexDash must take exactly 1 parameter")
+        #expect(
+            sig.parameterTypes[0] == sema.types.stringType,
             "Uuid.parseHexDash parameter must be of type String (sema.types.stringType)"
         )
     }
 
+    @Test
     func testUuidParseHexDashOrNullAcceptsStringParameterAndReturnsNullableUuid() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseHexDashOrNull"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.parseHexDashOrNull must be registered")
-        let parseHexDashOrNullSym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.parseHexDashOrNull must be registered")
+        let parseHexDashOrNullSym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: parseHexDashOrNullSym) else {
-            XCTFail("Uuid.parseHexDashOrNull has no signature"); return
+            Issue.record("Uuid.parseHexDashOrNull has no signature"); return
         }
-        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parseHexDashOrNull must take exactly 1 parameter")
-        XCTAssertEqual(
-            sig.parameterTypes[0], sema.types.stringType,
+        #expect(sig.parameterTypes.count == 1, "Uuid.parseHexDashOrNull must take exactly 1 parameter")
+        #expect(
+            sig.parameterTypes[0] == sema.types.stringType,
             "Uuid.parseHexDashOrNull parameter must be of type String (sema.types.stringType)"
         )
 
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try XCTUnwrap(sema.symbols.lookup(fqName: uuidFQ))
+        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
         guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
-            XCTFail("Uuid.parseHexDashOrNull return type must be a nullable Uuid class type")
+            Issue.record("Uuid.parseHexDashOrNull return type must be a nullable Uuid class type")
             return
         }
-        XCTAssertEqual(ct.classSymbol, uuidSym)
-        XCTAssertEqual(ct.nullability, .nullable)
+        #expect(ct.classSymbol == uuidSym)
+        #expect(ct.nullability == .nullable)
     }
 
+    @Test
     func testUuidNameUUIDFromBytesCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -280,12 +344,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_nameUUIDFromBytes"),
             "Uuid.nameUUIDFromBytes must link to kk_uuid_nameUUIDFromBytes; found: \(links)"
         )
     }
 
+    @Test
     func testUuidFromLongsCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -293,12 +358,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_fromLongs"),
             "Uuid.fromLongs must link to kk_uuid_fromLongs; found: \(links)"
         )
     }
 
+    @Test
     func testUuidFromByteArrayCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -306,7 +372,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_fromByteArray"),
             "Uuid.fromByteArray must link to kk_uuid_fromByteArray; found: \(links)"
         )
@@ -314,6 +380,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 3. Overload presence: parse vs parseHex
 
+    @Test
     func testUuidParseHexCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -321,12 +388,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_parseHex"),
             "Uuid.parseHex(hexString) must link to kk_uuid_parseHex; found: \(links)"
         )
     }
 
+    @Test
     func testUuidParseHexOrNullCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -334,12 +402,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_parseHexOrNull"),
             "Uuid.parseHexOrNull(hexString) must link to kk_uuid_parseHexOrNull; found: \(links)"
         )
     }
 
+    @Test
     func testUuidParseOrNullCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -347,12 +416,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_parseOrNull"),
             "Uuid.parseOrNull(uuidString) must link to kk_uuid_parseOrNull; found: \(links)"
         )
     }
 
+    @Test
     func testUuidParseHexDashCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -360,12 +430,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_parseHexDash"),
             "Uuid.parseHexDash(hexDashString) must link to kk_uuid_parseHexDash; found: \(links)"
         )
     }
 
+    @Test
     func testUuidParseHexDashOrNullCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -373,12 +444,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_parseHexDashOrNull"),
             "Uuid.parseHexDashOrNull(hexDashString) must link to kk_uuid_parseHexDashOrNull; found: \(links)"
         )
     }
 
+    @Test
     func testUuidParseFactoriesAreDistinctOverloads() throws {
         let (sema, interner) = try makeSema()
         let parseFQ = ["kotlin", "uuid", "Uuid", "Companion", "parse"].map { interner.intern($0) }
@@ -387,18 +459,18 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         let parseSyms = Set(sema.symbols.lookupAll(fqName: parseFQ))
         let parseHexSyms = Set(sema.symbols.lookupAll(fqName: parseHexFQ))
         let parseHexDashSyms = Set(sema.symbols.lookupAll(fqName: parseHexDashFQ))
-        XCTAssertFalse(parseSyms.isEmpty, "Uuid.parse must be registered")
-        XCTAssertFalse(parseHexSyms.isEmpty, "Uuid.parseHex must be registered")
-        XCTAssertFalse(parseHexDashSyms.isEmpty, "Uuid.parseHexDash must be registered")
-        XCTAssertTrue(
+        #expect(!parseSyms.isEmpty, "Uuid.parse must be registered")
+        #expect(!parseHexSyms.isEmpty, "Uuid.parseHex must be registered")
+        #expect(!parseHexDashSyms.isEmpty, "Uuid.parseHexDash must be registered")
+        #expect(
             parseSyms.isDisjoint(with: parseHexSyms),
             "parse and parseHex must not share the same SymbolID"
         )
-        XCTAssertTrue(
+        #expect(
             parseSyms.isDisjoint(with: parseHexDashSyms),
             "parse and parseHexDash must not share the same SymbolID"
         )
-        XCTAssertTrue(
+        #expect(
             parseHexSyms.isDisjoint(with: parseHexDashSyms),
             "parseHex and parseHexDash must not share the same SymbolID"
         )
@@ -406,6 +478,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 4. Instance methods: toString vs toHexString dispatch
 
+    @Test
     func testUuidToStringInstanceMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -413,12 +486,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_toString",
+        #expect(
+            link == "kk_uuid_toString",
             "Uuid.toString() must link to kk_uuid_toString"
         )
     }
 
+    @Test
     func testUuidToHexStringInstanceMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -426,12 +500,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_toHexString",
+        #expect(
+            link == "kk_uuid_toHexString",
             "Uuid.toHexString() must link to kk_uuid_toHexString"
         )
     }
 
+    @Test
     func testUuidToStringAndToHexStringHaveDistinctLinks() throws {
         let (sema, interner) = try makeSema()
         let toStringLink = externalLink(
@@ -444,14 +519,15 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertNotEqual(
-            toStringLink, toHexStringLink,
+        #expect(
+            toStringLink != toHexStringLink,
             "toString and toHexString must dispatch to different external-link names"
         )
     }
 
     // MARK: - 5. Instance methods: toByteArray and toLongs
 
+    @Test
     func testUuidToByteArrayInstanceMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -459,24 +535,26 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_toByteArray",
+        #expect(
+            link == "kk_uuid_toByteArray",
             "Uuid.toByteArray() must link to kk_uuid_toByteArray"
         )
     }
 
+    @Test
     func testUuidToByteArrayHasNoParameters() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "toByteArray"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.toByteArray must be registered")
-        let sym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.toByteArray must be registered")
+        let sym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: sym) else {
-            XCTFail("Uuid.toByteArray has no signature"); return
+            Issue.record("Uuid.toByteArray has no signature"); return
         }
-        XCTAssertTrue(sig.parameterTypes.isEmpty, "Uuid.toByteArray() must take no parameters")
+        #expect(sig.parameterTypes.isEmpty, "Uuid.toByteArray() must take no parameters")
     }
 
+    @Test
     func testUuidToLongsInstanceMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -484,26 +562,28 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_toLongs",
+        #expect(
+            link == "kk_uuid_toLongs",
             "Uuid.toLongs() must link to kk_uuid_toLongs"
         )
     }
 
+    @Test
     func testUuidToLongsHasNoParameters() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "toLongs"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "Uuid.toLongs must be registered")
-        let sym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "Uuid.toLongs must be registered")
+        let sym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: sym) else {
-            XCTFail("Uuid.toLongs has no signature"); return
+            Issue.record("Uuid.toLongs has no signature"); return
         }
-        XCTAssertTrue(sig.parameterTypes.isEmpty, "Uuid.toLongs() must take no parameters")
+        #expect(sig.parameterTypes.isEmpty, "Uuid.toLongs() must take no parameters")
     }
 
     // MARK: - 6. Instance properties: mostSignificantBits, leastSignificantBits
 
+    @Test
     func testUuidMostSignificantBitsPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -511,12 +591,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_mostSignificantBits",
+        #expect(
+            link == "kk_uuid_mostSignificantBits",
             "Uuid.mostSignificantBits property must link to kk_uuid_mostSignificantBits"
         )
     }
 
+    @Test
     func testUuidLeastSignificantBitsPropertyIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -524,14 +605,15 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_leastSignificantBits",
+        #expect(
+            link == "kk_uuid_leastSignificantBits",
             "Uuid.leastSignificantBits property must link to kk_uuid_leastSignificantBits"
         )
     }
 
     // MARK: - 7. Instance methods: version and variant
 
+    @Test
     func testUuidVersionInstanceMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -539,12 +621,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_version",
+        #expect(
+            link == "kk_uuid_version",
             "Uuid.version() must link to kk_uuid_version"
         )
     }
 
+    @Test
     func testUuidVariantInstanceMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -552,14 +635,15 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link, "kk_uuid_variant",
+        #expect(
+            link == "kk_uuid_variant",
             "Uuid.variant() must link to kk_uuid_variant"
         )
     }
 
     // MARK: - 8. NIL constant
 
+    @Test
     func testUuidNILCompanionConstantIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let link = externalLink(
@@ -567,31 +651,32 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(
-            link,
-            "kk_uuid_nil",
+        #expect(
+            link == "kk_uuid_nil",
             "Uuid.NIL companion constant must link to kk_uuid_nil"
         )
     }
 
+    @Test
     func testUuidNILReturnTypeIsUuid() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "NIL"].map { interner.intern($0) }
-        let nilSym = try XCTUnwrap(
+        let nilSym = try #require(
             sema.symbols.lookupAll(fqName: fq).first,
             "Uuid.NIL must be registered"
         )
-        let propType = try XCTUnwrap(sema.symbols.propertyType(for: nilSym))
+        let propType = try #require(sema.symbols.propertyType(for: nilSym))
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
-        let uuidSym = try XCTUnwrap(sema.symbols.lookup(fqName: uuidFQ))
+        let uuidSym = try #require(sema.symbols.lookup(fqName: uuidFQ))
 
         guard case .classType(let ct) = sema.types.kind(of: propType) else {
-            XCTFail("Uuid.NIL property type must be a class type")
+            Issue.record("Uuid.NIL property type must be a class type")
             return
         }
-        XCTAssertEqual(ct.classSymbol, uuidSym)
+        #expect(ct.classSymbol == uuidSym)
     }
 
+    @Test
     func testUuidSizeConstantsAreRegisteredAsConstInts() throws {
         let (sema, interner) = try makeSema()
         let expectedConstants: [(name: String, value: Int64)] = [
@@ -601,77 +686,76 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
 
         for expected in expectedConstants {
             let fq = ["kotlin", "uuid", "Uuid", "Companion", expected.name].map { interner.intern($0) }
-            let sym = try XCTUnwrap(
+            let sym = try #require(
                 sema.symbols.lookupAll(fqName: fq).first(where: { sema.symbols.symbol($0)?.kind == .property }),
                 "Uuid.\(expected.name) must be registered as a companion property"
             )
-            let info = try XCTUnwrap(sema.symbols.symbol(sym))
-            XCTAssertTrue(info.flags.contains(.static), "Uuid.\(expected.name) must be static")
-            XCTAssertTrue(info.flags.contains(.constValue), "Uuid.\(expected.name) must be const")
-            XCTAssertEqual(
-                sema.symbols.propertyType(for: sym),
-                sema.types.intType,
+            let info = try #require(sema.symbols.symbol(sym))
+            #expect(info.flags.contains(.static), "Uuid.\(expected.name) must be static")
+            #expect(info.flags.contains(.constValue), "Uuid.\(expected.name) must be const")
+            #expect(
+                sema.symbols.propertyType(for: sym) == sema.types.intType,
                 "Uuid.\(expected.name) must have Int type"
             )
-            XCTAssertEqual(
-                sema.symbols.constValueExprKind(for: sym),
-                .intLiteral(expected.value),
+            #expect(
+                sema.symbols.constValueExprKind(for: sym) == .intLiteral(expected.value),
                 "Uuid.\(expected.name) must expose the Kotlin stdlib constant value"
             )
         }
     }
 
+    @Test
     func testUuidLexicalOrderComparatorIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "LEXICAL_ORDER"].map { interner.intern($0) }
-        let lexicalOrderSym = try XCTUnwrap(
+        let lexicalOrderSym = try #require(
             sema.symbols.lookupAll(fqName: fq).first(where: { sema.symbols.symbol($0)?.kind == .property }),
             "Uuid.LEXICAL_ORDER must be registered as a companion property"
         )
 
-        XCTAssertEqual(
-            sema.symbols.externalLinkName(for: lexicalOrderSym),
-            "kk_uuid_lexicalOrder",
+        #expect(
+            sema.symbols.externalLinkName(for: lexicalOrderSym) == "kk_uuid_lexicalOrder",
             "Uuid.LEXICAL_ORDER must link to the UUID lexical comparator runtime"
         )
 
-        let propType = try XCTUnwrap(sema.symbols.propertyType(for: lexicalOrderSym))
+        let propType = try #require(sema.symbols.propertyType(for: lexicalOrderSym))
         guard case .classType(let comparatorType) = sema.types.kind(of: propType) else {
-            XCTFail("Uuid.LEXICAL_ORDER type must be kotlin.Comparator<Uuid>")
+            Issue.record("Uuid.LEXICAL_ORDER type must be kotlin.Comparator<Uuid>")
             return
         }
 
-        let comparatorSym = try XCTUnwrap(
+        let comparatorSym = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "Comparator"].map { interner.intern($0) })
         )
-        let uuidSym = try XCTUnwrap(
+        let uuidSym = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "uuid", "Uuid"].map { interner.intern($0) })
         )
 
-        XCTAssertEqual(comparatorType.classSymbol, comparatorSym)
+        #expect(comparatorType.classSymbol == comparatorSym)
         guard let firstArg = comparatorType.args.first,
               case .invariant(let uuidType) = firstArg
         else {
-            XCTFail("Uuid.LEXICAL_ORDER Comparator type must carry invariant Uuid argument")
+            Issue.record("Uuid.LEXICAL_ORDER Comparator type must carry invariant Uuid argument")
             return
         }
         guard case .classType(let uuidClassType) = sema.types.kind(of: uuidType) else {
-            XCTFail("Uuid.LEXICAL_ORDER Comparator argument must be Uuid")
+            Issue.record("Uuid.LEXICAL_ORDER Comparator argument must be Uuid")
             return
         }
-        XCTAssertEqual(uuidClassType.classSymbol, uuidSym)
+        #expect(uuidClassType.classSymbol == uuidSym)
     }
 
+    @Test
     func testKnownPendingUuidCompanionMembersAreTrackedAsGaps() throws {
         let (sema, interner) = try makeSema()
         let pendingMembers: [String] = []
 
-        XCTAssertTrue(pendingMembers.isEmpty, "No UUID companion pending gaps should remain")
+        #expect(pendingMembers.isEmpty, "No UUID companion pending gaps should remain")
 
         for memberName in pendingMembers {
             let fq = ["kotlin", "uuid", "Uuid", "Companion", memberName].map { interner.intern($0) }
             let syms = sema.symbols.lookupAll(fqName: fq)
-            XCTAssertTrue(
+            #expect(
                 syms.isEmpty,
                 "Uuid.\(memberName) is a tracked pending API and must remain absent until its TODO is implemented; found \(syms.count) symbols"
             )
@@ -682,23 +766,25 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
     //
     // STDLIB-UUID-002 gap: resolved. @ExperimentalUuidApi annotation marker is now synthesised.
 
+    @Test
     func testExperimentalUuidApiAnnotationIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "ExperimentalUuidApi"].map { interner.intern($0) }
         let sym = sema.symbols.lookup(fqName: fq)
-        XCTAssertNotNil(
-            sym,
+        #expect(
+            sym != nil,
             "kotlin.uuid.ExperimentalUuidApi must be registered (STDLIB-EXPERIMENTAL-ABI-001)"
         )
     }
 
+    @Test
     func testExperimentalUuidApiAnnotationIsRequiresOptIn() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "ExperimentalUuidApi"].map { interner.intern($0) }
-        let sym = try XCTUnwrap(sema.symbols.lookup(fqName: fq))
+        let sym = try #require(sema.symbols.lookup(fqName: fq))
         let annotations = sema.symbols.annotations(for: sym)
 
-        XCTAssertTrue(
+        #expect(
             annotations.contains {
                 $0.annotationFQName == "kotlin.RequiresOptIn" &&
                     $0.arguments.contains("level=RequiresOptIn.Level.ERROR")
@@ -707,6 +793,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         )
     }
 
+    @Test
     func testUuidApiSymbolsAreTaggedExperimentalUuidApi() throws {
         let (sema, interner) = try makeSema()
         let apiPaths = [
@@ -738,14 +825,15 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
 
         for path in apiPaths {
             let syms = symbols(fqPath: path, sema: sema, interner: interner)
-            XCTAssertFalse(syms.isEmpty, "\(path.joined(separator: ".")) must be registered")
-            XCTAssertTrue(
+            #expect(!syms.isEmpty, "\(path.joined(separator: ".")) must be registered")
+            #expect(
                 syms.contains { hasExperimentalUuidApiAnnotation($0, sema: sema) },
                 "\(path.joined(separator: ".")) must carry @ExperimentalUuidApi"
             )
         }
     }
 
+    @Test
     func testUuidUsageWithoutOptInEmitsDiagnostic() {
         let source = """
         import kotlin.uuid.Uuid
@@ -756,13 +844,14 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         let ctx = runUuidSemaCollectingDiagnostics(source)
         let diagnostics = optInDiagnostics(in: ctx)
 
-        XCTAssertFalse(
-            diagnostics.isEmpty,
+        #expect(
+            !diagnostics.isEmpty,
             "Expected opt-in diagnostics for Uuid usage without @OptIn, got \(ctx.diagnostics.diagnostics)"
         )
-        XCTAssertTrue(diagnostics.allSatisfy(isError), "Uuid opt-in diagnostics should be errors")
+        #expect(diagnostics.allSatisfy(isError), "Uuid opt-in diagnostics should be errors")
     }
 
+    @Test
     func testUuidUsageWithOptInSuppressesDiagnostic() {
         let source = """
         import kotlin.OptIn
@@ -776,7 +865,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         let ctx = runUuidSemaCollectingDiagnostics(source)
         let diagnostics = optInDiagnostics(in: ctx)
 
-        XCTAssertTrue(
+        #expect(
             diagnostics.isEmpty,
             "Expected @OptIn(ExperimentalUuidApi::class) to suppress Uuid opt-in diagnostics, got \(ctx.diagnostics.diagnostics)"
         )
@@ -784,6 +873,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 10. Full API surface inventory
 
+    @Test
     func testAllRegisteredUuidCompanionLinksArePresent() throws {
         let (sema, interner) = try makeSema()
         let companionFQ = ["kotlin", "uuid", "Uuid", "Companion"]
@@ -807,12 +897,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
             foundLinks.formUnion(links)
         }
-        XCTAssertTrue(
+        #expect(
             expectedCompanionLinks.isSubset(of: foundLinks),
             "All companion methods must be registered; found: \(foundLinks)"
         )
     }
 
+    @Test
     func testAllRegisteredUuidInstanceMethodLinksArePresent() throws {
         let (sema, interner) = try makeSema()
         let classFQ = ["kotlin", "uuid", "Uuid"]
@@ -830,12 +921,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
             foundLinks.formUnion(links)
         }
-        XCTAssertTrue(
+        #expect(
             expectedInstanceLinks.isSubset(of: foundLinks),
             "All instance methods must be registered; found: \(foundLinks)"
         )
     }
 
+    @Test
     func testAllRegisteredUuidPropertyLinksArePresent() throws {
         let (sema, interner) = try makeSema()
         let classFQ = ["kotlin", "uuid", "Uuid"]
@@ -849,7 +941,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
             foundLinks.formUnion(links)
         }
-        XCTAssertTrue(
+        #expect(
             expectedPropertyLinks.isSubset(of: foundLinks),
             "All instance properties must be registered; found: \(foundLinks)"
         )
@@ -857,6 +949,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
 
     // MARK: - 11. toKotlinUuid extension (STDLIB-UUID-FN-004)
 
+    @Test
     func testToKotlinUuidExtensionIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -864,72 +957,76 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertTrue(
+        #expect(
             links.contains("kk_uuid_toKotlinUuid"),
             "kotlin.uuid.toKotlinUuid must link to kk_uuid_toKotlinUuid; found: \(links)"
         )
     }
 
+    @Test
     func testToKotlinUuidReceiverIsJavaUuid() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
-        let sym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        let sym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: sym) else {
-            XCTFail("toKotlinUuid has no function signature"); return
+            Issue.record("toKotlinUuid has no function signature"); return
         }
         let javaUuidFQ = ["java", "util", "UUID"].map { interner.intern($0) }
         guard let javaUuidSym = sema.symbols.lookup(fqName: javaUuidFQ) else {
-            XCTFail("java.util.UUID not found in symbol table"); return
+            Issue.record("java.util.UUID not found in symbol table"); return
         }
-        let receiverType = try XCTUnwrap(sig.receiverType, "toKotlinUuid must have a receiver type")
+        let receiverType = try #require(sig.receiverType, "toKotlinUuid must have a receiver type")
         guard case .classType(let ct) = sema.types.kind(of: receiverType) else {
-            XCTFail("toKotlinUuid receiver type is not a class type"); return
+            Issue.record("toKotlinUuid receiver type is not a class type"); return
         }
-        XCTAssertEqual(ct.classSymbol, javaUuidSym, "toKotlinUuid receiver must be java.util.UUID")
+        #expect(ct.classSymbol == javaUuidSym, "toKotlinUuid receiver must be java.util.UUID")
     }
 
+    @Test
     func testToKotlinUuidReturnTypeIsKotlinUuid() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
-        let sym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        let sym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: sym) else {
-            XCTFail("toKotlinUuid has no function signature"); return
+            Issue.record("toKotlinUuid has no function signature"); return
         }
         let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
         guard let uuidSym = sema.symbols.lookup(fqName: uuidFQ) else {
-            XCTFail("kotlin.uuid.Uuid not found in symbol table"); return
+            Issue.record("kotlin.uuid.Uuid not found in symbol table"); return
         }
         guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
-            XCTFail("toKotlinUuid return type is not a class type"); return
+            Issue.record("toKotlinUuid return type is not a class type"); return
         }
-        XCTAssertEqual(ct.classSymbol, uuidSym, "toKotlinUuid return type must be kotlin.uuid.Uuid")
+        #expect(ct.classSymbol == uuidSym, "toKotlinUuid return type must be kotlin.uuid.Uuid")
     }
 
+    @Test
     func testToKotlinUuidHasNoValueParameters() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
-        let sym = try XCTUnwrap(syms.first)
+        #expect(!syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        let sym = try #require(syms.first)
         guard let sig = sema.symbols.functionSignature(for: sym) else {
-            XCTFail("toKotlinUuid has no function signature"); return
+            Issue.record("toKotlinUuid has no function signature"); return
         }
-        XCTAssertTrue(
+        #expect(
             sig.parameterTypes.isEmpty,
             "toKotlinUuid must take no value parameters (receiver-only extension)"
         )
     }
 
+    @Test
     func testToKotlinUuidIsTaggedExperimentalUuidApi() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
-        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
-        XCTAssertTrue(
+        #expect(!syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        #expect(
             syms.contains { hasExperimentalUuidApiAnnotation($0, sema: sema) },
             "kotlin.uuid.toKotlinUuid must carry @ExperimentalUuidApi"
         )

@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ComparisonsMaxOfComparable2FunctionTests: XCTestCase {
-    func testMaxOfComparable2ArgFunctionResolvesInSource() throws {
+@Suite
+struct ComparisonsMaxOfComparable2FunctionTests {
+    @Test func testMaxOfComparable2ArgFunctionResolvesInSource() throws {
         // Use String (a Kotlin built-in Comparable) so that the subtype
         // check primitive <: Comparable<primitive> is satisfied without
         // relying on user-defined generic supertype resolution.
@@ -14,9 +16,7 @@ final class ComparisonsMaxOfComparable2FunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(
-            ctx.diagnostics.hasError,
-            "Expected maxOf(a, b) Comparable 2-arg overload to resolve, got: \(ctx.diagnostics.diagnostics)"
-        )
+        #expect(!(ctx.diagnostics.hasError), "Expected maxOf(a, b) Comparable 2-arg overload to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
 }
+#endif

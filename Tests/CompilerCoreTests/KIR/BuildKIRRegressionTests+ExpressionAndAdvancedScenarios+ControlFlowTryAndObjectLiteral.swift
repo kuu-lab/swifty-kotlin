@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testIfExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
+    @Test func testIfExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
         let source = """
         fun sideEffect(x: Int): Int = x
         fun test(flag: Boolean): Int {
@@ -15,7 +16,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "test", in: module, interner: ctx.interner)
 
             // .select was removed; verify control flow guards side-effect branches
@@ -23,14 +24,14 @@ extension BuildKIRRegressionTests {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                 return ctx.interner.resolve(callee) == "sideEffect"
             }
-            XCTAssertEqual(sideEffectCalls.count, 2, "Both branches should have sideEffect calls in IR")
+            #expect(sideEffectCalls.count == 2, "Both branches should have sideEffect calls in IR")
 
             let jumpIfEqualCount = body.filter { if case .jumpIfEqual = $0 { return true }; return false }.count
-            XCTAssertGreaterThanOrEqual(jumpIfEqualCount, 1, "Condition should guard branch entry via jumpIfEqual")
+            #expect(jumpIfEqualCount >= 1, "Condition should guard branch entry via jumpIfEqual")
         }
     }
 
-    func testIfExprReturnInUnselectedBranchDoesNotLeak() throws {
+    @Test func testIfExprReturnInUnselectedBranchDoesNotLeak() throws {
         let source = """
         fun earlyReturn(flag: Boolean): Int {
             val result = if (flag) return 42 else 0
@@ -41,19 +42,19 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "earlyReturn", in: module, interner: ctx.interner)
 
             // .select was removed; return-in-branch uses control flow with labels/jumps
             let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
-            XCTAssertGreaterThanOrEqual(labelCount, 2, "return-in-branch needs labels for control flow")
+            #expect(labelCount >= 2, "return-in-branch needs labels for control flow")
 
             let hasReturnValue = body.contains { if case .returnValue = $0 { return true }; return false }
-            XCTAssertTrue(hasReturnValue, "Branch with return 42 should emit returnValue")
+            #expect(hasReturnValue, "Branch with return 42 should emit returnValue")
         }
     }
 
-    func testWhenExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
+    @Test func testWhenExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
         let source = """
         fun effect(x: Int): Int = x
         fun test(v: Int): Int = when (v) { 1 -> effect(10), 2 -> effect(20), else -> effect(30) }
@@ -62,7 +63,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "test", in: module, interner: ctx.interner)
 
             // .select was removed; verify control flow guards side-effect branches
@@ -70,14 +71,14 @@ extension BuildKIRRegressionTests {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                 return ctx.interner.resolve(callee) == "effect"
             }
-            XCTAssertEqual(effectCalls.count, 3, "All 3 branches should have effect calls in IR")
+            #expect(effectCalls.count == 3, "All 3 branches should have effect calls in IR")
 
             let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
-            XCTAssertGreaterThanOrEqual(labelCount, 3, "Each branch needs labels for control flow")
+            #expect(labelCount >= 3, "Each branch needs labels for control flow")
         }
     }
 
-    func testTryCatchFinallyLoweringUsesOrderedTypeDispatchAndThrownSlotRouting() throws {
+    @Test func testTryCatchFinallyLoweringUsesOrderedTypeDispatchAndThrownSlotRouting() throws {
         let source = """
         class MyErr
 
@@ -102,27 +103,27 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let module = try XCTUnwrap(ctx.kir)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let module = try #require(ctx.kir)
 
-            let tryExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let tryExprID = try #require(firstExprID(in: ast) { _, expr in
                 if case .tryExpr = expr {
                     return true
                 }
                 return false
             })
             guard case let .tryExpr(_, catchClauses, _, _)? = ast.arena.expr(tryExprID) else {
-                XCTFail("Expected try expression in demo.")
+                Issue.record("Expected try expression in demo.")
                 return
             }
-            XCTAssertEqual(catchClauses.count, 2)
+            #expect(catchClauses.count == 2)
 
             let catchBindings = try catchClauses.map { clause in
-                try XCTUnwrap(sema.bindings.catchClauseBinding(for: clause.body))
+                try #require(sema.bindings.catchClauseBinding(for: clause.body))
             }
-            XCTAssertNotEqual(catchBindings[0].parameterSymbol, .invalid)
-            XCTAssertNotEqual(catchBindings[1].parameterSymbol, .invalid)
+            #expect(catchBindings[0].parameterSymbol != .invalid)
+            #expect(catchBindings[1].parameterSymbol != .invalid)
 
             let body = try findKIRFunctionBody(named: "demo", in: module, interner: ctx.interner)
             let matcherCalls = body.compactMap { instruction -> KIRInstruction? in
@@ -134,7 +135,7 @@ extension BuildKIRRegressionTests {
                 _ = arguments
                 return instruction
             }
-            XCTAssertTrue(matcherCalls.isEmpty, "Try-catch lowering should not require runtime matcher helper calls.")
+            #expect(matcherCalls.isEmpty, "Try-catch lowering should not require runtime matcher helper calls.")
 
             let labelPositions: [Int32: Int] = body.enumerated().reduce(into: [:]) { partial, entry in
                 if case let .label(labelID) = entry.element {
@@ -174,27 +175,27 @@ extension BuildKIRRegressionTests {
                   let catchEdge = thrownEdge(for: "catchCall"),
                   let finallyEdge = thrownEdge(for: "finallyCall")
             else {
-                XCTFail("Expected throw-aware edges for body/catch/finally calls.")
+                Issue.record("Expected throw-aware edges for body/catch/finally calls.")
                 return
             }
 
-            XCTAssertEqual(bodyEdge.thrownSlot, catchEdge.thrownSlot)
-            XCTAssertEqual(bodyEdge.typeSlot, catchEdge.typeSlot)
-            XCTAssertNotEqual(bodyEdge.thrownSlot, finallyEdge.thrownSlot)
-            XCTAssertNotEqual(bodyEdge.typeSlot, finallyEdge.typeSlot)
+            #expect(bodyEdge.thrownSlot == catchEdge.thrownSlot)
+            #expect(bodyEdge.typeSlot == catchEdge.typeSlot)
+            #expect(bodyEdge.thrownSlot != finallyEdge.thrownSlot)
+            #expect(bodyEdge.typeSlot != finallyEdge.typeSlot)
             let sharedExceptionTypeSlot = bodyEdge.typeSlot
 
             guard let bodyDispatchPos = labelPositions[bodyEdge.target],
                   let finallyEntryPos = labelPositions[catchEdge.target],
                   let rethrowPos = labelPositions[finallyEdge.target]
             else {
-                XCTFail("Expected target labels for body/catch/finally throw edges.")
+                Issue.record("Expected target labels for body/catch/finally throw edges.")
                 return
             }
-            XCTAssertLessThan(bodyDispatchPos, finallyEntryPos, "Body exceptions should route to catch dispatch before finally.")
-            XCTAssertLessThan(finallyEntryPos, rethrowPos, "Finally exceptions should route directly to outer rethrow.")
-            XCTAssertNotEqual(bodyEdge.target, catchEdge.target)
-            XCTAssertNotEqual(catchEdge.target, finallyEdge.target)
+            #expect(bodyDispatchPos < finallyEntryPos, "Body exceptions should route to catch dispatch before finally.")
+            #expect(finallyEntryPos < rethrowPos, "Finally exceptions should route directly to outer rethrow.")
+            #expect(bodyEdge.target != catchEdge.target)
+            #expect(catchEdge.target != finallyEdge.target)
 
             let typeComparisons = body.enumerated().compactMap { index, instruction -> (index: Int, typeToken: Int64)? in
                 guard case .binary(op: .equal, lhs: let lhs, rhs: let rhs, result: _) = instruction,
@@ -208,9 +209,9 @@ extension BuildKIRRegressionTests {
             let expectedTypeTokens = catchBindings.map { RuntimeTypeCheckToken.encode(type: $0.parameterType, sema: sema, interner: ctx.interner) }
             let exactTypeComparisons = typeComparisons.filter { $0.typeToken != 0 }
             let unknownTypeComparisons = typeComparisons.filter { $0.typeToken == 0 }
-            XCTAssertEqual(exactTypeComparisons.count, expectedTypeTokens.count, "Expected one exact type comparison per catch clause.")
-            XCTAssertEqual(exactTypeComparisons.map(\.typeToken), expectedTypeTokens)
-            XCTAssertEqual(unknownTypeComparisons.count, expectedTypeTokens.count, "Expected one unknown-token fallback comparison per catch clause.")
+            #expect(exactTypeComparisons.count == expectedTypeTokens.count, "Expected one exact type comparison per catch clause.")
+            #expect(exactTypeComparisons.map(\.typeToken) == expectedTypeTokens)
+            #expect(unknownTypeComparisons.count == expectedTypeTokens.count, "Expected one unknown-token fallback comparison per catch clause.")
             guard exactTypeComparisons.count == expectedTypeTokens.count else {
                 return
             }
@@ -223,8 +224,8 @@ extension BuildKIRRegressionTests {
                 }
                 return value == finallyEdge.thrownSlot && target == finallyEdge.target
             }
-            XCTAssertTrue(finallyGuardJump, "Expected post-finally rethrow guard for pending exception slot.")
-            XCTAssertTrue(body.contains { instruction in
+            #expect(finallyGuardJump, "Expected post-finally rethrow guard for pending exception slot.")
+            #expect(body.contains { instruction in
                 if case let .rethrow(value) = instruction {
                     return value == finallyEdge.thrownSlot
                 }
@@ -234,17 +235,17 @@ extension BuildKIRRegressionTests {
             guard case let .call(_, _, catchArguments, _, _, _, _, _) = body[catchEdge.callIndex],
                   let firstCatchArgument = catchArguments.first
             else {
-                XCTFail("Expected catchCall argument in first catch body.")
+                Issue.record("Expected catchCall argument in first catch body.")
                 return
             }
-            XCTAssertEqual(module.arena.exprType(firstCatchArgument), catchBindings[0].parameterType)
+            #expect(module.arena.exprType(firstCatchArgument) == catchBindings[0].parameterType)
         }
     }
 
     // CODE-002: Verify that when exception type token is UNKNOWN (0), catch clause
     // matching uses kk_op_is for precise runtime type checking instead of blindly
     // matching all catch clauses.
-    func testTryCatchUnknownTokenUsesRuntimeTypeCheck() throws {
+    @Test func testTryCatchUnknownTokenUsesRuntimeTypeCheck() throws {
         let source = """
         class MyException
 
@@ -263,7 +264,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "demo", in: module, interner: ctx.interner)
 
             // Verify that kk_op_is is called for runtime type checking fallback.
@@ -273,12 +274,12 @@ extension BuildKIRRegressionTests {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                 return ctx.interner.resolve(callee) == "kk_op_is"
             }
-            XCTAssertGreaterThanOrEqual(opIsCalls.count, 1, "Expected at least one kk_op_is call for runtime type check fallback on UNKNOWN token.")
+            #expect(opIsCalls.count >= 1, "Expected at least one kk_op_is call for runtime type check fallback on UNKNOWN token.")
 
             // Verify the kk_op_is call receives the exception slot and the type token
-            let firstOpIsCall = try XCTUnwrap(opIsCalls.first)
+            let firstOpIsCall = try #require(opIsCalls.first)
             if case let .call(_, _, arguments, _, _, _, _, _) = firstOpIsCall {
-                XCTAssertEqual(arguments.count, 2, "kk_op_is should receive exception value and type token.")
+                #expect(arguments.count == 2, "kk_op_is should receive exception value and type token.")
             }
 
             // Verify that the UNKNOWN-token (0) comparison gates the kk_op_is call:
@@ -291,7 +292,7 @@ extension BuildKIRRegressionTests {
                       value == .intLiteral(0) else { return nil }
                 return result
             }
-            XCTAssertGreaterThanOrEqual(zeroSentinelIDs.count, 1, "Expected at least one constValue(0) for the UNKNOWN-token sentinel.")
+            #expect(zeroSentinelIDs.count >= 1, "Expected at least one constValue(0) for the UNKNOWN-token sentinel.")
 
             // Verify a binary(.equal) uses one of the zero sentinel IDs as its rhs,
             // confirming the exceptionTypeSlot == 0 check exists.
@@ -300,12 +301,12 @@ extension BuildKIRRegressionTests {
                       op == .equal else { return false }
                 return zeroSentinelIDs.contains(rhs)
             }
-            XCTAssertTrue(zeroCompareExists, "Expected a binary(.equal) comparing exceptionTypeSlot against the zero sentinel constValue(0).")
+            #expect(zeroCompareExists, "Expected a binary(.equal) comparing exceptionTypeSlot against the zero sentinel constValue(0).")
         }
     }
 
     // CODE-002: Verify multi-catch generates kk_op_is for each typed catch clause.
-    func testTryCatchMultipleClausesUnknownTokenUsesRuntimeTypeCheck() throws {
+    @Test func testTryCatchMultipleClausesUnknownTokenUsesRuntimeTypeCheck() throws {
         let source = """
         class ErrA
         class ErrB
@@ -327,7 +328,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "demo", in: module, interner: ctx.interner)
 
             // Verify that kk_op_is is called for each typed catch clause.
@@ -336,12 +337,12 @@ extension BuildKIRRegressionTests {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                 return ctx.interner.resolve(callee) == "kk_op_is"
             }
-            XCTAssertGreaterThanOrEqual(opIsCalls.count, 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
+            #expect(opIsCalls.count >= 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
         }
     }
 
     // CODE-002: Verify catch-all clause (catch (e: Any)) does NOT emit kk_op_is.
-    func testTryCatchCatchAllDoesNotEmitRuntimeTypeCheck() throws {
+    @Test func testTryCatchCatchAllDoesNotEmitRuntimeTypeCheck() throws {
         let source = """
         fun riskyCall(): Int = 42
 
@@ -358,7 +359,7 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "demo", in: module, interner: ctx.interner)
 
             // catch-all should not require runtime type checking
@@ -366,11 +367,11 @@ extension BuildKIRRegressionTests {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
                 return ctx.interner.resolve(callee) == "kk_op_is"
             }
-            XCTAssertEqual(opIsCalls.count, 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
+            #expect(opIsCalls.count == 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
         }
     }
 
-    func testBuildKIRLowersObjectLiteralToGeneratedFactoryReturningRuntimeObjectEntity() throws {
+    @Test func testBuildKIRLowersObjectLiteralToGeneratedFactoryReturningRuntimeObjectEntity() throws {
         let source = """
         interface Marker
         fun make(): Marker = object : Marker {}
@@ -380,16 +381,16 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
-            let module = try XCTUnwrap(ctx.kir)
-            let makeExprID = try XCTUnwrap(topLevelExpressionBodyExprID(
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let module = try #require(ctx.kir)
+            let makeExprID = try #require(topLevelExpressionBodyExprID(
                 named: "make",
                 ast: ast,
                 interner: ctx.interner
             ))
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-            let objectFactoryCall = try XCTUnwrap(makeBody.first { instruction in
+            let objectFactoryCall = try #require(makeBody.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
@@ -397,29 +398,29 @@ extension BuildKIRRegressionTests {
             })
 
             guard case let .call(factorySymbol, callee, arguments, result, _, _, _, _) = objectFactoryCall else {
-                XCTFail("Expected object literal to lower to generated factory call.")
+                Issue.record("Expected object literal to lower to generated factory call.")
                 return
             }
 
-            let generatedFactorySymbol = try XCTUnwrap(factorySymbol)
-            XCTAssertNotEqual(generatedFactorySymbol.rawValue, 0)
-            XCTAssertNotEqual(generatedFactorySymbol, .invalid)
-            XCTAssertTrue(ctx.interner.resolve(callee).hasPrefix("kk_object_literal_"))
-            XCTAssertTrue(arguments.isEmpty)
-            let resultExprID = try XCTUnwrap(result)
-            XCTAssertEqual(module.arena.exprType(resultExprID), sema.bindings.exprTypes[makeExprID])
+            let generatedFactorySymbol = try #require(factorySymbol)
+            #expect(generatedFactorySymbol.rawValue != 0)
+            #expect(generatedFactorySymbol != .invalid)
+            #expect(ctx.interner.resolve(callee).hasPrefix("kk_object_literal_"))
+            #expect(arguments.isEmpty)
+            let resultExprID = try #require(result)
+            #expect(module.arena.exprType(resultExprID) == sema.bindings.exprTypes[makeExprID])
             if case .unit? = module.arena.expr(resultExprID) {
-                XCTFail("Object literal must not lower to unit.")
+                Issue.record("Object literal must not lower to unit.")
             }
 
-            let generatedFactoryDeclIndex = try XCTUnwrap(module.arena.declarations.firstIndex(where: { decl in
+            let generatedFactoryDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
                 guard case let .function(function) = decl else {
                     return false
                 }
                 return function.symbol == generatedFactorySymbol
             }))
             guard case let .function(generatedFactory) = module.arena.declarations[generatedFactoryDeclIndex] else {
-                XCTFail("Expected generated object factory function declaration.")
+                Issue.record("Expected generated object factory function declaration.")
                 return
             }
             let hasAllocationRuntimeCall = generatedFactory.body.contains { instruction in
@@ -429,12 +430,12 @@ extension BuildKIRRegressionTests {
                 let calleeName = ctx.interner.resolve(loweredCallee)
                 return calleeName == "kk_alloc" || calleeName == "kk_array_new" || calleeName == "kk_object_new"
             }
-            XCTAssertTrue(
+            #expect(
                 hasAllocationRuntimeCall,
                 "Expected generated object factory to include allocation runtime call."
             )
 
-            let generatedNominalDeclIndex = try XCTUnwrap(module.arena.declarations.firstIndex(where: { decl in
+            let generatedNominalDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
                 guard case let .nominalType(nominal) = decl else {
                     return false
                 }
@@ -444,12 +445,12 @@ extension BuildKIRRegressionTests {
             let generatedFactoryDeclID = KIRDeclID(rawValue: Int32(generatedFactoryDeclIndex))
             let generatedNominalDeclID = KIRDeclID(rawValue: Int32(generatedNominalDeclIndex))
             let fileDeclIDs = Set(module.files.flatMap(\.decls))
-            XCTAssertTrue(fileDeclIDs.contains(generatedFactoryDeclID))
-            XCTAssertTrue(fileDeclIDs.contains(generatedNominalDeclID))
+            #expect(fileDeclIDs.contains(generatedFactoryDeclID))
+            #expect(fileDeclIDs.contains(generatedNominalDeclID))
         }
     }
 
-    func testBuildKIRObjectLiteralStoredPropertyReadUsesNonThrowingFastPath() throws {
+    @Test func testBuildKIRObjectLiteralStoredPropertyReadUsesNonThrowingFastPath() throws {
         let source = """
         fun main(): Int {
             val instance = object {
@@ -463,17 +464,17 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertTrue(callNames.contains("kk_array_get_inbounds"))
+            #expect(callNames.contains("kk_array_get_inbounds"))
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_array_get_inbounds"]?.allSatisfy { $0 == false }, true)
+            #expect(throwFlags["kk_array_get_inbounds"]?.allSatisfy { $0 == false } == true)
         }
     }
 
-    func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
+    @Test func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
         let source = """
         fun main(): Int {
             val instance = object {
@@ -489,13 +490,14 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            XCTAssertFalse(callNames.contains("kk_array_get"))
-            XCTAssertTrue(callNames.contains("get"))
+            #expect(!(callNames.contains("kk_array_get")))
+            #expect(callNames.contains("get"))
         }
     }
 
     // MARK: - Lambda / CallableRef Lowering (P5-20)
 }
+#endif

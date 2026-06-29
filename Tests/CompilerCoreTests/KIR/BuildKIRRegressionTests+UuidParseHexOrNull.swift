@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testUuidParseHexOrNullLowersToRuntimeCallee() throws {
+    @Test func testUuidParseHexOrNullLowersToRuntimeCallee() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
@@ -19,25 +20,26 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(
+            #expect(
                 callees.contains("kk_uuid_parseHexOrNull"),
                 "Expected Uuid.parseHexOrNull runtime call"
             )
         }
     }
 
-    func testABILoweringMarksUuidParseHexOrNullAsNonThrowing() {
+    @Test func testABILoweringMarksUuidParseHexOrNullAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(
+        #expect(
             callees.contains(interner.intern("kk_uuid_parseHexOrNull")),
             "kk_uuid_parseHexOrNull should not receive an outThrown slot during ABI lowering"
         )
     }
 }
+#endif

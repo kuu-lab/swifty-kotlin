@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
-final class LoweringABIAndPropertyRegressionTests: XCTestCase {
+@Suite
+struct LoweringABIAndPropertyRegressionTests {
     @discardableResult
     func runLowering(
         module: KIRModule,
@@ -25,3 +27,4 @@ final class LoweringABIAndPropertyRegressionTests: XCTestCase {
         return ctx
     }
 }
+#endif

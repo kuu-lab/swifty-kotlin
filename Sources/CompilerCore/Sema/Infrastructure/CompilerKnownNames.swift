@@ -1,5 +1,5 @@
 
-enum KnownCompilerAnnotation {
+package enum KnownCompilerAnnotation {
     case deprecated
     case deprecatedSinceKotlin
     case replaceWith
@@ -13,7 +13,6 @@ enum KnownCompilerAnnotation {
     case jvmField
     case jvmOverloads
     case experimentalJsExport
-    case experimentalJsFileName
     case experimentalJsStatic
     case experimentalJsReflectionCreateInstance
     case experimentalJsCollectionsApi
@@ -64,8 +63,6 @@ enum KnownCompilerAnnotation {
             "JvmOverloads"
         case .experimentalJsExport:
             "ExperimentalJsExport"
-        case .experimentalJsFileName:
-            "ExperimentalJsFileName"
         case .experimentalJsStatic:
             "ExperimentalJsStatic"
         case .experimentalJsReflectionCreateInstance:
@@ -139,8 +136,6 @@ enum KnownCompilerAnnotation {
             "kotlin.jvm.JvmOverloads"
         case .experimentalJsExport:
             "kotlin.js.ExperimentalJsExport"
-        case .experimentalJsFileName:
-            "kotlin.js.ExperimentalJsFileName"
         case .experimentalJsStatic:
             "kotlin.js.ExperimentalJsStatic"
         case .experimentalJsReflectionCreateInstance:
@@ -186,7 +181,7 @@ enum KnownCompilerAnnotation {
         }
     }
 
-    func matches(_ rawName: String) -> Bool {
+    package func matches(_ rawName: String) -> Bool {
         rawName == simpleName || rawName == qualifiedName
     }
 }
@@ -200,7 +195,7 @@ enum KnownCollectionKind {
     case sequence
 }
 
-struct KnownCompilerNames {
+package struct KnownCompilerNames {
 
     let byte: InternedString
     let short: InternedString
@@ -263,7 +258,7 @@ struct KnownCompilerNames {
     let null: InternedString
     let field: InternedString
     let thisName: InternedString
-    let main: InternedString
+    package let main: InternedString
     let with: InternedString
     let run: InternedString
     let runCatching: InternedString
@@ -390,7 +385,7 @@ struct KnownCompilerNames {
     let kotlinResultFQName: [InternedString]
     let kotlinRunCatchingFQName: [InternedString]
 
-    init(interner: StringInterner) {
+    package init(interner: StringInterner) {
 
         byte = interner.intern("Byte")
         short = interner.intern("Short")

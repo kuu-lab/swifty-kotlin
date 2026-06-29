@@ -1,9 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 extension BuildKIRRegressionTests {
-    func testNestedLocalFunctionScopeResolution() throws {
+    @Test func testNestedLocalFunctionScopeResolution() throws {
         let source = """
         fun outer(): Int {
             fun middle(): Int {
@@ -17,14 +18,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Nested local functions should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
+            #expect(!(ctx.diagnostics.hasError), "Nested local functions should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
             // outer, middle, inner, main => at least 4 functions
-            XCTAssertGreaterThanOrEqual(module.functionCount, 4)
+            #expect(module.functionCount >= 4)
         }
     }
 
-    func testLocalFunctionWithBlockBodyKIRGeneration() throws {
+    @Test func testLocalFunctionWithBlockBodyKIRGeneration() throws {
         let source = """
         fun main(): Int {
             fun compute(x: Int): Int {
@@ -37,13 +38,13 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Local function with block body: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertGreaterThanOrEqual(module.functionCount, 2)
+            #expect(!(ctx.diagnostics.hasError), "Local function with block body: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
+            #expect(module.functionCount >= 2)
         }
     }
 
-    func testLocalFunctionCalledMultipleTimes() throws {
+    @Test func testLocalFunctionCalledMultipleTimes() throws {
         let source = """
         fun main(): Int {
             fun square(n: Int): Int = n * n
@@ -55,11 +56,11 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Multiple calls to local function: \(ctx.diagnostics.diagnostics.map(\.message))")
+            #expect(!(ctx.diagnostics.hasError), "Multiple calls to local function: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
-    func testLocalFunctionCapturesOuterVal() throws {
+    @Test func testLocalFunctionCapturesOuterVal() throws {
         let source = """
         fun main(): Int {
             val outer = 10
@@ -70,16 +71,16 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Local function capturing outer val should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertGreaterThanOrEqual(module.functionCount, 2)
+            let module = try #require(ctx.kir)
+            #expect(module.functionCount >= 2)
         }
     }
 
-    func testNestedLocalFunctionCaptureFromParentScope() throws {
+    @Test func testNestedLocalFunctionCaptureFromParentScope() throws {
         let source = """
         fun outer(): Int {
             fun middle(): Int {
@@ -94,14 +95,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Nested local function capture should be handled: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
+            #expect(!(ctx.diagnostics.hasError), "Nested local function capture should be handled: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
             // outer, middle, inner, main => at least 4 functions with capture analysis performed correctly
-            XCTAssertGreaterThanOrEqual(module.functionCount, 4)
+            #expect(module.functionCount >= 4)
         }
     }
 
-    func testNestedLocalFunctionInfersExpressionBodyReturnType() throws {
+    @Test func testNestedLocalFunctionInfersExpressionBodyReturnType() throws {
         let source = """
         fun main(): Int {
             fun outer(x: Int): Int {
@@ -114,16 +115,16 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Nested local function expression-body return type should be inferred: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertGreaterThanOrEqual(module.functionCount, 3)
+            let module = try #require(ctx.kir)
+            #expect(module.functionCount >= 3)
         }
     }
 
-    func testLocalFunctionCapturesMutableOuterVarWithPostfixIncrement() throws {
+    @Test func testLocalFunctionCapturesMutableOuterVarWithPostfixIncrement() throws {
         let source = """
         fun main(): Int {
             var counter = 0
@@ -138,16 +139,16 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Local function mutable capture with postfix increment should compile: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertGreaterThanOrEqual(module.functionCount, 2)
+            let module = try #require(ctx.kir)
+            #expect(module.functionCount >= 2)
         }
     }
 
-    func testLocalFunctionCapturesMutableOuterVarWithPostfixIncrementAndSemicolon() throws {
+    @Test func testLocalFunctionCapturesMutableOuterVarWithPostfixIncrementAndSemicolon() throws {
         let source = """
         fun main(): Int {
             var counter = 0
@@ -162,16 +163,16 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Local function mutable capture with postfix increment and semicolon should compile: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
-            let module = try XCTUnwrap(ctx.kir)
-            XCTAssertGreaterThanOrEqual(module.functionCount, 2)
+            let module = try #require(ctx.kir)
+            #expect(module.functionCount >= 2)
         }
     }
 
-    func testLocalFunctionCapturesMultipleOuterVals() throws {
+    @Test func testLocalFunctionCapturesMultipleOuterVals() throws {
         let source = """
         fun compute(): Int {
             val a = 10
@@ -184,14 +185,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Local function capturing multiple outer vals should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
+            #expect(!(ctx.diagnostics.hasError), "Local function capturing multiple outer vals should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
             // compute, sum, main => at least 3 functions
-            XCTAssertGreaterThanOrEqual(module.functionCount, 3)
+            #expect(module.functionCount >= 3)
         }
     }
 
-    func testLocalFunctionScopeDoesNotLeakBetweenTopLevelFunctions() throws {
+    @Test func testLocalFunctionScopeDoesNotLeakBetweenTopLevelFunctions() throws {
         let source = """
         fun first(): Int {
             fun helper(): Int = 1
@@ -204,14 +205,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertTrue(
+            #expect(
                 ctx.diagnostics.hasError,
                 "Local function should not be visible outside its defining top-level function: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
 
-    func testNestedLocalFunctionCallForwardsCaptureArguments() throws {
+    @Test func testNestedLocalFunctionCallForwardsCaptureArguments() throws {
         // Regression test: h() captures g(), and g() captures x.
         // When h's body calls g(), the capture arguments for g (i.e. x)
         // must be forwarded correctly via transitive capture.
@@ -226,14 +227,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Nested local function call with capture forwarding should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
+            #expect(!(ctx.diagnostics.hasError), "Nested local function call with capture forwarding should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
             // main, g, h => at least 3 functions
-            XCTAssertGreaterThanOrEqual(module.functionCount, 3, "Expected at least 3 functions (main + g + h)")
+            #expect(module.functionCount >= 3, "Expected at least 3 functions (main + g + h)")
         }
     }
 
-    func testNestedLocalFunctionForwardsNonLiteralValCapture() throws {
+    @Test func testNestedLocalFunctionForwardsNonLiteralValCapture() throws {
         // Regression test: g() captures a local val x initialized with a
         // non-literal expression (1 + 2), and h() calls g(). The transitive
         // capture must detect x and the callable info remapping must use the
@@ -250,14 +251,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Nested local function forwarding non-literal val capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
+            #expect(!(ctx.diagnostics.hasError), "Nested local function forwarding non-literal val capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
             // main, g, h => at least 3 functions
-            XCTAssertGreaterThanOrEqual(module.functionCount, 3, "Expected at least 3 functions (main + g + h)")
+            #expect(module.functionCount >= 3, "Expected at least 3 functions (main + g + h)")
         }
     }
 
-    func testNestedLocalFunctionForwardsValueParameterCapture() throws {
+    @Test func testNestedLocalFunctionForwardsValueParameterCapture() throws {
         // Regression test: g() captures a value parameter p of the enclosing
         // function, and h() calls g(). The transitive capture must detect p
         // even though it's not in localValuesBySymbol (value parameters use
@@ -272,14 +273,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Nested local function forwarding value parameter capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
+            #expect(!(ctx.diagnostics.hasError), "Nested local function forwarding value parameter capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
             // main, g, h => at least 3 functions
-            XCTAssertGreaterThanOrEqual(module.functionCount, 3, "Expected at least 3 functions (main + g + h)")
+            #expect(module.functionCount >= 3, "Expected at least 3 functions (main + g + h)")
         }
     }
 
-    func testRecursiveLocalFunctionWithCaptureResolvesCorrectly() throws {
+    @Test func testRecursiveLocalFunctionWithCaptureResolvesCorrectly() throws {
         let source = """
         fun main() {
             val limit = 10
@@ -293,14 +294,14 @@ extension BuildKIRRegressionTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            XCTAssertFalse(ctx.diagnostics.hasError, "Recursive local function with capture should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try XCTUnwrap(ctx.kir)
+            #expect(!(ctx.diagnostics.hasError), "Recursive local function with capture should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+            let module = try #require(ctx.kir)
             // Should have at least main + countdown
-            XCTAssertGreaterThanOrEqual(module.functionCount, 2, "Expected at least 2 functions (main + countdown)")
+            #expect(module.functionCount >= 2, "Expected at least 2 functions (main + countdown)")
         }
     }
 
-    func testSuspendLocalFunctionGeneratesSuspendKIRFunction() throws {
+    @Test func testSuspendLocalFunctionGeneratesSuspendKIRFunction() throws {
         let source = """
         suspend fun delayedValue(v: Int): Int = v
 
@@ -315,12 +316,12 @@ extension BuildKIRRegressionTests {
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
+            #expect(
+                !(ctx.diagnostics.hasError),
                 "Suspend local function should compile into KIR without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
-            let module = try XCTUnwrap(ctx.kir)
+            let module = try #require(ctx.kir)
             let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl else {
                     return nil
@@ -328,16 +329,16 @@ extension BuildKIRRegressionTests {
                 return function
             }
 
-            let localSuspendFunction = try XCTUnwrap(allFunctions.first(where: { function in
+            let localSuspendFunction = try #require(allFunctions.first(where: { function in
                 ctx.interner.resolve(function.name) == "localSuspendBridge"
             }))
-            XCTAssertTrue(localSuspendFunction.isSuspend, "Expected local suspend function KIR node to preserve isSuspend flag.")
+            #expect(localSuspendFunction.isSuspend, "Expected local suspend function KIR node to preserve isSuspend flag.")
 
-            let outerSuspendFunction = try XCTUnwrap(allFunctions.first(where: { function in
+            let outerSuspendFunction = try #require(allFunctions.first(where: { function in
                 ctx.interner.resolve(function.name) == "outerSuspendHost"
             }))
             let outerCallees = extractCallees(from: outerSuspendFunction.body, interner: ctx.interner)
-            XCTAssertTrue(outerCallees.contains("localSuspendBridge"), "Expected outer suspend function to call the local suspend function before lowering.")
+            #expect(outerCallees.contains("localSuspendBridge"), "Expected outer suspend function to call the local suspend function before lowering.")
         }
     }
 
@@ -357,3 +358,4 @@ extension BuildKIRRegressionTests {
         return nil
     }
 }
+#endif

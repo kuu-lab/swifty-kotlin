@@ -1,13 +1,15 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-TEXT-PROP-015: Validates that `Char.isSurrogate()` resolves through
 /// Sema for plain Char receivers as well as literal / branch contexts. The
 /// runtime link involved is `kk_char_isSurrogate` (see
 /// `Sources/Runtime/RuntimeChar.swift`), which returns true for the entire
 /// surrogate range `[0xD800, 0xDFFF]`.
-final class CharIsSurrogateFunctionTests: XCTestCase {
-    func testCharIsSurrogateResolvesInSource() throws {
+@Suite
+struct CharIsSurrogateFunctionTests {
+    @Test func testCharIsSurrogateResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun surrogateCheck(ch: Char): Boolean {
             return ch.isSurrogate()
@@ -31,20 +33,20 @@ final class CharIsSurrogateFunctionTests: XCTestCase {
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        XCTAssertTrue(
+        #expect(
             errors.isEmpty,
             "Expected Char.isSurrogate() to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
         )
     }
 
-    func testCharIsSurrogateResolvesToRuntimeLink() throws {
+    @Test func testCharIsSurrogateResolvesToRuntimeLink() throws {
         var resolvedLink: String?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fq = ["kotlin", "text", "isSurrogate"].map { ctx.interner.intern($0) }
-            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+            let symbol = try #require(sema.symbols.lookupAll(fqName: fq).first { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                     return false
                 }
@@ -52,12 +54,9 @@ final class CharIsSurrogateFunctionTests: XCTestCase {
                     && signature.parameterTypes.isEmpty
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
-            XCTAssertEqual(
-                sema.symbols.functionSignature(for: symbol)?.returnType,
-                sema.types.booleanType,
-                "Char.isSurrogate() should return Boolean"
-            )
+            #expect(sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.booleanType, "Char.isSurrogate() should return Boolean")
         }
-        XCTAssertEqual(resolvedLink, "kk_char_isSurrogate")
+        #expect(resolvedLink == "kk_char_isSurrogate")
     }
 }
+#endif

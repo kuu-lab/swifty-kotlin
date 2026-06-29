@@ -1,9 +1,11 @@
 @testable import CompilerCore
-import XCTest
+import Testing
 
 /// STDLIB-SYSTEM-FN-001: `fun exitProcess(status: Int): Nothing` is resolvable
 /// from `kotlin.system` and may appear in the body of a `Nothing`-returning function.
-final class SystemExitProcessFunctionTests: XCTestCase {
+@Suite
+struct SystemExitProcessFunctionTests {
+    @Test
     func testExitProcessFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlin.system.exitProcess
@@ -13,6 +15,6 @@ final class SystemExitProcessFunctionTests: XCTestCase {
         }
         """)
         try runSema(ctx)
-        XCTAssertFalse(ctx.diagnostics.hasError, "resolve: \(ctx.diagnostics.diagnostics)")
+        #expect(!(ctx.diagnostics.hasError), "resolve: \(ctx.diagnostics.diagnostics)")
     }
 }

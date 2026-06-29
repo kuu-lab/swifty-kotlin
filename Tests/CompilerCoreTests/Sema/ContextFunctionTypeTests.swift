@@ -1,8 +1,10 @@
+#if canImport(Testing)
 @testable import CompilerCore
-import XCTest
+import Testing
 
-final class ContextFunctionTypeTests: XCTestCase {
-    func testFunctionSubtypingContextReceiverCountMismatch() {
+@Suite
+struct ContextFunctionTypeTests {
+    @Test func testFunctionSubtypingContextReceiverCountMismatch() {
         let ts = TypeSystem()
         let intType = ts.intType
         let left = ts.make(.functionType(FunctionType(
@@ -16,11 +18,11 @@ final class ContextFunctionTypeTests: XCTestCase {
             returnType: intType
         )))
 
-        XCTAssertFalse(ts.isSubtype(left, right))
-        XCTAssertFalse(ts.isSubtype(right, left))
+        #expect(!(ts.isSubtype(left, right)))
+        #expect(!(ts.isSubtype(right, left)))
     }
 
-    func testFunctionSubtypingContextReceiversAreOrderedAndContravariant() {
+    @Test func testFunctionSubtypingContextReceiversAreOrderedAndContravariant() {
         let ts = TypeSystem()
         let intType = ts.intType
         let anyType = ts.anyType
@@ -40,12 +42,12 @@ final class ContextFunctionTypeTests: XCTestCase {
             returnType: intType
         )))
 
-        XCTAssertTrue(ts.isSubtype(left, right))
-        XCTAssertFalse(ts.isSubtype(right, left))
-        XCTAssertFalse(ts.isSubtype(left, reordered))
+        #expect(ts.isSubtype(left, right))
+        #expect(!(ts.isSubtype(right, left)))
+        #expect(!(ts.isSubtype(left, reordered)))
     }
 
-    func testWithNullabilityPreservesContextReceivers() {
+    @Test func testWithNullabilityPreservesContextReceivers() {
         let ts = TypeSystem()
         let intType = ts.intType
         let stringType = ts.stringType
@@ -57,11 +59,12 @@ final class ContextFunctionTypeTests: XCTestCase {
         let nullable = ts.withNullability(.nullable, for: fn)
 
         guard case let .functionType(result) = ts.kind(of: nullable) else {
-            return XCTFail("Expected function type")
+            Issue.record("Expected function type"); return
         }
-        XCTAssertEqual(result.contextReceivers, [stringType])
-        XCTAssertEqual(result.params, [intType])
-        XCTAssertEqual(result.returnType, intType)
-        XCTAssertEqual(result.nullability, .nullable)
+        #expect(result.contextReceivers == [stringType])
+        #expect(result.params == [intType])
+        #expect(result.returnType == intType)
+        #expect(result.nullability == .nullable)
     }
 }
+#endif

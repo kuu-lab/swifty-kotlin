@@ -1,6 +1,7 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Foundation
-import XCTest
+import Testing
 
 /// Sema-level coverage for the kotlin.comparisons.compareBy(selector) function
 /// (STDLIB-COMP-FN-001).
@@ -9,43 +10,38 @@ import XCTest
 /// `fun <T> compareBy(selector: (T) -> Comparable<*>?): Comparator<T>`
 /// is registered in the `kotlin.comparisons` package and resolves from Kotlin
 /// source code that explicitly imports the function.
-final class ComparisonsCompareBySelectorFunctionTests: XCTestCase {
+@Suite
+struct ComparisonsCompareBySelectorFunctionTests {
 
     // MARK: - Symbol registration
 
-    func testCompareBySelectorIsRegisteredInComparisonsPackage() throws {
+    @Test func testCompareBySelectorIsRegisteredInComparisonsPackage() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fqName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("comparisons"),
                 ctx.interner.intern("compareBy"),
             ]
             let candidates = sema.symbols.lookupAll(fqName: fqName)
-            XCTAssertFalse(
-                candidates.isEmpty,
-                "Expected kotlin.comparisons.compareBy to be registered as a synthetic top-level function"
-            )
+            #expect(!(candidates.isEmpty), "Expected kotlin.comparisons.compareBy to be registered as a synthetic top-level function")
 
             let externalLinks = Set(
                 candidates.compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            XCTAssertTrue(
-                externalLinks.contains("kk_comparator_from_selector"),
-                "Expected at least one compareBy overload to link to kk_comparator_from_selector, got: \(externalLinks)"
-            )
+            #expect(externalLinks.contains("kk_comparator_from_selector"), "Expected at least one compareBy overload to link to kk_comparator_from_selector, got: \(externalLinks)")
         }
     }
 
-    func testCompareBySelectorOverloadHasSingleSelectorParameter() throws {
+    @Test func testCompareBySelectorOverloadHasSingleSelectorParameter() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let sema = try XCTUnwrap(ctx.sema)
+            let sema = try #require(ctx.sema)
             let fqName: [InternedString] = [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("comparisons"),
@@ -57,16 +53,13 @@ final class ComparisonsCompareBySelectorFunctionTests: XCTestCase {
                     && sig.typeParameterSymbols.count == 1
                     && sig.valueParameterIsVararg == [false]
             }
-            XCTAssertFalse(
-                selectorOverloads.isEmpty,
-                "Expected at least one single-selector compareBy overload"
-            )
+            #expect(!(selectorOverloads.isEmpty), "Expected at least one single-selector compareBy overload")
         }
     }
 
     // MARK: - Source resolution
 
-    func testCompareBySelectorFunctionResolvesInSource() throws {
+    @Test func testCompareBySelectorFunctionResolvesInSource() throws {
         let source = """
         import kotlin.comparisons.compareBy
 
@@ -82,14 +75,11 @@ final class ComparisonsCompareBySelectorFunctionTests: XCTestCase {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            XCTAssertFalse(
-                ctx.diagnostics.hasError,
-                "Expected compareBy<Person> selector form to resolve cleanly, got: \(diagnosticSummary)"
-            )
+            #expect(!(ctx.diagnostics.hasError), "Expected compareBy<Person> selector form to resolve cleanly, got: \(diagnosticSummary)")
         }
     }
 
-    func testCompareBySelectorReturnsComparator() throws {
+    @Test func testCompareBySelectorReturnsComparator() throws {
         let source = """
         import kotlin.comparisons.compareBy
 
@@ -101,27 +91,24 @@ final class ComparisonsCompareBySelectorFunctionTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            let ast = try XCTUnwrap(ctx.ast)
-            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
 
-            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(calleeExpr, _, _, _) = expr,
                       case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                 else { return false }
                 return ctx.interner.resolve(calleeName) == "compareBy"
             }, "Expected a call to compareBy")
 
-            let exprType = try XCTUnwrap(sema.bindings.exprTypes[callExpr])
+            let exprType = try #require(sema.bindings.exprTypes[callExpr])
             guard case let .classType(ct) = sema.types.kind(of: exprType) else {
-                XCTFail("Expected compareBy result to be a class type (Comparator<T>)")
+                Issue.record("Expected compareBy result to be a class type (Comparator<T>)")
                 return
             }
-            let symbol = try XCTUnwrap(sema.symbols.symbol(ct.classSymbol))
-            XCTAssertEqual(
-                symbol.fqName.map { ctx.interner.resolve($0) },
-                ["kotlin", "Comparator"],
-                "Expected compareBy(selector) to return kotlin.Comparator<T>"
-            )
+            let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
+            #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Comparator"], "Expected compareBy(selector) to return kotlin.Comparator<T>")
         }
     }
 }
+#endif
