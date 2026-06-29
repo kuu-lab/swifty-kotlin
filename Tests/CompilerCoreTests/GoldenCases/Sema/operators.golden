@@ -31,72 +31,72 @@ symbol fq=typeCheck.$10.v kind=valueParameter vis=private flags=_
 symbol fq=unsafeCast kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=unsafeCast.$11.v kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun typeCheck sym=typeCheck
-  decl d1 fun negatedTypeCheck sym=negatedTypeCheck
-  decl d2 fun unsafeCast sym=unsafeCast
-  decl d3 fun safeCast sym=safeCast
-  decl d4 fun elvisOp sym=elvisOp
-  decl d5 fun nullAssertOp sym=nullAssertOp
-  decl d6 fun compoundAdd sym=compoundAdd
-  decl d7 fun compoundSub sym=compoundSub
-  decl d8 fun compoundMul sym=compoundMul
-  decl d9 fun compoundDiv sym=compoundDiv
-  decl d10 fun compoundMod sym=compoundMod
-  decl d11 fun safeCallExample sym=safeCallExample
-  decl d12 fun arrayAssignExample sym=arrayAssignExample
-expr e0 name(v) type=Any ref=typeCheck.$10.v
-expr e1 isCheck expr=e0 type=t0 type=Boolean
-expr e2 name(v) type=Any ref=negatedTypeCheck.$6.v
-expr e3 isCheck! expr=e2 type=t1 type=Boolean
-expr e4 name(v) type=Any ref=unsafeCast.$11.v
-expr e5 asCast expr=e4 type=t2 type=String
-expr e6 name(v) type=Any ref=safeCast.$9.v
-expr e7 asCast? expr=e6 type=t3 type=String?
-expr e8 name(v) type=String? ref=elvisOp.$5.v
-expr e9 string(default) type=String
-expr e10 binary(elvis) lhs=e8 rhs=e9 type=String
-expr e11 name(v) type=String? ref=nullAssertOp.$7.v
-expr e12 nullAssert expr=e11 type=String
-expr e13 name(x) type=Int ref=compoundAdd.$0.x
-expr e14 localDecl a mutable=1 type=_ init=e13 type=Unit ref=__local_0.a
-expr e15 int(10) type=Int
-expr e16 compoundAssign(plusAssign) name=a value=e15 type=Unit ref=__local_0.a
-expr e17 name(a) type=Int ref=__local_0.a
-expr e18 return value=e17 type=Nothing
-expr e19 name(x) type=Int ref=compoundSub.$4.x
-expr e20 localDecl b mutable=1 type=_ init=e19 type=Unit ref=__local_1.b
-expr e21 int(5) type=Int
-expr e22 compoundAssign(minusAssign) name=b value=e21 type=Unit ref=__local_1.b
-expr e23 name(b) type=Int ref=__local_1.b
-expr e24 return value=e23 type=Nothing
-expr e25 name(x) type=Int ref=compoundMul.$3.x
-expr e26 localDecl c mutable=1 type=_ init=e25 type=Unit ref=__local_2.c
-expr e27 int(2) type=Int
-expr e28 compoundAssign(timesAssign) name=c value=e27 type=Unit ref=__local_2.c
-expr e29 name(c) type=Int ref=__local_2.c
-expr e30 return value=e29 type=Nothing
-expr e31 name(x) type=Int ref=compoundDiv.$1.x
-expr e32 localDecl d mutable=1 type=_ init=e31 type=Unit ref=__local_3.d
-expr e33 int(3) type=Int
-expr e34 compoundAssign(divAssign) name=d value=e33 type=Unit ref=__local_3.d
-expr e35 name(d) type=Int ref=__local_3.d
-expr e36 return value=e35 type=Nothing
-expr e37 name(x) type=Int ref=compoundMod.$2.x
-expr e38 localDecl e mutable=1 type=_ init=e37 type=Unit ref=__local_4.e
-expr e39 int(4) type=Int
-expr e40 compoundAssign(modAssign) name=e value=e39 type=Unit ref=__local_4.e
-expr e41 name(e) type=Int ref=__local_4.e
-expr e42 return value=e41 type=Nothing
-expr e43 name(s) type=String? ref=safeCallExample.$8.s
-expr e44 safeMemberCall recv=e43 callee=hashCode args=[] type=<error>
-expr e45 int(3) type=Int
-expr e46 call callee=e47 args=[_:e45] type=kotlin.IntArray
-expr e48 localDecl arr mutable=1 type=_ init=e46 type=Unit ref=__local_5.arr
-expr e49 name(arr) type=kotlin.IntArray ref=__local_5.arr
-expr e50 int(0) type=Int
-expr e51 int(42) type=Int
-expr e52 indexedAssign receiver=e49 indices=[e50] value=e51 type=Unit
-expr e53 name(arr) type=kotlin.IntArray ref=__local_5.arr
-expr e54 int(0) type=Int
-expr e55 indexedAccess receiver=e53 indices=[e54] type=Int
-expr e56 return value=e55 type=Nothing
+  decl typeCheck fun typeCheck sym=typeCheck
+  decl negatedTypeCheck fun negatedTypeCheck sym=negatedTypeCheck
+  decl unsafeCast fun unsafeCast sym=unsafeCast
+  decl safeCast fun safeCast sym=safeCast
+  decl elvisOp fun elvisOp sym=elvisOp
+  decl nullAssertOp fun nullAssertOp sym=nullAssertOp
+  decl compoundAdd fun compoundAdd sym=compoundAdd
+  decl compoundSub fun compoundSub sym=compoundSub
+  decl compoundMul fun compoundMul sym=compoundMul
+  decl compoundDiv fun compoundDiv sym=compoundDiv
+  decl compoundMod fun compoundMod sym=compoundMod
+  decl safeCallExample fun safeCallExample sym=safeCallExample
+  decl arrayAssignExample fun arrayAssignExample sym=arrayAssignExample
+expr e@1:34#0 name(v) type=Any ref=typeCheck.$10.v
+expr e@1:34#1 isCheck expr=e@1:34#0 type=String type=Boolean
+expr e@3:41#0 name(v) type=Any ref=negatedTypeCheck.$6.v
+expr e@3:41#1 isCheck! expr=e@3:41#0 type=Int type=Boolean
+expr e@5:34#0 name(v) type=Any ref=unsafeCast.$11.v
+expr e@5:34#1 asCast expr=e@5:34#0 type=String type=String
+expr e@7:33#0 name(v) type=Any ref=safeCast.$9.v
+expr e@7:33#1 asCast? expr=e@7:33#0 type=String type=String?
+expr e@9:35#0 name(v) type=String? ref=elvisOp.$5.v
+expr e@9:40 string(default) type=String
+expr e@9:35#1 binary(elvis) lhs=e@9:35#0 rhs=e@9:40 type=String
+expr e@11:40#0 name(v) type=String? ref=nullAssertOp.$7.v
+expr e@11:40#1 nullAssert expr=e@11:40#0 type=String
+expr e@14:13#2 name(x) type=Int ref=compoundAdd.$0.x
+expr e@14:5#7 localDecl a mutable=1 type=_ init=e@14:13#2 type=Unit ref=__local_0.a
+expr e@15:10 int(10) type=Int
+expr e@15:5#7 compoundAssign(plusAssign) name=a value=e@15:10 type=Unit ref=__local_0.a
+expr e@16:12#7 name(a) type=Int ref=__local_0.a
+expr e@16:5#6 return value=e@16:12#7 type=Nothing
+expr e@20:13#1 name(x) type=Int ref=compoundSub.$4.x
+expr e@20:5#5 localDecl b mutable=1 type=_ init=e@20:13#1 type=Unit ref=__local_1.b
+expr e@21:10 int(5) type=Int
+expr e@21:5#4 compoundAssign(minusAssign) name=b value=e@21:10 type=Unit ref=__local_1.b
+expr e@22:12#2 name(b) type=Int ref=__local_1.b
+expr e@22:5#4 return value=e@22:12#2 type=Nothing
+expr e@26:13#3 name(x) type=Int ref=compoundMul.$3.x
+expr e@26:5#6 localDecl c mutable=1 type=_ init=e@26:13#3 type=Unit ref=__local_2.c
+expr e@27:10 int(2) type=Int
+expr e@27:5#5 compoundAssign(timesAssign) name=c value=e@27:10 type=Unit ref=__local_2.c
+expr e@28:12#4 name(c) type=Int ref=__local_2.c
+expr e@28:5#3 return value=e@28:12#4 type=Nothing
+expr e@32:13#3 name(x) type=Int ref=compoundDiv.$1.x
+expr e@32:5#6 localDecl d mutable=1 type=_ init=e@32:13#3 type=Unit ref=__local_3.d
+expr e@33:10#1 int(3) type=Int
+expr e@33:5#6 compoundAssign(divAssign) name=d value=e@33:10#1 type=Unit ref=__local_3.d
+expr e@34:12#1 name(d) type=Int ref=__local_3.d
+expr e@34:5#7 return value=e@34:12#1 type=Nothing
+expr e@38:13#2 name(x) type=Int ref=compoundMod.$2.x
+expr e@38:5#3 localDecl e mutable=1 type=_ init=e@38:13#2 type=Unit ref=__local_4.e
+expr e@39:10#1 int(4) type=Int
+expr e@39:5#4 compoundAssign(modAssign) name=e value=e@39:10#1 type=Unit ref=__local_4.e
+expr e@40:12#3 name(e) type=Int ref=__local_4.e
+expr e@40:5#5 return value=e@40:12#3 type=Nothing
+expr e@43:41#1 name(s) type=String? ref=safeCallExample.$8.s
+expr e@43:41#2 safeMemberCall recv=e@43:41#1 callee=hashCode args=[] type=<error>
+expr e@46:24#1 int(3) type=Int
+expr e@46:15#1 call callee=e@46:15#0 args=[_:e@46:24#1] type=kotlin.IntArray
+expr e@46:5#7 localDecl arr mutable=1 type=_ init=e@46:15#1 type=Unit ref=__local_5.arr
+expr e@47:5#8 name(arr) type=kotlin.IntArray ref=__local_5.arr
+expr e@47:9#3 int(0) type=Int
+expr e@47:14#2 int(42) type=Int
+expr e@47:5#10 indexedAssign receiver=e@47:5#8 indices=[e@47:9#3] value=e@47:14#2 type=Unit
+expr e@48:12#0 name(arr) type=kotlin.IntArray ref=__local_5.arr
+expr e@48:16#4 int(0) type=Int
+expr e@48:12#1 indexedAccess receiver=e@48:12#0 indices=[e@48:16#4] type=Int
+expr e@48:5#3 return value=e@48:12#1 type=Nothing

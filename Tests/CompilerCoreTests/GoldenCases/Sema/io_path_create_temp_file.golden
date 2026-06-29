@@ -15,20 +15,20 @@ symbol fq=kotlin.io.path.createTempFile.suffix kind=valueParameter vis=private f
 symbol fq=kotlin.io.path.pathString kind=property vis=public flags=synthetic type=String
 symbol fq=kotlin.io.path.pathString.$get kind=function vis=public flags=synthetic sig=recv=kotlin.io.path.Path params=[] ret=String
 file f13 package=_
-  decl d0 fun createWithPrefixAndSuffix sym=createWithPrefixAndSuffix
-  decl d1 fun createWithDirectoryPrefixAndSuffix sym=createWithDirectoryPrefixAndSuffix
-expr e0 string(kswiftk-) type=String
-expr e1 string(.data) type=String
-expr e2 call callee=e3 args=[_:e0,_:e1] type=kotlin.io.path.Path call=kotlin.io.path.createTempFile#0
-expr e4 localDecl tmp mutable=0 type=_ init=e2 type=Unit ref=__local_0.tmp
-expr e5 name(tmp) type=kotlin.io.path.Path ref=__local_0.tmp
-expr e6 memberCall recv=e5 callee=pathString args=[] type=String ref=kotlin.io.path.pathString call=kotlin.io.path.pathString.$get
-expr e7 return value=e6 type=Nothing
-expr e8 name(dir) type=kotlin.io.path.Path ref=createWithDirectoryPrefixAndSuffix.$0.dir
-expr e9 string(kswiftk-) type=String
-expr e10 string(.data) type=String
-expr e11 call callee=e12 args=[_:e8,_:e9,_:e10] type=kotlin.io.path.Path call=kotlin.io.path.createTempFile#1
-expr e13 localDecl tmp mutable=0 type=_ init=e11 type=Unit ref=__local_1.tmp
-expr e14 name(tmp) type=kotlin.io.path.Path ref=__local_1.tmp
-expr e15 memberCall recv=e14 callee=pathString args=[] type=String ref=kotlin.io.path.pathString call=kotlin.io.path.pathString.$get
-expr e16 return value=e15 type=Nothing
+  decl createWithPrefixAndSuffix fun createWithPrefixAndSuffix sym=createWithPrefixAndSuffix
+  decl createWithDirectoryPrefixAndSuffix fun createWithDirectoryPrefixAndSuffix sym=createWithDirectoryPrefixAndSuffix
+expr e@6:30 string(kswiftk-) type=String
+expr e@6:42 string(.data) type=String
+expr e@6:15#1 call callee=e@6:15#0 args=[_:e@6:30,_:e@6:42] type=kotlin.io.path.Path call=kotlin.io.path.createTempFile#0
+expr e@6:5#3 localDecl tmp mutable=0 type=_ init=e@6:15#1 type=Unit ref=__local_0.tmp
+expr e@7:12#3 name(tmp) type=kotlin.io.path.Path ref=__local_0.tmp
+expr e@7:12#4 memberCall recv=e@7:12#3 callee=pathString args=[] type=String ref=kotlin.io.path.pathString call=kotlin.io.path.pathString.$get
+expr e@7:5#3 return value=e@7:12#4 type=Nothing
+expr e@11:30 name(dir) type=kotlin.io.path.Path ref=createWithDirectoryPrefixAndSuffix.$0.dir
+expr e@11:35 string(kswiftk-) type=String
+expr e@11:47 string(.data) type=String
+expr e@11:15#1 call callee=e@11:15#0 args=[_:e@11:30,_:e@11:35,_:e@11:47] type=kotlin.io.path.Path call=kotlin.io.path.createTempFile#1
+expr e@11:5#2 localDecl tmp mutable=0 type=_ init=e@11:15#1 type=Unit ref=__local_1.tmp
+expr e@12:12#2 name(tmp) type=kotlin.io.path.Path ref=__local_1.tmp
+expr e@12:12#3 memberCall recv=e@12:12#2 callee=pathString args=[] type=String ref=kotlin.io.path.pathString call=kotlin.io.path.pathString.$get
+expr e@12:5#4 return value=e@12:12#3 type=Nothing

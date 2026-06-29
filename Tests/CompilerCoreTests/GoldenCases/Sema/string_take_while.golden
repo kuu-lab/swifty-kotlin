@@ -5,13 +5,13 @@ symbol fq=kotlin.text.takeWhile kind=function vis=public flags=synthetic sig=rec
 symbol fq=kotlin.text.takeWhile.predicate kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun main sym=main
-expr e0 string(abcde) type=String
-expr e1 name(it) type=Char ref=s-0
-expr e2 char(99) type=Char
-expr e3 binary(notEqual) lhs=e1 rhs=e2 type=Boolean
-expr e4 lambda params=[] body=e3 label=takeWhile type=(Char) -> Boolean
-expr e5 memberCall recv=e0 callee=takeWhile args=[_:e4] type=String call=kotlin.text.takeWhile
-expr e6 localDecl prefix mutable=0 type=t0 init=e5 type=Unit ref=__local_0.prefix
-expr e7 name(prefix) type=String ref=__local_0.prefix
-expr e8 call callee=e9 args=[_:e7] type=Unit call=kotlin.io.println#1
+  decl main fun main sym=main
+expr e@2:26#0 string(abcde) type=String
+expr e@2:46#2 name(it) type=Char ref=s-0
+expr e@2:52#1 char(99) type=Char
+expr e@2:46#3 binary(notEqual) lhs=e@2:46#2 rhs=e@2:52#1 type=Boolean
+expr e@2:44 lambda params=[] body=e@2:46#3 label=takeWhile type=(Char) -> Boolean
+expr e@2:26#1 memberCall recv=e@2:26#0 callee=takeWhile args=[_:e@2:44] type=String call=kotlin.text.takeWhile
+expr e@2:5 localDecl prefix mutable=0 type=String init=e@2:26#1 type=Unit ref=__local_0.prefix
+expr e@3:13 name(prefix) type=String ref=__local_0.prefix
+expr e@3:5#1 call callee=e@3:5#0 args=[_:e@3:13] type=Unit call=kotlin.io.println#1

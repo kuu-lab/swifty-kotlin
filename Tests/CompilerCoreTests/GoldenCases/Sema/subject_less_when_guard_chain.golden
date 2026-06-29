@@ -7,40 +7,40 @@ symbol fq=multiGuard.$0.c kind=valueParameter vis=private flags=_
 symbol fq=noElseGuard kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
 symbol fq=noElseGuard.$1.x kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun multiGuard sym=multiGuard
-  decl d1 fun noElseGuard sym=noElseGuard
-  decl d2 fun boolExhaustive sym=boolExhaustive
-expr e0 name(a) type=Int ref=multiGuard.$0.a
-expr e1 int(0) type=Int
-expr e2 binary(greaterThan) lhs=e0 rhs=e1 type=Boolean
-expr e3 string(positive_a) type=String
-expr e4 name(b) type=Int ref=multiGuard.$0.b
-expr e5 int(0) type=Int
-expr e6 binary(greaterThan) lhs=e4 rhs=e5 type=Boolean
-expr e7 string(positive_b) type=String
-expr e8 name(c) type=Int ref=multiGuard.$0.c
-expr e9 int(0) type=Int
-expr e10 binary(greaterThan) lhs=e8 rhs=e9 type=Boolean
-expr e11 string(positive_c) type=String
-expr e12 string(all_non_positive) type=String
-expr e13 when subject=_ branches=[e2->e3,e6->e7,e10->e11] else=e12 type=String
-expr e14 return value=e13 type=Nothing
-expr e15 int(0) type=Int
-expr e16 localDecl result mutable=0 type=_ init=e15 type=Unit ref=__local_0.result
-expr e17 name(x) type=Int ref=noElseGuard.$1.x
-expr e18 int(10) type=Int
-expr e19 binary(greaterThan) lhs=e17 rhs=e18 type=Boolean
-expr e20 name(result) type=Int ref=__local_0.result
-expr e21 name(x) type=Int ref=noElseGuard.$1.x
-expr e22 int(0) type=Int
-expr e23 binary(greaterThan) lhs=e21 rhs=e22 type=Boolean
-expr e24 name(result) type=Int ref=__local_0.result
-expr e25 when subject=_ branches=[e19->e20,e23->e24] else=_ type=Int
-expr e26 name(result) type=Int ref=__local_0.result
-expr e27 return value=e26 type=Nothing
-expr e28 bool(true) type=Boolean
-expr e29 int(1) type=Int
-expr e30 bool(false) type=Boolean
-expr e31 int(0) type=Int
-expr e32 when subject=_ branches=[e28->e29,e30->e31] else=_ type=Int
-expr e33 return value=e32 type=Nothing
+  decl multiGuard fun multiGuard sym=multiGuard
+  decl noElseGuard fun noElseGuard sym=noElseGuard
+  decl boolExhaustive fun boolExhaustive sym=boolExhaustive
+expr e@3:9#0 name(a) type=Int ref=multiGuard.$0.a
+expr e@3:13 int(0) type=Int
+expr e@3:9#1 binary(greaterThan) lhs=e@3:9#0 rhs=e@3:13 type=Boolean
+expr e@3:18 string(positive_a) type=String
+expr e@4:9#2 name(b) type=Int ref=multiGuard.$0.b
+expr e@4:13#2 int(0) type=Int
+expr e@4:9#3 binary(greaterThan) lhs=e@4:9#2 rhs=e@4:13#2 type=Boolean
+expr e@4:18 string(positive_b) type=String
+expr e@5:9#0 name(c) type=Int ref=multiGuard.$0.c
+expr e@5:13#1 int(0) type=Int
+expr e@5:9#1 binary(greaterThan) lhs=e@5:9#0 rhs=e@5:13#1 type=Boolean
+expr e@5:18 string(positive_c) type=String
+expr e@6:17 string(all_non_positive) type=String
+expr e@2:12 when subject=_ branches=[e@3:9#1->e@3:18,e@4:9#3->e@4:18,e@5:9#1->e@5:18] else=e@6:17 type=String
+expr e@2:5 return value=e@2:12 type=Nothing
+expr e@11:18 int(0) type=Int
+expr e@11:5#2 localDecl result mutable=0 type=_ init=e@11:18 type=Unit ref=__local_0.result
+expr e@13:9#4 name(x) type=Int ref=noElseGuard.$1.x
+expr e@13:13#1 int(10) type=Int
+expr e@13:9#5 binary(greaterThan) lhs=e@13:9#4 rhs=e@13:13#1 type=Boolean
+expr e@13:19 name(result) type=Int ref=__local_0.result
+expr e@14:9#0 name(x) type=Int ref=noElseGuard.$1.x
+expr e@14:13#2 int(0) type=Int
+expr e@14:9#1 binary(greaterThan) lhs=e@14:9#0 rhs=e@14:13#2 type=Boolean
+expr e@14:18 name(result) type=Int ref=__local_0.result
+expr e@12:5#4 when subject=_ branches=[e@13:9#5->e@13:19,e@14:9#1->e@14:18] else=_ type=Int
+expr e@16:12#7 name(result) type=Int ref=__local_0.result
+expr e@16:5#6 return value=e@16:12#7 type=Nothing
+expr e@21:9#3 bool(true) type=Boolean
+expr e@21:17 int(1) type=Int
+expr e@22:9#1 bool(false) type=Boolean
+expr e@22:18#2 int(0) type=Int
+expr e@20:12#5 when subject=_ branches=[e@21:9#3->e@21:17,e@22:9#1->e@22:18#2] else=_ type=Int
+expr e@20:5#5 return value=e@20:12#5 type=Nothing

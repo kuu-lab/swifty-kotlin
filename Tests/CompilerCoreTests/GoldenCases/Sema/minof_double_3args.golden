@@ -7,8 +7,8 @@ symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synth
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 fun threeArgMinDouble sym=golden.sema.threeArgMinDouble
-expr e0 name(a) type=Double ref=golden.sema.threeArgMinDouble.$0.a
-expr e1 name(b) type=Double ref=golden.sema.threeArgMinDouble.$0.b
-expr e2 name(c) type=Double ref=golden.sema.threeArgMinDouble.$0.c
-expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=Double call=kotlin.comparisons.minOf#1
+  decl golden.sema.threeArgMinDouble fun threeArgMinDouble sym=golden.sema.threeArgMinDouble
+expr e@3:72 name(a) type=Double ref=golden.sema.threeArgMinDouble.$0.a
+expr e@3:75 name(b) type=Double ref=golden.sema.threeArgMinDouble.$0.b
+expr e@3:78 name(c) type=Double ref=golden.sema.threeArgMinDouble.$0.c
+expr e@3:66#1 call callee=e@3:66#0 args=[_:e@3:72,_:e@3:75,_:e@3:78] type=Double call=kotlin.comparisons.minOf#1

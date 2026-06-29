@@ -6,15 +6,15 @@ symbol fq=golden.sema.id.$0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.id.$0.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.useInference kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=golden.sema
-  decl d0 fun id sym=golden.sema.id
-  decl d1 fun useInference sym=golden.sema.useInference
-expr e0 name(x) type=golden.sema.id.$0.T ref=golden.sema.id.$0.x
-expr e1 int(42) type=Int
-expr e2 call callee=e3 args=[_:e1] type=Int call=golden.sema.id targs=[Int]
-expr e4 localDecl a mutable=0 type=t0 init=e2 type=Unit ref=__local_0.a
-expr e5 string(hello) type=String
-expr e6 call callee=e7 args=[_:e5] type=String call=golden.sema.id targs=[String]
-expr e8 localDecl b mutable=0 type=t1 init=e6 type=Unit ref=__local_1.b
-expr e9 bool(true) type=Boolean
-expr e10 call callee=e11 args=[_:e9] type=Boolean call=golden.sema.id targs=[Boolean]
-expr e12 localDecl c mutable=0 type=t2 init=e10 type=Unit ref=__local_2.c
+  decl golden.sema.id fun id sym=golden.sema.id
+  decl golden.sema.useInference fun useInference sym=golden.sema.useInference
+expr e@3:23 name(x) type=golden.sema.id.$0.T ref=golden.sema.id.$0.x
+expr e@6:21 int(42) type=Int
+expr e@6:18#3 call callee=e@6:18#2 args=[_:e@6:21] type=Int call=golden.sema.id targs=[Int]
+expr e@6:5#3 localDecl a mutable=0 type=Int init=e@6:18#3 type=Unit ref=__local_0.a
+expr e@7:24 string(hello) type=String
+expr e@7:21#2 call callee=e@7:21#1 args=[_:e@7:24] type=String call=golden.sema.id targs=[String]
+expr e@7:5#3 localDecl b mutable=0 type=String init=e@7:21#2 type=Unit ref=__local_1.b
+expr e@8:25 bool(true) type=Boolean
+expr e@8:22#1 call callee=e@8:22#0 args=[_:e@8:25] type=Boolean call=golden.sema.id targs=[Boolean]
+expr e@8:5#2 localDecl c mutable=0 type=Boolean init=e@8:22#1 type=Unit ref=__local_2.c

@@ -13,7 +13,7 @@ symbol fq=kotlinx.cinterop.toCValues.T kind=typeParameter vis=private flags=synt
 symbol fq=listToValues kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?>] ret=kotlinx.cinterop.CValues<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.ByteVarOf<Int>>>
 symbol fq=listToValues.$0.ptrs kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun listToValues sym=listToValues
-expr e0 name(ptrs) type=kotlin.collections.List<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?> ref=listToValues.$0.ptrs
-expr e1 memberCall recv=e0 callee=toCValues args=[] type=kotlinx.cinterop.CValues<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.ByteVarOf<Int>>> call=kotlinx.cinterop.toCValues#10 targs=[kotlinx.cinterop.ByteVarOf<Int>]
-expr e2 return value=e1 type=Nothing
+  decl listToValues fun listToValues sym=listToValues
+expr e@8:12#3 name(ptrs) type=kotlin.collections.List<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?> ref=listToValues.$0.ptrs
+expr e@8:12#4 memberCall recv=e@8:12#3 callee=toCValues args=[] type=kotlinx.cinterop.CValues<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.ByteVarOf<Int>>> call=kotlinx.cinterop.toCValues#10 targs=[kotlinx.cinterop.ByteVarOf<Int>]
+expr e@8:5#2 return value=e@8:12#4 type=Nothing

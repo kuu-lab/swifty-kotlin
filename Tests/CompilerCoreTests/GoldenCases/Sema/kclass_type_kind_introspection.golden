@@ -18,79 +18,79 @@ symbol fq=golden.sema.checkViaVariable kind=function vis=public flags=_ sig=recv
 symbol fq=golden.sema.checkViaVariable.$0.klass kind=valueParameter vis=private flags=_
 symbol fq=kotlin.reflect.KClass kind=interface vis=public flags=synthetic
 file f13 package=golden.sema
-  decl d0 class Point sym=golden.sema.Point
-  decl d1 class Shape sym=golden.sema.Shape
-  decl d2 class Color sym=golden.sema.Color
-  decl d3 class Meters sym=golden.sema.Meters
-  decl d4 interface Printable sym=golden.sema.Printable
-  decl d5 object Singleton sym=golden.sema.Singleton
-  decl d6 class Node sym=golden.sema.Node
-  decl d7 interface Transformer sym=golden.sema.Transformer
-  decl d8 fun checkTypeKinds sym=golden.sema.checkTypeKinds
-  decl d9 fun checkViaVariable sym=golden.sema.checkViaVariable
-expr e0 name(Point) type=Any ref=golden.sema.Point
-expr e1 callableRef recv=e0 member=class type=KClass<golden.sema.Point>
-expr e2 memberCall recv=e1 callee=isData args=[] type=Boolean
-expr e3 localDecl dataCheck mutable=0 type=_ init=e2 type=Unit ref=__local_0.dataCheck
-expr e4 name(Shape) type=Any ref=golden.sema.Shape
-expr e5 callableRef recv=e4 member=class type=KClass<golden.sema.Shape>
-expr e6 memberCall recv=e5 callee=isSealed args=[] type=Boolean
-expr e7 localDecl sealedCheck mutable=0 type=_ init=e6 type=Unit ref=__local_1.sealedCheck
-expr e8 name(Color) type=golden.sema.Color ref=golden.sema.Color
-expr e9 callableRef recv=e8 member=class type=KClass<golden.sema.Color>
-expr e10 memberCall recv=e9 callee=isEnum args=[] type=Boolean
-expr e11 localDecl enumCheck mutable=0 type=_ init=e10 type=Unit ref=__local_2.enumCheck
-expr e12 name(Meters) type=Any ref=golden.sema.Meters
-expr e13 callableRef recv=e12 member=class type=KClass<golden.sema.Meters>
-expr e14 memberCall recv=e13 callee=isValue args=[] type=Boolean
-expr e15 localDecl valueCheck mutable=0 type=_ init=e14 type=Unit ref=__local_3.valueCheck
-expr e16 name(Printable) type=Any ref=golden.sema.Printable
-expr e17 callableRef recv=e16 member=class type=KClass<golden.sema.Printable>
-expr e18 memberCall recv=e17 callee=isInterface args=[] type=Boolean
-expr e19 localDecl interfaceCheck mutable=0 type=_ init=e18 type=Unit ref=__local_4.interfaceCheck
-expr e20 name(Singleton) type=golden.sema.Singleton ref=golden.sema.Singleton
-expr e21 callableRef recv=e20 member=class type=KClass<golden.sema.Singleton>
-expr e22 memberCall recv=e21 callee=isObject args=[] type=Boolean
-expr e23 localDecl objectCheck mutable=0 type=_ init=e22 type=Unit ref=__local_5.objectCheck
-expr e24 name(Transformer) type=Any ref=golden.sema.Transformer
-expr e25 callableRef recv=e24 member=class type=KClass<golden.sema.Transformer>
-expr e26 memberCall recv=e25 callee=isFun args=[] type=Boolean
-expr e27 localDecl funCheck mutable=0 type=_ init=e26 type=Unit ref=__local_6.funCheck
-expr e28 name(dataCheck) type=Boolean ref=__local_0.dataCheck
-expr e29 name(sealedCheck) type=Boolean ref=__local_1.sealedCheck
-expr e30 binary(logicalAnd) lhs=e28 rhs=e29 type=Boolean
-expr e31 name(enumCheck) type=Boolean ref=__local_2.enumCheck
-expr e32 binary(logicalAnd) lhs=e30 rhs=e31 type=Boolean
-expr e33 name(valueCheck) type=Boolean ref=__local_3.valueCheck
-expr e34 binary(logicalAnd) lhs=e32 rhs=e33 type=Boolean
-expr e35 name(interfaceCheck) type=Boolean ref=__local_4.interfaceCheck
-expr e36 binary(logicalAnd) lhs=e34 rhs=e35 type=Boolean
-expr e37 name(objectCheck) type=Boolean ref=__local_5.objectCheck
-expr e38 binary(logicalAnd) lhs=e36 rhs=e37 type=Boolean
-expr e39 name(funCheck) type=Boolean ref=__local_6.funCheck
-expr e40 binary(logicalAnd) lhs=e38 rhs=e39 type=Boolean
-expr e41 return value=e40 type=Nothing
-expr e42 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
-expr e43 memberCall recv=e42 callee=isData args=[] type=Boolean
-expr e44 string(data) type=String
-expr e45 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
-expr e46 memberCall recv=e45 callee=isSealed args=[] type=Boolean
-expr e47 string(sealed) type=String
-expr e48 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
-expr e49 memberCall recv=e48 callee=isEnum args=[] type=Boolean
-expr e50 string(enum) type=String
-expr e51 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
-expr e52 memberCall recv=e51 callee=isValue args=[] type=Boolean
-expr e53 string(value) type=String
-expr e54 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
-expr e55 memberCall recv=e54 callee=isInterface args=[] type=Boolean
-expr e56 string(interface) type=String
-expr e57 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
-expr e58 memberCall recv=e57 callee=isObject args=[] type=Boolean
-expr e59 string(object) type=String
-expr e60 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
-expr e61 memberCall recv=e60 callee=isFun args=[] type=Boolean
-expr e62 string(fun) type=String
-expr e63 string(other) type=String
-expr e64 when subject=_ branches=[e43->e44,e46->e47,e49->e50,e52->e53,e55->e56,e58->e59,e61->e62] else=e63 type=String
-expr e65 return value=e64 type=Nothing
+  decl golden.sema.Point class Point sym=golden.sema.Point
+  decl golden.sema.Shape class Shape sym=golden.sema.Shape
+  decl golden.sema.Color class Color sym=golden.sema.Color
+  decl golden.sema.Meters class Meters sym=golden.sema.Meters
+  decl golden.sema.Printable interface Printable sym=golden.sema.Printable
+  decl golden.sema.Singleton object Singleton sym=golden.sema.Singleton
+  decl golden.sema.Node class Node sym=golden.sema.Node
+  decl golden.sema.Transformer interface Transformer sym=golden.sema.Transformer
+  decl golden.sema.checkTypeKinds fun checkTypeKinds sym=golden.sema.checkTypeKinds
+  decl golden.sema.checkViaVariable fun checkViaVariable sym=golden.sema.checkViaVariable
+expr e@15:21#0 name(Point) type=Any ref=golden.sema.Point
+expr e@15:21#1 callableRef recv=e@15:21#0 member=class type=KClass<golden.sema.Point>
+expr e@15:21#2 memberCall recv=e@15:21#1 callee=isData args=[] type=Boolean
+expr e@15:5#6 localDecl dataCheck mutable=0 type=_ init=e@15:21#2 type=Unit ref=__local_0.dataCheck
+expr e@16:23#0 name(Shape) type=Any ref=golden.sema.Shape
+expr e@16:23#1 callableRef recv=e@16:23#0 member=class type=KClass<golden.sema.Shape>
+expr e@16:23#2 memberCall recv=e@16:23#1 callee=isSealed args=[] type=Boolean
+expr e@16:5#6 localDecl sealedCheck mutable=0 type=_ init=e@16:23#2 type=Unit ref=__local_1.sealedCheck
+expr e@17:21#0 name(Color) type=golden.sema.Color ref=golden.sema.Color
+expr e@17:21#1 callableRef recv=e@17:21#0 member=class type=KClass<golden.sema.Color>
+expr e@17:21#2 memberCall recv=e@17:21#1 callee=isEnum args=[] type=Boolean
+expr e@17:5#3 localDecl enumCheck mutable=0 type=_ init=e@17:21#2 type=Unit ref=__local_2.enumCheck
+expr e@18:22#1 name(Meters) type=Any ref=golden.sema.Meters
+expr e@18:22#2 callableRef recv=e@18:22#1 member=class type=KClass<golden.sema.Meters>
+expr e@18:22#3 memberCall recv=e@18:22#2 callee=isValue args=[] type=Boolean
+expr e@18:5#4 localDecl valueCheck mutable=0 type=_ init=e@18:22#3 type=Unit ref=__local_3.valueCheck
+expr e@19:26#0 name(Printable) type=Any ref=golden.sema.Printable
+expr e@19:26#1 callableRef recv=e@19:26#0 member=class type=KClass<golden.sema.Printable>
+expr e@19:26#2 memberCall recv=e@19:26#1 callee=isInterface args=[] type=Boolean
+expr e@19:5#6 localDecl interfaceCheck mutable=0 type=_ init=e@19:26#2 type=Unit ref=__local_4.interfaceCheck
+expr e@20:23#0 name(Singleton) type=golden.sema.Singleton ref=golden.sema.Singleton
+expr e@20:23#1 callableRef recv=e@20:23#0 member=class type=KClass<golden.sema.Singleton>
+expr e@20:23#2 memberCall recv=e@20:23#1 callee=isObject args=[] type=Boolean
+expr e@20:5#5 localDecl objectCheck mutable=0 type=_ init=e@20:23#2 type=Unit ref=__local_5.objectCheck
+expr e@21:20#1 name(Transformer) type=Any ref=golden.sema.Transformer
+expr e@21:20#2 callableRef recv=e@21:20#1 member=class type=KClass<golden.sema.Transformer>
+expr e@21:20#3 memberCall recv=e@21:20#2 callee=isFun args=[] type=Boolean
+expr e@21:5#3 localDecl funCheck mutable=0 type=_ init=e@21:20#3 type=Unit ref=__local_6.funCheck
+expr e@22:12#2 name(dataCheck) type=Boolean ref=__local_0.dataCheck
+expr e@22:25 name(sealedCheck) type=Boolean ref=__local_1.sealedCheck
+expr e@22:12#3 binary(logicalAnd) lhs=e@22:12#2 rhs=e@22:25 type=Boolean
+expr e@22:40#1 name(enumCheck) type=Boolean ref=__local_2.enumCheck
+expr e@22:12#4 binary(logicalAnd) lhs=e@22:12#3 rhs=e@22:40#1 type=Boolean
+expr e@22:53 name(valueCheck) type=Boolean ref=__local_3.valueCheck
+expr e@22:12#5 binary(logicalAnd) lhs=e@22:12#4 rhs=e@22:53 type=Boolean
+expr e@22:67 name(interfaceCheck) type=Boolean ref=__local_4.interfaceCheck
+expr e@22:12#6 binary(logicalAnd) lhs=e@22:12#5 rhs=e@22:67 type=Boolean
+expr e@22:85 name(objectCheck) type=Boolean ref=__local_5.objectCheck
+expr e@22:12#7 binary(logicalAnd) lhs=e@22:12#6 rhs=e@22:85 type=Boolean
+expr e@22:100 name(funCheck) type=Boolean ref=__local_6.funCheck
+expr e@22:12#8 binary(logicalAnd) lhs=e@22:12#7 rhs=e@22:100 type=Boolean
+expr e@22:5#4 return value=e@22:12#8 type=Nothing
+expr e@27:9#2 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
+expr e@27:9#3 memberCall recv=e@27:9#2 callee=isData args=[] type=Boolean
+expr e@27:25 string(data) type=String
+expr e@28:9#4 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
+expr e@28:9#5 memberCall recv=e@28:9#4 callee=isSealed args=[] type=Boolean
+expr e@28:27 string(sealed) type=String
+expr e@29:9#6 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
+expr e@29:9#7 memberCall recv=e@29:9#6 callee=isEnum args=[] type=Boolean
+expr e@29:25 string(enum) type=String
+expr e@30:9#3 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
+expr e@30:9#4 memberCall recv=e@30:9#3 callee=isValue args=[] type=Boolean
+expr e@30:26#3 string(value) type=String
+expr e@31:9#3 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
+expr e@31:9#4 memberCall recv=e@31:9#3 callee=isInterface args=[] type=Boolean
+expr e@31:30#1 string(interface) type=String
+expr e@32:9#0 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
+expr e@32:9#1 memberCall recv=e@32:9#0 callee=isObject args=[] type=Boolean
+expr e@32:27 string(object) type=String
+expr e@33:9#2 name(klass) type=kotlin.reflect.KClass<*> ref=golden.sema.checkViaVariable.$0.klass
+expr e@33:9#3 memberCall recv=e@33:9#2 callee=isFun args=[] type=Boolean
+expr e@33:24#1 string(fun) type=String
+expr e@34:17 string(other) type=String
+expr e@26:12#3 when subject=_ branches=[e@27:9#3->e@27:25,e@28:9#5->e@28:27,e@29:9#7->e@29:25,e@30:9#4->e@30:26#3,e@31:9#4->e@31:30#1,e@32:9#1->e@32:27,e@33:9#3->e@33:24#1] else=e@34:17 type=String
+expr e@26:5#6 return value=e@26:12#3 type=Nothing

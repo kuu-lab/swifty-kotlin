@@ -1,9 +1,9 @@
 symbol fq=golden.sema.Widget kind=class vis=public flags=_
 symbol fq=golden.sema.Widget.$backing_backed kind=backingField vis=private flags=mutable type=Int
 file f13 package=golden.sema
-  decl d0 class Widget sym=golden.sema.Widget
-expr e0 string(hello) type=String
-expr e1 name(value) type=Int ref=s-0
-expr e2 localAssign field value=e1 type=Unit ref=golden.sema.Widget.$backing_backed
-expr e3 name(field) type=Int ref=golden.sema.Widget.$backing_backed
-expr e4 int(0) type=Int
+  decl golden.sema.Widget class Widget sym=golden.sema.Widget
+expr e@4:34 string(hello) type=String
+expr e@8:30 name(value) type=Int ref=s-0
+expr e@8:22#1 localAssign field value=e@8:30 type=Unit ref=golden.sema.Widget.$backing_backed
+expr e@7:17 name(field) type=Int ref=golden.sema.Widget.$backing_backed
+expr e@6:23 int(0) type=Int

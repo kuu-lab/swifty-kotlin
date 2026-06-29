@@ -5,15 +5,15 @@ symbol fq=golden.sema.C kind=interface vis=public flags=_
 symbol fq=golden.sema.C.greet kind=function vis=public flags=overrideMember sig=recv=golden.sema.C params=[] ret=String
 symbol fq=golden.sema.D kind=class vis=public flags=_
 file f13 package=golden.sema
-  decl d0 interface A sym=golden.sema.A
-  decl d1 interface B sym=golden.sema.B
-  decl d2 interface C sym=golden.sema.C
-  decl d3 class D sym=golden.sema.D
-expr e0 string(A) type=String
-expr e1 string(B) type=String
-expr e2 string(C) type=String
-expr e3 super<B> type=golden.sema.B
-expr e4 memberCall recv=e3 callee=greet args=[] type=String call=golden.sema.B.greet
-expr e5 super<C> type=golden.sema.C
-expr e6 memberCall recv=e5 callee=greet args=[] type=String call=golden.sema.C.greet
-expr e7 binary(add) lhs=e4 rhs=e6 type=String
+  decl golden.sema.A interface A sym=golden.sema.A
+  decl golden.sema.B interface B sym=golden.sema.B
+  decl golden.sema.C interface C sym=golden.sema.C
+  decl golden.sema.D class D sym=golden.sema.D
+expr e@4:27 string(A) type=String
+expr e@8:36 string(B) type=String
+expr e@12:36 string(C) type=String
+expr e@16:36#0 super<B> type=golden.sema.B
+expr e@16:36#1 memberCall recv=e@16:36#0 callee=greet args=[] type=String call=golden.sema.B.greet
+expr e@16:55#0 super<C> type=golden.sema.C
+expr e@16:55#1 memberCall recv=e@16:55#0 callee=greet args=[] type=String call=golden.sema.C.greet
+expr e@16:36#2 binary(add) lhs=e@16:36#1 rhs=e@16:55#1 type=String

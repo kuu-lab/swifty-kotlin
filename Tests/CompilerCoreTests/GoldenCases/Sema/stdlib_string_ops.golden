@@ -105,153 +105,153 @@ symbol fq=kotlin.text.toIntOrNull#1 kind=function vis=public flags=synthetic sig
 symbol fq=kotlin.text.trim#0 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=String
 symbol fq=kotlin.text.uppercase#2 kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 file f13 package=golden.sema
-  decl d0 fun useTrim sym=golden.sema.useTrim
-  decl d1 fun useSplit sym=golden.sema.useSplit
-  decl d2 fun useReplace sym=golden.sema.useReplace
-  decl d3 fun useStartsWith sym=golden.sema.useStartsWith
-  decl d4 fun useEndsWith sym=golden.sema.useEndsWith
-  decl d5 fun useContains sym=golden.sema.useContains
-  decl d6 fun useToInt sym=golden.sema.useToInt
-  decl d7 fun useToDouble sym=golden.sema.useToDouble
-  decl d8 fun useFormat sym=golden.sema.useFormat
-  decl d9 fun useSubstring1 sym=golden.sema.useSubstring1
-  decl d10 fun useSubstring2 sym=golden.sema.useSubstring2
-  decl d11 fun useLowercase sym=golden.sema.useLowercase
-  decl d12 fun useUppercase sym=golden.sema.useUppercase
-  decl d13 fun useToIntOrNullValid sym=golden.sema.useToIntOrNullValid
-  decl d14 fun useToIntOrNullInvalid sym=golden.sema.useToIntOrNullInvalid
-  decl d15 fun useToDoubleOrNullValid sym=golden.sema.useToDoubleOrNullValid
-  decl d16 fun useToDoubleOrNullInvalid sym=golden.sema.useToDoubleOrNullInvalid
-  decl d17 fun useRemovePrefix sym=golden.sema.useRemovePrefix
-  decl d18 fun useRemoveSuffix sym=golden.sema.useRemoveSuffix
-  decl d19 fun useRemoveSurrounding1 sym=golden.sema.useRemoveSurrounding1
-  decl d20 fun useRemoveSurrounding2 sym=golden.sema.useRemoveSurrounding2
-  decl d21 fun useSubstringBefore sym=golden.sema.useSubstringBefore
-  decl d22 fun useSubstringAfter sym=golden.sema.useSubstringAfter
-  decl d23 fun useSubstringBeforeLast sym=golden.sema.useSubstringBeforeLast
-  decl d24 fun useSubstringAfterLast sym=golden.sema.useSubstringAfterLast
-  decl d25 fun useIsEmpty sym=golden.sema.useIsEmpty
-  decl d26 fun useIsNotEmpty sym=golden.sema.useIsNotEmpty
-  decl d27 fun useIsBlank sym=golden.sema.useIsBlank
-  decl d28 fun useIsNotBlank sym=golden.sema.useIsNotBlank
-  decl d29 fun useFirst sym=golden.sema.useFirst
-  decl d30 fun useFirstOrNull sym=golden.sema.useFirstOrNull
-  decl d31 fun usePrependIndent sym=golden.sema.usePrependIndent
-  decl d32 fun useReplaceIndent sym=golden.sema.useReplaceIndent
-  decl d33 fun useEquals sym=golden.sema.useEquals
-  decl d34 fun useEqualsIgnoreCase sym=golden.sema.useEqualsIgnoreCase
-  decl d35 fun useReplaceFirst sym=golden.sema.useReplaceFirst
-  decl d36 fun useReplaceFirstIgnoreCase sym=golden.sema.useReplaceFirstIgnoreCase
-  decl d37 fun useReplaceRange sym=golden.sema.useReplaceRange
-expr e0 string(  hi  ) type=String
-expr e1 memberCall recv=e0 callee=trim args=[] type=String call=kotlin.text.trim#0
-expr e2 string(1,2,3) type=String
-expr e3 string(,) type=String
-expr e4 memberCall recv=e2 callee=split args=[_:e3] type=kotlin.collections.List<out String> call=kotlin.text.split#0
-expr e5 string(abc) type=String
-expr e6 string(a) type=String
-expr e7 string(z) type=String
-expr e8 memberCall recv=e5 callee=replace args=[_:e6,_:e7] type=String call=kotlin.text.replace#2
-expr e9 string(Kotlin) type=String
-expr e10 string(Ko) type=String
-expr e11 memberCall recv=e9 callee=startsWith args=[_:e10] type=Boolean call=kotlin.text.startsWith
-expr e12 string(Kotlin) type=String
-expr e13 string(lin) type=String
-expr e14 memberCall recv=e12 callee=endsWith args=[_:e13] type=Boolean call=kotlin.text.endsWith
-expr e15 string(Kotlin) type=String
-expr e16 string(otl) type=String
-expr e17 memberCall recv=e15 callee=contains args=[_:e16] type=Boolean call=kotlin.text.contains#0
-expr e18 string(42) type=String
-expr e19 memberCall recv=e18 callee=toInt args=[] type=Int call=kotlin.text.toInt#1
-expr e20 string(3.14) type=String
-expr e21 memberCall recv=e20 callee=toDouble args=[] type=Double call=kotlin.text.toDouble#1
-expr e22 string(%s:%d) type=String
-expr e23 string(age) type=String
-expr e24 int(7) type=Int
-expr e25 memberCall recv=e22 callee=format args=[_:e23,_:e24] type=String call=kotlin.text.format
-expr e26 string(hello) type=String
-expr e27 int(1) type=Int
-expr e28 memberCall recv=e26 callee=substring args=[_:e27] type=String call=kotlin.text.substring#0
-expr e29 string(hello) type=String
-expr e30 int(1) type=Int
-expr e31 int(3) type=Int
-expr e32 memberCall recv=e29 callee=substring args=[_:e30,_:e31] type=String call=kotlin.text.substring#1
-expr e33 string(Hello) type=String
-expr e34 memberCall recv=e33 callee=lowercase args=[] type=String call=kotlin.text.lowercase#2
-expr e35 string(Hello) type=String
-expr e36 memberCall recv=e35 callee=uppercase args=[] type=String call=kotlin.text.uppercase#2
-expr e37 string(123) type=String
-expr e38 memberCall recv=e37 callee=toIntOrNull args=[] type=Int? call=kotlin.text.toIntOrNull#1
-expr e39 string(abc) type=String
-expr e40 memberCall recv=e39 callee=toIntOrNull args=[] type=Int? call=kotlin.text.toIntOrNull#1
-expr e41 string( 3.14 ) type=String
-expr e42 memberCall recv=e41 callee=toDoubleOrNull args=[] type=Double? call=kotlin.text.toDoubleOrNull#1
-expr e43 string(abc) type=String
-expr e44 memberCall recv=e43 callee=toDoubleOrNull args=[] type=Double? call=kotlin.text.toDoubleOrNull#1
-expr e45 string(hello) type=String
-expr e46 string(he) type=String
-expr e47 memberCall recv=e45 callee=removePrefix args=[_:e46] type=String call=kotlin.text.removePrefix#0
-expr e48 string(hello) type=String
-expr e49 string(lo) type=String
-expr e50 memberCall recv=e48 callee=removeSuffix args=[_:e49] type=String call=kotlin.text.removeSuffix#0
-expr e51 string([hello]) type=String
-expr e52 string([) type=String
-expr e53 string(]) type=String
-expr e54 memberCall recv=e51 callee=removeSurrounding args=[_:e52,_:e53] type=String call=kotlin.text.removeSurrounding#1
-expr e55 string(**foo**) type=String
-expr e56 string(*) type=String
-expr e57 memberCall recv=e55 callee=removeSurrounding args=[_:e56] type=String call=kotlin.text.removeSurrounding#0
-expr e58 string(hello.world.kt) type=String
-expr e59 string(.) type=String
-expr e60 memberCall recv=e58 callee=substringBefore args=[_:e59] type=String call=kotlin.text.substringBefore#1
-expr e61 string(hello.world.kt) type=String
-expr e62 string(.) type=String
-expr e63 memberCall recv=e61 callee=substringAfter args=[_:e62] type=String call=kotlin.text.substringAfter#1
-expr e64 string(hello.world.kt) type=String
-expr e65 string(.) type=String
-expr e66 memberCall recv=e64 callee=substringBeforeLast args=[_:e65] type=String call=kotlin.text.substringBeforeLast#1
-expr e67 string(hello.world.kt) type=String
-expr e68 string(.) type=String
-expr e69 memberCall recv=e67 callee=substringAfterLast args=[_:e68] type=String call=kotlin.text.substringAfterLast#1
-expr e70 string() type=String
-expr e71 memberCall recv=e70 callee=isEmpty args=[] type=Boolean call=kotlin.text.isEmpty
-expr e72 string(x) type=String
-expr e73 memberCall recv=e72 callee=isNotEmpty args=[] type=Boolean call=kotlin.text.isNotEmpty#0
-expr e74 string(  ) type=String
-expr e75 memberCall recv=e74 callee=isBlank args=[] type=Boolean call=kotlin.text.isBlank#0
-expr e76 string(x) type=String
-expr e77 memberCall recv=e76 callee=isNotBlank args=[] type=Boolean call=kotlin.text.isNotBlank#0
-expr e78 string(hello) type=String
-expr e79 memberCall recv=e78 callee=first args=[] type=Char call=kotlin.text.first
-expr e80 string() type=String
-expr e81 memberCall recv=e80 callee=firstOrNull args=[] type=Char? call=kotlin.text.firstOrNull
-expr e82 string(abc
+  decl golden.sema.useTrim fun useTrim sym=golden.sema.useTrim
+  decl golden.sema.useSplit fun useSplit sym=golden.sema.useSplit
+  decl golden.sema.useReplace fun useReplace sym=golden.sema.useReplace
+  decl golden.sema.useStartsWith fun useStartsWith sym=golden.sema.useStartsWith
+  decl golden.sema.useEndsWith fun useEndsWith sym=golden.sema.useEndsWith
+  decl golden.sema.useContains fun useContains sym=golden.sema.useContains
+  decl golden.sema.useToInt fun useToInt sym=golden.sema.useToInt
+  decl golden.sema.useToDouble fun useToDouble sym=golden.sema.useToDouble
+  decl golden.sema.useFormat fun useFormat sym=golden.sema.useFormat
+  decl golden.sema.useSubstring1 fun useSubstring1 sym=golden.sema.useSubstring1
+  decl golden.sema.useSubstring2 fun useSubstring2 sym=golden.sema.useSubstring2
+  decl golden.sema.useLowercase fun useLowercase sym=golden.sema.useLowercase
+  decl golden.sema.useUppercase fun useUppercase sym=golden.sema.useUppercase
+  decl golden.sema.useToIntOrNullValid fun useToIntOrNullValid sym=golden.sema.useToIntOrNullValid
+  decl golden.sema.useToIntOrNullInvalid fun useToIntOrNullInvalid sym=golden.sema.useToIntOrNullInvalid
+  decl golden.sema.useToDoubleOrNullValid fun useToDoubleOrNullValid sym=golden.sema.useToDoubleOrNullValid
+  decl golden.sema.useToDoubleOrNullInvalid fun useToDoubleOrNullInvalid sym=golden.sema.useToDoubleOrNullInvalid
+  decl golden.sema.useRemovePrefix fun useRemovePrefix sym=golden.sema.useRemovePrefix
+  decl golden.sema.useRemoveSuffix fun useRemoveSuffix sym=golden.sema.useRemoveSuffix
+  decl golden.sema.useRemoveSurrounding1 fun useRemoveSurrounding1 sym=golden.sema.useRemoveSurrounding1
+  decl golden.sema.useRemoveSurrounding2 fun useRemoveSurrounding2 sym=golden.sema.useRemoveSurrounding2
+  decl golden.sema.useSubstringBefore fun useSubstringBefore sym=golden.sema.useSubstringBefore
+  decl golden.sema.useSubstringAfter fun useSubstringAfter sym=golden.sema.useSubstringAfter
+  decl golden.sema.useSubstringBeforeLast fun useSubstringBeforeLast sym=golden.sema.useSubstringBeforeLast
+  decl golden.sema.useSubstringAfterLast fun useSubstringAfterLast sym=golden.sema.useSubstringAfterLast
+  decl golden.sema.useIsEmpty fun useIsEmpty sym=golden.sema.useIsEmpty
+  decl golden.sema.useIsNotEmpty fun useIsNotEmpty sym=golden.sema.useIsNotEmpty
+  decl golden.sema.useIsBlank fun useIsBlank sym=golden.sema.useIsBlank
+  decl golden.sema.useIsNotBlank fun useIsNotBlank sym=golden.sema.useIsNotBlank
+  decl golden.sema.useFirst fun useFirst sym=golden.sema.useFirst
+  decl golden.sema.useFirstOrNull fun useFirstOrNull sym=golden.sema.useFirstOrNull
+  decl golden.sema.usePrependIndent fun usePrependIndent sym=golden.sema.usePrependIndent
+  decl golden.sema.useReplaceIndent fun useReplaceIndent sym=golden.sema.useReplaceIndent
+  decl golden.sema.useEquals fun useEquals sym=golden.sema.useEquals
+  decl golden.sema.useEqualsIgnoreCase fun useEqualsIgnoreCase sym=golden.sema.useEqualsIgnoreCase
+  decl golden.sema.useReplaceFirst fun useReplaceFirst sym=golden.sema.useReplaceFirst
+  decl golden.sema.useReplaceFirstIgnoreCase fun useReplaceFirstIgnoreCase sym=golden.sema.useReplaceFirstIgnoreCase
+  decl golden.sema.useReplaceRange fun useReplaceRange sym=golden.sema.useReplaceRange
+expr e@3:25#0 string(  hi  ) type=String
+expr e@3:25#1 memberCall recv=e@3:25#0 callee=trim args=[] type=String call=kotlin.text.trim#0
+expr e@5:32#0 string(1,2,3) type=String
+expr e@5:46 string(,) type=String
+expr e@5:32#1 memberCall recv=e@5:32#0 callee=split args=[_:e@5:46] type=kotlin.collections.List<out String> call=kotlin.text.split#0
+expr e@7:28#0 string(abc) type=String
+expr e@7:42#2 string(a) type=String
+expr e@7:47#1 string(z) type=String
+expr e@7:28#1 memberCall recv=e@7:28#0 callee=replace args=[_:e@7:42#2,_:e@7:47#1] type=String call=kotlin.text.replace#2
+expr e@9:32#0 string(Kotlin) type=String
+expr e@9:52 string(Ko) type=String
+expr e@9:32#1 memberCall recv=e@9:32#0 callee=startsWith args=[_:e@9:52] type=Boolean call=kotlin.text.startsWith
+expr e@11:30#0 string(Kotlin) type=String
+expr e@11:48 string(lin) type=String
+expr e@11:30#1 memberCall recv=e@11:30#0 callee=endsWith args=[_:e@11:48] type=Boolean call=kotlin.text.endsWith
+expr e@13:30#0 string(Kotlin) type=String
+expr e@13:48#2 string(otl) type=String
+expr e@13:30#1 memberCall recv=e@13:30#0 callee=contains args=[_:e@13:48#2] type=Boolean call=kotlin.text.contains#0
+expr e@15:23#2 string(42) type=String
+expr e@15:23#3 memberCall recv=e@15:23#2 callee=toInt args=[] type=Int call=kotlin.text.toInt#1
+expr e@17:29#0 string(3.14) type=String
+expr e@17:29#1 memberCall recv=e@17:29#0 callee=toDouble args=[] type=Double call=kotlin.text.toDouble#1
+expr e@19:27#2 string(%s:%d) type=String
+expr e@19:42 string(age) type=String
+expr e@19:49 int(7) type=Int
+expr e@19:27#3 memberCall recv=e@19:27#2 callee=format args=[_:e@19:42,_:e@19:49] type=String call=kotlin.text.format
+expr e@21:31#0 string(hello) type=String
+expr e@21:49 int(1) type=Int
+expr e@21:31#1 memberCall recv=e@21:31#0 callee=substring args=[_:e@21:49] type=String call=kotlin.text.substring#0
+expr e@23:31#0 string(hello) type=String
+expr e@23:49 int(1) type=Int
+expr e@23:52 int(3) type=Int
+expr e@23:31#1 memberCall recv=e@23:31#0 callee=substring args=[_:e@23:49,_:e@23:52] type=String call=kotlin.text.substring#1
+expr e@25:30#0 string(Hello) type=String
+expr e@25:30#1 memberCall recv=e@25:30#0 callee=lowercase args=[] type=String call=kotlin.text.lowercase#2
+expr e@27:30#2 string(Hello) type=String
+expr e@27:30#3 memberCall recv=e@27:30#2 callee=uppercase args=[] type=String call=kotlin.text.uppercase#2
+expr e@29:35#0 string(123) type=String
+expr e@29:35#1 memberCall recv=e@29:35#0 callee=toIntOrNull args=[] type=Int? call=kotlin.text.toIntOrNull#1
+expr e@31:37#0 string(abc) type=String
+expr e@31:37#1 memberCall recv=e@31:37#0 callee=toIntOrNull args=[] type=Int? call=kotlin.text.toIntOrNull#1
+expr e@33:41#0 string( 3.14 ) type=String
+expr e@33:41#1 memberCall recv=e@33:41#0 callee=toDoubleOrNull args=[] type=Double? call=kotlin.text.toDoubleOrNull#1
+expr e@35:43#0 string(abc) type=String
+expr e@35:43#1 memberCall recv=e@35:43#0 callee=toDoubleOrNull args=[] type=Double? call=kotlin.text.toDoubleOrNull#1
+expr e@37:33#0 string(hello) type=String
+expr e@37:54 string(he) type=String
+expr e@37:33#1 memberCall recv=e@37:33#0 callee=removePrefix args=[_:e@37:54] type=String call=kotlin.text.removePrefix#0
+expr e@39:33#1 string(hello) type=String
+expr e@39:54#2 string(lo) type=String
+expr e@39:33#2 memberCall recv=e@39:33#1 callee=removeSuffix args=[_:e@39:54#2] type=String call=kotlin.text.removeSuffix#0
+expr e@41:39#0 string([hello]) type=String
+expr e@41:67 string([) type=String
+expr e@41:72 string(]) type=String
+expr e@41:39#1 memberCall recv=e@41:39#0 callee=removeSurrounding args=[_:e@41:67,_:e@41:72] type=String call=kotlin.text.removeSurrounding#1
+expr e@43:39#0 string(**foo**) type=String
+expr e@43:67 string(*) type=String
+expr e@43:39#1 memberCall recv=e@43:39#0 callee=removeSurrounding args=[_:e@43:67] type=String call=kotlin.text.removeSurrounding#0
+expr e@45:36#0 string(hello.world.kt) type=String
+expr e@45:69 string(.) type=String
+expr e@45:36#1 memberCall recv=e@45:36#0 callee=substringBefore args=[_:e@45:69] type=String call=kotlin.text.substringBefore#1
+expr e@47:35#0 string(hello.world.kt) type=String
+expr e@47:67 string(.) type=String
+expr e@47:35#1 memberCall recv=e@47:35#0 callee=substringAfter args=[_:e@47:67] type=String call=kotlin.text.substringAfter#1
+expr e@49:40#1 string(hello.world.kt) type=String
+expr e@49:77 string(.) type=String
+expr e@49:40#2 memberCall recv=e@49:40#1 callee=substringBeforeLast args=[_:e@49:77] type=String call=kotlin.text.substringBeforeLast#1
+expr e@51:39#0 string(hello.world.kt) type=String
+expr e@51:75 string(.) type=String
+expr e@51:39#1 memberCall recv=e@51:39#0 callee=substringAfterLast args=[_:e@51:75] type=String call=kotlin.text.substringAfterLast#1
+expr e@53:29#0 string() type=String
+expr e@53:29#1 memberCall recv=e@53:29#0 callee=isEmpty args=[] type=Boolean call=kotlin.text.isEmpty
+expr e@55:32#3 string(x) type=String
+expr e@55:32#4 memberCall recv=e@55:32#3 callee=isNotEmpty args=[] type=Boolean call=kotlin.text.isNotEmpty#0
+expr e@57:29#0 string(  ) type=String
+expr e@57:29#1 memberCall recv=e@57:29#0 callee=isBlank args=[] type=Boolean call=kotlin.text.isBlank#0
+expr e@59:32#0 string(x) type=String
+expr e@59:32#1 memberCall recv=e@59:32#0 callee=isNotBlank args=[] type=Boolean call=kotlin.text.isNotBlank#0
+expr e@61:24#1 string(hello) type=String
+expr e@61:24#2 memberCall recv=e@61:24#1 callee=first args=[] type=Char call=kotlin.text.first
+expr e@63:31#0 string() type=String
+expr e@63:31#1 memberCall recv=e@63:31#0 callee=firstOrNull args=[] type=Char? call=kotlin.text.firstOrNull
+expr e@65:34#0 string(abc
 def) type=String
-expr e83 string(  ) type=String
-expr e84 memberCall recv=e82 callee=prependIndent args=[_:e83] type=String call=kotlin.text.prependIndent
-expr e85 string(  abc
+expr e@65:59 string(  ) type=String
+expr e@65:34#1 memberCall recv=e@65:34#0 callee=prependIndent args=[_:e@65:59] type=String call=kotlin.text.prependIndent
+expr e@67:34#1 string(  abc
   def) type=String
-expr e86 string() type=String
-expr e87 memberCall recv=e85 callee=replaceIndent args=[_:e86] type=String call=kotlin.text.replaceIndent
-expr e88 string(abc) type=String
-expr e89 string(abc) type=String
-expr e90 memberCall recv=e88 callee=equals args=[_:e89] type=Boolean call=kotlin.text.equals#0
-expr e91 string(abc) type=String
-expr e92 string(ABC) type=String
-expr e93 bool(true) type=Boolean
-expr e94 memberCall recv=e91 callee=equals args=[_:e92,ignoreCase:e93] type=Boolean call=kotlin.text.equals#1
-expr e95 string(abcabc) type=String
-expr e96 string(abc) type=String
-expr e97 string(X) type=String
-expr e98 memberCall recv=e95 callee=replaceFirst args=[_:e96,_:e97] type=String call=kotlin.text.replaceFirst#0
-expr e99 string(abcABC) type=String
-expr e100 string(abc) type=String
-expr e101 string(X) type=String
-expr e102 bool(true) type=Boolean
-expr e103 memberCall recv=e99 callee=replaceFirst args=[_:e100,_:e101,ignoreCase:e102] type=String call=kotlin.text.replaceFirst#1
-expr e104 string(hello) type=String
-expr e105 int(0) type=Int
-expr e106 int(2) type=Int
-expr e107 binary(rangeTo) lhs=e105 rhs=e106 type=Int
-expr e108 string(HE) type=String
-expr e109 memberCall recv=e104 callee=replaceRange args=[_:e107,_:e108] type=String call=kotlin.text.replaceRange#1
+expr e@67:63 string() type=String
+expr e@67:34#2 memberCall recv=e@67:34#1 callee=replaceIndent args=[_:e@67:63] type=String call=kotlin.text.replaceIndent
+expr e@69:28#1 string(abc) type=String
+expr e@69:41 string(abc) type=String
+expr e@69:28#2 memberCall recv=e@69:28#1 callee=equals args=[_:e@69:41] type=Boolean call=kotlin.text.equals#0
+expr e@71:38#0 string(abc) type=String
+expr e@71:51 string(ABC) type=String
+expr e@71:71 bool(true) type=Boolean
+expr e@71:38#1 memberCall recv=e@71:38#0 callee=equals args=[_:e@71:51,ignoreCase:e@71:71] type=Boolean call=kotlin.text.equals#1
+expr e@73:33#0 string(abcabc) type=String
+expr e@73:55 string(abc) type=String
+expr e@73:62 string(X) type=String
+expr e@73:33#1 memberCall recv=e@73:33#0 callee=replaceFirst args=[_:e@73:55,_:e@73:62] type=String call=kotlin.text.replaceFirst#0
+expr e@75:43#0 string(abcABC) type=String
+expr e@75:65 string(abc) type=String
+expr e@75:72 string(X) type=String
+expr e@75:90 bool(true) type=Boolean
+expr e@75:43#1 memberCall recv=e@75:43#0 callee=replaceFirst args=[_:e@75:65,_:e@75:72,ignoreCase:e@75:90] type=String call=kotlin.text.replaceFirst#1
+expr e@77:33#0 string(hello) type=String
+expr e@77:54#0 int(0) type=Int
+expr e@77:57 int(2) type=Int
+expr e@77:54#1 binary(rangeTo) lhs=e@77:54#0 rhs=e@77:57 type=Int
+expr e@77:60 string(HE) type=String
+expr e@77:33#1 memberCall recv=e@77:33#0 callee=replaceRange args=[_:e@77:54#1,_:e@77:60] type=String call=kotlin.text.replaceRange#1

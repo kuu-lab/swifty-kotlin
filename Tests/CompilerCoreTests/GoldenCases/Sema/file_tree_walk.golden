@@ -30,51 +30,51 @@ symbol fq=testWalkBottomUp.$5.dir kind=valueParameter vis=private flags=_
 symbol fq=testWalkTopDown kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk
 symbol fq=testWalkTopDown.$6.dir kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun testWalkTopDown sym=testWalkTopDown
-  decl d1 fun testWalkBottomUp sym=testWalkBottomUp
-  decl d2 fun testMaxDepth sym=testMaxDepth
-  decl d3 fun testToList sym=testToList
-  decl d4 fun testOnEnter sym=testOnEnter
-  decl d5 fun testOnLeave sym=testOnLeave
-  decl d6 fun testForEach sym=testForEach
-expr e0 name(dir) type=java.io.File ref=testWalkTopDown.$6.dir
-expr e1 memberCall recv=e0 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
-expr e2 name(dir) type=java.io.File ref=testWalkBottomUp.$5.dir
-expr e3 memberCall recv=e2 callee=walkBottomUp args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkBottomUp
-expr e4 name(dir) type=java.io.File ref=testMaxDepth.$1.dir
-expr e5 memberCall recv=e4 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
-expr e6 int(2) type=Int
-expr e7 memberCall recv=e5 callee=maxDepth args=[_:e6] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.maxDepth
-expr e8 name(dir) type=java.io.File ref=testToList.$4.dir
-expr e9 memberCall recv=e8 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
-expr e10 memberCall recv=e9 callee=toList args=[] type=kotlin.collections.List<out java.io.File> call=kotlin.io.FileTreeWalk.toList
-expr e11 name(dir) type=java.io.File ref=testOnEnter.$2.dir
-expr e12 memberCall recv=e11 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
-expr e13 name(it) type=java.io.File ref=s-0
-expr e14 memberCall recv=e13 callee=name args=[] type=String ref=java.io.File.name
-expr e15 string(skip) type=String
-expr e16 binary(notEqual) lhs=e14 rhs=e15 type=Boolean
-expr e17 lambda params=[] body=e16 label=onEnter type=(java.io.File) -> Boolean
-expr e18 memberCall recv=e12 callee=onEnter args=[_:e17] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onEnter
-expr e19 name(dir) type=java.io.File ref=testOnLeave.$3.dir
-expr e20 memberCall recv=e19 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
-expr e21 name(it) type=java.io.File ref=s-1
-expr e22 memberCall recv=e21 callee=name args=[] type=String ref=java.io.File.name
-expr e23 call callee=e24 args=[_:e22] type=Unit call=kotlin.io.println#1
-expr e25 lambda params=[] body=e23 label=onLeave type=(java.io.File) -> Unit
-expr e26 memberCall recv=e20 callee=onLeave args=[_:e25] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onLeave
-expr e27 name(dir) type=java.io.File ref=testForEach.$0.dir
-expr e28 memberCall recv=e27 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
-expr e29 int(3) type=Int
-expr e30 memberCall recv=e28 callee=maxDepth args=[_:e29] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.maxDepth
-expr e31 name(d) type=java.io.File ref=s-2
-expr e32 memberCall recv=e31 callee=name args=[] type=String ref=java.io.File.name
-expr e33 string(skip) type=String
-expr e34 binary(notEqual) lhs=e32 rhs=e33 type=Boolean
-expr e35 lambda params=[d] body=e34 label=onEnter type=(java.io.File) -> Boolean
-expr e36 memberCall recv=e30 callee=onEnter args=[_:e35] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onEnter
-expr e37 name(f) type=java.io.File ref=s-3
-expr e38 memberCall recv=e37 callee=name args=[] type=String ref=java.io.File.name
-expr e39 call callee=e40 args=[_:e38] type=Unit call=kotlin.io.println#1
-expr e41 lambda params=[f] body=e39 label=forEach type=(java.io.File) -> Unit
-expr e42 memberCall recv=e36 callee=forEach args=[_:e41] type=Unit call=kotlin.io.FileTreeWalk.forEach
+  decl testWalkTopDown fun testWalkTopDown sym=testWalkTopDown
+  decl testWalkBottomUp fun testWalkBottomUp sym=testWalkBottomUp
+  decl testMaxDepth fun testMaxDepth sym=testMaxDepth
+  decl testToList fun testToList sym=testToList
+  decl testOnEnter fun testOnEnter sym=testOnEnter
+  decl testOnLeave fun testOnLeave sym=testOnLeave
+  decl testForEach fun testForEach sym=testForEach
+expr e@4:48#0 name(dir) type=java.io.File ref=testWalkTopDown.$6.dir
+expr e@4:48#1 memberCall recv=e@4:48#0 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
+expr e@5:49#0 name(dir) type=java.io.File ref=testWalkBottomUp.$5.dir
+expr e@5:49#1 memberCall recv=e@5:49#0 callee=walkBottomUp args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkBottomUp
+expr e@6:45#2 name(dir) type=java.io.File ref=testMaxDepth.$1.dir
+expr e@6:45#3 memberCall recv=e@6:45#2 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
+expr e@6:72 int(2) type=Int
+expr e@6:45#4 memberCall recv=e@6:45#3 callee=maxDepth args=[_:e@6:72] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.maxDepth
+expr e@7:41#0 name(dir) type=java.io.File ref=testToList.$4.dir
+expr e@7:41#1 memberCall recv=e@7:41#0 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
+expr e@7:41#2 memberCall recv=e@7:41#1 callee=toList args=[] type=kotlin.collections.List<out java.io.File> call=kotlin.io.FileTreeWalk.toList
+expr e@8:44#0 name(dir) type=java.io.File ref=testOnEnter.$2.dir
+expr e@8:44#1 memberCall recv=e@8:44#0 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
+expr e@8:72#3 name(it) type=java.io.File ref=s-0
+expr e@8:72#4 memberCall recv=e@8:72#3 callee=name args=[] type=String ref=java.io.File.name
+expr e@8:83#1 string(skip) type=String
+expr e@8:72#5 binary(notEqual) lhs=e@8:72#4 rhs=e@8:83#1 type=Boolean
+expr e@8:70 lambda params=[] body=e@8:72#5 label=onEnter type=(java.io.File) -> Boolean
+expr e@8:44#2 memberCall recv=e@8:44#1 callee=onEnter args=[_:e@8:70] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onEnter
+expr e@9:44#0 name(dir) type=java.io.File ref=testOnLeave.$3.dir
+expr e@9:44#1 memberCall recv=e@9:44#0 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
+expr e@9:80#2 name(it) type=java.io.File ref=s-1
+expr e@9:80#3 memberCall recv=e@9:80#2 callee=name args=[] type=String ref=java.io.File.name
+expr e@9:72#3 call callee=e@9:72#2 args=[_:e@9:80#3] type=Unit call=kotlin.io.println#1
+expr e@9:70 lambda params=[] body=e@9:72#3 label=onLeave type=(java.io.File) -> Unit
+expr e@9:44#2 memberCall recv=e@9:44#1 callee=onLeave args=[_:e@9:70] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onLeave
+expr e@11:5#2 name(dir) type=java.io.File ref=testForEach.$0.dir
+expr e@11:5#3 memberCall recv=e@11:5#2 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
+expr e@11:32 int(3) type=Int
+expr e@11:5#4 memberCall recv=e@11:5#3 callee=maxDepth args=[_:e@11:32] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.maxDepth
+expr e@11:50#3 name(d) type=java.io.File ref=s-2
+expr e@11:50#4 memberCall recv=e@11:50#3 callee=name args=[] type=String ref=java.io.File.name
+expr e@11:60#1 string(skip) type=String
+expr e@11:50#5 binary(notEqual) lhs=e@11:50#4 rhs=e@11:60#1 type=Boolean
+expr e@11:43 lambda params=[d] body=e@11:50#5 label=onEnter type=(java.io.File) -> Boolean
+expr e@11:5#5 memberCall recv=e@11:5#4 callee=onEnter args=[_:e@11:43] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onEnter
+expr e@12:17#2 name(f) type=java.io.File ref=s-3
+expr e@12:17#3 memberCall recv=e@12:17#2 callee=name args=[] type=String ref=java.io.File.name
+expr e@12:9#4 call callee=e@12:9#3 args=[_:e@12:17#3] type=Unit call=kotlin.io.println#1
+expr e@11:77 lambda params=[f] body=e@12:9#4 label=forEach type=(java.io.File) -> Unit
+expr e@11:5#6 memberCall recv=e@11:5#5 callee=forEach args=[_:e@11:77] type=Unit call=kotlin.io.FileTreeWalk.forEach

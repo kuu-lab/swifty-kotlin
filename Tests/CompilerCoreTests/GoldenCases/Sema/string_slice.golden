@@ -10,28 +10,28 @@ symbol fq=kotlin.text.slice#0 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.text.slice#1 kind=function vis=public flags=synthetic sig=recv=String params=[kotlin.collections.List<out Int>] ret=String
 symbol fq=kotlin.text.slice.indices kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 fun useSliceRange sym=golden.sema.useSliceRange
-  decl d1 fun useSliceUntil sym=golden.sema.useSliceUntil
-  decl d2 fun useSliceIterable sym=golden.sema.useSliceIterable
-  decl d3 fun useSliceVar sym=golden.sema.useSliceVar
-expr e0 string(hello) type=String
-expr e1 int(1) type=Int
-expr e2 int(3) type=Int
-expr e3 binary(rangeTo) lhs=e1 rhs=e2 type=Int
-expr e4 memberCall recv=e0 callee=slice args=[_:e3] type=String call=kotlin.text.slice#0
-expr e5 string(hello) type=String
-expr e6 int(0) type=Int
-expr e7 int(3) type=Int
-expr e8 memberCall recv=e6 callee=until args=[_:e7] type=Int call=kotlin.ranges.until#0
-expr e9 memberCall recv=e5 callee=slice args=[_:e8] type=String call=kotlin.text.slice#0
-expr e10 string(hello) type=String
-expr e11 int(0) type=Int
-expr e12 int(2) type=Int
-expr e13 int(4) type=Int
-expr e14 call callee=e15 args=[_:e11,_:e12,_:e13] type=kotlin.collections.List<out Int>
-expr e16 memberCall recv=e10 callee=slice args=[_:e14] type=String call=kotlin.text.slice#1
-expr e17 name(s) type=String ref=golden.sema.useSliceVar.$0.s
-expr e18 int(1) type=Int
-expr e19 int(3) type=Int
-expr e20 binary(rangeTo) lhs=e18 rhs=e19 type=Int
-expr e21 memberCall recv=e17 callee=slice args=[_:e20] type=String call=kotlin.text.slice#0
+  decl golden.sema.useSliceRange fun useSliceRange sym=golden.sema.useSliceRange
+  decl golden.sema.useSliceUntil fun useSliceUntil sym=golden.sema.useSliceUntil
+  decl golden.sema.useSliceIterable fun useSliceIterable sym=golden.sema.useSliceIterable
+  decl golden.sema.useSliceVar fun useSliceVar sym=golden.sema.useSliceVar
+expr e@3:31#0 string(hello) type=String
+expr e@3:45#0 int(1) type=Int
+expr e@3:48 int(3) type=Int
+expr e@3:45#1 binary(rangeTo) lhs=e@3:45#0 rhs=e@3:48 type=Int
+expr e@3:31#1 memberCall recv=e@3:31#0 callee=slice args=[_:e@3:45#1] type=String call=kotlin.text.slice#0
+expr e@5:31#0 string(hello) type=String
+expr e@5:45#0 int(0) type=Int
+expr e@5:53 int(3) type=Int
+expr e@5:45#1 memberCall recv=e@5:45#0 callee=until args=[_:e@5:53] type=Int call=kotlin.ranges.until#0
+expr e@5:31#1 memberCall recv=e@5:31#0 callee=slice args=[_:e@5:45#1] type=String call=kotlin.text.slice#0
+expr e@7:34#0 string(hello) type=String
+expr e@7:55 int(0) type=Int
+expr e@7:58 int(2) type=Int
+expr e@7:61 int(4) type=Int
+expr e@7:48#1 call callee=e@7:48#0 args=[_:e@7:55,_:e@7:58,_:e@7:61] type=kotlin.collections.List<out Int>
+expr e@7:34#1 memberCall recv=e@7:34#0 callee=slice args=[_:e@7:48#1] type=String call=kotlin.text.slice#1
+expr e@9:38#0 name(s) type=String ref=golden.sema.useSliceVar.$0.s
+expr e@9:46#0 int(1) type=Int
+expr e@9:49 int(3) type=Int
+expr e@9:46#1 binary(rangeTo) lhs=e@9:46#0 rhs=e@9:49 type=Int
+expr e@9:38#1 memberCall recv=e@9:38#0 callee=slice args=[_:e@9:46#1] type=String call=kotlin.text.slice#0

@@ -46,79 +46,79 @@ symbol fq=kotlin.UnsupportedOperationException kind=class vis=public flags=synth
 symbol fq=kotlin.UnsupportedOperationException.<init>#1 kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.UnsupportedOperationException
 symbol fq=kotlin.UnsupportedOperationException.<init>.message kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 fun catchIllegalArgument sym=golden.sema.catchIllegalArgument
-  decl d1 fun catchIllegalState sym=golden.sema.catchIllegalState
-  decl d2 fun catchIndexOutOfBounds sym=golden.sema.catchIndexOutOfBounds
-  decl d3 fun catchUnsupportedOperation sym=golden.sema.catchUnsupportedOperation
-  decl d4 fun catchNoSuchElement sym=golden.sema.catchNoSuchElement
-  decl d5 fun catchArithmetic sym=golden.sema.catchArithmetic
-  decl d6 fun catchClassCast sym=golden.sema.catchClassCast
-  decl d7 fun throwableProperties sym=golden.sema.throwableProperties
-expr e0 string(bad) type=String
-expr e1 call callee=e2 args=[_:e0] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>#1
-expr e3 throw value=e1 type=Nothing
-expr e4 blockExpr stmts=[] trailing=e3 type=Nothing
-expr e5 string(caught) type=String
-expr e6 blockExpr stmts=[] trailing=e5 type=String ref=__try_0_catch_0.e
-expr e7 try body=e4 catches=[e6] finally=_ type=String
-expr e8 string(bad state) type=String
-expr e9 call callee=e10 args=[_:e8] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>#1
-expr e11 throw value=e9 type=Nothing
-expr e12 blockExpr stmts=[] trailing=e11 type=Nothing
-expr e13 string(caught) type=String
-expr e14 blockExpr stmts=[] trailing=e13 type=String ref=__try_1_catch_0.e
-expr e15 try body=e12 catches=[e14] finally=_ type=String
-expr e16 string(index 5) type=String
-expr e17 call callee=e18 args=[_:e16] type=kotlin.IndexOutOfBoundsException call=kotlin.IndexOutOfBoundsException.<init>#1
-expr e19 throw value=e17 type=Nothing
-expr e20 blockExpr stmts=[] trailing=e19 type=Nothing
-expr e21 string(caught) type=String
-expr e22 blockExpr stmts=[] trailing=e21 type=String ref=__try_2_catch_0.e
-expr e23 try body=e20 catches=[e22] finally=_ type=String
-expr e24 string(not supported) type=String
-expr e25 call callee=e26 args=[_:e24] type=kotlin.UnsupportedOperationException call=kotlin.UnsupportedOperationException.<init>#1
-expr e27 throw value=e25 type=Nothing
-expr e28 blockExpr stmts=[] trailing=e27 type=Nothing
-expr e29 string(caught) type=String
-expr e30 blockExpr stmts=[] trailing=e29 type=String ref=__try_3_catch_0.e
-expr e31 try body=e28 catches=[e30] finally=_ type=String
-expr e32 string(empty) type=String
-expr e33 call callee=e34 args=[_:e32] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
-expr e35 throw value=e33 type=Nothing
-expr e36 blockExpr stmts=[] trailing=e35 type=Nothing
-expr e37 string(caught) type=String
-expr e38 blockExpr stmts=[] trailing=e37 type=String ref=__try_4_catch_0.e
-expr e39 try body=e36 catches=[e38] finally=_ type=String
-expr e40 string(div by zero) type=String
-expr e41 call callee=e42 args=[_:e40] type=kotlin.ArithmeticException call=kotlin.ArithmeticException.<init>#1
-expr e43 throw value=e41 type=Nothing
-expr e44 blockExpr stmts=[] trailing=e43 type=Nothing
-expr e45 string(caught) type=String
-expr e46 blockExpr stmts=[] trailing=e45 type=String ref=__try_5_catch_0.e
-expr e47 try body=e44 catches=[e46] finally=_ type=String
-expr e48 string(bad cast) type=String
-expr e49 call callee=e50 args=[_:e48] type=kotlin.ClassCastException call=kotlin.ClassCastException.<init>#1
-expr e51 throw value=e49 type=Nothing
-expr e52 blockExpr stmts=[] trailing=e51 type=Nothing
-expr e53 string(caught) type=String
-expr e54 blockExpr stmts=[] trailing=e53 type=String ref=__try_6_catch_0.e
-expr e55 try body=e52 catches=[e54] finally=_ type=String
-expr e56 string(test) type=String
-expr e57 call callee=e58 args=[_:e56] type=kotlin.RuntimeException call=kotlin.RuntimeException.<init>#1
-expr e59 throw value=e57 type=Nothing
-expr e60 blockExpr stmts=[] trailing=e59 type=Nothing
-expr e61 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
-expr e62 memberCall recv=e61 callee=message args=[] type=String? ref=kotlin.Throwable.message
-expr e63 localDecl msg mutable=0 type=t0 init=e62 type=Unit ref=__local_0.msg
-expr e64 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
-expr e65 memberCall recv=e64 callee=cause args=[] type=kotlin.Throwable? ref=kotlin.Throwable.cause
-expr e66 localDecl cause mutable=0 type=t1 init=e65 type=Unit ref=__local_1.cause
-expr e67 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
-expr e68 memberCall recv=e67 callee=stackTraceToString args=[] type=String call=kotlin.Throwable.stackTraceToString
-expr e69 localDecl trace mutable=0 type=t2 init=e68 type=Unit ref=__local_2.trace
-expr e70 name(msg) type=String? ref=__local_0.msg
-expr e71 string(null) type=String
-expr e72 binary(elvis) lhs=e70 rhs=e71 type=String
-expr e73 blockExpr stmts=[e63,e66,e69] trailing=e72 type=String ref=__try_7_catch_0.e
-expr e74 try body=e60 catches=[e73] finally=_ type=String
-expr e75 return value=e74 type=Nothing
+  decl golden.sema.catchIllegalArgument fun catchIllegalArgument sym=golden.sema.catchIllegalArgument
+  decl golden.sema.catchIllegalState fun catchIllegalState sym=golden.sema.catchIllegalState
+  decl golden.sema.catchIndexOutOfBounds fun catchIndexOutOfBounds sym=golden.sema.catchIndexOutOfBounds
+  decl golden.sema.catchUnsupportedOperation fun catchUnsupportedOperation sym=golden.sema.catchUnsupportedOperation
+  decl golden.sema.catchNoSuchElement fun catchNoSuchElement sym=golden.sema.catchNoSuchElement
+  decl golden.sema.catchArithmetic fun catchArithmetic sym=golden.sema.catchArithmetic
+  decl golden.sema.catchClassCast fun catchClassCast sym=golden.sema.catchClassCast
+  decl golden.sema.throwableProperties fun throwableProperties sym=golden.sema.throwableProperties
+expr e@4:42 string(bad) type=String
+expr e@4:17#3 call callee=e@4:17#2 args=[_:e@4:42] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>#1
+expr e@4:11 throw value=e@4:17#3 type=Nothing
+expr e@4:9#2 blockExpr stmts=[] trailing=e@4:11 type=Nothing
+expr e@5:43 string(caught) type=String
+expr e@5:41 blockExpr stmts=[] trailing=e@5:43 type=String ref=__try_0_catch_0.e
+expr e@4:5#2 try body=e@4:9#2 catches=[e@5:41] finally=_ type=String
+expr e@8:39 string(bad state) type=String
+expr e@8:17#1 call callee=e@8:17#0 args=[_:e@8:39] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>#1
+expr e@8:11 throw value=e@8:17#1 type=Nothing
+expr e@8:9 blockExpr stmts=[] trailing=e@8:11 type=Nothing
+expr e@9:40 string(caught) type=String
+expr e@9:38 blockExpr stmts=[] trailing=e@9:40 type=String ref=__try_1_catch_0.e
+expr e@8:5#2 try body=e@8:9 catches=[e@9:38] finally=_ type=String
+expr e@12:43#1 string(index 5) type=String
+expr e@12:17#1 call callee=e@12:17#0 args=[_:e@12:43#1] type=kotlin.IndexOutOfBoundsException call=kotlin.IndexOutOfBoundsException.<init>#1
+expr e@12:11 throw value=e@12:17#1 type=Nothing
+expr e@12:9#1 blockExpr stmts=[] trailing=e@12:11 type=Nothing
+expr e@13:44 string(caught) type=String
+expr e@13:42 blockExpr stmts=[] trailing=e@13:44 type=String ref=__try_2_catch_0.e
+expr e@12:5#4 try body=e@12:9#1 catches=[e@13:42] finally=_ type=String
+expr e@16:47 string(not supported) type=String
+expr e@16:17#1 call callee=e@16:17#0 args=[_:e@16:47] type=kotlin.UnsupportedOperationException call=kotlin.UnsupportedOperationException.<init>#1
+expr e@16:11 throw value=e@16:17#1 type=Nothing
+expr e@16:9 blockExpr stmts=[] trailing=e@16:11 type=Nothing
+expr e@17:48 string(caught) type=String
+expr e@17:46#3 blockExpr stmts=[] trailing=e@17:48 type=String ref=__try_3_catch_0.e
+expr e@16:5#6 try body=e@16:9 catches=[e@17:46#3] finally=_ type=String
+expr e@20:40 string(empty) type=String
+expr e@20:17#1 call callee=e@20:17#0 args=[_:e@20:40] type=kotlin.NoSuchElementException call=kotlin.NoSuchElementException.<init>#1
+expr e@20:11 throw value=e@20:17#1 type=Nothing
+expr e@20:9#2 blockExpr stmts=[] trailing=e@20:11 type=Nothing
+expr e@21:41#2 string(caught) type=String
+expr e@21:39 blockExpr stmts=[] trailing=e@21:41#2 type=String ref=__try_4_catch_0.e
+expr e@20:5#5 try body=e@20:9#2 catches=[e@21:39] finally=_ type=String
+expr e@24:37#1 string(div by zero) type=String
+expr e@24:17#2 call callee=e@24:17#1 args=[_:e@24:37#1] type=kotlin.ArithmeticException call=kotlin.ArithmeticException.<init>#1
+expr e@24:11 throw value=e@24:17#2 type=Nothing
+expr e@24:9#2 blockExpr stmts=[] trailing=e@24:11 type=Nothing
+expr e@25:38 string(caught) type=String
+expr e@25:36 blockExpr stmts=[] trailing=e@25:38 type=String ref=__try_5_catch_0.e
+expr e@24:5#3 try body=e@24:9#2 catches=[e@25:36] finally=_ type=String
+expr e@28:36 string(bad cast) type=String
+expr e@28:17#1 call callee=e@28:17#0 args=[_:e@28:36] type=kotlin.ClassCastException call=kotlin.ClassCastException.<init>#1
+expr e@28:11 throw value=e@28:17#1 type=Nothing
+expr e@28:9#4 blockExpr stmts=[] trailing=e@28:11 type=Nothing
+expr e@29:37#2 string(caught) type=String
+expr e@29:35 blockExpr stmts=[] trailing=e@29:37#2 type=String ref=__try_6_catch_0.e
+expr e@28:5#3 try body=e@28:9#4 catches=[e@29:35] finally=_ type=String
+expr e@32:41 string(test) type=String
+expr e@32:24#1 call callee=e@32:24#0 args=[_:e@32:41] type=kotlin.RuntimeException call=kotlin.RuntimeException.<init>#1
+expr e@32:18 throw value=e@32:24#1 type=Nothing
+expr e@32:16#1 blockExpr stmts=[] trailing=e@32:18 type=Nothing
+expr e@34:28#0 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
+expr e@34:28#1 memberCall recv=e@34:28#0 callee=message args=[] type=String? ref=kotlin.Throwable.message
+expr e@34:9#4 localDecl msg mutable=0 type=String? init=e@34:28#1 type=Unit ref=__local_0.msg
+expr e@35:33#0 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
+expr e@35:33#1 memberCall recv=e@35:33#0 callee=cause args=[] type=kotlin.Throwable? ref=kotlin.Throwable.cause
+expr e@35:9#6 localDecl cause mutable=0 type=Throwable? init=e@35:33#1 type=Unit ref=__local_1.cause
+expr e@36:29#2 name(e) type=kotlin.Throwable ref=__try_7_catch_0.e
+expr e@36:29#3 memberCall recv=e@36:29#2 callee=stackTraceToString args=[] type=String call=kotlin.Throwable.stackTraceToString
+expr e@36:9#4 localDecl trace mutable=0 type=String init=e@36:29#3 type=Unit ref=__local_2.trace
+expr e@37:9#2 name(msg) type=String? ref=__local_0.msg
+expr e@37:16 string(null) type=String
+expr e@37:9#3 binary(elvis) lhs=e@37:9#2 rhs=e@37:16 type=String
+expr e@33:26 blockExpr stmts=[e@34:9#4,e@35:9#6,e@36:9#4] trailing=e@37:9#3 type=String ref=__try_7_catch_0.e
+expr e@32:12#5 try body=e@32:16#1 catches=[e@33:26] finally=_ type=String
+expr e@32:5#6 return value=e@32:12#5 type=Nothing

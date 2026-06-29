@@ -4,8 +4,8 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.io.readlnOrNull kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=String?
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun main sym=main
-expr e0 call callee=e1 args=[] type=String? call=kotlin.io.readlnOrNull
-expr e2 localDecl line mutable=0 type=t0 init=e0 type=Unit ref=__local_0.line
-expr e3 name(line) type=String? ref=__local_0.line
-expr e4 call callee=e5 args=[_:e3] type=Unit call=kotlin.io.println#1
+  decl main fun main sym=main
+expr e@2:25#1 call callee=e@2:25#0 args=[] type=String? call=kotlin.io.readlnOrNull
+expr e@2:5 localDecl line mutable=0 type=String? init=e@2:25#1 type=Unit ref=__local_0.line
+expr e@3:13 name(line) type=String? ref=__local_0.line
+expr e@3:5#1 call callee=e@3:5#0 args=[_:e@3:13] type=Unit call=kotlin.io.println#1

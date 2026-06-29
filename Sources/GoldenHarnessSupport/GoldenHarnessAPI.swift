@@ -347,12 +347,6 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     private static let whenOrdinalRegex = try! NSRegularExpression(pattern: "(__when_)(\\d+)")
     // swiftlint:disable:next force_try
     private static let localFunOrdinalRegex = try! NSRegularExpression(pattern: "(__localfun_)(\\d+)")
-    // swiftlint:disable:next force_try
-    private static let exprIDRegex = try! NSRegularExpression(pattern: "(?<=[ =:\\[(,>])(e)(\\d+)(?![a-zA-Z_])")
-    // swiftlint:disable:next force_try
-    private static let declIDRegex = try! NSRegularExpression(pattern: "(decl d)(\\d+)")
-    // swiftlint:disable:next force_try
-    private static let typeIDRegex = try! NSRegularExpression(pattern: "(?<=[ =\\[(,])(t)(\\d+)(?![a-zA-Z_])")
 
     static func normalize(_ output: String) -> String {
         var normalized = output
@@ -368,10 +362,6 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: whenOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: localFunOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: negativeSymbolReferenceRegex)
-        // Arena allocation IDs
-        normalized = rewriteOrdinalMatches(in: normalized, regex: exprIDRegex)
-        normalized = rewriteOrdinalMatches(in: normalized, regex: declIDRegex)
-        normalized = rewriteOrdinalMatches(in: normalized, regex: typeIDRegex)
         return normalized
     }
 

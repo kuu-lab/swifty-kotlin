@@ -17,28 +17,28 @@ symbol fq=kotlin.text.encodeToByteArray.$0.startIndex kind=valueParameter vis=pr
 symbol fq=kotlin.text.encodeToByteArray.$1.charset kind=valueParameter vis=private flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun main sym=main
-expr e0 string(Hello) type=String
-expr e1 localDecl s mutable=0 type=_ init=e0 type=Unit ref=__local_0.s
-expr e2 name(s) type=String ref=__local_0.s
-expr e3 memberCall recv=e2 callee=encodeToByteArray args=[] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray#0
-expr e4 localDecl bytes1 mutable=0 type=_ init=e3 type=Unit ref=__local_1.bytes1
-expr e5 name(s) type=String ref=__local_0.s
-expr e6 int(1) type=Int
-expr e7 int(4) type=Int
-expr e8 memberCall recv=e5 callee=encodeToByteArray args=[_:e6,_:e7] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray#1
-expr e9 localDecl bytes2 mutable=0 type=_ init=e8 type=Unit ref=__local_2.bytes2
-expr e10 name(s) type=String ref=__local_0.s
-expr e11 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets
-expr e12 memberCall recv=e11 callee=UTF_8 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_8
-expr e13 memberCall recv=e10 callee=encodeToByteArray args=[_:e12] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray#2
-expr e14 localDecl bytes3 mutable=0 type=_ init=e13 type=Unit ref=__local_3.bytes3
-expr e15 name(bytes1) type=kotlin.ByteArray ref=__local_1.bytes1
-expr e16 memberCall recv=e15 callee=size args=[] type=Int ref=kotlin.ByteArray.size
-expr e17 call callee=e18 args=[_:e16] type=Unit call=kotlin.io.println#1
-expr e19 name(bytes2) type=kotlin.ByteArray ref=__local_2.bytes2
-expr e20 memberCall recv=e19 callee=size args=[] type=Int ref=kotlin.ByteArray.size
-expr e21 call callee=e22 args=[_:e20] type=Unit call=kotlin.io.println#1
-expr e23 name(bytes3) type=kotlin.ByteArray ref=__local_3.bytes3
-expr e24 memberCall recv=e23 callee=size args=[] type=Int ref=kotlin.ByteArray.size
-expr e25 call callee=e26 args=[_:e24] type=Unit call=kotlin.io.println#1
+  decl main fun main sym=main
+expr e@2:13 string(Hello) type=String
+expr e@2:5 localDecl s mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.s
+expr e@3:18#0 name(s) type=String ref=__local_0.s
+expr e@3:18#1 memberCall recv=e@3:18#0 callee=encodeToByteArray args=[] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray#0
+expr e@3:5 localDecl bytes1 mutable=0 type=_ init=e@3:18#1 type=Unit ref=__local_1.bytes1
+expr e@4:18#0 name(s) type=String ref=__local_0.s
+expr e@4:38 int(1) type=Int
+expr e@4:41 int(4) type=Int
+expr e@4:18#1 memberCall recv=e@4:18#0 callee=encodeToByteArray args=[_:e@4:38,_:e@4:41] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray#1
+expr e@4:5#2 localDecl bytes2 mutable=0 type=_ init=e@4:18#1 type=Unit ref=__local_2.bytes2
+expr e@5:18#0 name(s) type=String ref=__local_0.s
+expr e@5:38#0 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets
+expr e@5:38#1 memberCall recv=e@5:38#0 callee=UTF_8 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_8
+expr e@5:18#1 memberCall recv=e@5:18#0 callee=encodeToByteArray args=[_:e@5:38#1] type=kotlin.ByteArray call=kotlin.text.encodeToByteArray#2
+expr e@5:5#2 localDecl bytes3 mutable=0 type=_ init=e@5:18#1 type=Unit ref=__local_3.bytes3
+expr e@6:13#1 name(bytes1) type=kotlin.ByteArray ref=__local_1.bytes1
+expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.ByteArray.size
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#2] type=Unit call=kotlin.io.println#1
+expr e@7:13#0 name(bytes2) type=kotlin.ByteArray ref=__local_2.bytes2
+expr e@7:13#1 memberCall recv=e@7:13#0 callee=size args=[] type=Int ref=kotlin.ByteArray.size
+expr e@7:5#4 call callee=e@7:5#3 args=[_:e@7:13#1] type=Unit call=kotlin.io.println#1
+expr e@8:13#0 name(bytes3) type=kotlin.ByteArray ref=__local_3.bytes3
+expr e@8:13#1 memberCall recv=e@8:13#0 callee=size args=[] type=Int ref=kotlin.ByteArray.size
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13#1] type=Unit call=kotlin.io.println#1
