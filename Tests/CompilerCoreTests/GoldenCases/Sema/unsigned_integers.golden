@@ -31,7 +31,7 @@ symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[]
 symbol fq=kotlin.ULongArray kind=class vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun main sym=golden.sema.main
 expr e0 uint(42) type=UInt
 expr e1 localDecl x mutable=0 type=t0 init=e0 type=Unit ref=__local_0.x

@@ -4,7 +4,7 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.compareTo#0 kind=function vis=public flags=synthetic sig=recv=Char params=[Char] ret=Int
 symbol fq=kotlin.text.compareTo.other kind=valueParameter vis=private flags=synthetic
-file f12 package=_
+file f13 package=_
   decl d0 fun charCompareToDemo sym=charCompareToDemo
 expr e0 char(90) type=Char
 expr e1 char(65) type=Char

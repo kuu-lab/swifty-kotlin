@@ -85,6 +85,18 @@ import Testing
         """)
     }
 
+    @Test func testCompile_string_toBigDecimalOrNull() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigDecimal
+
+        fun main() {
+            val result: BigDecimal? = "3.14e2".toBigDecimalOrNull()
+            val fallback: BigDecimal = "not-a-number".toBigDecimalOrNull() ?: "0".toBigDecimal()
+            val text = fallback.toString()
+        }
+        """)
+    }
+
     @Test func testCompile_string_toBigInteger() throws {
         try assertKotlinCompilesToKIR("""
         import java.math.BigInteger

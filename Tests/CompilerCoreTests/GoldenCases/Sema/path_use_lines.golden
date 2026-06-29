@@ -7,7 +7,7 @@ symbol fq=kotlin.io.path.Path#0 kind=class vis=public flags=synthetic type=kotli
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
-file f12 package=_
+file f13 package=_
   decl d0 fun collectLines sym=collectLines
   decl d1 fun countLines sym=countLines
 expr e0 name(path) type=kotlin.io.path.Path ref=collectLines.$0.path

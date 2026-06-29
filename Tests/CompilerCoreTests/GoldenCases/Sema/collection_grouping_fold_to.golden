@@ -12,7 +12,7 @@ symbol fq=testGroupingFoldTo kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=testGroupingFoldTo.$0.values kind=valueParameter vis=private flags=_
 symbol fq=testGroupingFoldToWithSelector kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=testGroupingFoldToWithSelector.$1.values kind=valueParameter vis=private flags=_
-file f12 package=_
+file f13 package=_
   decl d0 fun testGroupingFoldTo sym=testGroupingFoldTo
   decl d1 fun testGroupingFoldToWithSelector sym=testGroupingFoldToWithSelector
 expr e0 call callee=e1 args=[] type=kotlin.collections.MutableMap<Int, Int>

@@ -4,7 +4,7 @@ symbol fq=golden.sema.minOfFloatTwoArg.$0.b kind=valueParameter vis=private flag
 symbol fq=kotlin.comparisons.minOf#2 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Float,Float] ret=Float
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun minOfFloatTwoArg sym=golden.sema.minOfFloatTwoArg
 expr e0 name(a) type=Float ref=golden.sema.minOfFloatTwoArg.$0.a
 expr e1 name(b) type=Float ref=golden.sema.minOfFloatTwoArg.$0.b

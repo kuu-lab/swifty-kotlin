@@ -11,7 +11,7 @@ symbol fq=kotlin.collections.Collection kind=interface vis=public flags=syntheti
 symbol fq=kotlin.collections.Collection.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection.toList kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Collection<out kotlin.collections.Collection.E> params=[] ret=kotlin.collections.List<out kotlin.collections.Collection.E>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun collectLines sym=golden.sema.collectLines
   decl d1 fun countLines sym=golden.sema.countLines
 expr e0 name(path) type=String ref=golden.sema.collectLines.$0.path

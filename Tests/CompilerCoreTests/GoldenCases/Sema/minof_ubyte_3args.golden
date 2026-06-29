@@ -6,7 +6,7 @@ symbol fq=kotlin.comparisons.minOf#13 kind=function vis=public flags=inlineFunct
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun threeArgMinUByte sym=golden.sema.threeArgMinUByte
 expr e0 name(a) type=UByte ref=golden.sema.threeArgMinUByte.$0.a
 expr e1 name(b) type=UByte ref=golden.sema.threeArgMinUByte.$0.b

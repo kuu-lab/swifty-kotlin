@@ -4,7 +4,7 @@ symbol fq=__local_2.none kind=local vis=private flags=_ type=Boolean
 symbol fq=aggregate kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Array<Int>] ret=Unit
 symbol fq=aggregate.$0.numbers kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Array kind=class vis=public flags=synthetic
-file f12 package=_
+file f13 package=_
   decl d0 fun aggregate sym=aggregate
 expr e0 name(numbers) type=kotlin.Array<Int> ref=aggregate.$0.numbers
 expr e1 name(a) type=Int ref=s-0

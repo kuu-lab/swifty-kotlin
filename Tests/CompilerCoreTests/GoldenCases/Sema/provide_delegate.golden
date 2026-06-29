@@ -1,7 +1,7 @@
 symbol fq=golden.sema.ResourceDelegate kind=class vis=public flags=_
 symbol fq=golden.sema.ResourceDelegate.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.ResourceDelegate params=[] ret=golden.sema.ResourceDelegate
 symbol fq=golden.sema.resource kind=property vis=public flags=_ type=String
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 class ResourceDelegate sym=golden.sema.ResourceDelegate
   decl d1 property resource var=0 sym=golden.sema.resource
 expr e0 string(value) type=String

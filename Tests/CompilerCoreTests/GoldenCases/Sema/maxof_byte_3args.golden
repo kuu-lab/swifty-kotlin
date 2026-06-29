@@ -6,7 +6,7 @@ symbol fq=kotlin.comparisons.maxOf#6 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun threeArgMaxByte sym=golden.sema.threeArgMaxByte
 expr e0 name(a) type=Int ref=golden.sema.threeArgMaxByte.$0.a
 expr e1 name(b) type=Int ref=golden.sema.threeArgMaxByte.$0.b

@@ -2,7 +2,7 @@ symbol fq=test.Rect kind=class vis=public flags=_
 symbol fq=test.Rect.$backing_label kind=backingField vis=private flags=mutable type=String
 symbol fq=test.Rect.height kind=property vis=public flags=_ type=Int
 symbol fq=test.Rect.width kind=property vis=public flags=_ type=Int
-file f12 package=test
+file f13 package=test
   decl d0 class Rect sym=test.Rect
 expr e0 name(width) type=Int ref=test.Rect.width
 expr e1 name(height) type=Int ref=test.Rect.height

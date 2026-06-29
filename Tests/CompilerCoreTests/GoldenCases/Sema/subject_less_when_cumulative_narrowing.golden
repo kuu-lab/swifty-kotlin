@@ -1,6 +1,6 @@
 symbol fq=cumulativeNarrow kind=function vis=public flags=_ sig=recv=_ params=[Int?] ret=Int
 symbol fq=cumulativeNarrow.$0.x kind=valueParameter vis=private flags=_
-file f12 package=_
+file f13 package=_
   decl d0 fun cumulativeNarrow sym=cumulativeNarrow
 expr e0 name(x) type=Int? ref=cumulativeNarrow.$0.x
 expr e1 name(null) type=Nothing?

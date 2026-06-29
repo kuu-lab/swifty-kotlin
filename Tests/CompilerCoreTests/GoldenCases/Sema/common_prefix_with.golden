@@ -9,7 +9,7 @@ symbol fq=kotlin.text.commonSuffixWith kind=function vis=public flags=_ sig=recv
 symbol fq=kotlin.text.commonSuffixWith.$1.ignoreCase kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.commonSuffixWith.$1.other kind=valueParameter vis=private flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
+file f13 package=_
   decl d0 fun main sym=main
 expr e0 string(HelloWorld) type=String
 expr e1 localDecl a mutable=0 type=_ init=e0 type=Unit ref=__local_0.a

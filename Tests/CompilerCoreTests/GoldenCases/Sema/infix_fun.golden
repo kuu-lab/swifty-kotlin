@@ -1,7 +1,7 @@
 symbol fq=golden.sema.add kind=function vis=public flags=_ sig=recv=Int params=[Int] ret=Int
 symbol fq=golden.sema.add.$0.other kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.useInfix kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun add sym=golden.sema.add
   decl d1 fun useInfix sym=golden.sema.useInfix
 expr e0 this type=Int

@@ -11,7 +11,7 @@ symbol fq=golden.sema.smartCastAfterIs.$4.v kind=valueParameter vis=private flag
 symbol fq=golden.sema.smartCastAfterNegatedIs kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Int
 symbol fq=golden.sema.smartCastAfterNegatedIs.$5.v kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun basicIs sym=golden.sema.basicIs
   decl d1 fun negatedIs sym=golden.sema.negatedIs
   decl d2 fun smartCastAfterIs sym=golden.sema.smartCastAfterIs

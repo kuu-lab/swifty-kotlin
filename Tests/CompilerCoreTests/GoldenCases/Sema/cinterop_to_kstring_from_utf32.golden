@@ -4,7 +4,7 @@ symbol fq=kotlinx.cinterop.CPointer kind=class vis=public flags=synthetic type=k
 symbol fq=kotlinx.cinterop.CPointer.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.IntVar kind=class vis=public flags=synthetic type=kotlinx.cinterop.IntVar
 symbol fq=kotlinx.cinterop.toKStringFromUtf32 kind=function vis=public flags=synthetic sig=recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> params=[] ret=String
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 fun decodeUtf32 sym=golden.sema.decodeUtf32
 expr e0 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar> ref=golden.sema.decodeUtf32.$0.ptr
 expr e1 memberCall recv=e0 callee=toKStringFromUtf32 args=[] type=String call=kotlinx.cinterop.toKStringFromUtf32

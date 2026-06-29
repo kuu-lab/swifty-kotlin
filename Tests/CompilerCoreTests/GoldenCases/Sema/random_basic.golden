@@ -20,7 +20,7 @@ symbol fq=kotlin.random.nextInt#2 kind=function vis=public flags=synthetic sig=r
 symbol fq=kotlin.random.nextInt.from kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.random.nextInt.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandom kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f12 package=_
+file f13 package=_
   decl d0 fun useRandom sym=useRandom
 expr e0 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e1 memberCall recv=e0 callee=nextInt args=[] type=Int call=kotlin.random.nextInt#0

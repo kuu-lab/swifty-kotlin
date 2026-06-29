@@ -5,7 +5,7 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic type=kotlin.properties.Delegates
 symbol fq=kotlin.properties.Delegates.observable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
 symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=synthetic
-file f12 package=golden.sema
+file f13 package=golden.sema
   decl d0 property name var=1 sym=golden.sema.name
   decl d1 fun main sym=golden.sema.main
 expr e0 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates

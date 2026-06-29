@@ -305,6 +305,10 @@ struct StringSyntheticMemberLinkTests {
             "String.toBigDecimal should link to kk_string_toBigDecimal"
         )
         #expect(
+            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner) == "kk_string_toBigDecimalOrNull",
+            "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
+        )
+        #expect(
             externalLink(for: "toBigInteger", sema: sema, interner: interner) == "kk_string_toBigInteger",
             "String.toBigInteger should link to kk_string_toBigInteger"
         )
