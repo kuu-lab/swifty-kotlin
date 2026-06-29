@@ -12,7 +12,7 @@ import Testing
 struct ASTEquivalenceRegressionTests {
     // MARK: - Helpers
 
-    private let bundledStdlibDeclarationCount = 125
+    private let bundledStdlibDeclarationCount = 129
 
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
         let ctx: CompilationContext = makeContextFromSource(source)

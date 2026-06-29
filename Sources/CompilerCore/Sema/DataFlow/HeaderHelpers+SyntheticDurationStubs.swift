@@ -231,7 +231,63 @@ extension DataFlowSemaPhase {
         )
         */
 
-        // --- STDLIB-TIME-082: Duration advanced properties ---
+        // --- STDLIB-TIME-082: Duration predicate / absoluteValue ---
+        // absoluteValue, isNegative, isPositive, isInfinite are implemented in Kotlin source
+        // (BundledKotlinStdlib.kotlinTimeSource). The __kk_duration_* bridges below are called
+        // from that Kotlin source. The public API symbols (absoluteValue, isNegative, …) are
+        // direct stubs kept for backward-compatible member dispatch while the Kotlin-source
+        // dispatch path matures (MIGRATION-TIME-001).
+
+        // Bridge stubs (called from BundledKotlinStdlib.kotlinTimeSource)
+        registerDurationMemberMethod(
+            named: "__kk_duration_absoluteValue",
+            externalLinkName: "kk_duration_absoluteValue",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
+            returnType: durationType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_isNegative",
+            externalLinkName: "kk_duration_isNegative",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
+            returnType: boolType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_isPositive",
+            externalLinkName: "kk_duration_isPositive",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
+            returnType: boolType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_isInfinite",
+            externalLinkName: "kk_duration_isInfinite",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
+            returnType: boolType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Direct dispatch stubs — public API surface (MIGRATION-TIME-001 compat layer)
         registerDurationMemberProperty(
             named: "absoluteValue",
             externalLinkName: "kk_duration_absoluteValue",
@@ -241,33 +297,43 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerDurationMemberProperty(
+        registerDurationMemberMethod(
             named: "isNegative",
             externalLinkName: "kk_duration_isNegative",
             ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
             returnType: boolType,
+            isOperator: false,
             symbols: symbols,
             interner: interner
         )
 
-        registerDurationMemberProperty(
+        registerDurationMemberMethod(
             named: "isPositive",
             externalLinkName: "kk_duration_isPositive",
             ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
             returnType: boolType,
+            isOperator: false,
             symbols: symbols,
             interner: interner
         )
 
-        registerDurationMemberProperty(
+        registerDurationMemberMethod(
             named: "isInfinite",
             externalLinkName: "kk_duration_isInfinite",
             ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
             returnType: boolType,
+            isOperator: false,
             symbols: symbols,
             interner: interner
         )
 
+        // isFinite stays as a direct property stub (not yet migrated)
         registerDurationMemberProperty(
             named: "isFinite",
             externalLinkName: "kk_duration_isFinite",
@@ -301,7 +367,87 @@ extension DataFlowSemaPhase {
         )
         */
 
-        // --- STDLIB-TIME-082: Duration member methods ---
+        // --- STDLIB-TIME-082: Duration operator bridges (MIGRATION-TIME-001) ---
+        // plus, minus, times, div, unaryMinus are implemented in Kotlin source
+        // (BundledKotlinStdlib.kotlinTimeSource). The __kk_duration_* entries below are
+        // bridges called from that Kotlin source. The public operator symbols (plus, minus, …)
+        // are direct stubs kept for backward-compatible member dispatch while the Kotlin-source
+        // dispatch path matures (MIGRATION-TIME-001).
+
+        // Bridge stubs (called from BundledKotlinStdlib.kotlinTimeSource)
+        registerDurationMemberMethod(
+            named: "__kk_duration_plus",
+            externalLinkName: "kk_duration_plus",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [durationType],
+            returnType: durationType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_minus",
+            externalLinkName: "kk_duration_minus",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [durationType],
+            returnType: durationType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_times_int",
+            externalLinkName: "kk_duration_times_int",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [intType],
+            returnType: durationType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_div_int",
+            externalLinkName: "kk_duration_div_int",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [intType],
+            returnType: durationType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_div_duration",
+            externalLinkName: "kk_duration_div_duration",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [durationType],
+            returnType: doubleType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerDurationMemberMethod(
+            named: "__kk_duration_unary_minus",
+            externalLinkName: "kk_duration_unary_minus",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [],
+            returnType: durationType,
+            isOperator: false,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Direct dispatch stubs — public operator surface (MIGRATION-TIME-001 compat layer)
         registerDurationMemberMethod(
             named: "plus",
             externalLinkName: "kk_duration_plus",
@@ -358,23 +504,24 @@ extension DataFlowSemaPhase {
         )
 
         registerDurationMemberMethod(
-            named: "compareTo",
-            externalLinkName: "kk_duration_compareTo",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: intType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
             named: "unaryMinus",
             externalLinkName: "kk_duration_unary_minus",
             ownerSymbol: durationSymbol,
             ownerType: durationType,
             parameterTypes: [],
             returnType: durationType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // compareTo stays as a direct synthetic stub (not in MIGRATION-TIME-001 scope)
+        registerDurationMemberMethod(
+            named: "compareTo",
+            externalLinkName: "kk_duration_compareTo",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            parameterTypes: [durationType],
+            returnType: intType,
             symbols: symbols,
             interner: interner
         )
