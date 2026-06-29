@@ -4,35 +4,35 @@ import Foundation
 
 /// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
 /// This is the single source of truth for what information survives the metadata round-trip.
-struct MetadataRecord {
-    let kind: SymbolKind
+package struct MetadataRecord {
+    package let kind: SymbolKind
     let mangledName: String
-    let fqName: String
-    let arity: Int
-    let isSuspend: Bool
-    let isInline: Bool
+    package let fqName: String
+    package let arity: Int
+    package let isSuspend: Bool
+    package let isInline: Bool
     let typeSignature: String?
     let externalLinkName: String?
-    let declaredFieldCount: Int?
-    let declaredInstanceSizeWords: Int?
+    package let declaredFieldCount: Int?
+    package let declaredInstanceSizeWords: Int?
     let declaredVtableSize: Int?
     let declaredItableSize: Int?
-    let superFQName: String?
+    package let superFQName: String?
     let fieldOffsets: String?
     let vtableSlots: String?
     let itableSlots: String?
 
     // P5-74: data class flag
-    let isDataClass: Bool
+    package let isDataClass: Bool
 
     // P5-74: sealed class flag
-    let isSealedClass: Bool
+    package let isSealedClass: Bool
 
     // P5-86: annotation metadata
     let annotations: [MetadataAnnotationRecord]
 
     // P5-75: value class flag
-    let isValueClass: Bool
+    package let isValueClass: Bool
 
     // P5-75: value class underlying type signature (e.g. "I" for Int)
     let valueClassUnderlyingTypeSig: String?
@@ -121,11 +121,11 @@ public struct MetadataAnnotationRecord: Equatable {
 
 /// Encodes compiler symbols into `[MetadataRecord]` and serializes them to the text-based
 /// metadata format consumed by `MetadataDecoder`.
-final class MetadataEncoder {
-    init() {}
+package final class MetadataEncoder {
+    package init() {}
 
     /// Build metadata records from the compiler's semantic state.
-    func buildRecords(
+    package func buildRecords(
         symbols: SymbolTable,
         types: TypeSystem,
         moduleName: String,
@@ -531,7 +531,7 @@ final class MetadataEncoder {
     }
 
     /// Serialize records to the text-based metadata format.
-    func serialize(_ records: [MetadataRecord]) -> String {
+    package func serialize(_ records: [MetadataRecord]) -> String {
         var lines = ["symbols=\(records.count)"]
         for record in records {
             var fields: [String] = [

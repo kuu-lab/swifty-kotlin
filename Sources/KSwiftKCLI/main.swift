@@ -1,3 +1,4 @@
+import CompilerBackend
 import CompilerCore
 import Foundation
 
@@ -28,7 +29,7 @@ let args = Array(ProcessInfo.processInfo.arguments.dropFirst())
 
 do {
     let options = try CLIParser.parse(args: args)
-    let driver = CompilerDriver()
+    let driver = CompilerDriver(backendPhases: makeBackendPhases)
     let exitCode = driver.run(options: options)
     exit(Int32(exitCode))
 } catch let error as CLIParseError {
