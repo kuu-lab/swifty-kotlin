@@ -303,17 +303,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerAtomicIntArrayAsKotlinAtomicArrayFunction(
-            packageFQName: atomicsPkg,
-            javaPackageFQName: ensurePackage(
-                path: ["java", "util", "concurrent", "atomic"],
-                symbols: symbols,
-                interner: interner
-            ),
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerAtomicArrayOfNullsFactory(
             packageFQName: atomicsPkg,
             symbols: symbols,
@@ -1752,57 +1741,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-    }
-
-    private func registerAtomicIntArrayAsKotlinAtomicArrayFunction(
-        packageFQName: [InternedString],
-        javaPackageFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        guard let kotlinAtomicArraySymbol = symbols.lookup(
-            fqName: packageFQName + [interner.intern("AtomicIntArray")]
-        ) else {
-            return
-        }
-        let kotlinAtomicArrayType = types.make(.classType(ClassType(
-            classSymbol: kotlinAtomicArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let javaAtomicArraySymbol = ensureClassSymbol(
-            named: "AtomicIntegerArray",
-            in: javaPackageFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let packageSymbol = symbols.lookup(fqName: javaPackageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: javaAtomicArraySymbol)
-        }
-        let javaAtomicArrayType = types.make(.classType(ClassType(
-            classSymbol: javaAtomicArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(javaAtomicArrayType, for: javaAtomicArraySymbol)
-        registerAtomicConstructor(
-            ownerSymbol: javaAtomicArraySymbol,
-            ownerType: javaAtomicArrayType,
-            externalLinkName: "kk_atomic_int_array_create",
-            paramType: types.intType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerAtomicExtensionFunction(
-            packageFQName: packageFQName,
-            name: "asKotlinAtomicArray",
-            externalLinkName: nil,
-            receiverType: javaAtomicArrayType,
-            returnType: kotlinAtomicArrayType,
-            symbols: symbols,
-            interner: interner
-        )
     }
 
     private func registerAtomicExtensionFunction(
