@@ -1,0 +1,19 @@
+symbol fq=golden.sema.age kind=property vis=public flags=mutable type=Int
+symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
+symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic type=kotlin.properties.Delegates
+symbol fq=kotlin.properties.Delegates.vetoable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
+symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=synthetic
+file f12 package=golden.sema
+  decl d0 property age var=1 sym=golden.sema.age
+  decl d1 fun main sym=golden.sema.main
+expr e0 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
+expr e1 int(0) type=Int
+expr e2 memberCall recv=e0 callee=vetoable args=[_:e1] type=kotlin.properties.ReadWriteProperty call=kotlin.properties.Delegates.vetoable
+expr e3 name(age) type=Int ref=golden.sema.age
+expr e4 call callee=e5 args=[_:e3] type=Unit call=kotlin.io.println#1
+expr e6 int(10) type=Int
+expr e7 localAssign age value=e6 type=Unit ref=golden.sema.age
+expr e8 name(age) type=Int ref=golden.sema.age
+expr e9 call callee=e10 args=[_:e8] type=Unit call=kotlin.io.println#1

@@ -1,0 +1,16 @@
+name: Setup Swift (Ubuntu)
+description: Install Swift toolchain only (no LLVM). For targets that do not link against LLVM.
+
+inputs:
+  swift-version:
+    description: Swift version string for swift-actions/setup-swift
+    required: false
+    default: "6.2"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: ${{ inputs.swift-version }}

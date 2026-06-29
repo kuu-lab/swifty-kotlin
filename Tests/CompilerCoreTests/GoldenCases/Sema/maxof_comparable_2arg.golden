@@ -1,0 +1,13 @@
+symbol fq=golden.sema.pickLargerString kind=function vis=public flags=_ sig=recv=_ params=[String,String] ret=String
+symbol fq=golden.sema.pickLargerString.$0.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.pickLargerString.$0.b kind=valueParameter vis=private flags=_
+symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
+symbol fq=kotlin.comparisons.maxOf#23 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[kotlin.comparisons.maxOf.T,kotlin.comparisons.maxOf.T] ret=kotlin.comparisons.maxOf.T bounds=[kotlin.Comparable<kotlin.comparisons.maxOf.T>]
+symbol fq=kotlin.comparisons.maxOf.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
+file f12 package=golden.sema
+  decl d0 fun pickLargerString sym=golden.sema.pickLargerString
+expr e0 name(a) type=String ref=golden.sema.pickLargerString.$0.a
+expr e1 name(b) type=String ref=golden.sema.pickLargerString.$0.b
+expr e2 call callee=e3 args=[_:e0,_:e1] type=String call=kotlin.comparisons.maxOf#23 targs=[String]

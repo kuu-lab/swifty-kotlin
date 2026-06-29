@@ -528,7 +528,7 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                let callExpr = try XCTUnwrap(lastExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
                 }, "Expected member call to \(memberName) with \(argumentCount) arguments in AST")

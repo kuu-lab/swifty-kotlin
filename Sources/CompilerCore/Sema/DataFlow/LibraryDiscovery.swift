@@ -9,7 +9,7 @@ import Foundation
 /// This preserves the per-field-lenient behavior of the old `JSONSerialization`
 /// approach, letting `validateManifestSchema` handle each case with appropriate
 /// diagnostics.
-struct LibraryManifest: Decodable {
+package struct LibraryManifest: Decodable {
     let formatVersion: Int?
     let moduleName: String?
     let kotlinLanguageVersion: String?
@@ -17,14 +17,14 @@ struct LibraryManifest: Decodable {
     let compilerVersion: String?
     let metadata: String?
     let inlineKIRDir: String?
-    let objects: [String]?
+    package let objects: [String]?
 
     private enum CodingKeys: String, CodingKey {
         case formatVersion, moduleName, kotlinLanguageVersion, target
         case compilerVersion, metadata, inlineKIRDir, objects
     }
 
-    init(from decoder: Decoder) throws {
+    package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         formatVersion = try? container.decodeIfPresent(Int.self, forKey: .formatVersion)
         moduleName = try? container.decodeIfPresent(String.self, forKey: .moduleName)

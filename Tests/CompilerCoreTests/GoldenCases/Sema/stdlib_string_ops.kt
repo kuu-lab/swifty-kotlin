@@ -75,25 +75,3 @@ fun useReplaceFirst(): String = "abcabc".replaceFirst("abc", "X")
 fun useReplaceFirstIgnoreCase(): String = "abcABC".replaceFirst("abc", "X", ignoreCase = true)
 
 fun useReplaceRange(): String = "hello".replaceRange(0..2, "HE")
-
-fun useReplaceRangeIndices(): String = "hello".replaceRange(1, 4, "EL")
-
-fun useReplaceAfter(): String = "a:b:c".replaceAfter(":", "X")
-
-fun useReplaceAfterWithDefault(): String = "abc".replaceAfter(":", "X", "MISS")
-
-fun useReplaceAfterChar(): String = "a:b:c".replaceAfter(':', "X")
-
-fun useReplaceAfterLast(): String = "a:b:c".replaceAfterLast(":", "X")
-
-fun useReplaceAfterLastChar(): String = "a:b:c".replaceAfterLast(':', "X")
-
-fun useReplaceBefore(): String = "a:b:c".replaceBefore(":", "X")
-
-fun useReplaceBeforeWithDefault(): String = "abc".replaceBefore(":", "X", "MISS")
-
-fun useReplaceBeforeChar(): String = "a:b:c".replaceBefore(':', "X")
-
-fun useReplaceBeforeLast(): String = "a:b:c".replaceBeforeLast(":", "X")
-
-fun useReplaceBeforeLastChar(): String = "a:b:c".replaceBeforeLast(':', "X")

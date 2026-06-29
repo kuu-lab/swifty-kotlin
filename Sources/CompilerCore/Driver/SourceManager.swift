@@ -61,7 +61,7 @@ public final class SourceManager: @unchecked Sendable {
         return record.path
     }
 
-    var fileCount: Int {
+    package var fileCount: Int {
         files.count
     }
 
@@ -73,7 +73,7 @@ public final class SourceManager: @unchecked Sendable {
         fileIDByPath[path]
     }
 
-    func fileIDs() -> [FileID] {
+    package func fileIDs() -> [FileID] {
         files.indices.map { FileID(rawValue: $0) }
     }
 
