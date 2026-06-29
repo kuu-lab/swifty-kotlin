@@ -2430,6 +2430,19 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // --- STDLIB-TEXT-FN-048: CharSequence.reduceIndexedOrNull(operation) ---
+        registerSyntheticStringExtensionFunction(
+            named: "reduceIndexedOrNull",
+            externalLinkName: "kk_string_reduceIndexedOrNull",
+            receiverType: charSequenceType,
+            parameters: [("operation", intCharCharToCharType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-HOF-003: CharSequence.reduceRightIndexed(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightIndexed",
