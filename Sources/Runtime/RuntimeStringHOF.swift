@@ -4,6 +4,40 @@
 
 import Foundation
 
+private func runtimeStringHOFElementValue(_ raw: Int) -> RuntimeValue {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return RuntimeValue(raw: maybeUnbox(raw))
+    }
+    if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
+        return RuntimeValue(charScalar: charBox.value)
+    }
+    if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
+        return runtimeStringHOFStringValue(stringBox.value)
+    }
+    return RuntimeValue(raw: maybeUnbox(raw))
+}
+
+private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
+    var length = 0
+    var byteCount = 0
+    var hash = 0
+    let data = runtimeRegisterFlatString(
+        value,
+        outLength: &length,
+        outByteCount: &byteCount,
+        outHash: &hash
+    )
+    guard let data else {
+        return RuntimeValue(raw: 0)
+    }
+    return RuntimeValue(
+        stringData: Int(bitPattern: data),
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+}
+
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
 
 @_cdecl("kk_string_iterator")
@@ -76,14 +110,14 @@ public func kk_string_map(
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var mappedElements: [Int] = []
+    var mappedElements: [RuntimeValue] = []
     for scalar in scalars {
         var thrown = 0
         let result = lambda(closureRaw, Int(scalar.value), &thrown)
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        mappedElements.append(result)
+        mappedElements.append(runtimeStringHOFElementValue(result))
     }
-    return runtimeMakeListRaw(mappedElements)
+    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
 }
 
 @_cdecl("kk_string_map_flat")
@@ -461,9 +495,10 @@ public func kk_string_zipWithNext(_ strRaw: Int) -> Int {
     let scalars = Array(source.unicodeScalars)
     var pairs: [Int] = []
     for i in 0 ..< scalars.count - 1 {
-        let a = kk_box_char(Int(scalars[i].value))
-        let b = kk_box_char(Int(scalars[i + 1].value))
-        pairs.append(kk_pair_new(a, b))
+        pairs.append(runtimePairNew(
+            firstValue: RuntimeValue(charScalar: Int(scalars[i].value)),
+            secondValue: RuntimeValue(charScalar: Int(scalars[i + 1].value))
+        ))
     }
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
@@ -480,20 +515,21 @@ public func kk_string_zipWithNext_flat(
 
 @_cdecl("kk_string_zipWithNextTransform")
 public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     let source = runtimeStringFromRaw(strRaw) ?? ""
     let scalars = Array(source.unicodeScalars)
     guard scalars.count >= 2 else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return registerRuntimeObject(RuntimeListBox(values: []))
     }
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     results.reserveCapacity(scalars.count - 1)
     for i in 0 ..< scalars.count - 1 {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda2(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
-            lhs: kk_box_char(Int(scalars[i].value)),
-            rhs: kk_box_char(Int(scalars[i + 1].value)),
+            lhs: Int(scalars[i].value),
+            rhs: Int(scalars[i + 1].value),
             outThrown: &thrown
         )
         if thrown != 0 {
@@ -502,9 +538,9 @@ public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closur
             }
             return 0
         }
-        results.append(maybeUnbox(result))
+        results.append(runtimeStringHOFElementValue(result))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
+    return registerRuntimeObject(RuntimeListBox(values: results))
 }
 
 @_cdecl("kk_string_zipWithNextTransform_flat")
@@ -530,9 +566,10 @@ public func kk_string_zip(_ strRaw: Int, _ otherRaw: Int) -> Int {
     var pairs: [Int] = []
     pairs.reserveCapacity(count)
     for i in 0 ..< count {
-        let a = kk_box_char(Int(sourceCodeUnits[i]))
-        let b = kk_box_char(Int(otherCodeUnits[i]))
-        pairs.append(kk_pair_new(a, b))
+        pairs.append(runtimePairNew(
+            firstValue: RuntimeValue(charScalar: Int(sourceCodeUnits[i])),
+            secondValue: RuntimeValue(charScalar: Int(otherCodeUnits[i]))
+        ))
     }
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
@@ -566,7 +603,7 @@ public func kk_string_zipTransform(
     let sourceCodeUnits = runtimeStringUTF16CodeUnits(strRaw)
     let otherCodeUnits = runtimeStringUTF16CodeUnits(otherRaw)
     let count = min(sourceCodeUnits.count, otherCodeUnits.count)
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     results.reserveCapacity(count)
     for i in 0 ..< count {
         var thrown = 0
@@ -583,9 +620,9 @@ public func kk_string_zipTransform(
             }
             return 0
         }
-        results.append(maybeUnbox(result))
+        results.append(runtimeStringHOFElementValue(result))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
+    return registerRuntimeObject(RuntimeListBox(values: results))
 }
 
 @_cdecl("kk_string_zipTransform_flat")
@@ -653,7 +690,7 @@ public func kk_string_mapIndexed(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
-    var mappedElements: [Int] = []
+    var mappedElements: [RuntimeValue] = []
     for (index, scalar) in scalars.enumerated() {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda2(
@@ -664,9 +701,9 @@ public func kk_string_mapIndexed(
             outThrown: &thrown
         )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        mappedElements.append(result)
+        mappedElements.append(runtimeStringHOFElementValue(result))
     }
-    return runtimeMakeListRaw(mappedElements)
+    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
 }
 
 @_cdecl("kk_string_mapNotNull")
@@ -676,7 +713,7 @@ public func kk_string_mapNotNull(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
-    var mappedElements: [Int] = []
+    var mappedElements: [RuntimeValue] = []
     for scalar in scalars {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(
@@ -687,10 +724,10 @@ public func kk_string_mapNotNull(
         )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         if result != runtimeNullSentinelInt {
-            mappedElements.append(result)
+            mappedElements.append(runtimeStringHOFElementValue(result))
         }
     }
-    return runtimeMakeListRaw(mappedElements)
+    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
 }
 
 @_cdecl("kk_string_mapNotNull_flat")
@@ -1483,9 +1520,10 @@ public func kk_string_partition(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else {
-        let first = runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function))
-        let second = runtimeMakeStringRaw("")
-        return kk_pair_new(first, second)
+        return runtimePairNew(
+            firstValue: runtimeStringHOFStringValue(runtimeStringFromRawOrPanic(strRaw, caller: #function)),
+            secondValue: runtimeStringHOFStringValue("")
+        )
     }
     var matched: [UnicodeScalar] = []
     var unmatched: [UnicodeScalar] = []
@@ -1499,7 +1537,10 @@ public func kk_string_partition(
         )
         if thrown != 0 {
             outThrown?.pointee = thrown
-            return kk_pair_new(runtimeMakeStringRaw(""), runtimeMakeStringRaw(""))
+            return runtimePairNew(
+                firstValue: runtimeStringHOFStringValue(""),
+                secondValue: runtimeStringHOFStringValue("")
+            )
         }
         if maybeUnbox(result) != 0 {
             matched.append(scalar)
@@ -1507,9 +1548,10 @@ public func kk_string_partition(
             unmatched.append(scalar)
         }
     }
-    let first = runtimeMakeStringRaw(runtimeStringFromScalars(matched))
-    let second = runtimeMakeStringRaw(runtimeStringFromScalars(unmatched))
-    return kk_pair_new(first, second)
+    return runtimePairNew(
+        firstValue: runtimeStringHOFStringValue(runtimeStringFromScalars(matched)),
+        secondValue: runtimeStringHOFStringValue(runtimeStringFromScalars(unmatched))
+    )
 }
 
 @_cdecl("kk_string_partition_flat")
