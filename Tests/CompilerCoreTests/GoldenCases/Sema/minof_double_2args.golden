@@ -5,7 +5,7 @@ symbol fq=kotlin.comparisons.minOf#0 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 fun minOfDoubleTwoArg sym=golden.sema.minOfDoubleTwoArg
-expr e0 name(a) type=Double ref=golden.sema.minOfDoubleTwoArg.$0.a
-expr e1 name(b) type=Double ref=golden.sema.minOfDoubleTwoArg.$0.b
-expr e2 call callee=e3 args=[_:e0,_:e1] type=Double call=kotlin.comparisons.minOf#0
+  decl golden.sema.minOfDoubleTwoArg fun minOfDoubleTwoArg sym=golden.sema.minOfDoubleTwoArg
+expr e@3:61 name(a) type=Double ref=golden.sema.minOfDoubleTwoArg.$0.a
+expr e@3:64 name(b) type=Double ref=golden.sema.minOfDoubleTwoArg.$0.b
+expr e@3:55#1 call callee=e@3:55#0 args=[_:e@3:61,_:e@3:64] type=Double call=kotlin.comparisons.minOf#0

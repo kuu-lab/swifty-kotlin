@@ -10,22 +10,22 @@ symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.emptyList kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.collections.List<out Nothing>
 symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 class Shape sym=golden.sema.Shape
-  decl d1 class Circle sym=golden.sema.Circle
-  decl d2 class Animal sym=golden.sema.Animal
-  decl d3 class Pet sym=golden.sema.Pet
-  decl d4 class Dog sym=golden.sema.Dog
-  decl d5 class Container sym=golden.sema.Container
-  decl d6 class Box sym=golden.sema.Box
-expr e0 string(shape) type=String
-expr e1 double(3.14) type=Double
-expr e2 name(radius) type=Double ref=golden.sema.Circle.radius
-expr e3 binary(multiply) lhs=e1 rhs=e2 type=Double
-expr e4 name(radius) type=Double ref=golden.sema.Circle.radius
-expr e5 binary(multiply) lhs=e3 rhs=e4 type=Double
-expr e6 string(circle) type=String
-expr e7 string(woof) type=String
-expr e8 string(dog) type=String
-expr e9 string(canine) type=String
-expr e10 string(human) type=String
-expr e11 call callee=e12 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList
+  decl golden.sema.Shape class Shape sym=golden.sema.Shape
+  decl golden.sema.Circle class Circle sym=golden.sema.Circle
+  decl golden.sema.Animal class Animal sym=golden.sema.Animal
+  decl golden.sema.Pet class Pet sym=golden.sema.Pet
+  decl golden.sema.Dog class Dog sym=golden.sema.Dog
+  decl golden.sema.Container class Container sym=golden.sema.Container
+  decl golden.sema.Box class Box sym=golden.sema.Box
+expr e@6:33 string(shape) type=String
+expr e@10:35#0 double(3.14) type=Double
+expr e@10:42 name(radius) type=Double ref=golden.sema.Circle.radius
+expr e@10:35#1 binary(multiply) lhs=e@10:35#0 rhs=e@10:42 type=Double
+expr e@10:51 name(radius) type=Double ref=golden.sema.Circle.radius
+expr e@10:35#2 binary(multiply) lhs=e@10:35#1 rhs=e@10:51 type=Double
+expr e@11:33 string(circle) type=String
+expr e@25:36 string(woof) type=String
+expr e@26:38 string(dog) type=String
+expr e@27:36 string(canine) type=String
+expr e@28:34 string(human) type=String
+expr e@36:40#1 call callee=e@36:40#0 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList

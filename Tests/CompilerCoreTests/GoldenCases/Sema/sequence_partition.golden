@@ -27,92 +27,92 @@ symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=syn
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun main sym=main
-expr e0 int(1) type=Int
-expr e1 int(2) type=Int
-expr e2 int(3) type=Int
-expr e3 int(4) type=Int
-expr e4 int(5) type=Int
-expr e5 call callee=e6 args=[_:e0,_:e1,_:e2,_:e3,_:e4] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
-expr e7 localDecl seq mutable=0 type=_ init=e5 type=Unit ref=__local_0.seq
-expr e8 name(seq) type=kotlin.sequences.Sequence<out Int> ref=__local_0.seq
-expr e9 name(it) type=Int ref=s-0
-expr e10 int(2) type=Int
-expr e11 binary(modulo) lhs=e9 rhs=e10 type=Int
-expr e12 int(0) type=Int
-expr e13 binary(equal) lhs=e11 rhs=e12 type=Boolean
-expr e14 lambda params=[] body=e13 label=partition type=(Int) -> Boolean
-expr e15 memberCall recv=e8 callee=partition args=[_:e14] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
-expr e16 destructuringDecl names=[evens,odds] mutable=0 init=e15 type=Unit
-expr e17 name(evens) type=kotlin.collections.List<Int> ref=__destructuring_0.evens
-expr e18 call callee=e19 args=[_:e17] type=Unit call=kotlin.io.println#1
-expr e20 name(odds) type=kotlin.collections.List<Int> ref=__destructuring_0.odds
-expr e21 call callee=e22 args=[_:e20] type=Unit call=kotlin.io.println#1
-expr e23 call callee=e24 args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.emptySequence targs=[Int]
-expr e25 localDecl emptySeq mutable=0 type=_ init=e23 type=Unit ref=__local_1.emptySeq
-expr e26 name(emptySeq) type=kotlin.sequences.Sequence<out Int> ref=__local_1.emptySeq
-expr e27 name(it) type=Int ref=s-1
-expr e28 int(0) type=Int
-expr e29 binary(greaterThan) lhs=e27 rhs=e28 type=Boolean
-expr e30 lambda params=[] body=e29 label=partition type=(Int) -> Boolean
-expr e31 memberCall recv=e26 callee=partition args=[_:e30] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
-expr e32 destructuringDecl names=[matchEmpty,noMatchEmpty] mutable=0 init=e31 type=Unit
-expr e33 name(matchEmpty) type=kotlin.collections.List<Int> ref=__destructuring_1.matchEmpty
-expr e34 call callee=e35 args=[_:e33] type=Unit call=kotlin.io.println#1
-expr e36 name(noMatchEmpty) type=kotlin.collections.List<Int> ref=__destructuring_1.noMatchEmpty
-expr e37 call callee=e38 args=[_:e36] type=Unit call=kotlin.io.println#1
-expr e39 int(10) type=Int
-expr e40 int(20) type=Int
-expr e41 int(30) type=Int
-expr e42 int(40) type=Int
-expr e43 int(50) type=Int
-expr e44 call callee=e45 args=[_:e39,_:e40,_:e41,_:e42,_:e43] type=kotlin.collections.List<out Int>
-expr e46 localDecl list mutable=0 type=_ init=e44 type=Unit ref=__local_2.list
-expr e47 name(list) type=kotlin.collections.List<out Int> ref=__local_2.list
-expr e48 memberCall recv=e47 callee=asSequence args=[] type=Any call=kotlin.collections.List.asSequence
-expr e49 name(it) type=Any ref=s-2
-expr e50 int(30) type=Int
-expr e51 binary(greaterOrEqual) lhs=e49 rhs=e50 type=Boolean
-expr e52 lambda params=[] body=e51 label=partition type=(Any) -> Boolean
-expr e53 memberCall recv=e48 callee=partition args=[_:e52] type=kotlin.Pair<kotlin.collections.List<Any>, kotlin.collections.List<Any>>
-expr e54 destructuringDecl names=[big,small] mutable=0 init=e53 type=Unit
-expr e55 name(big) type=kotlin.collections.List<Any> ref=__destructuring_2.big
-expr e56 call callee=e57 args=[_:e55] type=Unit call=kotlin.io.println#1
-expr e58 name(small) type=kotlin.collections.List<Any> ref=__destructuring_2.small
-expr e59 call callee=e60 args=[_:e58] type=Unit call=kotlin.io.println#1
-expr e61 int(2) type=Int
-expr e62 int(4) type=Int
-expr e63 int(6) type=Int
-expr e64 call callee=e65 args=[_:e61,_:e62,_:e63] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
-expr e66 name(it) type=Int ref=s-3
-expr e67 int(2) type=Int
-expr e68 binary(modulo) lhs=e66 rhs=e67 type=Int
-expr e69 int(0) type=Int
-expr e70 binary(equal) lhs=e68 rhs=e69 type=Boolean
-expr e71 lambda params=[] body=e70 label=partition type=(Int) -> Boolean
-expr e72 memberCall recv=e64 callee=partition args=[_:e71] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
-expr e73 localDecl allMatch mutable=0 type=_ init=e72 type=Unit ref=__local_3.allMatch
-expr e74 name(allMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_3.allMatch
-expr e75 memberCall recv=e74 callee=first args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.first
-expr e76 call callee=e77 args=[_:e75] type=Unit call=kotlin.io.println#1
-expr e78 name(allMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_3.allMatch
-expr e79 memberCall recv=e78 callee=second args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.second
-expr e80 call callee=e81 args=[_:e79] type=Unit call=kotlin.io.println#1
-expr e82 int(1) type=Int
-expr e83 int(3) type=Int
-expr e84 int(5) type=Int
-expr e85 call callee=e86 args=[_:e82,_:e83,_:e84] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
-expr e87 name(it) type=Int ref=s-4
-expr e88 int(2) type=Int
-expr e89 binary(modulo) lhs=e87 rhs=e88 type=Int
-expr e90 int(0) type=Int
-expr e91 binary(equal) lhs=e89 rhs=e90 type=Boolean
-expr e92 lambda params=[] body=e91 label=partition type=(Int) -> Boolean
-expr e93 memberCall recv=e85 callee=partition args=[_:e92] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
-expr e94 localDecl noneMatch mutable=0 type=_ init=e93 type=Unit ref=__local_4.noneMatch
-expr e95 name(noneMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_4.noneMatch
-expr e96 memberCall recv=e95 callee=first args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.first
-expr e97 call callee=e98 args=[_:e96] type=Unit call=kotlin.io.println#1
-expr e99 name(noneMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_4.noneMatch
-expr e100 memberCall recv=e99 callee=second args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.second
-expr e101 call callee=e102 args=[_:e100] type=Unit call=kotlin.io.println#1
+  decl main fun main sym=main
+expr e@3:26 int(1) type=Int
+expr e@3:29 int(2) type=Int
+expr e@3:32 int(3) type=Int
+expr e@3:35 int(4) type=Int
+expr e@3:38 int(5) type=Int
+expr e@3:15#1 call callee=e@3:15#0 args=[_:e@3:26,_:e@3:29,_:e@3:32,_:e@3:35,_:e@3:38] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
+expr e@3:5 localDecl seq mutable=0 type=_ init=e@3:15#1 type=Unit ref=__local_0.seq
+expr e@4:25#0 name(seq) type=kotlin.sequences.Sequence<out Int> ref=__local_0.seq
+expr e@4:41#3 name(it) type=Int ref=s-0
+expr e@4:46#1 int(2) type=Int
+expr e@4:41#4 binary(modulo) lhs=e@4:41#3 rhs=e@4:46#1 type=Int
+expr e@4:51#2 int(0) type=Int
+expr e@4:41#5 binary(equal) lhs=e@4:41#4 rhs=e@4:51#2 type=Boolean
+expr e@4:39 lambda params=[] body=e@4:41#5 label=partition type=(Int) -> Boolean
+expr e@4:25#1 memberCall recv=e@4:25#0 callee=partition args=[_:e@4:39] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
+expr e@4:5#2 destructuringDecl names=[evens,odds] mutable=0 init=e@4:25#1 type=Unit
+expr e@5:13#1 name(evens) type=kotlin.collections.List<Int> ref=__destructuring_0.evens
+expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1
+expr e@6:13#1 name(odds) type=kotlin.collections.List<Int> ref=__destructuring_0.odds
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1
+expr e@9:20#1 call callee=e@9:20#0 args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.emptySequence targs=[Int]
+expr e@9:5 localDecl emptySeq mutable=0 type=_ init=e@9:20#1 type=Unit ref=__local_1.emptySeq
+expr e@10:38#0 name(emptySeq) type=kotlin.sequences.Sequence<out Int> ref=__local_1.emptySeq
+expr e@10:59#2 name(it) type=Int ref=s-1
+expr e@10:64#1 int(0) type=Int
+expr e@10:59#3 binary(greaterThan) lhs=e@10:59#2 rhs=e@10:64#1 type=Boolean
+expr e@10:57 lambda params=[] body=e@10:59#3 label=partition type=(Int) -> Boolean
+expr e@10:38#1 memberCall recv=e@10:38#0 callee=partition args=[_:e@10:57] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
+expr e@10:5#1 destructuringDecl names=[matchEmpty,noMatchEmpty] mutable=0 init=e@10:38#1 type=Unit
+expr e@11:13#1 name(matchEmpty) type=kotlin.collections.List<Int> ref=__destructuring_1.matchEmpty
+expr e@11:5#3 call callee=e@11:5#2 args=[_:e@11:13#1] type=Unit call=kotlin.io.println#1
+expr e@12:13#2 name(noMatchEmpty) type=kotlin.collections.List<Int> ref=__destructuring_1.noMatchEmpty
+expr e@12:5#5 call callee=e@12:5#4 args=[_:e@12:13#2] type=Unit call=kotlin.io.println#1
+expr e@15:23#2 int(10) type=Int
+expr e@15:27 int(20) type=Int
+expr e@15:31 int(30) type=Int
+expr e@15:35#2 int(40) type=Int
+expr e@15:39 int(50) type=Int
+expr e@15:16#1 call callee=e@15:16#0 args=[_:e@15:23#2,_:e@15:27,_:e@15:31,_:e@15:35#2,_:e@15:39] type=kotlin.collections.List<out Int>
+expr e@15:5#6 localDecl list mutable=0 type=_ init=e@15:16#1 type=Unit ref=__local_2.list
+expr e@16:24#2 name(list) type=kotlin.collections.List<out Int> ref=__local_2.list
+expr e@16:24#3 memberCall recv=e@16:24#2 callee=asSequence args=[] type=Any call=kotlin.collections.List.asSequence
+expr e@16:54#4 name(it) type=Any ref=s-2
+expr e@16:60#2 int(30) type=Int
+expr e@16:54#5 binary(greaterOrEqual) lhs=e@16:54#4 rhs=e@16:60#2 type=Boolean
+expr e@16:52 lambda params=[] body=e@16:54#5 label=partition type=(Any) -> Boolean
+expr e@16:24#4 memberCall recv=e@16:24#3 callee=partition args=[_:e@16:52] type=kotlin.Pair<kotlin.collections.List<Any>, kotlin.collections.List<Any>>
+expr e@16:5#6 destructuringDecl names=[big,small] mutable=0 init=e@16:24#4 type=Unit
+expr e@17:13#3 name(big) type=kotlin.collections.List<Any> ref=__destructuring_2.big
+expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#3] type=Unit call=kotlin.io.println#1
+expr e@18:13#1 name(small) type=kotlin.collections.List<Any> ref=__destructuring_2.small
+expr e@18:5#5 call callee=e@18:5#4 args=[_:e@18:13#1] type=Unit call=kotlin.io.println#1
+expr e@21:31 int(2) type=Int
+expr e@21:34 int(4) type=Int
+expr e@21:37 int(6) type=Int
+expr e@21:20#2 call callee=e@21:20#1 args=[_:e@21:31,_:e@21:34,_:e@21:37] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
+expr e@21:52#3 name(it) type=Int ref=s-3
+expr e@21:57#1 int(2) type=Int
+expr e@21:52#4 binary(modulo) lhs=e@21:52#3 rhs=e@21:57#1 type=Int
+expr e@21:62#2 int(0) type=Int
+expr e@21:52#5 binary(equal) lhs=e@21:52#4 rhs=e@21:62#2 type=Boolean
+expr e@21:50 lambda params=[] body=e@21:52#5 label=partition type=(Int) -> Boolean
+expr e@21:20#3 memberCall recv=e@21:20#2 callee=partition args=[_:e@21:50] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
+expr e@21:5#3 localDecl allMatch mutable=0 type=_ init=e@21:20#3 type=Unit ref=__local_3.allMatch
+expr e@22:13#2 name(allMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_3.allMatch
+expr e@22:13#3 memberCall recv=e@22:13#2 callee=first args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.first
+expr e@22:5#5 call callee=e@22:5#4 args=[_:e@22:13#3] type=Unit call=kotlin.io.println#1
+expr e@23:13#2 name(allMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_3.allMatch
+expr e@23:13#3 memberCall recv=e@23:13#2 callee=second args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.second
+expr e@23:5#5 call callee=e@23:5#4 args=[_:e@23:13#3] type=Unit call=kotlin.io.println#1
+expr e@26:32 int(1) type=Int
+expr e@26:35 int(3) type=Int
+expr e@26:38 int(5) type=Int
+expr e@26:21#1 call callee=e@26:21#0 args=[_:e@26:32,_:e@26:35,_:e@26:38] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
+expr e@26:53#3 name(it) type=Int ref=s-4
+expr e@26:58#1 int(2) type=Int
+expr e@26:53#4 binary(modulo) lhs=e@26:53#3 rhs=e@26:58#1 type=Int
+expr e@26:63#1 int(0) type=Int
+expr e@26:53#5 binary(equal) lhs=e@26:53#4 rhs=e@26:63#1 type=Boolean
+expr e@26:51 lambda params=[] body=e@26:53#5 label=partition type=(Int) -> Boolean
+expr e@26:21#2 memberCall recv=e@26:21#1 callee=partition args=[_:e@26:51] type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>>
+expr e@26:5#6 localDecl noneMatch mutable=0 type=_ init=e@26:21#2 type=Unit ref=__local_4.noneMatch
+expr e@27:13#2 name(noneMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_4.noneMatch
+expr e@27:13#3 memberCall recv=e@27:13#2 callee=first args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.first
+expr e@27:5#5 call callee=e@27:5#4 args=[_:e@27:13#3] type=Unit call=kotlin.io.println#1
+expr e@28:13#0 name(noneMatch) type=kotlin.Pair<kotlin.collections.List<Int>, kotlin.collections.List<Int>> ref=__local_4.noneMatch
+expr e@28:13#1 memberCall recv=e@28:13#0 callee=second args=[] type=kotlin.collections.List<Int> ref=kotlin.Pair.second
+expr e@28:5#4 call callee=e@28:5#3 args=[_:e@28:13#1] type=Unit call=kotlin.io.println#1

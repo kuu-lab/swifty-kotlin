@@ -12,30 +12,30 @@ symbol fq=golden.sema.safeValue kind=function vis=public flags=_ sig=recv=_ para
 symbol fq=golden.sema.safeValue.$2.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.safeValue.$2.x kind=valueParameter vis=private flags=_
 file f13 package=golden.sema
-  decl d0 interface A sym=golden.sema.A
-  decl d1 interface B sym=golden.sema.B
-  decl d2 fun intersect sym=golden.sema.intersect
-  decl d3 fun idTag sym=golden.sema.idTag
-  decl d4 fun directValue sym=golden.sema.directValue
-  decl d5 fun safeValue sym=golden.sema.safeValue
-expr e0 name(x) type=Any ref=golden.sema.intersect.$1.x
-expr e1 isCheck expr=e0 type=t0 type=Boolean
-expr e2 name(x) type=golden.sema.A ref=golden.sema.intersect.$1.x
-expr e3 isCheck expr=e2 type=t1 type=Boolean
-expr e4 binary(logicalAnd) lhs=e1 rhs=e3 type=Boolean
-expr e5 name(x) type=golden.sema.A & golden.sema.B ref=golden.sema.intersect.$1.x
-expr e6 memberCall recv=e5 callee=a args=[] type=String call=golden.sema.A.a
-expr e7 name(x) type=golden.sema.A & golden.sema.B ref=golden.sema.intersect.$1.x
-expr e8 memberCall recv=e7 callee=b args=[] type=Int call=golden.sema.B.b
-expr e9 memberCall recv=e8 callee=toString args=[] type=String
-expr e10 binary(add) lhs=e6 rhs=e9 type=String
-expr e11 return value=e10 type=Nothing
-expr e12 blockExpr stmts=[] trailing=e11 type=Nothing
-expr e13 if cond=e4 then=e12 else=_ type=Unit
-expr e14 string(unknown) type=String
-expr e15 return value=e14 type=Nothing
-expr e16 int(7) type=Int
-expr e17 name(x) type=golden.sema.directValue.$0.T & Any ref=golden.sema.directValue.$0.x
-expr e18 memberCall recv=e17 callee=idTag args=[] type=Int call=golden.sema.idTag
-expr e19 name(x) type=golden.sema.safeValue.$2.T & Any ref=golden.sema.safeValue.$2.x
-expr e20 safeMemberCall recv=e19 callee=idTag args=[] type=Int? call=golden.sema.idTag
+  decl golden.sema.A interface A sym=golden.sema.A
+  decl golden.sema.B interface B sym=golden.sema.B
+  decl golden.sema.intersect fun intersect sym=golden.sema.intersect
+  decl golden.sema.idTag fun idTag sym=golden.sema.idTag
+  decl golden.sema.directValue fun directValue sym=golden.sema.directValue
+  decl golden.sema.safeValue fun safeValue sym=golden.sema.safeValue
+expr e@12:9#1 name(x) type=Any ref=golden.sema.intersect.$1.x
+expr e@12:9#2 isCheck expr=e@12:9#1 type=golden.sema.A type=Boolean
+expr e@12:19#0 name(x) type=golden.sema.A ref=golden.sema.intersect.$1.x
+expr e@12:19#1 isCheck expr=e@12:19#0 type=golden.sema.B type=Boolean
+expr e@12:9#3 binary(logicalAnd) lhs=e@12:9#2 rhs=e@12:19#1 type=Boolean
+expr e@13:16#0 name(x) type=golden.sema.A & golden.sema.B ref=golden.sema.intersect.$1.x
+expr e@13:16#1 memberCall recv=e@13:16#0 callee=a args=[] type=String call=golden.sema.A.a
+expr e@13:24#0 name(x) type=golden.sema.A & golden.sema.B ref=golden.sema.intersect.$1.x
+expr e@13:24#1 memberCall recv=e@13:24#0 callee=b args=[] type=Int call=golden.sema.B.b
+expr e@13:24#2 memberCall recv=e@13:24#1 callee=toString args=[] type=String
+expr e@13:16#2 binary(add) lhs=e@13:16#1 rhs=e@13:24#2 type=String
+expr e@13:9#4 return value=e@13:16#2 type=Nothing
+expr e@12:27 blockExpr stmts=[] trailing=e@13:9#4 type=Nothing
+expr e@12:5#4 if cond=e@12:9#3 then=e@12:27 else=_ type=Unit
+expr e@15:12#3 string(unknown) type=String
+expr e@15:5#6 return value=e@15:12#3 type=Nothing
+expr e@18:24#1 int(7) type=Int
+expr e@20:47#0 name(x) type=golden.sema.directValue.$0.T & Any ref=golden.sema.directValue.$0.x
+expr e@20:47#1 memberCall recv=e@20:47#0 callee=idTag args=[] type=Int call=golden.sema.idTag
+expr e@21:46#0 name(x) type=golden.sema.safeValue.$2.T & Any ref=golden.sema.safeValue.$2.x
+expr e@21:46#1 safeMemberCall recv=e@21:46#0 callee=idTag args=[] type=Int? call=golden.sema.idTag

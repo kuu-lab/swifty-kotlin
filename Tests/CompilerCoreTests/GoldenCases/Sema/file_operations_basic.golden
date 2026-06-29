@@ -20,37 +20,37 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun main sym=main
-expr e0 string(/tmp/test_mkdirs) type=String
-expr e1 call callee=e2 args=[_:e0] type=java.io.File call=java.io.File.<init>#0
-expr e3 localDecl testDir mutable=0 type=_ init=e1 type=Unit ref=__local_0.testDir
-expr e4 name(testDir) type=java.io.File ref=__local_0.testDir
-expr e5 memberCall recv=e4 callee=mkdirs args=[] type=Boolean call=java.io.File.mkdirs
-expr e6 localDecl mkdirsResult mutable=0 type=_ init=e5 type=Unit ref=__local_1.mkdirsResult
-expr e7 name(mkdirsResult) type=Boolean ref=__local_1.mkdirsResult
-expr e8 call callee=e9 args=[_:e7] type=Unit call=kotlin.io.println#1
-expr e10 name(testDir) type=java.io.File ref=__local_0.testDir
-expr e11 memberCall recv=e10 callee=exists args=[] type=Boolean call=java.io.File.exists
-expr e12 localDecl existsResult mutable=0 type=_ init=e11 type=Unit ref=__local_2.existsResult
-expr e13 name(existsResult) type=Boolean ref=__local_2.existsResult
-expr e14 call callee=e15 args=[_:e13] type=Unit call=kotlin.io.println#1
-expr e16 name(testDir) type=java.io.File ref=__local_0.testDir
-expr e17 memberCall recv=e16 callee=isDirectory args=[] type=Boolean call=java.io.File.isDirectory
-expr e18 localDecl isDirResult mutable=0 type=_ init=e17 type=Unit ref=__local_3.isDirResult
-expr e19 name(isDirResult) type=Boolean ref=__local_3.isDirResult
-expr e20 call callee=e21 args=[_:e19] type=Unit call=kotlin.io.println#1
-expr e22 name(testDir) type=java.io.File ref=__local_0.testDir
-expr e23 memberCall recv=e22 callee=listFiles args=[] type=kotlin.collections.List<out java.io.File>? call=java.io.File.listFiles
-expr e24 localDecl files mutable=0 type=_ init=e23 type=Unit ref=__local_4.files
-expr e25 name(files) type=kotlin.collections.List<out java.io.File>? ref=__local_4.files
-expr e26 call callee=e27 args=[_:e25] type=Unit call=kotlin.io.println#1
-expr e28 name(testDir) type=java.io.File ref=__local_0.testDir
-expr e29 memberCall recv=e28 callee=walk args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walk#0
-expr e30 localDecl walkResult mutable=0 type=_ init=e29 type=Unit ref=__local_5.walkResult
-expr e31 name(walkResult) type=kotlin.io.FileTreeWalk ref=__local_5.walkResult
-expr e32 call callee=e33 args=[_:e31] type=Unit call=kotlin.io.println#1
-expr e34 name(testDir) type=java.io.File ref=__local_0.testDir
-expr e35 memberCall recv=e34 callee=delete args=[] type=Boolean call=java.io.File.delete
-expr e36 localDecl deleteResult mutable=0 type=_ init=e35 type=Unit ref=__local_6.deleteResult
-expr e37 name(deleteResult) type=Boolean ref=__local_6.deleteResult
-expr e38 call callee=e39 args=[_:e37] type=Unit call=kotlin.io.println#1
+  decl main fun main sym=main
+expr e@4:24 string(/tmp/test_mkdirs) type=String
+expr e@4:19#1 call callee=e@4:19#0 args=[_:e@4:24] type=java.io.File call=java.io.File.<init>#0
+expr e@4:5#2 localDecl testDir mutable=0 type=_ init=e@4:19#1 type=Unit ref=__local_0.testDir
+expr e@5:24#0 name(testDir) type=java.io.File ref=__local_0.testDir
+expr e@5:24#1 memberCall recv=e@5:24#0 callee=mkdirs args=[] type=Boolean call=java.io.File.mkdirs
+expr e@5:5#2 localDecl mkdirsResult mutable=0 type=_ init=e@5:24#1 type=Unit ref=__local_1.mkdirsResult
+expr e@6:13#1 name(mkdirsResult) type=Boolean ref=__local_1.mkdirsResult
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1
+expr e@8:24#0 name(testDir) type=java.io.File ref=__local_0.testDir
+expr e@8:24#1 memberCall recv=e@8:24#0 callee=exists args=[] type=Boolean call=java.io.File.exists
+expr e@8:5#2 localDecl existsResult mutable=0 type=_ init=e@8:24#1 type=Unit ref=__local_2.existsResult
+expr e@9:13 name(existsResult) type=Boolean ref=__local_2.existsResult
+expr e@9:5#1 call callee=e@9:5#0 args=[_:e@9:13] type=Unit call=kotlin.io.println#1
+expr e@11:23#0 name(testDir) type=java.io.File ref=__local_0.testDir
+expr e@11:23#1 memberCall recv=e@11:23#0 callee=isDirectory args=[] type=Boolean call=java.io.File.isDirectory
+expr e@11:5#2 localDecl isDirResult mutable=0 type=_ init=e@11:23#1 type=Unit ref=__local_3.isDirResult
+expr e@12:13#2 name(isDirResult) type=Boolean ref=__local_3.isDirResult
+expr e@12:5#5 call callee=e@12:5#4 args=[_:e@12:13#2] type=Unit call=kotlin.io.println#1
+expr e@14:17#1 name(testDir) type=java.io.File ref=__local_0.testDir
+expr e@14:17#2 memberCall recv=e@14:17#1 callee=listFiles args=[] type=kotlin.collections.List<out java.io.File>? call=java.io.File.listFiles
+expr e@14:5#7 localDecl files mutable=0 type=_ init=e@14:17#2 type=Unit ref=__local_4.files
+expr e@15:13#2 name(files) type=kotlin.collections.List<out java.io.File>? ref=__local_4.files
+expr e@15:5#7 call callee=e@15:5#6 args=[_:e@15:13#2] type=Unit call=kotlin.io.println#1
+expr e@17:22#1 name(testDir) type=java.io.File ref=__local_0.testDir
+expr e@17:22#2 memberCall recv=e@17:22#1 callee=walk args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walk#0
+expr e@17:5#3 localDecl walkResult mutable=0 type=_ init=e@17:22#2 type=Unit ref=__local_5.walkResult
+expr e@18:13#1 name(walkResult) type=kotlin.io.FileTreeWalk ref=__local_5.walkResult
+expr e@18:5#5 call callee=e@18:5#4 args=[_:e@18:13#1] type=Unit call=kotlin.io.println#1
+expr e@20:24#0 name(testDir) type=java.io.File ref=__local_0.testDir
+expr e@20:24#1 memberCall recv=e@20:24#0 callee=delete args=[] type=Boolean call=java.io.File.delete
+expr e@20:5#5 localDecl deleteResult mutable=0 type=_ init=e@20:24#1 type=Unit ref=__local_6.deleteResult
+expr e@21:13 name(deleteResult) type=Boolean ref=__local_6.deleteResult
+expr e@21:5#4 call callee=e@21:5#3 args=[_:e@21:13] type=Unit call=kotlin.io.println#1

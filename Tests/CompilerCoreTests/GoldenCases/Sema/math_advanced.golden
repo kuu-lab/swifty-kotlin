@@ -29,34 +29,34 @@ symbol fq=kotlin.math.hypot#0 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.math.hypot.x kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.hypot.y kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 fun testAtan2 sym=golden.sema.testAtan2
-  decl d1 fun testHypot sym=golden.sema.testHypot
-  decl d2 fun testCoerceIn sym=golden.sema.testCoerceIn
-  decl d3 fun testCoerceAtLeast sym=golden.sema.testCoerceAtLeast
-  decl d4 fun testCoerceAtMost sym=golden.sema.testCoerceAtMost
-  decl d5 fun testMaxOf3 sym=golden.sema.testMaxOf3
-  decl d6 fun testMinOf3 sym=golden.sema.testMinOf3
-expr e0 double(1.0) type=Double
-expr e1 double(1.0) type=Double
-expr e2 call callee=e3 args=[_:e0,_:e1] type=Double call=kotlin.math.atan2#0
-expr e4 double(3.0) type=Double
-expr e5 double(4.0) type=Double
-expr e6 call callee=e7 args=[_:e4,_:e5] type=Double call=kotlin.math.hypot#0
-expr e8 name(x) type=Int ref=golden.sema.testCoerceIn.$2.x
-expr e9 int(1) type=Int
-expr e10 int(10) type=Int
-expr e11 memberCall recv=e8 callee=coerceIn args=[_:e9,_:e10] type=Int
-expr e12 name(x) type=Int ref=golden.sema.testCoerceAtLeast.$0.x
-expr e13 int(0) type=Int
-expr e14 memberCall recv=e12 callee=coerceAtLeast args=[_:e13] type=Int
-expr e15 name(x) type=Int ref=golden.sema.testCoerceAtMost.$1.x
-expr e16 int(100) type=Int
-expr e17 memberCall recv=e15 callee=coerceAtMost args=[_:e16] type=Int
-expr e18 name(a) type=Int ref=golden.sema.testMaxOf3.$3.a
-expr e19 name(b) type=Int ref=golden.sema.testMaxOf3.$3.b
-expr e20 name(c) type=Int ref=golden.sema.testMaxOf3.$3.c
-expr e21 call callee=e22 args=[_:e18,_:e19,_:e20] type=Int call=kotlin.comparisons.maxOf#6
-expr e23 name(a) type=Int ref=golden.sema.testMinOf3.$4.a
-expr e24 name(b) type=Int ref=golden.sema.testMinOf3.$4.b
-expr e25 name(c) type=Int ref=golden.sema.testMinOf3.$4.c
-expr e26 call callee=e27 args=[_:e23,_:e24,_:e25] type=Int call=kotlin.comparisons.minOf#7
+  decl golden.sema.testAtan2 fun testAtan2 sym=golden.sema.testAtan2
+  decl golden.sema.testHypot fun testHypot sym=golden.sema.testHypot
+  decl golden.sema.testCoerceIn fun testCoerceIn sym=golden.sema.testCoerceIn
+  decl golden.sema.testCoerceAtLeast fun testCoerceAtLeast sym=golden.sema.testCoerceAtLeast
+  decl golden.sema.testCoerceAtMost fun testCoerceAtMost sym=golden.sema.testCoerceAtMost
+  decl golden.sema.testMaxOf3 fun testMaxOf3 sym=golden.sema.testMaxOf3
+  decl golden.sema.testMinOf3 fun testMinOf3 sym=golden.sema.testMinOf3
+expr e@5:33 double(1.0) type=Double
+expr e@5:38 double(1.0) type=Double
+expr e@5:27#1 call callee=e@5:27#0 args=[_:e@5:33,_:e@5:38] type=Double call=kotlin.math.atan2#0
+expr e@6:33 double(3.0) type=Double
+expr e@6:38#4 double(4.0) type=Double
+expr e@6:27#1 call callee=e@6:27#0 args=[_:e@6:33,_:e@6:38#4] type=Double call=kotlin.math.hypot#0
+expr e@8:33#0 name(x) type=Int ref=golden.sema.testCoerceIn.$2.x
+expr e@8:44 int(1) type=Int
+expr e@8:47 int(10) type=Int
+expr e@8:33#1 memberCall recv=e@8:33#0 callee=coerceIn args=[_:e@8:44,_:e@8:47] type=Int
+expr e@9:38#0 name(x) type=Int ref=golden.sema.testCoerceAtLeast.$0.x
+expr e@9:54 int(0) type=Int
+expr e@9:38#1 memberCall recv=e@9:38#0 callee=coerceAtLeast args=[_:e@9:54] type=Int
+expr e@10:37#0 name(x) type=Int ref=golden.sema.testCoerceAtMost.$1.x
+expr e@10:52 int(100) type=Int
+expr e@10:37#1 memberCall recv=e@10:37#0 callee=coerceAtMost args=[_:e@10:52] type=Int
+expr e@12:53 name(a) type=Int ref=golden.sema.testMaxOf3.$3.a
+expr e@12:56 name(b) type=Int ref=golden.sema.testMaxOf3.$3.b
+expr e@12:59 name(c) type=Int ref=golden.sema.testMaxOf3.$3.c
+expr e@12:47#1 call callee=e@12:47#0 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf#6
+expr e@13:53 name(a) type=Int ref=golden.sema.testMinOf3.$4.a
+expr e@13:56 name(b) type=Int ref=golden.sema.testMinOf3.$4.b
+expr e@13:59 name(c) type=Int ref=golden.sema.testMinOf3.$4.c
+expr e@13:47#1 call callee=e@13:47#0 args=[_:e@13:53,_:e@13:56,_:e@13:59] type=Int call=kotlin.comparisons.minOf#7

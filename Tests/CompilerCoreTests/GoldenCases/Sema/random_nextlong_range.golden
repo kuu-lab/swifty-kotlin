@@ -7,13 +7,13 @@ symbol fq=kotlin.random.nextLong#1 kind=function vis=public flags=synthetic sig=
 symbol fq=kotlin.random.nextLong.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandomNextLongRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun useRandomNextLongRange sym=useRandomNextLongRange
-expr e0 int(42) type=Int
-expr e1 call callee=e2 args=[_:e0] type=kotlin.random.Random call=kotlin.random.Random.<init>#0
-expr e3 localDecl r mutable=0 type=_ init=e1 type=Unit ref=__local_0.r
-expr e4 name(r) type=kotlin.random.Random ref=__local_0.r
-expr e5 long(10) type=Long
-expr e6 long(15) type=Long
-expr e7 binary(rangeTo) lhs=e5 rhs=e6 type=Long
-expr e8 memberCall recv=e4 callee=nextLong args=[_:e7] type=Long call=kotlin.random.nextLong#1
-expr e9 localDecl a mutable=0 type=_ init=e8 type=Unit ref=__local_1.a
+  decl useRandomNextLongRange fun useRandomNextLongRange sym=useRandomNextLongRange
+expr e@4:20#1 int(42) type=Int
+expr e@4:13#3 call callee=e@4:13#2 args=[_:e@4:20#1] type=kotlin.random.Random call=kotlin.random.Random.<init>#0
+expr e@4:5#2 localDecl r mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.r
+expr e@5:13#1 name(r) type=kotlin.random.Random ref=__local_0.r
+expr e@5:24#0 long(10) type=Long
+expr e@5:29 long(15) type=Long
+expr e@5:24#1 binary(rangeTo) lhs=e@5:24#0 rhs=e@5:29 type=Long
+expr e@5:13#2 memberCall recv=e@5:13#1 callee=nextLong args=[_:e@5:24#1] type=Long call=kotlin.random.nextLong#1
+expr e@5:5#2 localDecl a mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_1.a

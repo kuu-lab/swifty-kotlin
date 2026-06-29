@@ -75,7 +75,13 @@ enum GoldenHarnessDump {
             throw GoldenHarnessDumpError.missingSourceFile
         }
 
-        return renderSemaOutput(ast: ast, sema: sema, interner: ctx.interner, sourceFileID: sourceFileID)
+        return renderSemaOutput(
+            ast: ast,
+            sema: sema,
+            interner: ctx.interner,
+            sourceManager: ctx.sourceManager,
+            sourceFileID: sourceFileID
+        )
     }
 
     // MARK: - Stable sema rendering
@@ -84,9 +90,10 @@ enum GoldenHarnessDump {
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner,
+        sourceManager: SourceManager,
         sourceFileID: FileID
     ) -> String {
-        let ctx = StableRenderContext(sema: sema, interner: interner)
+        let ctx = StableRenderContext(sema: sema, interner: interner, ast: ast, sourceManager: sourceManager)
 
         // 1. Render body lines (files, decls, exprs) first to track referenced symbols
         var bodyLines: [String] = []
@@ -162,14 +169,14 @@ enum GoldenHarnessDump {
                 symKey = "_"
             }
             lines.append(
-                "  decl d\(declID.rawValue) \(GoldenHarnessSemaFormat.renderDecl(decl, interner: ctx.interner)) sym=\(symKey)"
+                "  decl \(symKey) \(GoldenHarnessSemaFormat.renderDecl(decl, interner: ctx.interner)) sym=\(symKey)"
             )
         }
         return lines.joined(separator: "\n")
     }
 
     private static func renderExpression(_ expr: Expr, id: ExprID, ctx: StableRenderContext) -> String {
-        var line = "expr e\(id.rawValue) \(GoldenHarnessExprFormat.renderExpr(expr, interner: ctx.interner))"
+        var line = "expr \(ctx.exprKey(id)) \(GoldenHarnessExprFormat.renderExpr(expr, id: id, ctx: ctx))"
 
         if let exprType = ctx.sema.bindings.exprTypes[id] {
             line += " type=\(ctx.renderType(exprType))"
