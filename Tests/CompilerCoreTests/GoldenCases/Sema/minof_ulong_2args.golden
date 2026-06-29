@@ -1,11 +1,11 @@
-symbol fq=golden.sema.twoArgMinULong kind=function vis=public flags=_ sig=recv=_ params=[ULong,ULong] ret=ULong
-symbol fq=golden.sema.twoArgMinULong.$0.a kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.twoArgMinULong.$0.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.minOfULongTwoArg kind=function vis=public flags=_ sig=recv=_ params=[ULong,ULong] ret=ULong
+symbol fq=golden.sema.minOfULongTwoArg.$0.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.minOfULongTwoArg.$0.b kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.minOf#17 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 file f12 package=golden.sema
-  decl d0 fun twoArgMinULong sym=golden.sema.twoArgMinULong
-expr e0 name(a) type=ULong ref=golden.sema.twoArgMinULong.$0.a
-expr e1 name(b) type=ULong ref=golden.sema.twoArgMinULong.$0.b
+  decl d0 fun minOfULongTwoArg sym=golden.sema.minOfULongTwoArg
+expr e0 name(a) type=ULong ref=golden.sema.minOfULongTwoArg.$0.a
+expr e1 name(b) type=ULong ref=golden.sema.minOfULongTwoArg.$0.b
 expr e2 call callee=e3 args=[_:e0,_:e1] type=ULong call=kotlin.comparisons.minOf#17

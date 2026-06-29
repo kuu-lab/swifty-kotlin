@@ -6,13 +6,9 @@ symbol fq=__local_4.hasNone kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_5.noneNegative kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_6.firstEven kind=local vis=private flags=_ type=Int?
 symbol fq=__local_7.lastEven kind=local vis=private flags=_ type=Int?
-symbol fq=__local_8.emptySeq kind=local vis=private flags=_ type=kotlin.sequences.Sequence<out Int>
-symbol fq=__local_9.isEmpty kind=local vis=private flags=_ type=Boolean
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
-symbol fq=kotlin.sequences.emptySequence kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.sequences.Sequence<out kotlin.sequences.emptySequence.T>
-symbol fq=kotlin.sequences.emptySequence.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
@@ -87,10 +83,3 @@ expr e70 name(firstEven) type=Int? ref=__local_6.firstEven
 expr e71 call callee=e72 args=[_:e70] type=Unit call=kotlin.io.println#1
 expr e73 name(lastEven) type=Int? ref=__local_7.lastEven
 expr e74 call callee=e75 args=[_:e73] type=Unit call=kotlin.io.println#1
-expr e76 call callee=e77 args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.emptySequence targs=[Int]
-expr e78 localDecl emptySeq mutable=0 type=_ init=e76 type=Unit ref=__local_8.emptySeq
-expr e79 name(emptySeq) type=kotlin.sequences.Sequence<out Int> ref=__local_8.emptySeq
-expr e80 memberCall recv=e79 callee=none args=[] type=Boolean
-expr e81 localDecl isEmpty mutable=0 type=t7 init=e80 type=Unit ref=__local_9.isEmpty
-expr e82 name(isEmpty) type=Boolean ref=__local_9.isEmpty
-expr e83 call callee=e84 args=[_:e82] type=Unit call=kotlin.io.println#1

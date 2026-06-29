@@ -16,21 +16,10 @@ symbol fq=golden.sema.useRemoveSuffix kind=function vis=public flags=_ sig=recv=
 symbol fq=golden.sema.useRemoveSurrounding1 kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useRemoveSurrounding2 kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplace kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceAfter kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceAfterChar kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceAfterLast kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceAfterLastChar kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceAfterWithDefault kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceBefore kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceBeforeChar kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceBeforeLast kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceBeforeLastChar kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceBeforeWithDefault kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceFirst kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceFirstIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceIndent kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useReplaceRangeIndices kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useSplit kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
 symbol fq=golden.sema.useStartsWith kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol fq=golden.sema.useSubstring1 kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
@@ -79,26 +68,6 @@ symbol fq=kotlin.text.removeSurrounding.suffix kind=valueParameter vis=private f
 symbol fq=kotlin.text.replace#2 kind=function vis=public flags=synthetic sig=recv=String params=[String,String] ret=String
 symbol fq=kotlin.text.replace.newValue kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replace.oldValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceAfter#0 kind=function vis=public flags=synthetic sig=recv=String params=[Char,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceAfter#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceAfter.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceAfter.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceAfter.replacement kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceAfterLast#0 kind=function vis=public flags=synthetic sig=recv=String params=[Char,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceAfterLast#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceAfterLast.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceAfterLast.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceAfterLast.replacement kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceBefore#0 kind=function vis=public flags=synthetic sig=recv=String params=[Char,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceBefore#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceBefore.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceBefore.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceBefore.replacement kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceBeforeLast#0 kind=function vis=public flags=synthetic sig=recv=String params=[Char,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceBeforeLast#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String,String] ret=String defaults=[0,0,1]
-symbol fq=kotlin.text.replaceBeforeLast.delimiter kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceBeforeLast.missingDelimiterValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceBeforeLast.replacement kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replaceFirst#0 kind=function vis=public flags=synthetic sig=recv=String params=[String,String] ret=String
 symbol fq=kotlin.text.replaceFirst#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,String,Boolean] ret=String
 symbol fq=kotlin.text.replaceFirst.ignoreCase kind=valueParameter vis=private flags=synthetic
@@ -106,12 +75,9 @@ symbol fq=kotlin.text.replaceFirst.newValue kind=valueParameter vis=private flag
 symbol fq=kotlin.text.replaceFirst.oldValue kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replaceIndent kind=function vis=public flags=_ sig=recv=String params=[String] ret=String defaults=[1]
 symbol fq=kotlin.text.replaceIndent.$1.newIndent kind=valueParameter vis=private flags=_
-symbol fq=kotlin.text.replaceRange#0 kind=function vis=public flags=synthetic sig=recv=String params=[Int,Int,String] ret=String
 symbol fq=kotlin.text.replaceRange#1 kind=function vis=public flags=synthetic sig=recv=String params=[Int,String] ret=String
-symbol fq=kotlin.text.replaceRange.endIndex kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replaceRange.range kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replaceRange.replacement kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.replaceRange.startIndex kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.split#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=kotlin.collections.List<out String>
 symbol fq=kotlin.text.split.delimiters kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.startsWith kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=Boolean
@@ -177,17 +143,6 @@ file f12 package=golden.sema
   decl d35 fun useReplaceFirst sym=golden.sema.useReplaceFirst
   decl d36 fun useReplaceFirstIgnoreCase sym=golden.sema.useReplaceFirstIgnoreCase
   decl d37 fun useReplaceRange sym=golden.sema.useReplaceRange
-  decl d38 fun useReplaceRangeIndices sym=golden.sema.useReplaceRangeIndices
-  decl d39 fun useReplaceAfter sym=golden.sema.useReplaceAfter
-  decl d40 fun useReplaceAfterWithDefault sym=golden.sema.useReplaceAfterWithDefault
-  decl d41 fun useReplaceAfterChar sym=golden.sema.useReplaceAfterChar
-  decl d42 fun useReplaceAfterLast sym=golden.sema.useReplaceAfterLast
-  decl d43 fun useReplaceAfterLastChar sym=golden.sema.useReplaceAfterLastChar
-  decl d44 fun useReplaceBefore sym=golden.sema.useReplaceBefore
-  decl d45 fun useReplaceBeforeWithDefault sym=golden.sema.useReplaceBeforeWithDefault
-  decl d46 fun useReplaceBeforeChar sym=golden.sema.useReplaceBeforeChar
-  decl d47 fun useReplaceBeforeLast sym=golden.sema.useReplaceBeforeLast
-  decl d48 fun useReplaceBeforeLastChar sym=golden.sema.useReplaceBeforeLastChar
 expr e0 string(  hi  ) type=String
 expr e1 memberCall recv=e0 callee=trim args=[] type=String call=kotlin.text.trim#0
 expr e2 string(1,2,3) type=String
@@ -300,50 +255,3 @@ expr e106 int(2) type=Int
 expr e107 binary(rangeTo) lhs=e105 rhs=e106 type=Int
 expr e108 string(HE) type=String
 expr e109 memberCall recv=e104 callee=replaceRange args=[_:e107,_:e108] type=String call=kotlin.text.replaceRange#1
-expr e110 string(hello) type=String
-expr e111 int(1) type=Int
-expr e112 int(4) type=Int
-expr e113 string(EL) type=String
-expr e114 memberCall recv=e110 callee=replaceRange args=[_:e111,_:e112,_:e113] type=String call=kotlin.text.replaceRange#0
-expr e115 string(a:b:c) type=String
-expr e116 string(:) type=String
-expr e117 string(X) type=String
-expr e118 memberCall recv=e115 callee=replaceAfter args=[_:e116,_:e117] type=String call=kotlin.text.replaceAfter#1
-expr e119 string(abc) type=String
-expr e120 string(:) type=String
-expr e121 string(X) type=String
-expr e122 string(MISS) type=String
-expr e123 memberCall recv=e119 callee=replaceAfter args=[_:e120,_:e121,_:e122] type=String call=kotlin.text.replaceAfter#1
-expr e124 string(a:b:c) type=String
-expr e125 char(58) type=Char
-expr e126 string(X) type=String
-expr e127 memberCall recv=e124 callee=replaceAfter args=[_:e125,_:e126] type=String call=kotlin.text.replaceAfter#0
-expr e128 string(a:b:c) type=String
-expr e129 string(:) type=String
-expr e130 string(X) type=String
-expr e131 memberCall recv=e128 callee=replaceAfterLast args=[_:e129,_:e130] type=String call=kotlin.text.replaceAfterLast#1
-expr e132 string(a:b:c) type=String
-expr e133 char(58) type=Char
-expr e134 string(X) type=String
-expr e135 memberCall recv=e132 callee=replaceAfterLast args=[_:e133,_:e134] type=String call=kotlin.text.replaceAfterLast#0
-expr e136 string(a:b:c) type=String
-expr e137 string(:) type=String
-expr e138 string(X) type=String
-expr e139 memberCall recv=e136 callee=replaceBefore args=[_:e137,_:e138] type=String call=kotlin.text.replaceBefore#1
-expr e140 string(abc) type=String
-expr e141 string(:) type=String
-expr e142 string(X) type=String
-expr e143 string(MISS) type=String
-expr e144 memberCall recv=e140 callee=replaceBefore args=[_:e141,_:e142,_:e143] type=String call=kotlin.text.replaceBefore#1
-expr e145 string(a:b:c) type=String
-expr e146 char(58) type=Char
-expr e147 string(X) type=String
-expr e148 memberCall recv=e145 callee=replaceBefore args=[_:e146,_:e147] type=String call=kotlin.text.replaceBefore#0
-expr e149 string(a:b:c) type=String
-expr e150 string(:) type=String
-expr e151 string(X) type=String
-expr e152 memberCall recv=e149 callee=replaceBeforeLast args=[_:e150,_:e151] type=String call=kotlin.text.replaceBeforeLast#1
-expr e153 string(a:b:c) type=String
-expr e154 char(58) type=Char
-expr e155 string(X) type=String
-expr e156 memberCall recv=e153 callee=replaceBeforeLast args=[_:e154,_:e155] type=String call=kotlin.text.replaceBeforeLast#0
