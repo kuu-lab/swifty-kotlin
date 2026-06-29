@@ -64,7 +64,7 @@ kk_slf4j_logger_get kk_slf4j_set_level
 
 主な実装場所: `Sources/Runtime/RuntimeLogging.swift`
 
-### リフレクション — 32 個
+### リフレクション — 28 個
 
 ```
 kk_kclass_get_field_count kk_kclass_get_instance_size_words kk_kclass_get_qualified_name
@@ -77,7 +77,6 @@ kk_kconstructor_get_value_parameters kk_kconstructor_get_visibility kk_kconstruc
 kk_kproperty_get kk_kproperty_set
 kk_kproperty_stub_get_value kk_kproperty_stub_getter kk_kproperty_stub_set_getter
 kk_kproperty_stub_set_setter kk_kproperty_stub_set_value kk_kproperty_stub_setter
-kk_callable_ref_call_0 kk_callable_ref_call_1 kk_callable_ref_call_2 kk_callable_ref_call_3
 ```
 
 主な実装場所: `Sources/Runtime/RuntimeReflection.swift`

@@ -211,28 +211,6 @@ public extension RuntimeABISpec {
             p("tagged", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_callable_ref_call_0", parameters: [
-            p("tagged", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callable_ref_call_1", parameters: [
-            p("tagged", .intptr),
-            p("arg", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callable_ref_call_2", parameters: [
-            p("tagged", .intptr),
-            p("arg1", .intptr),
-            p("arg2", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callable_ref_call_3", parameters: [
-            p("tagged", .intptr),
-            p("arg1", .intptr),
-            p("arg2", .intptr),
-            p("arg3", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_callable_ref_is_suspend", parameters: [
             p("tagged", .intptr),
         ],
