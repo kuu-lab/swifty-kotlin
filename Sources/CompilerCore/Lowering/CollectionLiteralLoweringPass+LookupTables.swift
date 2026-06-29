@@ -799,6 +799,9 @@ struct CollectionLiteralLookupTables {
     // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
     let appendBytesName: InternedString
     let kkFileAppendBytesName: InternedString
+    // MIGRATION-IO-001: File.writeBytes(array: ByteArray)
+    let writeBytesName: InternedString
+    let kkFileWriteBytesName: InternedString
     // STDLIB-IO-087: Additional File operations
     let absolutePathName: InternedString
     let kkFileAbsolutePathName: InternedString
@@ -1603,6 +1606,9 @@ struct CollectionLiteralLookupTables {
         // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
         appendBytesName = interner.intern("appendBytes")
         kkFileAppendBytesName = interner.intern("kk_file_appendBytes")
+        // MIGRATION-IO-001: File.writeBytes(array: ByteArray)
+        writeBytesName = interner.intern("writeBytes")
+        kkFileWriteBytesName = interner.intern("kk_file_writeBytes")
         // STDLIB-IO-087: Additional File operations
         absolutePathName = interner.intern("absolutePath")
         kkFileAbsolutePathName = interner.intern("kk_file_absolutePath")
