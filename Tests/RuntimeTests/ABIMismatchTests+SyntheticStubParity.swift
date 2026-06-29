@@ -1,4 +1,4 @@
-import RuntimeABI
+@testable import RuntimeABI
 @testable import Runtime
 import XCTest
 

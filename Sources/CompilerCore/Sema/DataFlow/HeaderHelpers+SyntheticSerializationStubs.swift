@@ -669,8 +669,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - Json Helpers
-
     private func ensureJsonDefaultCompanion(
         ownerSymbol: SymbolID,
         jsonType: TypeID,

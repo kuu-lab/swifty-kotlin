@@ -2,44 +2,8 @@
 import Foundation
 import XCTest
 
-// MARK: - STDLIB-UUID-001 / STDLIB-UUID-002: kotlin.uuid.Uuid API surface inventory
-//
-// This file catalogues the Uuid-related symbols that the sema layer registers as
-// synthetic stubs and verifies that:
-//   • the kotlin.uuid package hierarchy is present after sema
-//   • Uuid class, Companion object, and all factory/instance members are wired to
-//     the correct ABI external-link names
-//   • implemented companion factories are tracked in one inventory
-//   • known pending companion members are tracked as gaps
-//   • Uuid.random() return type resolves to kotlin.uuid.Uuid
-//   • toString vs toHexString dispatch is tracked as separate links
-//   • toByteArray() and toLongs() are present with their signatures
-//   • @ExperimentalUuidApi opt-in marker: now synthesised (STDLIB-EXPERIMENTAL-ABI-001)
-//
-// Scope: sema / symbol-table level only.  Runtime correctness is in RuntimeUuidTests
-//        and the edge-case file added in PR #1221 (UUID-003).
-//
-// NOTE - known gaps detected during inventory:
-//   • No tracked companion-member gaps remain for the implemented UUID surface.
-
 final class UuidAPISurfaceInventoryTests: XCTestCase {
 
-    // MARK: - Shared sema fixture
-
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
-    // MARK: - Lookup helpers
-
-    /// Single external-link name for a fully-qualified symbol path.
     private func externalLink(
         fqPath: [String],
         sema: SemaModule,
@@ -48,19 +12,6 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         let interned = fqPath.map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: interned) else { return nil }
         return sema.symbols.externalLinkName(for: sym)
-    }
-
-    /// All external-link names registered under a fully-qualified symbol path.
-    private func allExternalLinks(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Set<String> {
-        let interned = fqPath.map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: interned)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
     }
 
     private func symbols(

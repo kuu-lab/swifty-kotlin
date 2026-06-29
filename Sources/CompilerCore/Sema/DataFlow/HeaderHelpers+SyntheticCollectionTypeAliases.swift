@@ -72,7 +72,7 @@ extension DataFlowSemaPhase {
         let internedTarget = interner.intern(targetName)
         let targetFQName = kotlinCollectionsPkg + [internedTarget]
         guard let targetSymbol = symbols.lookup(fqName: targetFQName) else {
-            assertionFailure("Synthetic collection type alias '\(aliasName)': target '\(targetName)' not found in symbol table")
+            assertionFailure("type alias \(aliasName): target \(targetName) not found")
             return
         }
 
@@ -98,7 +98,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setTypeAliasTypeParameters([typeParamSymbol], for: aliasSymbol)
 
-        // Build underlying type: TargetType<E>
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol, nullability: .nonNull
         )))
@@ -127,7 +126,7 @@ extension DataFlowSemaPhase {
         let internedTarget = interner.intern(targetName)
         let targetFQName = kotlinCollectionsPkg + [internedTarget]
         guard let targetSymbol = symbols.lookup(fqName: targetFQName) else {
-            assertionFailure("Synthetic collection type alias '\(aliasName)': target '\(targetName)' not found in symbol table")
+            assertionFailure("type alias \(aliasName): target \(targetName) not found")
             return
         }
 
@@ -163,7 +162,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setTypeAliasTypeParameters([keyParamSymbol, valueParamSymbol], for: aliasSymbol)
 
-        // Build underlying type: TargetType<K, V>
         let keyType = types.make(.typeParam(TypeParamType(
             symbol: keyParamSymbol, nullability: .nonNull
         )))
@@ -192,7 +190,7 @@ extension DataFlowSemaPhase {
         let mutableSetName = interner.intern("MutableSet")
         let mutableSetFQName = kotlinCollectionsPkg + [mutableSetName]
         guard let mutableSetSymbol = symbols.lookup(fqName: mutableSetFQName) else {
-            assertionFailure("Synthetic LinkedHashSet: target MutableSet not found in symbol table")
+            assertionFailure("LinkedHashSet: target MutableSet not found")
             return
         }
 

@@ -1,0 +1,31 @@
+symbol fq=__local_0.x kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.x kind=local vis=private flags=_ type=Int
+symbol fq=__local_2.x kind=local vis=private flags=_ type=Int
+symbol fq=useMeasureNanoTime kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
+symbol fq=useMeasureTimeMicros kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
+symbol fq=useMeasureTimeMillis kind=function vis=public flags=_ sig=recv=_ params=[] ret=Long
+file f13 package=_
+  decl d0 fun useMeasureNanoTime sym=useMeasureNanoTime
+  decl d1 fun useMeasureTimeMicros sym=useMeasureTimeMicros
+  decl d2 fun useMeasureTimeMillis sym=useMeasureTimeMillis
+expr e0 int(1) type=Int
+expr e1 int(2) type=Int
+expr e2 binary(add) lhs=e0 rhs=e1 type=Int
+expr e3 localDecl x mutable=0 type=_ init=e2 type=Unit ref=__local_0.x
+expr e4 blockExpr stmts=[e3] trailing=_ type=Unit
+expr e5 lambda params=[] body=e4 label=measureNanoTime type=() -> Unit
+expr e6 call callee=e7 args=[_:e5] type=Long
+expr e8 int(1) type=Int
+expr e9 int(2) type=Int
+expr e10 binary(add) lhs=e8 rhs=e9 type=Int
+expr e11 localDecl x mutable=0 type=_ init=e10 type=Unit ref=__local_1.x
+expr e12 blockExpr stmts=[e11] trailing=_ type=Unit
+expr e13 lambda params=[] body=e12 label=measureTimeMicros type=() -> Unit
+expr e14 call callee=e15 args=[_:e13] type=Long
+expr e16 int(1) type=Int
+expr e17 int(2) type=Int
+expr e18 binary(add) lhs=e16 rhs=e17 type=Int
+expr e19 localDecl x mutable=0 type=_ init=e18 type=Unit ref=__local_2.x
+expr e20 blockExpr stmts=[e19] trailing=_ type=Unit
+expr e21 lambda params=[] body=e20 label=measureTimeMillis type=() -> Unit
+expr e22 call callee=e23 args=[_:e21] type=Long

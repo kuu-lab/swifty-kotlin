@@ -375,8 +375,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - String Companion Helpers
-
     func ensureStringCompanionSymbol(
         ownerSymbol: SymbolID,
         symbols: SymbolTable,

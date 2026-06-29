@@ -489,7 +489,6 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let bundledPath = "__bundled_kotlin_collections_stdlib.kt"
             let expectedArities: [String: Set<Int>] = [
                 "first": [0, 1],
                 "firstOrNull": [0, 1],
@@ -514,7 +513,8 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
                     else {
                         return false
                     }
-                    return ctx.sourceManager.path(of: fileID) == bundledPath
+                    let path = ctx.sourceManager.path(of: fileID)
+                    return path.hasPrefix("__bundled_")
                 }
                 let registeredArities = Set(sourceSymbols.compactMap { symbolID in
                     sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count

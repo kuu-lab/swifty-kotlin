@@ -1,14 +1,11 @@
-// Function parameter type
 fun processMap(map: HashMap<String, Int>) {
     println(map.size)
 }
 
-// Return type
 fun createMap(): HashMap<Int, String> {
     return HashMap<Int, String>()
 }
 
-// Property type
 class MapHolder {
     val scores: HashMap<String, Int> = HashMap()
     val labels: HashMap<Int, String> = HashMap<Int, String>()

@@ -35,7 +35,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
 
             for name in ["maxOf", "minOf"] {
                 let callExpr = try XCTUnwrap(
-                    firstExprID(in: ast) { _, expr in
+                    lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, _, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -82,7 +82,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
                 ("compareByDescending", "compareByDescendingPrimitive", "kk_comparator_from_selector_primitive_descending"),
             ] {
                 let callExpr = try XCTUnwrap(
-                    firstExprID(in: ast) { _, expr in
+                    lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, _, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -126,7 +126,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, args, _, _) = expr,
                           args.count == 2,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -163,7 +163,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, args, _, _) = expr,
                           args.count == 2,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -203,7 +203,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
 
             for name in ["maxOf", "minOf"] {
                 let callExpr = try XCTUnwrap(
-                    firstExprID(in: ast) { _, expr in
+                    lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -249,7 +249,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
 
             for name in ["maxOf", "minOf"] {
                 let callExpr = try XCTUnwrap(
-                    firstExprID(in: ast) { _, expr in
+                    lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -285,7 +285,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
 
             for name in ["maxOf", "minOf"] {
                 let callExpr = try XCTUnwrap(
-                    firstExprID(in: ast) { _, expr in
+                    lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -338,7 +338,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
 
             for expected in expectedCases {
                 let callExpr = try XCTUnwrap(
-                    firstExprID(in: ast) { exprID, expr in
+                    lastExprID(in: ast) { exprID, expr in
                         guard case let .call(calleeExpr, _, args, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                         else {
@@ -363,6 +363,56 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-051: minOf unsigned overloads (UByte, UShort, UInt, ULong) resolve to synthetic comparison functions
+    func testRemainingMinOfUnsignedOverloadsResolveToSyntheticComparisonFunctions() throws {
+        let source = """
+        fun sample() {
+            val unsignedMin2 = minOf(1u, 4000000000u)
+            val unsignedMin3 = minOf(1u, 3u, 4000000000u)
+            println(unsignedMin2)
+            println(unsignedMin3)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+            let expectedCases: [(argCount: Int, returnType: TypeID)] = [
+                (2, sema.types.uintType),
+                (3, sema.types.uintType),
+            ]
+
+            for expected in expectedCases {
+                let callExpr = try XCTUnwrap(
+                    lastExprID(in: ast) { exprID, expr in
+                        guard case let .call(calleeExpr, _, args, _) = expr,
+                              case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                        else {
+                            return false
+                        }
+                        return interner.resolve(calleeName) == "minOf"
+                            && args.count == expected.argCount
+                            && sema.bindings.exprTypes[exprID] == expected.returnType
+                    },
+                    "Expected minOf(\(expected.argCount) args) to resolve"
+                )
+                XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+                let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+                XCTAssertEqual(symbol.fqName, [
+                    interner.intern("kotlin"),
+                    interner.intern("comparisons"),
+                    interner.intern("minOf"),
+                ])
+                XCTAssertEqual(sema.bindings.exprTypes[callExpr], expected.returnType)
+            }
+        }
+    }
+
     // STDLIB-COMP-FN-009: maxOf(Byte, Byte, Byte) — Byte resolves to Int internally
     func testThreeArgMaxOfByteResolvesToInt3Overload() throws {
         let source = """
@@ -378,7 +428,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -418,7 +468,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -458,7 +508,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -497,7 +547,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -539,7 +589,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -579,7 +629,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -621,7 +671,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -663,7 +713,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -688,6 +738,46 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-015: maxOf(Float, Float, Float) — Float is preserved (no widening to Double)
+    func testThreeArgMaxOfFloatResolvesToFloat3Overload() throws {
+        let source = """
+        fun sample(a: Float, b: Float, c: Float): Float = maxOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 3
+                },
+                "Expected 3-arg maxOf call with Float arguments"
+            )
+
+            // Float is preserved end-to-end (no widening to Double)
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.floatType)
+            // Resolves via the Float3 special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .maxOfFloat3)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.floatType, sema.types.floatType, sema.types.floatType])
+        }
+    }
+
     // STDLIB-COMP-FN-038: minOf(Float, Float) — 2-arg Float overload
     func testTwoArgMinOfFloatResolvesToFloat2Overload() throws {
         let source = """
@@ -703,7 +793,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -743,7 +833,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -781,7 +871,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -819,7 +909,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -859,7 +949,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -897,7 +987,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -922,6 +1012,305 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte and related unsigned overloads
+    func testRemainingMinOfOverloadsResolveToSyntheticComparisonFunctions() throws {
+        let source = """
+        fun sample() {
+            val generic2 = minOf("b", "a")
+            val genericVararg = minOf("d", "b", "a", "c")
+            val comparator3 = minOf(1, 2, reverseOrder<Int>())
+            val comparatorVararg = minOf(1, 4, 2, 3, reverseOrder<Int>())
+            val unsigned2 = minOf(1u, 4000000000u)
+            val unsigned3 = minOf(1u, 3u, 4000000000u)
+            println(generic2)
+            println(genericVararg)
+            println(comparator3)
+            println(comparatorVararg)
+            println(unsigned2)
+            println(unsigned3)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+            let expectedCases: [(argCount: Int, returnType: TypeID)] = [
+                (2, sema.types.stringType),
+                (4, sema.types.stringType),
+                (3, sema.types.intType),
+                (5, sema.types.intType),
+                (2, sema.types.uintType),
+                (3, sema.types.uintType),
+            ]
+
+            for expected in expectedCases {
+                let callExpr = try XCTUnwrap(
+                    lastExprID(in: ast) { exprID, expr in
+                        guard case let .call(calleeExpr, _, args, _) = expr,
+                              case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                        else {
+                            return false
+                        }
+                        return interner.resolve(calleeName) == "minOf"
+                            && args.count == expected.argCount
+                            && sema.bindings.exprTypes[exprID] == expected.returnType
+                    },
+                    "Expected minOf(\(expected.argCount) args) to resolve"
+                )
+                XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+                let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+                XCTAssertEqual(symbol.fqName, [
+                    interner.intern("kotlin"),
+                    interner.intern("comparisons"),
+                    interner.intern("minOf"),
+                ])
+                XCTAssertEqual(sema.bindings.exprTypes[callExpr], expected.returnType)
+            }
+        }
+    }
+
+    // STDLIB-COMP-FN-020: maxOf(Long, Long) — 2-arg Long overload
+    func testTwoArgMaxOfLongResolvesToLong2Overload() throws {
+        let source = """
+        fun sample(a: Long, b: Long): Long = maxOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 2
+                },
+                "Expected 2-arg maxOf call with Long arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.longType)
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .maxOfLong)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.longType, sema.types.longType])
+        }
+    }
+
+    // STDLIB-COMP-FN-044: minOf(Long, Long) — 2-arg Long overload
+    func testTwoArgMinOfLongResolvesToLong2Overload() throws {
+        let source = """
+        fun sample(a: Long, b: Long): Long = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with Long arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.longType)
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfLong)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.longType, sema.types.longType])
+        }
+    }
+
+    // STDLIB-COMP-FN-052: minOf(ULong, ULong) — 2-arg ULong resolves via remaining path (no special-call kind)
+    func testTwoArgMinOfULongResolvesToULongOverload() throws {
+        let source = """
+        fun sample(a: ULong, b: ULong): ULong = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with ULong arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.ulongType)
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.ulongType, sema.types.ulongType])
+            XCTAssertEqual(sig.returnType, sema.types.ulongType)
+        }
+    }
+
+    // STDLIB-COMP-FN-052: minOf(ULong, ULong, ULong) — 3-arg ULong resolves via remaining path
+    func testThreeArgMinOfULongResolvesToULongOverload() throws {
+        let source = """
+        fun sample(a: ULong, b: ULong, c: ULong): ULong = minOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 3
+                },
+                "Expected 3-arg minOf call with ULong arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.ulongType)
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.ulongType, sema.types.ulongType, sema.types.ulongType])
+            XCTAssertEqual(sig.returnType, sema.types.ulongType)
+        }
+    }
+
+    // STDLIB-COMP-FN-052: minOf(a: ULong, vararg other: ULong) — 4+ args resolve to vararg overload
+    func testVarargMinOfULongResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(): ULong = minOf(5uL, 2uL, 8uL, 1uL)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                },
+                "Expected 4-arg minOf call with ULong arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.ulongType)
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.ulongType, sema.types.ulongType])
+            XCTAssertEqual(sig.returnType, sema.types.ulongType)
+            XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
+        }
+    }
+
+    // STDLIB-COMP-FN-040: minOf(a: Float, vararg other: Float) — 4+ args resolve to the vararg overload
+    func testVarargMinOfFloatResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(): Float = minOf(5.0f, 2.0f, 8.0f, 1.0f)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                },
+                "Expected 4-arg minOf call"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.floatType)
+            // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.floatType, sema.types.floatType])
+            XCTAssertEqual(sig.returnType, sema.types.floatType)
+            XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
+        }
+    }
+
     // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long) — 4+ args resolve to the vararg overload
     func testVarargMaxOfLongResolvesToVarargOverload() throws {
         let source = """
@@ -937,7 +1326,7 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let interner = ctx.interner
 
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .call(calleeExpr, _, args, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else { return false }
@@ -960,6 +1349,167 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
             XCTAssertEqual(sig.parameterTypes, [sema.types.longType, sema.types.longType])
             XCTAssertEqual(sig.returnType, sema.types.longType)
+            XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
+        }
+    }
+
+    // STDLIB-COMP-FN-046: minOf(a: Long, vararg other: Long) — 4+ args resolve to the vararg overload
+    func testVarargMinOfLongResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(): Long = minOf(5L, 2L, 8L, 1L)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                },
+                "Expected 4-arg minOf call"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.longType)
+            // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.longType, sema.types.longType])
+            XCTAssertEqual(sig.returnType, sema.types.longType)
+            XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
+        }
+    }
+
+    // STDLIB-COMP-FN-053: minOf(UShort, UShort): UShort — 2-arg overload
+    func testTwoArgMinOfUShortResolvesToUShort2Overload() throws {
+        let source = """
+        fun sample(a: UShort, b: UShort): UShort = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with UShort arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.ushortType)
+            // Unsigned overloads are not mapped to a special-call kind; lowered via the primitive path.
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.ushortType, sema.types.ushortType])
+            XCTAssertEqual(sig.returnType, sema.types.ushortType)
+        }
+    }
+
+    // STDLIB-COMP-FN-053: minOf(UShort, UShort, UShort): UShort — 3-arg overload
+    func testThreeArgMinOfUShortResolvesToUShort3Overload() throws {
+        let source = """
+        fun sample(a: UShort, b: UShort, c: UShort): UShort = minOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 3
+                },
+                "Expected 3-arg minOf call with UShort arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.ushortType)
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.ushortType, sema.types.ushortType, sema.types.ushortType])
+            XCTAssertEqual(sig.returnType, sema.types.ushortType)
+        }
+    }
+
+    // STDLIB-COMP-FN-053: minOf(a: UShort, vararg other: UShort) — 4+ arg vararg overload
+    func testVarargMinOfUShortResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(a: UShort, b: UShort, c: UShort, d: UShort): UShort = minOf(a, b, c, d)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                lastExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                },
+                "Expected 4-arg minOf call with UShort arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.ushortType)
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.ushortType, sema.types.ushortType])
+            XCTAssertEqual(sig.returnType, sema.types.ushortType)
             XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
         }
     }

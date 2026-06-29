@@ -6,17 +6,6 @@ import XCTest
 /// tracked by STDLIB-TEXT-FN-099 — are registered as synthetic stdlib stubs
 /// and resolve to the correct runtime external link names at sema time.
 final class StringToIntFunctionTests: XCTestCase {
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     private func externalLinks(
         for member: String,
         sema: SemaModule,
@@ -61,7 +50,7 @@ final class StringToIntFunctionTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
             let callExpr = try XCTUnwrap(
-                firstExprID(in: ast) { _, expr in
+                lastExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "toInt" && args.isEmpty
                 },

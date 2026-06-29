@@ -29,17 +29,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
         var results: [ExprID] = []
         for index in ast.arena.exprs.indices {
@@ -69,8 +58,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "hexToUInt": "kk_string_hexToUInt",
             "hexToULong": "kk_string_hexToULong",
             "hexToUShort": "kk_string_hexToUShort",
-            "trimIndent": "kk_string_trimIndent",
-            "replaceIndentByMargin": "kk_string_replaceIndentByMargin",
         ]
 
         for (member, expectedLink) in expected {
@@ -149,6 +136,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
                 .contains("kk_string_replaceBeforeLast_char"),
             "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
+        )
+        // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+        XCTAssertTrue(
+            externalLinks(for: "plus", sema: sema, interner: interner)
+                .contains("kk_string_plus"),
+            "String?.plus(other: Any?) should link to kk_string_plus"
         )
         // STDLIB-TEXT-FN-055: replace overloads
         XCTAssertTrue(
@@ -1180,6 +1173,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     }
 
     func testReplaceIndentByMarginResolvesInCallExpressions() throws {
+        // MIGRATION-TEXT-006: replaceIndentByMargin is now a Kotlin stdlib function.
+        // Verify it resolves to a valid callee without checking a C ABI link name.
         let source = """
         fun replaceIndentByMarginDefault(value: String): String {
             return value.replaceIndentByMargin()
@@ -1196,7 +1191,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-
+            XCTAssertFalse(ctx.diagnostics.hasError, "replaceIndentByMargin should resolve: \(ctx.diagnostics.diagnostics)")
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
             let callExprs = allExprIDs(in: ast) { _, expr in
@@ -1204,14 +1199,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 return ctx.interner.resolve(callee) == "replaceIndentByMargin"
             }
             XCTAssertEqual(callExprs.count, 3)
-            let links = try callExprs.map { callExpr -> String in
-                let chosenCallee = try XCTUnwrap(
+            for callExpr in callExprs {
+                XCTAssertNotNil(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for replaceIndentByMargin"
                 )
-                return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(Set(links), ["kk_string_replaceIndentByMargin"])
         }
     }
 
@@ -1808,6 +1801,34 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let sema = try XCTUnwrap(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightOrNull"
+            }
+            XCTAssertEqual(bindings.count, 2)
+        }
+    }
+
+    func testCharSequenceReduceOrNullResolvesInCallExpressions() throws {
+        let source = """
+        fun reduceFromSequence(value: CharSequence): Char? {
+            return value.reduceOrNull { acc, ch -> if (ch == 'b') ch else acc }
+        }
+
+        fun reduceFromString(value: String): Char? {
+            return value.reduceOrNull { acc, ch -> if (acc == 'a') acc else ch }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected CharSequence.reduceOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let bindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceOrNull"
             }
             XCTAssertEqual(bindings.count, 2)
         }

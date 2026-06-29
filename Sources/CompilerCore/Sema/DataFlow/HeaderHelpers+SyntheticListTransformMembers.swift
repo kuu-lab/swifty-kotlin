@@ -117,7 +117,6 @@ extension DataFlowSemaPhase {
         registerMember(name: "dropLast", parameterTypes: [types.intType], externalLinkName: "kk_list_dropLast")
         registerMember(name: "sum", parameterTypes: [], externalLinkName: "kk_list_sum", returnTypeOverride: types.intType)
         registerMember(name: "average", parameterTypes: [], externalLinkName: "kk_list_average", returnTypeOverride: types.doubleType)
-        // Kotlin source exists at Stdlib/kotlin/collections/ListSortOrdering.kt (MIGRATION-COL-006)
         // but is not yet wired into the compiler pipeline (RF-STDLIB-004+). Keep these stubs until then.
         registerMember(name: "reversed", parameterTypes: [], externalLinkName: "kk_list_reversed")
         registerMember(name: "asReversed", parameterTypes: [], externalLinkName: "kk_list_as_reversed")
@@ -630,7 +629,6 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-        // Kotlin source for sortedDescending exists at Stdlib/kotlin/collections/ListSortOrdering.kt (MIGRATION-COL-006)
         registerMember(
             name: "sortedDescending",
             parameterTypes: [],
@@ -698,7 +696,6 @@ extension DataFlowSemaPhase {
         }
 
         // chunked(size, transform) — HOF overload (STDLIB-548)
-        // Kotlin signature: fun <T, R> Iterable<T>.chunked(size: Int, transform: (List<T>) -> R): List<R>
         // The transform receives a List<T> chunk and returns R. Since R is erased at the
         // runtime ABI level, we model the return type as List<Any> (not List<T>) to avoid
         // mis-typing calls where the transform changes element types.

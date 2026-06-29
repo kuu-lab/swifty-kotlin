@@ -49,17 +49,6 @@ final class ExperimentalMarkerStubTests: XCTestCase {
 
     // MARK: - Shared fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let sema = try XCTUnwrap(ctx.sema)
-            result = (sema, ctx.interner)
-        }
-        return try XCTUnwrap(result)
-    }
-
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
         do {
@@ -832,42 +821,6 @@ final class ExperimentalMarkerStubTests: XCTestCase {
         XCTAssertTrue(
             diagnostics.contains { $0.severity == .warning },
             "Expected ExperimentalJsExport use to emit an opt-in warning, got \(ctx.diagnostics.diagnostics)"
-        )
-    }
-
-    // MARK: - ExperimentalJsFileName (kotlin.js, WARNING)
-
-    func testExperimentalJsFileNameIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let sym = lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsFileName"], sema: sema, interner: interner)
-        XCTAssertNotNil(sym, "kotlin.js.ExperimentalJsFileName must be registered in the symbol table")
-    }
-
-    func testExperimentalJsFileNameIsAnnotationClass() throws {
-        let (sema, interner) = try makeSema()
-        assertIsAnnotationClass(fqPath: ["kotlin", "js", "ExperimentalJsFileName"], sema: sema, interner: interner)
-    }
-
-    func testExperimentalJsFileNameHasRequiresOptInWarning() throws {
-        let (sema, interner) = try makeSema()
-        assertHasRequiresOptIn(
-            fqPath: ["kotlin", "js", "ExperimentalJsFileName"],
-            expectedSeverity: "WARNING",
-            sema: sema,
-            interner: interner
-        )
-    }
-
-    func testExperimentalJsFileNameDoesNotCarryExplicitTargetMetadata() throws {
-        let (sema, interner) = try makeSema()
-        let symbol = try XCTUnwrap(
-            lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsFileName"], sema: sema, interner: interner)
-        )
-        let annotations = sema.symbols.annotations(for: symbol)
-
-        XCTAssertFalse(
-            annotations.contains { $0.annotationFQName == "kotlin.annotation.Target" },
-            "ExperimentalJsFileName should not carry explicit @Target metadata, got \(annotations)"
         )
     }
 

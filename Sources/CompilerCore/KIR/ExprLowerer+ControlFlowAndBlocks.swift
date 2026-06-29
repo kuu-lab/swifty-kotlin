@@ -273,6 +273,26 @@ extension ExprLowerer {
                     )
                 }
 
+                // Native stub properties with externalLinkName: call native function
+                // directly via the implicit receiver (e.g. kk_duration_inWholeNanoseconds
+                // accessed inside a bundled Kotlin source extension getter body).
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   let externalLinkName = sema.symbols.externalLinkName(for: symbol),
+                   !externalLinkName.isEmpty
+                {
+                    instructions.append(.call(
+                        symbol: symbol,
+                        callee: interner.intern(externalLinkName),
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+
                 if let symbol = sema.bindings.identifierSymbols[exprID],
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -337,6 +357,30 @@ extension ExprLowerer {
                     let id = arena.appendExpr(constant, type: boundType)
                     instructions.append(.constValue(result: id, value: constant))
                     return id
+                }
+                // Native stub properties with externalLinkName: call native function
+                // directly via the implicit receiver, bypassing field-offset dispatch.
+                // (e.g. kk_duration_inWholeNanoseconds accessed inside a bundled
+                // Kotlin source extension getter body.)
+                if let sym = sema.symbols.symbol(symbol),
+                   sym.kind == .property,
+                   let externalLinkName = sema.symbols.externalLinkName(for: symbol),
+                   !externalLinkName.isEmpty,
+                   let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+                {
+                    let resultType = boundType
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                    instructions.append(.call(
+                        symbol: symbol,
+                        callee: interner.intern(externalLinkName),
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
                 }
                 // Member property references inside class/object bodies must read
                 // from the current implicit receiver instance rather than treating
@@ -1900,8 +1944,6 @@ extension ExprLowerer {
             )
         }
     }
-
-    // MARK: - Container Operator Helpers (STDLIB-OP-032)
 
     /// Emits a contains call instruction, dispatching to a user-defined operator fun contains
     /// if sema recorded a CallBinding, or falling back to the kk_op_contains runtime stub.

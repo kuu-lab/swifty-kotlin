@@ -435,14 +435,6 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_instant_to_js_date",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_double_toJsNumber",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .double),
@@ -459,23 +451,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_jsclass_kotlin",
-            parameters: [
-                RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_boolean_toJsBoolean",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -784,9 +760,6 @@ public enum RuntimeABISpec {
     ]
 
 
-    /// Stdlib Delegate Functions (P5-80)
-
-    /// Stdlib Delegate Functions (P5-80)
     public static let delegateFunctions: [RuntimeABIFunctionSpec] = [
         // Lazy
         RuntimeABIFunctionSpec(
@@ -1061,9 +1034,6 @@ public enum RuntimeABISpec {
             section: "Delegate"
         ),
     ]
-    /// Boolean logical operators
-
-    /// Boolean logical operators
     public static let booleanFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_op_not",
@@ -1076,9 +1046,6 @@ public enum RuntimeABISpec {
         ),
     ]
 
-    /// Char operations
-
-    /// Char operations
     public static let charFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_char_minus",
@@ -1110,9 +1077,6 @@ public enum RuntimeABISpec {
         ),
     ]
 
-    /// Regex (STDLIB-100/101/102/103)
-
-    /// Regex (STDLIB-100/101/102/103)
     public static let regexFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_regex_create",
@@ -1566,12 +1530,6 @@ public enum RuntimeABISpec {
         ),
     ]
 
-
-    public static let i18nFunctions: [RuntimeABIFunctionSpec] = []
-
-    // MARK: - Path (STDLIB-IO-089)
-
-
     // MARK: - Path (STDLIB-IO-089)
 
     public static let pathFunctions: [RuntimeABIFunctionSpec] = [
@@ -1691,9 +1649,6 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(name: "kk_path_moveTo_options", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "targetRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_getLastModifiedTime", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
     ]
-
-    // MARK: - Duration / measureTime (STDLIB-230/231)
-
 
     // MARK: - Duration / measureTime (STDLIB-230/231)
 
@@ -2291,28 +2246,6 @@ public enum RuntimeABISpec {
         ),
     ]
 
-    /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
-    ///
-    /// The sub-arrays are listed in alphabetical order, one entry per line, so that
-    /// parallel branches adding a new category insert their entry at a unique
-    /// alphabetic position rather than all appending to the same trailing line.
-    /// This is purely a merge-conflict-prevention layout: the resulting element
-    /// set is unchanged from any other ordering.
-    ///
-    /// When adding a new sub-array, insert its name in alphabetical position.
-    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
-
-
-    /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
-    ///
-    /// The sub-arrays are listed in alphabetical order, one entry per line, so that
-    /// parallel branches adding a new category insert their entry at a unique
-    /// alphabetic position rather than all appending to the same trailing line.
-    /// This is purely a merge-conflict-prevention layout: the resulting element
-    /// set is unchanged from any other ordering.
-    ///
-    /// When adding a new sub-array, insert its name in alphabetical position.
-    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
     public static let allFunctions: [RuntimeABIFunctionSpec] = ([
         abiParityFunctions,
         arrayFunctions,
@@ -2337,7 +2270,6 @@ public enum RuntimeABISpec {
         fileIOFunctions,
         gcFunctions,
         hexFormatFunctions,
-        i18nFunctions,
         ioFunctions,
         kFunctionFunctions,
         kParameterFunctions,

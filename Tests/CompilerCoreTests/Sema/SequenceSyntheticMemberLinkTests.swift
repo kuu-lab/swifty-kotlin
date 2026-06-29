@@ -3,10 +3,6 @@ import Foundation
 import XCTest
 
 final class SequenceSyntheticMemberLinkTests: XCTestCase {
-    // Reference example of helper usage. See SequenceSyntheticMemberLinkTests+Helper.swift.
-    // New Sequence-member resolution tests should follow this short pattern instead of the
-    // 30-line boilerplate used by the remaining tests in this file (which are kept verbose
-    // for now to minimize this PR's diff; gradual migration is planned).
     func testSequenceFilterTypeChecksInCallExpressions() throws {
         try assertSequenceMemberResolves(
             source: """

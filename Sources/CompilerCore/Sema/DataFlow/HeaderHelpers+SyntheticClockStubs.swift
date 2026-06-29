@@ -235,8 +235,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - Clock Helpers
-
     private func ensureClockCompanionSymbol(
         named companionName: String,
         ownerSymbol: SymbolID,

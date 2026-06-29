@@ -433,7 +433,6 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([tSymbol], for: symbol)
         types.setNominalTypeParameterVariances([.out], for: symbol)
 
-        // Add index: Int and value: T properties (component1, component2 for destructuring)
         let receiverType = types.make(.classType(ClassType(
             classSymbol: symbol,
             args: [.out(tType)],

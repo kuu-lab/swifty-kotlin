@@ -167,7 +167,6 @@ public func kk_iterator_builder_next(_ iterRaw: Int) -> Int {
 
 // MARK: - Sequence destination-collection filter operations (STDLIB-SEQ-021)
 
-/// `filterTo`: Evaluate the sequence and append elements matching the predicate to the destination.
 @_cdecl("kk_sequence_filterTo")
 public func kk_sequence_filterTo(
     _ seqRaw: Int,
@@ -193,7 +192,6 @@ public func kk_sequence_filterTo(
     return destRaw
 }
 
-/// `filterNotTo`: Evaluate the sequence and append elements NOT matching the predicate to the destination.
 @_cdecl("kk_sequence_filterNotTo")
 public func kk_sequence_filterNotTo(
     _ seqRaw: Int,
@@ -219,7 +217,6 @@ public func kk_sequence_filterNotTo(
     return destRaw
 }
 
-/// `mapTo`: Evaluate the sequence and append transformed elements to the destination.
 @_cdecl("kk_sequence_mapTo")
 public func kk_sequence_mapTo(
     _ seqRaw: Int,
@@ -243,7 +240,6 @@ public func kk_sequence_mapTo(
     return destRaw
 }
 
-/// `mapNotNullTo`: Evaluate the sequence and append non-null transformed elements to the destination.
 @_cdecl("kk_sequence_mapNotNullTo")
 public func kk_sequence_mapNotNullTo(
     _ seqRaw: Int,
@@ -269,7 +265,6 @@ public func kk_sequence_mapNotNullTo(
     return destRaw
 }
 
-/// `mapIndexedTo`: Evaluate the sequence and append indexed transformed elements to the destination.
 @_cdecl("kk_sequence_mapIndexedTo")
 public func kk_sequence_mapIndexedTo(
     _ seqRaw: Int,
@@ -293,7 +288,6 @@ public func kk_sequence_mapIndexedTo(
     return destRaw
 }
 
-/// `flatMapTo`: Evaluate the sequence, flatten transform results, and append them.
 @_cdecl("kk_sequence_flatMapTo")
 public func kk_sequence_flatMapTo(
     _ seqRaw: Int,
@@ -322,7 +316,6 @@ public func kk_sequence_flatMapTo(
     return destRaw
 }
 
-/// `filterIndexedTo`: Evaluate the sequence and append elements matching the indexed predicate to the destination.
 @_cdecl("kk_sequence_filterIndexedTo")
 public func kk_sequence_filterIndexedTo(
     _ seqRaw: Int,
@@ -348,7 +341,6 @@ public func kk_sequence_filterIndexedTo(
     return destRaw
 }
 
-/// `mapIndexedNotNullTo`: Evaluate the sequence, apply the indexed transform, and append non-null results.
 @_cdecl("kk_sequence_mapIndexedNotNullTo")
 public func kk_sequence_mapIndexedNotNullTo(
     _ seqRaw: Int,
@@ -374,7 +366,6 @@ public func kk_sequence_mapIndexedNotNullTo(
     return destRaw
 }
 
-/// `flatMapIndexedTo`: Evaluate the sequence, flatten indexed transform results, and append them.
 @_cdecl("kk_sequence_flatMapIndexedTo")
 public func kk_sequence_flatMapIndexedTo(
     _ seqRaw: Int,
@@ -403,7 +394,6 @@ public func kk_sequence_flatMapIndexedTo(
     return destRaw
 }
 
-/// `filterNotNullTo`: Evaluate the sequence and append non-null elements to the destination.
 @_cdecl("kk_sequence_filterNotNullTo")
 public func kk_sequence_filterNotNullTo(_ seqRaw: Int, _ destRaw: Int) -> Int {
     guard runtimeMutableCollectionExists(destRaw) else {
@@ -416,7 +406,6 @@ public func kk_sequence_filterNotNullTo(_ seqRaw: Int, _ destRaw: Int) -> Int {
     return destRaw
 }
 
-/// `filterIsInstanceTo`: Evaluate the sequence and append elements of the given runtime type to the destination.
 @_cdecl("kk_sequence_filterIsInstanceTo")
 public func kk_sequence_filterIsInstanceTo(_ seqRaw: Int, _ destRaw: Int, _ typeToken: Int) -> Int {
     guard runtimeMutableCollectionExists(destRaw) else {

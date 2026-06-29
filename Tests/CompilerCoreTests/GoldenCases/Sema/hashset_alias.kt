@@ -1,20 +1,16 @@
-// Function parameter type
 fun processSet(set: HashSet<String>) {
     println(set.size)
 }
 
-// Return type
 fun createSet(): HashSet<Int> {
     return hashSetOf<Int>()
 }
 
-// Property type
 class TagContainer {
     val tags: HashSet<String> = hashSetOf()
     val ids: HashSet<Int> = hashSetOf<Int>()
 }
 
-// Generic type argument
 fun nestedSets() {
     val nested: HashSet<HashSet<String>> = hashSetOf()
     val inner = hashSetOf<String>()
@@ -23,12 +19,10 @@ fun nestedSets() {
     println(nested.size)
 }
 
-// Type constraint
 fun <T : HashSet<String>> constrain(set: T): T {
     return set
 }
 
-// Extension function on HashSet
 fun HashSet<String>.customExtension(): String {
     return "extended: ${this.size}"
 }

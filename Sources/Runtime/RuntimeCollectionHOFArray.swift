@@ -151,6 +151,7 @@ public func kk_array_sortedArrayWith(
     return registerRuntimeObject(box)
 }
 
+// (a) RF-DEAD-002: 配線予定 → Array.mapNotNull lowering
 @_cdecl("kk_array_mapNotNull")
 public func kk_array_mapNotNull(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {

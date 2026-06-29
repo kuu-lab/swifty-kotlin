@@ -1,0 +1,30 @@
+symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=golden.sema.noneProp kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.pubProp kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.syncProp kind=property vis=public flags=_ type=String
+symbol fq=kotlin.LazyThreadSafetyMode kind=enumClass vis=public flags=synthetic type=kotlin.LazyThreadSafetyMode
+symbol fq=kotlin.LazyThreadSafetyMode.NONE kind=field vis=public flags=synthetic type=kotlin.LazyThreadSafetyMode
+symbol fq=kotlin.LazyThreadSafetyMode.PUBLICATION kind=field vis=public flags=synthetic type=kotlin.LazyThreadSafetyMode
+symbol fq=kotlin.LazyThreadSafetyMode.SYNCHRONIZED kind=field vis=public flags=synthetic type=kotlin.LazyThreadSafetyMode
+symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
+symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+file f13 package=golden.sema
+  decl d0 property syncProp var=0 sym=golden.sema.syncProp
+  decl d1 property pubProp var=0 sym=golden.sema.pubProp
+  decl d2 property noneProp var=0 sym=golden.sema.noneProp
+  decl d3 fun main sym=golden.sema.main
+expr e0 name(LazyThreadSafetyMode) type=Any ref=kotlin.LazyThreadSafetyMode
+expr e1 memberCall recv=e0 callee=SYNCHRONIZED args=[] type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode.SYNCHRONIZED
+expr e2 call callee=e3 args=[_:e1] type=<error>
+expr e4 name(LazyThreadSafetyMode) type=Any ref=kotlin.LazyThreadSafetyMode
+expr e5 memberCall recv=e4 callee=PUBLICATION args=[] type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode.PUBLICATION
+expr e6 call callee=e7 args=[_:e5] type=<error>
+expr e8 name(LazyThreadSafetyMode) type=Any ref=kotlin.LazyThreadSafetyMode
+expr e9 memberCall recv=e8 callee=NONE args=[] type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode.NONE
+expr e10 call callee=e11 args=[_:e9] type=<error>
+expr e12 name(syncProp) type=String ref=golden.sema.syncProp
+expr e13 call callee=e14 args=[_:e12] type=Unit call=kotlin.io.println#1
+expr e15 name(pubProp) type=String ref=golden.sema.pubProp
+expr e16 call callee=e17 args=[_:e15] type=Unit call=kotlin.io.println#1
+expr e18 name(noneProp) type=String ref=golden.sema.noneProp
+expr e19 call callee=e20 args=[_:e18] type=Unit call=kotlin.io.println#1

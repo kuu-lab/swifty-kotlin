@@ -80,6 +80,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        // STDLIB-TEXT-FN-021: CharSequence.indexOfAny(chars, startIndex=0, ignoreCase=false)
         RuntimeABIFunctionSpec(
             name: "kk_string_indexOfAny_chars",
             parameters: [
@@ -92,6 +93,7 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
+        // STDLIB-TEXT-FN-021: CharSequence.indexOfAny(strings, startIndex=0, ignoreCase=false)
         RuntimeABIFunctionSpec(
             name: "kk_string_indexOfAny_strings",
             parameters: [
@@ -187,6 +189,18 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_findLast",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        // STDLIB-TEXT-FN-067
+        RuntimeABIFunctionSpec(
+            name: "kk_string_singleOrNull_predicate",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),

@@ -1272,8 +1272,6 @@ extension ExprTypeChecker {
         return receiverType
     }
 
-    // MARK: - Lambda Parameter Inference Helpers
-
     private enum ParentLambdaCallContext {
         case topLevel(calleeName: InternedString, argIndex: Int)
         case member(receiverType: TypeID?, calleeName: InternedString, argIndex: Int)

@@ -1,0 +1,22 @@
+symbol fq=__local_0.pinned kind=local vis=private flags=_ type=kotlinx.cinterop.Pinned<Any>
+symbol fq=__local_1.retrieved kind=local vis=private flags=_ type=Any
+symbol fq=golden.sema.testPin kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Any
+symbol fq=golden.sema.testPin.$0.obj kind=valueParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.Pinned kind=class vis=public flags=synthetic type=kotlinx.cinterop.Pinned<kotlinx.cinterop.Pinned.T>
+symbol fq=kotlinx.cinterop.Pinned.T kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.Pinned.get kind=function vis=public flags=synthetic sig=recv=kotlinx.cinterop.Pinned<kotlinx.cinterop.Pinned.T> params=[] ret=kotlinx.cinterop.Pinned.T bounds=[Any]
+symbol fq=kotlinx.cinterop.Pinned.unpin kind=function vis=public flags=synthetic sig=recv=kotlinx.cinterop.Pinned<kotlinx.cinterop.Pinned.T> params=[] ret=Unit bounds=[Any]
+symbol fq=kotlinx.cinterop.pin kind=function vis=public flags=inlineFunction|synthetic sig=recv=kotlinx.cinterop.pin.T params=[] ret=kotlinx.cinterop.Pinned<kotlinx.cinterop.pin.T> bounds=[Any]
+symbol fq=kotlinx.cinterop.pin.T kind=typeParameter vis=private flags=synthetic
+file f13 package=golden.sema
+  decl d0 fun testPin sym=golden.sema.testPin
+expr e0 name(obj) type=Any ref=golden.sema.testPin.$0.obj
+expr e1 memberCall recv=e0 callee=pin args=[] type=kotlinx.cinterop.Pinned<Any> call=kotlinx.cinterop.pin targs=[Any]
+expr e2 localDecl pinned mutable=0 type=t0 init=e1 type=Unit ref=__local_0.pinned
+expr e3 name(pinned) type=kotlinx.cinterop.Pinned<Any> ref=__local_0.pinned
+expr e4 memberCall recv=e3 callee=get args=[] type=Any call=kotlinx.cinterop.Pinned.get targs=[Any]
+expr e5 localDecl retrieved mutable=0 type=t1 init=e4 type=Unit ref=__local_1.retrieved
+expr e6 name(pinned) type=kotlinx.cinterop.Pinned<Any> ref=__local_0.pinned
+expr e7 memberCall recv=e6 callee=unpin args=[] type=Unit call=kotlinx.cinterop.Pinned.unpin targs=[Any]
+expr e8 name(retrieved) type=Any ref=__local_1.retrieved
+expr e9 return value=e8 type=Nothing
