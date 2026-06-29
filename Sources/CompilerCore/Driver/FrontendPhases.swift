@@ -118,7 +118,6 @@ final class LoadSourcesPhase: CompilerPhase {
             ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
             ("__bundled_kotlin_sequences_stdlib.kt", BundledKotlinStdlib.kotlinSequencesSource),
             ("__bundled_kotlin_time_stdlib.kt", BundledKotlinStdlib.kotlinTimeSource),
-            ("__bundled_kotlin_io_file_stdlib.kt", BundledKotlinStdlib.kotlinIOFileSource),
         ]
         for (path, source) in residualSources {
             guard !sourceManager.containsFile(path: path) else { continue }
