@@ -120,8 +120,12 @@ final class RuntimeMatchGroupCollectionBox {
 /// syntax, so `NSRegularExpression` compilation cannot fail for this literal.
 private enum RegexNeverMatch {
     static let expression: NSRegularExpression = {
-        // swiftlint:disable:next force_try
-        try! NSRegularExpression(pattern: "(?!)", options: [])
+        // "(?!)" is a static literal independent of user input — provably valid
+        // ICU/POSIX syntax. If this fails, Foundation itself is broken.
+        guard let expression = try? NSRegularExpression(pattern: "(?!)", options: []) else {
+            preconditionFailure("KSwiftK: static never-match regex (?!) failed to compile — Foundation/ICU broken")
+        }
+        return expression
     }()
 }
 
@@ -175,7 +179,11 @@ private func extractNamedGroupNames(from pattern: String) -> [String] {
 }
 
 private func makeMatchResult(from result: NSTextCheckingResult, in str: String, regexBox: RuntimeRegexBox? = nil) -> RuntimeMatchResultBox {
-    let matchRange = Range(result.range, in: str)!
+    // NSRegularExpression only returns matches whose ranges are within the matched string,
+    // so this conversion should never fail in practice.
+    guard let matchRange = Range(result.range, in: str) else {
+        return RuntimeMatchResultBox(value: "", groupValues: [])
+    }
     let value = String(str[matchRange])
 
     var groupValues: [String] = []
@@ -318,7 +326,7 @@ public func kk_string_split_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
     var parts: [String] = []
     var lastEnd = str.startIndex
     for match in matches {
-        let matchRange = Range(match.range, in: str)!
+        guard let matchRange = Range(match.range, in: str) else { continue }
         parts.append(String(str[lastEnd ..< matchRange.lowerBound]))
         lastEnd = matchRange.upperBound
     }
@@ -345,7 +353,7 @@ public func kk_regex_replace_lambda(
     var result = ""
     var lastEnd = str.startIndex
     for match in matches {
-        let matchRange = Range(match.range, in: str)!
+        guard let matchRange = Range(match.range, in: str) else { continue }
         result.append(String(str[lastEnd ..< matchRange.lowerBound]))
         let matchResult = makeMatchResult(from: match, in: str, regexBox: regexBox)
         let matchResultRaw = registerRuntimeObject(matchResult)
@@ -374,7 +382,9 @@ public func kk_regex_matchEntire(_ regexRaw: Int, _ strRaw: Int) -> Int {
     guard let result = regexBox.regex.firstMatch(in: str, options: [], range: range) else {
         return runtimeNullSentinelInt
     }
-    let matchRange = Range(result.range, in: str)!
+    guard let matchRange = Range(result.range, in: str) else {
+        return runtimeNullSentinelInt
+    }
     guard matchRange.lowerBound == str.startIndex && matchRange.upperBound == str.endIndex else {
         return runtimeNullSentinelInt
     }
@@ -681,7 +691,9 @@ private func makeMatchResultWithOffset(
     regexBox: RuntimeRegexBox?,
     fullInput: String
 ) -> RuntimeMatchResultBox {
-    let matchRange = Range(result.range, in: str)!
+    guard let matchRange = Range(result.range, in: str) else {
+        return RuntimeMatchResultBox(value: "", groupValues: [])
+    }
     let value = String(str[matchRange])
 
     var groupValues: [String] = []
