@@ -3,6 +3,22 @@
 
 import Foundation
 
+enum CharsetTag: Int {
+    case utf8 = 0
+    case iso8859_1 = 1
+    case usASCII = 2
+    case utf16 = 3
+    case utf16be = 4
+    case utf16le = 5
+    case utf32 = 6
+    case utf32be = 7
+    case utf32le = 8
+}
+
+func runtimeStringToByteArrayWithCharsetRaw(_ source: String, charsetTag: Int) -> Int {
+    kk_string_toByteArray_charset(runtimeMakeStringRaw(source), charsetTag)
+}
+
 @_cdecl("kk_string_toByteArray")
 public func kk_string_toByteArray(_ strRaw: Int) -> Int {
     // Sema types this as List<Int> — return ListBox so list-access codegen works.
@@ -18,22 +34,8 @@ public func kk_string_toByteArray_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeMakeListRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
-
-// STDLIB-581: Charset tag constants (mirrors Charsets.* singleton properties)
-private enum CharsetTag: Int {
-    case utf8 = 0
-    case iso8859_1 = 1
-    case usASCII = 2
-    case utf16 = 3
-    case utf16be = 4
-    case utf16le = 5
-    case utf32 = 6
-    case utf32be = 7
-    case utf32le = 8
-}
-
 @_cdecl("kk_charset_utf_8")
 public func kk_charset_utf_8() -> Int { CharsetTag.utf8.rawValue }
 
@@ -219,20 +221,8 @@ public func kk_string_toByteArray_charset_flat(
         }
         bytes = result
     }
-    return runtimeMakeListRaw(bytes)
+    return runtimeMakeArrayRaw(bytes)
 }
-
-func runtimeStringToByteArrayWithCharsetRaw(_ source: String, charsetTag: Int) -> Int {
-    let raw = Int(bitPattern: source.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: source.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(source.utf8.count))
-        }
-    })
-    return kk_string_toByteArray_charset(raw, charsetTag)
-}
-
-// STDLIB-573: String.encodeToByteArray()
-// Sema types this as ByteArray — must return ArrayBox so kk_array_size/get work.
 @_cdecl("kk_string_encodeToByteArray")
 public func kk_string_encodeToByteArray(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

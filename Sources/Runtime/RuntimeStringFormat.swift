@@ -149,6 +149,10 @@ private let runtimeSupportedFormatConversions: Set<Character> = [
 ]
 
 private func runtimeFormatString(_ template: String, arguments: [Int], locale: Locale? = nil) -> String {
+    runtimeFormatString(template, values: arguments.map { RuntimeValue(raw: $0) }, locale: locale)
+}
+
+private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) -> String {
     let characters = Array(template)
     var cursor = 0
     var implicitArgumentIndex = 0
@@ -175,7 +179,7 @@ private func runtimeFormatString(_ template: String, arguments: [Int], locale: L
             }
             let argument = arguments.indices.contains(argumentIndex)
                 ? arguments[argumentIndex]
-                : runtimeNullSentinelInt
+                : RuntimeValue(raw: runtimeNullSentinelInt)
             result += runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
             cursor = next
         case .invalid:
@@ -259,54 +263,54 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
 }
 
 private func runtimeRenderFormattedArgument(
-    _ argument: Int,
+    _ value: RuntimeValue,
     specifier: RuntimeFormatSpecifier,
     locale: Locale?
 ) -> String {
     switch specifier.normalizedConversion {
     case "s":
-        let value = runtimeFormatStringValue(argument, specifier: specifier, locale: locale)
-        return runtimeApplyStringWidth(value, specifier: specifier)
+        let rendered = runtimeFormatStringValue(value, specifier: specifier, locale: locale)
+        return runtimeApplyStringWidth(rendered, specifier: specifier)
     case "b":
-        let value = runtimeFormatBooleanValue(argument)
+        let value = runtimeFormatBooleanValue(value)
         let normalized = specifier.conversion.isUppercase
             ? runtimeFormatUppercase(value, locale: locale)
             : value
         return runtimeApplyStringWidth(normalized, specifier: specifier)
     case "d", "i":
-        let value = Int64(runtimeFormatIntegerValue(argument))
+        let value = Int64(runtimeFormatIntegerValue(value))
         if let locale {
             return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
         }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "x", "o":
-        let value = UInt64(bitPattern: Int64(runtimeFormatIntegerValue(argument)))
+        let value = UInt64(bitPattern: Int64(runtimeFormatIntegerValue(value)))
         if let locale {
             return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
         }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "f", "e", "g":
-        let value = runtimeFormatDoubleValue(argument)
+        let value = runtimeFormatDoubleValue(value)
         if let locale {
             return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
         }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "c":
-        let value = runtimeFormatCharacterValue(argument)
+        let value = runtimeFormatCharacterValue(value)
         let normalized = specifier.conversion.isUppercase
             ? runtimeFormatUppercase(value, locale: locale)
             : value
         return runtimeApplyStringWidth(normalized, specifier: specifier)
     default:
         return runtimeApplyStringWidth(
-            runtimeFormatStringValue(argument, specifier: specifier, locale: locale),
+            runtimeFormatStringValue(value, specifier: specifier, locale: locale),
             specifier: specifier
         )
     }
 }
 
 private func runtimeFormatStringValue(
-    _ argument: Int,
+    _ argument: RuntimeValue,
     specifier: RuntimeFormatSpecifier,
     locale: Locale?
 ) -> String {
@@ -327,7 +331,11 @@ private func runtimeFormatUppercase(_ value: String, locale: Locale?) -> String 
     return value.uppercased()
 }
 
-private func runtimeFormatBooleanValue(_ argument: Int) -> String {
+private func runtimeFormatBooleanValue(_ value: RuntimeValue) -> String {
+    if value.tag == RuntimeValue.stringTag {
+        return runtimeElementToString(value).isEmpty ? "false" : "true"
+    }
+    let argument = value.payload0
     if argument == runtimeNullSentinelInt {
         return "false"
     }
@@ -347,11 +355,18 @@ private func runtimeFormatBooleanValue(_ argument: Int) -> String {
     }
 }
 
-private func runtimeFormatIntegerValue(_ argument: Int) -> Int {
-    maybeUnbox(argument)
+private func runtimeFormatIntegerValue(_ value: RuntimeValue) -> Int {
+    if value.tag == RuntimeValue.stringTag {
+        return Int(runtimeElementToString(value)) ?? 0
+    }
+    return maybeUnbox(value.payload0)
 }
 
-private func runtimeFormatDoubleValue(_ argument: Int) -> Double {
+private func runtimeFormatDoubleValue(_ value: RuntimeValue) -> Double {
+    if value.tag == RuntimeValue.stringTag {
+        return Double(runtimeElementToString(value)) ?? 0
+    }
+    let argument = value.payload0
     if argument == runtimeNullSentinelInt {
         return 0
     }
@@ -386,8 +401,8 @@ private func runtimeFormatDoubleValue(_ argument: Int) -> Double {
     return Double(bitPattern: UInt64(bitPattern: Int64(argument)))
 }
 
-private func runtimeFormatCharacterValue(_ argument: Int) -> String {
-    let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(argument))
+private func runtimeFormatCharacterValue(_ value: RuntimeValue) -> String {
+    let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(value))
     guard let scalar = UnicodeScalar(scalarValue) else {
         return "?"
     }
@@ -410,10 +425,10 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
 @_cdecl("kk_string_format")
 public func kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments))
+    return runtimeMakeStringRaw(runtimeFormatString(template, values: arguments))
 }
 
 @_cdecl("kk_string_format_flat")
@@ -428,11 +443,11 @@ public func kk_string_format_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
     return runtimeRegisterFlatString(
-        runtimeFormatString(template, arguments: arguments),
+        runtimeFormatString(template, values: arguments),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash
@@ -452,10 +467,10 @@ public func kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsAr
     }
 
     let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments, locale: locale))
+    return runtimeMakeStringRaw(runtimeFormatString(template, values: arguments, locale: locale))
 }
 
 @_cdecl("kk_string_format_locale_flat")
@@ -480,11 +495,11 @@ public func kk_string_format_locale_flat(
         locale = box.locale
     }
     let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
     return runtimeRegisterFlatString(
-        runtimeFormatString(template, arguments: arguments, locale: locale),
+        runtimeFormatString(template, values: arguments, locale: locale),
         outLength: outLength,
         outByteCount: outByteCount,
         outHash: outHash

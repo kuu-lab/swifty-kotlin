@@ -404,6 +404,9 @@ public func kk_string_indexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ start
     let ignoreCase = ignoreCaseRaw != 0
 
     if other.isEmpty {
+        if ignoreCase {
+            return -1
+        }
         let start = max(0, min(startIndexRaw, source.unicodeScalars.count))
         return start
     }
@@ -462,6 +465,9 @@ public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ s
     let otherScalars = Array(other.unicodeScalars)
 
     if other.isEmpty {
+        if ignoreCase {
+            return sourceScalars.isEmpty ? -1 : sourceScalars.count - 1
+        }
         let start = max(0, min(startIndexRaw, sourceScalars.count))
         return start
     }

@@ -572,76 +572,46 @@ public func kk_string_codePointCount_range(
 
 @_cdecl("kk_string_toList")
 public func kk_string_toList(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeListRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    return registerRuntimeObject(RuntimeListBox(values: charValues))
 }
-
-// MARK: - STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
-
-/// Converts a `String` to a fresh `MutableList<Char>` by iterating its Unicode
-/// scalars.  In the runtime, `List` and `MutableList` share the same
-/// `RuntimeListBox` representation, so this mirrors `kk_string_toList` while
-/// returning a value the caller can mutate.
-/// Implements `kotlin.text.CharSequence.toMutableList(): MutableList<Char>`.
 @_cdecl("kk_string_toMutableList")
 public func kk_string_toMutableList(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeListRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    return registerRuntimeObject(RuntimeListBox(values: charValues))
 }
-
 @_cdecl("kk_string_toCharArray")
 public func kk_string_toCharArray(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeArrayRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    let box = RuntimeArrayBox(length: charValues.count)
+    box.values = charValues
+    return registerRuntimeObject(box)
 }
-
-// MARK: - STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
-
-/// Converts a `String` to a boxed `Array<Char>` by iterating its Unicode scalars.
-/// Unlike `toCharArray()` which returns a primitive `CharArray`, this returns a
-/// generic `Array<Char>` compatible with `Collection<Char>.toTypedArray()`.
 @_cdecl("kk_string_toTypedArray")
 public func kk_string_toTypedArray(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeArrayRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    let box = RuntimeArrayBox(length: charValues.count)
+    box.values = charValues
+    return registerRuntimeObject(box)
 }
-
-// MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
-
-/// Appends every character of the string (as a boxed `Char`) to `destRaw`,
-/// which must be a mutable collection (List or Set).  Returns `destRaw` so
-/// callers can chain: `val result = "abc".toCollection(mutableListOf())`.
-///
-/// Mirrors `kotlin.text.CharSequence.toCollection<C : MutableCollection<in Char>>`.
 @_cdecl("kk_string_toCollection")
 public func kk_string_toCollection(_ strRaw: Int, _ destRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
     guard runtimeMutableCollectionExists(destRaw) else {
         invalidContainerPanic(#function, "mutable collection")
     }
-    for charRaw in charRaws {
-        runtimeAppendToMutableCollection(destRaw, charRaw)
+    for charValue in charValues {
+        runtimeAppendToMutableCollection(destRaw, charValue)
     }
     return destRaw
 }
-
-// MARK: - STDLIB-TEXT-FN-108: CharSequence.toSortedSet()
-
-/// Returns a `SortedSet<Char>` containing all unique UTF-16 code units of the string
-/// in their natural `Char` ascending order.
-/// Implements `kotlin.text.CharSequence.toSortedSet(): SortedSet<Char>`.
 @_cdecl("kk_string_toSortedSet")
 public func kk_string_toSortedSet(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { kk_box_char(Int($0)) }
-    let deduped = runtimeDeduplicatePreservingOrder(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    let deduped = runtimeDeduplicatePreservingOrder(charValues)
     let sorted = deduped.sorted { runtimeCompareValues($0, $1) < 0 }
-    return registerRuntimeObject(RuntimeSetBox(elements: sorted))
+    return registerRuntimeObject(RuntimeSetBox(values: sorted))
 }
-
-// MARK: - STDLIB-640: CharArray.concatToString()
-
-/// Converts a `CharArray` to a `String` by concatenating all characters.
-/// This is the inverse of `String.toCharArray()`.
 @_cdecl("kk_chararray_concatToString")
 public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     guard let box = runtimeArrayBox(from: arrRaw) else {
@@ -662,10 +632,13 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
 /// Returns a lazy `Iterable<Char>` wrapper around the given string.
 /// Character materialisation is deferred until the iterable is actually consumed
 /// (e.g. via `iterator()`, `toList()`, or `for-in`).  Creation is O(1).
+func runtimeStringAsIterable(_ source: String) -> Int {
+    registerRuntimeObject(RuntimeStringIterableBox(source: source))
+}
+
 @_cdecl("kk_string_asIterable")
 public func kk_string_asIterable(_ strRaw: Int) -> Int {
-    let box = RuntimeStringIterableBox(source: runtimeStringFromRawOrPanic(strRaw, caller: #function))
-    return registerRuntimeObject(box)
+    runtimeStringAsIterable(runtimeStringFromRawOrPanic(strRaw, caller: #function))
 }
 
 /// Materialise the lazy string-iterable into a `List<Char>`.
@@ -674,12 +647,8 @@ public func kk_string_asIterable(_ strRaw: Int) -> Int {
 @_cdecl("kk_string_iterable_toList")
 public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
     guard let box = runtimeStringIterableBox(from: iterableRaw) else {
-        // Validate that the raw value is a valid string handle before falling
-        // back, to avoid reinterpreting an unrelated object pointer as a string.
-        if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
-            return kk_string_toList(iterableRaw)
-        }
-        // Unrecognised input — return an empty list.
+        // Only the lazy iterable wrapper is accepted; legacy raw string handles
+        // must not be reinterpreted as iterables.
         return kk_string_toList(runtimeMakeStringRaw(""))
     }
     return kk_string_toList(runtimeMakeStringRaw(box.source))
@@ -691,22 +660,20 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     if let box = runtimeStringIterableBox(from: iterableRaw) {
         return kk_string_iterator(runtimeMakeStringRaw(box.source))
     }
-    // Validate that the raw value is a valid string handle before falling
-    // back, to avoid reinterpreting an unrelated object pointer as a string.
-    if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
-        return kk_string_iterator(iterableRaw)
-    }
-    // Return an empty iterator for unrecognised inputs (including null
-    // sentinel) rather than misinterpreting them as string handles.
+    // Only the lazy iterable wrapper is accepted; legacy raw string handles
+    // must not be reinterpreted as iterables. Return an empty iterator.
     let box = RuntimeStringIteratorBox(charRaws: [])
     return registerRuntimeObject(box)
 }
 
+func runtimeStringAsSequence(_ source: String) -> Int {
+    // Lazy: store only the string handle; characters are yielded on demand
+    registerRuntimeObject(RuntimeSequenceBox(steps: [.stringSource(source: source)]))
+}
+
 @_cdecl("kk_string_asSequence")
 public func kk_string_asSequence(_ strRaw: Int) -> Int {
-    // Lazy: store only the string handle; characters are yielded on demand
-    let seq = RuntimeSequenceBox(steps: [.stringSource(source: runtimeStringFromRawOrPanic(strRaw, caller: #function))])
-    return registerRuntimeObject(seq)
+    runtimeStringAsSequence(runtimeStringFromRawOrPanic(strRaw, caller: #function))
 }
 
 // MARK: - STDLIB-TEXT-FN-115: CharSequence.withIndex() — Iterable<IndexedValue<Char>>
@@ -910,10 +877,9 @@ public func kk_string_startsWith_flat(
     _ prefixByteCount: Int,
     _ prefixHash: Int
 ) -> Int {
-    kk_string_startsWith(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(prefixData, prefixLength, prefixByteCount, prefixHash)
-    )
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let prefix = runtimeStringFromFlatFields(data: prefixData, length: prefixLength, byteCount: prefixByteCount, hash: prefixHash)
+    return source.hasPrefix(prefix) ? 1 : 0
 }
 
 @_cdecl("kk_string_endsWith")
@@ -982,11 +948,29 @@ public func kk_string_contains_ignoreCase_flat(
     _ otherHash: Int,
     _ ignoreCaseRaw: Int
 ) -> Int {
-    kk_string_contains_ignoreCase(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash),
-        ignoreCaseRaw
-    )
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
+    if other.isEmpty {
+        return 1
+    }
+    if ignoreCaseRaw == 0 {
+        return source.contains(other) ? 1 : 0
+    }
+    let sourceScalars = Array(source.unicodeScalars)
+    let otherScalars = Array(other.unicodeScalars)
+    if otherScalars.count > sourceScalars.count {
+        return 0
+    }
+    for offset in 0 ... (sourceScalars.count - otherScalars.count) {
+        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
+        let matches = zip(slice, otherScalars).allSatisfy {
+            String($0).caseInsensitiveCompare(String($1)) == .orderedSame
+        }
+        if matches {
+            return 1
+        }
+    }
+    return 0
 }
 // MARK: - Bridge functions for case conversion (MIGRATION-TEXT-005)
 

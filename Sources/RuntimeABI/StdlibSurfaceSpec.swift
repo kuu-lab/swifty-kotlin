@@ -70,6 +70,7 @@ public enum StdlibSurfaceLoweringCategory: String, Equatable, Hashable, Sendable
     case setHOF
     case mapHOF
     case sequenceHOF
+    case futureUse
 }
 
 public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {

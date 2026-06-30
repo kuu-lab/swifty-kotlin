@@ -1346,6 +1346,10 @@ private func evaluateSequence(
             elements = source
             break
         }
+        if case let .valueSource(values) = step {
+            elements = values.map(\.legacyRawValue)
+            break
+        }
         if case let .stringSource(source) = step {
             // Materialize string characters at terminal evaluation only.
             // Use utf16 code units (not unicodeScalars) so that supplementary characters

@@ -8,6 +8,12 @@ private func runtimeStringHOFElementValue(_ raw: Int) -> RuntimeValue {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return RuntimeValue(raw: maybeUnbox(raw))
     }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return RuntimeValue(raw: maybeUnbox(raw))
+    }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return RuntimeValue(charScalar: charBox.value)
     }
@@ -42,7 +48,7 @@ private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
 
 @_cdecl("kk_string_iterator")
 public func kk_string_iterator(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { Int($0) }
     let box = RuntimeStringIteratorBox(charRaws: charRaws)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -256,38 +262,35 @@ public func kk_string_none_flat(
 
 // MARK: - STDLIB-316: String.chunked / String.windowed
 
-@_cdecl("kk_string_chunked")
-public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard size > 0 else {
-        return runtimeMakeStringListRaw([])
-    }
+func runtimeStringChunkValues(_ source: String, size: Int) -> [RuntimeValue] {
+    guard size > 0 else { return [] }
     let scalars = Array(source.unicodeScalars)
-    var chunks: [String] = []
+    var chunks: [RuntimeValue] = []
     var i = 0
     while i < scalars.count {
         let end = Swift.min(i + size, scalars.count)
-        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
+        chunks.append(runtimeStringHOFStringValue(runtimeStringFromScalars(scalars[i ..< end])))
         i = end
     }
-    return runtimeMakeStringListRaw(chunks)
+    return chunks
+}
+
+func runtimeStringChunkedList(_ source: String, size: Int) -> Int {
+    registerRuntimeObject(RuntimeListBox(values: runtimeStringChunkValues(source, size: size)))
+}
+
+func runtimeStringChunkedSequence(_ source: String, size: Int) -> Int {
+    registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: runtimeStringChunkValues(source, size: size))]))
+}
+
+@_cdecl("kk_string_chunked")
+public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
+    runtimeStringChunkedList(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size)
 }
 
 @_cdecl("kk_string_chunked_sequence")
 public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard size > 0 else {
-        return kk_list_asSequence(runtimeMakeStringListRaw([]))
-    }
-    let scalars = Array(source.unicodeScalars)
-    var chunks: [String] = []
-    var i = 0
-    while i < scalars.count {
-        let end = Swift.min(i + size, scalars.count)
-        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
-        i = end
-    }
-    return kk_list_asSequence(runtimeMakeStringListRaw(chunks))
+    runtimeStringChunkedSequence(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size)
 }
 
 @_cdecl("kk_string_chunked_sequence_transform")
@@ -302,7 +305,7 @@ public func kk_string_chunked_sequence_transform(
     let chunkSize = max(1, size)
     let scalars = Array(source.unicodeScalars)
     let estimatedChunks = scalars.isEmpty ? 0 : (scalars.count + chunkSize - 1) / chunkSize
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     results.reserveCapacity(estimatedChunks)
     var index = 0
     while index < scalars.count {
@@ -318,10 +321,10 @@ public func kk_string_chunked_sequence_transform(
         if thrown != 0 {
             return handleCollectionLambdaThrow(thrown, outThrown)
         }
-        results.append(maybeUnbox(transformed))
+        results.append(runtimeStringHOFElementValue(transformed))
         index = end
     }
-    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+    return registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: results)]))
 }
 
 @_cdecl("kk_string_windowed_default")
@@ -329,56 +332,59 @@ public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
     return kk_string_windowed(strRaw, size, 1)
 }
 
-@_cdecl("kk_string_windowed")
-public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard size > 0, step > 0 else {
-        return runtimeMakeStringListRaw([])
-    }
+func runtimeStringWindowedValues(_ source: String, size: Int, step: Int) -> [RuntimeValue] {
+    guard size > 0, step > 0 else { return [] }
     let scalars = Array(source.unicodeScalars)
-    var windows: [String] = []
+    var windows: [RuntimeValue] = []
     var i = 0
     while i + size <= scalars.count {
-        windows.append(runtimeStringFromScalars(scalars[i ..< i + size]))
+        windows.append(runtimeStringHOFStringValue(runtimeStringFromScalars(scalars[i ..< i + size])))
         i += step
     }
-    return runtimeMakeStringListRaw(windows)
+    return windows
 }
 
-@_cdecl("kk_string_windowed_partial")
-public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+func runtimeStringWindowedPartialValues(_ source: String, size: Int, step: Int, partialWindows: Int) -> [RuntimeValue] {
     let clampedSize = Swift.max(1, size)
     let clampedStep = Swift.max(1, step)
     let scalars = Array(source.unicodeScalars)
     let partial = partialWindows != 0
-    var windows: [String] = []
+    var windows: [RuntimeValue] = []
     var i = 0
     while i < scalars.count {
         let end = Swift.min(i + clampedSize, scalars.count)
         if !partial && end - i < clampedSize { break }
-        windows.append(runtimeStringFromScalars(scalars[i ..< end]))
+        windows.append(runtimeStringHOFStringValue(runtimeStringFromScalars(scalars[i ..< end])))
         i += clampedStep
     }
-    return runtimeMakeStringListRaw(windows)
+    return windows
+}
+
+func runtimeStringWindowedList(_ source: String, size: Int, step: Int) -> Int {
+    registerRuntimeObject(RuntimeListBox(values: runtimeStringWindowedValues(source, size: size, step: step)))
+}
+
+func runtimeStringWindowedPartialList(_ source: String, size: Int, step: Int, partialWindows: Int) -> Int {
+    registerRuntimeObject(RuntimeListBox(values: runtimeStringWindowedPartialValues(source, size: size, step: step, partialWindows: partialWindows)))
+}
+
+func runtimeStringWindowedSequencePartial(_ source: String, size: Int, step: Int, partialWindows: Int) -> Int {
+    registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: runtimeStringWindowedPartialValues(source, size: size, step: step, partialWindows: partialWindows))]))
+}
+
+@_cdecl("kk_string_windowed")
+public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
+    runtimeStringWindowedList(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size, step: step)
+}
+
+@_cdecl("kk_string_windowed_partial")
+public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+    runtimeStringWindowedPartialList(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size, step: step, partialWindows: partialWindows)
 }
 
 @_cdecl("kk_string_windowedSequence_partial")
 public func kk_string_windowedSequence_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
-    let scalars = Array(source.unicodeScalars)
-    let partial = partialWindows != 0
-    var windows: [Int] = []
-    var i = 0
-    while i < scalars.count {
-        let end = min(i + clampedSize, scalars.count)
-        if !partial && end - i < clampedSize { break }
-        windows.append(runtimeMakeStringRaw(runtimeStringFromScalars(scalars[i ..< end])))
-        i += clampedStep
-    }
-    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: windows)]))
+    runtimeStringWindowedSequencePartial(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size, step: step, partialWindows: partialWindows)
 }
 
 @_cdecl("kk_string_windowedSequence_transform")
@@ -397,7 +403,7 @@ public func kk_string_windowedSequence_transform(
     let clampedStep = max(1, step)
     let scalars = Array(source.unicodeScalars)
     let partial = partialWindows != 0
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     var i = 0
     while i < scalars.count {
         let end = min(i + clampedSize, scalars.count)
@@ -414,10 +420,10 @@ public func kk_string_windowedSequence_transform(
             outThrown?.pointee = thrown
             return 0
         }
-        results.append(maybeUnbox(transformed))
+        results.append(runtimeStringHOFElementValue(transformed))
         i += clampedStep
     }
-    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+    return registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: results)]))
 }
 
 // MARK: - STDLIB-318: String.commonPrefixWith / commonSuffixWith
@@ -661,7 +667,10 @@ public func kk_string_equalsIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreC
 
 @_cdecl("kk_string_equals")
 public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    kk_box_bool(kk_string_compareTo_member(strRaw, otherRaw) == 0 ? 1 : 0)
+    if otherRaw == runtimeNullSentinelInt {
+        return kk_box_bool(0)
+    }
+    return kk_box_bool(kk_string_compareTo_member(strRaw, otherRaw) == 0 ? 1 : 0)
 }
 
 @_cdecl("kk_string_equals_flat")
@@ -675,10 +684,9 @@ public func kk_string_equals_flat(
     _ otherByteCount: Int,
     _ otherHash: Int
 ) -> Int {
-    kk_string_equals(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash)
-    )
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
+    return source == other ? 1 : 0
 }
 
 // MARK: - STDLIB-HOF-023: Advanced String Higher-Order Functions
@@ -1430,7 +1438,14 @@ public func kk_string_joinToString(
     let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
     let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
 
-    let strings = list.elements.compactMap { extractString(from: UnsafeMutableRawPointer(bitPattern: $0)) }
+    let strings = list.values.compactMap { value -> String? in
+        switch value.tag {
+        case RuntimeValue.stringTag, RuntimeValue.charTag:
+            return runtimeElementToString(value)
+        default:
+            return extractString(from: UnsafeMutableRawPointer(bitPattern: value.legacyRawValue))
+        }
+    }
     let result = prefix + strings.joined(separator: separator) + postfix
     return runtimeMakeStringRaw(result)
 }
