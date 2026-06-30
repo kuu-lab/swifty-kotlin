@@ -5,7 +5,7 @@ symbol fq=__local_0.obj kind=local vis=private flags=_ type=__ObjectLiteral_13_4
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@5:17 int(42) type=Int
 expr e@6:25 string(hello) type=String

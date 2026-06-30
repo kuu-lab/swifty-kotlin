@@ -2,7 +2,7 @@ symbol fq=__ObjectLiteral_13_74_110 kind=class vis=private flags=synthetic
 symbol fq=__ObjectLiteral_13_74_110.value kind=property vis=public flags=synthetic type=Int
 symbol fq=__local_0.local kind=local vis=private flags=_ type=__ObjectLiteral_13_74_110
 symbol fq=golden.sema.useAnonymousObjectLocal kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.useAnonymousObjectLocal fun useAnonymousObjectLocal sym=golden.sema.useAnonymousObjectLocal
 expr e@5:21 int(7) type=Int
 expr e@4:17#2 objectLiteral supers=[] type=__ObjectLiteral_13_74_110

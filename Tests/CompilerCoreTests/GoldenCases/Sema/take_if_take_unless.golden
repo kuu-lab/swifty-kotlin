@@ -8,7 +8,7 @@ symbol fq=golden.sema.useTakeUnless kind=function vis=public flags=_ sig=recv=_ 
 symbol fq=golden.sema.useTakeUnlessFalse kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int?
 symbol fq=kotlin.text.isEmpty kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Boolean
 symbol fq=kotlin.text.isNotEmpty#0 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Boolean
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.useTakeIf fun useTakeIf sym=golden.sema.useTakeIf
   decl golden.sema.useTakeUnless fun useTakeUnless sym=golden.sema.useTakeUnless
   decl golden.sema.useTakeIfFalse fun useTakeIfFalse sym=golden.sema.useTakeIfFalse

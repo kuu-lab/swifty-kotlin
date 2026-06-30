@@ -6,7 +6,7 @@ symbol fq=kotlin.comparisons.maxOf#23 kind=function vis=public flags=inlineFunct
 symbol fq=kotlin.comparisons.maxOf.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.pickLargerString fun pickLargerString sym=golden.sema.pickLargerString
 expr e@4:60 name(a) type=String ref=golden.sema.pickLargerString.$0.a
 expr e@4:63 name(b) type=String ref=golden.sema.pickLargerString.$0.b

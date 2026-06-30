@@ -16,7 +16,7 @@ symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=
 symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[kotlin.collections.MutableList.E] ret=Boolean
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.printEachLine fun printEachLine sym=golden.sema.printEachLine
   decl golden.sema.collectLinesFromReader fun collectLinesFromReader sym=golden.sema.collectLinesFromReader
 expr e@6:21 name(path) type=String ref=golden.sema.printEachLine.$1.path
