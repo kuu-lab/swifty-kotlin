@@ -1023,7 +1023,7 @@ extension DataFlowSemaPhase {
 
             if !isSameModuleInternalNarrowing {
                 let name = ctx.interner.resolve(memberName)
-                let ownerName = ctx.interner.resolve(parentSymbol.name)
+                let ownerName = resolveOwnerName(of: parentSymbol, ctx: ctx)
 
                 if !sameModule,
                    childVisibility == .internal,
@@ -1106,12 +1106,21 @@ extension DataFlowSemaPhase {
 
         if childVisibility == .internal,
            parentVisibility == .public || parentVisibility == .protected {
+            let ownerName = resolveOwnerName(of: parentSymbol, ctx: ctx)
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-VISIBILITY-MODULE",
-                "'\(name)' cannot override '\(ctx.interner.resolve(parentSymbol.name)).\(name)' with internal visibility because the overridden member is declared in another module.",
+                "'\(name)' cannot override '\(ownerName).\(name)' with internal visibility because the overridden member is declared in another module.",
                 range: memberRange
             )
         }
+    }
+
+    private func resolveOwnerName(of member: SemanticSymbol, ctx: OpenFinalOverrideContext) -> String {
+        if let ownerID = ctx.symbols.parentSymbol(for: member.id),
+           let owner = ctx.symbols.symbol(ownerID) {
+            return ctx.interner.resolve(owner.name)
+        }
+        return ctx.interner.resolve(member.name)
     }
 
     private func resolveModuleFQN(
@@ -1122,6 +1131,11 @@ extension DataFlowSemaPhase {
         while let id = current {
             if let module = ctx.symbols.moduleFQN(for: id) {
                 return module
+            }
+            // sourceFileID がある = コンパイル対象ソースのシンボル。
+            // assignCompilationModuleFQNames が設定を漏らした場合のフォールバック。
+            if ctx.symbols.sourceFileID(for: id) != nil {
+                return ctx.compilationModuleFQN
             }
             current = ctx.symbols.parentSymbol(for: id)
         }

@@ -274,9 +274,20 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_cpointer_toKStringFromUtf32", parameters: [
             p("handle", .intptr),
         ]),
+        abiParitySpec("kk_cpointer_toKStringFromUtf16", parameters: [
+            p("handle", .intptr),
+        ]),
         abiParitySpec("kk_byteArray_toCValues", parameters: [
             p("arrayRaw", .intptr),
         ],
+            isThrowing: false),
+        abiParitySpec("kk_cinterop_writeBits", parameters: [
+            p("ptr", .intptr),
+            p("offset", .intptr),
+            p("size", .intptr),
+            p("value", .intptr),
+        ],
+            returnType: .void,
             isThrowing: false),
         abiParitySpec("kk_files_copy", parameters: [
             p("filesRaw", .intptr),
