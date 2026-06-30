@@ -15,14 +15,14 @@ symbol fq=kotlin.reflect.KParameter.kind kind=property vis=public flags=syntheti
 symbol fq=kotlin.reflect.KParameter.name kind=property vis=public flags=synthetic type=String?
 symbol fq=kotlin.reflect.KParameter.type kind=property vis=public flags=synthetic type=kotlin.reflect.KType
 symbol fq=kotlin.reflect.KType kind=interface vis=public flags=synthetic
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.inspectIndex fun inspectIndex sym=golden.sema.inspectIndex
   decl golden.sema.inspectName fun inspectName sym=golden.sema.inspectName
   decl golden.sema.inspectType fun inspectType sym=golden.sema.inspectType
   decl golden.sema.inspectOptional fun inspectOptional sym=golden.sema.inspectOptional
   decl golden.sema.inspectKind fun inspectKind sym=golden.sema.inspectKind
-expr e@6:40#0 name(p) type=kotlin.reflect.KParameter ref=golden.sema.inspectIndex.$0.p
-expr e@6:40#1 memberCall recv=e@6:40#0 callee=index args=[] type=Int ref=kotlin.reflect.KParameter.index
+expr e@6:40#1 name(p) type=kotlin.reflect.KParameter ref=golden.sema.inspectIndex.$0.p
+expr e@6:40#2 memberCall recv=e@6:40#1 callee=index args=[] type=Int ref=kotlin.reflect.KParameter.index
 expr e@8:43#0 name(p) type=kotlin.reflect.KParameter ref=golden.sema.inspectName.$2.p
 expr e@8:43#1 memberCall recv=e@8:43#0 callee=name args=[] type=String? ref=kotlin.reflect.KParameter.name
 expr e@10:41#0 name(p) type=kotlin.reflect.KParameter ref=golden.sema.inspectType.$4.p

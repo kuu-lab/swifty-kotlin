@@ -10,7 +10,7 @@ symbol fq=kotlin.collections.MutableSet.remove kind=function vis=public flags=sy
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@2:24 string(a) type=String
 expr e@2:29 string(b) type=String
@@ -26,5 +26,5 @@ expr e@4:5#3 memberCall recv=e@4:5#2 callee=add args=[_:e@4:12] type=Boolean cal
 expr e@5:5#2 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
 expr e@5:15 string(a) type=String
 expr e@5:5#3 memberCall recv=e@5:5#2 callee=remove args=[_:e@5:15] type=Boolean call=kotlin.collections.MutableSet.remove
-expr e@6:13#1 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
-expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1
+expr e@6:13#3 name(hs) type=kotlin.collections.MutableSet<String> ref=__local_1.hs
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#3] type=Unit call=kotlin.io.println#1

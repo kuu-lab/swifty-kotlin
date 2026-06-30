@@ -106,7 +106,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 281)
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 283)
     }
 
     func testRegexFunctionCount() {

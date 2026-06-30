@@ -15,7 +15,7 @@ symbol fq=kotlin.text.directionality kind=function vis=public flags=synthetic si
 symbol fq=kotlin.text.isSurrogate kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
 symbol fq=kotlin.text.isTitleCase kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
 symbol fq=kotlin.text.isUnicodeIdentifierPart kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
-file f13 package=_
+file f15 package=_
   decl charCategory fun charCategory sym=charCategory
   decl charDirectionality fun charDirectionality sym=charDirectionality
   decl charIsSurrogate fun charIsSurrogate sym=charIsSurrogate

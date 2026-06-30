@@ -7,12 +7,12 @@ symbol fq=__local_5.grouped kind=local vis=private flags=_ type=kotlin.collectio
 symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
+symbol fq=kotlin.length.$get kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=kotlin.text.first kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Char
-symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=kotlin.text.uppercase#2 kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 symbol fq=transform kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=transform.$0.values kind=valueParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl transform fun transform sym=transform
 expr e@2:19#0 name(values) type=kotlin.collections.List<String> ref=transform.$0.values
 expr e@2:56#1 name(index) type=Int ref=s-0
@@ -32,7 +32,7 @@ expr e@3:5 localDecl flat mutable=0 type=_ init=e@3:16#1 type=Unit ref=__local_1
 expr e@4:17#2 name(values) type=kotlin.collections.List<String> ref=transform.$0.values
 expr e@4:36#2 name(it) type=String ref=s-3
 expr e@4:42#2 name(it) type=String ref=s-3
-expr e@4:42#3 memberCall recv=e@4:42#2 callee=length args=[] type=Int call=kotlin.text.length
+expr e@4:42#3 memberCall recv=e@4:42#2 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@4:36#3 memberCall recv=e@4:36#2 callee=to args=[_:e@4:42#3] type=kotlin.Pair<String, Int>
 expr e@4:34 lambda params=[] body=e@4:36#3 label=associate type=(String) -> Any
 expr e@4:17#3 memberCall recv=e@4:17#2 callee=associate args=[_:e@4:34] type=kotlin.collections.Map<String, Int>
@@ -45,19 +45,19 @@ expr e@5:17#1 memberCall recv=e@5:17#0 callee=associateBy args=[_:e@5:36] type=k
 expr e@5:5#2 localDecl byKey mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_3.byKey
 expr e@6:19#0 name(values) type=kotlin.collections.List<String> ref=transform.$0.values
 expr e@6:42#2 name(it) type=String ref=s-5
-expr e@6:42#3 memberCall recv=e@6:42#2 callee=length args=[] type=Int call=kotlin.text.length
-expr e@6:40 lambda params=[] body=e@6:42#3 label=associateWith type=(String) -> Any
-expr e@6:19#1 memberCall recv=e@6:19#0 callee=associateWith args=[_:e@6:40] type=kotlin.collections.Map<String, Int>
+expr e@6:42#3 memberCall recv=e@6:42#2 callee=length args=[] type=Int call=kotlin.length.$get
+expr e@6:40#1 lambda params=[] body=e@6:42#3 label=associateWith type=(String) -> Any
+expr e@6:19#1 memberCall recv=e@6:19#0 callee=associateWith args=[_:e@6:40#1] type=kotlin.collections.Map<String, Int>
 expr e@6:5#3 localDecl withVal mutable=0 type=_ init=e@6:19#1 type=Unit ref=__local_4.withVal
 expr e@7:19#0 name(values) type=kotlin.collections.List<String> ref=transform.$0.values
 expr e@7:36#2 name(it) type=String ref=s-6
-expr e@7:36#3 memberCall recv=e@7:36#2 callee=length args=[] type=Int call=kotlin.text.length
+expr e@7:36#3 memberCall recv=e@7:36#2 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@7:34 lambda params=[] body=e@7:36#3 label=groupBy type=(String) -> Any
 expr e@7:19#1 memberCall recv=e@7:19#0 callee=groupBy args=[_:e@7:34] type=kotlin.collections.Map<Int, kotlin.collections.List<String>>
 expr e@7:5#3 localDecl grouped mutable=0 type=_ init=e@7:19#1 type=Unit ref=__local_5.grouped
 expr e@8:28#0 name(values) type=kotlin.collections.List<String> ref=transform.$0.values
 expr e@8:47#3 name(it) type=String ref=s-7
-expr e@8:47#4 memberCall recv=e@8:47#3 callee=length args=[] type=Int call=kotlin.text.length
+expr e@8:47#4 memberCall recv=e@8:47#3 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@8:59#1 int(3) type=Int
 expr e@8:47#5 binary(greaterThan) lhs=e@8:47#4 rhs=e@8:59#1 type=Boolean
 expr e@8:45#2 lambda params=[] body=e@8:47#5 label=partition type=(String) -> Boolean

@@ -10,7 +10,7 @@ symbol fq=kotlin.text.lastIndexOf#1 kind=function vis=public flags=synthetic sig
 symbol fq=kotlin.text.lastIndexOf.ignoreCase kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.lastIndexOf.startIndex kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.lastIndexOf.string kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.useIndexOfIgnoreCase fun useIndexOfIgnoreCase sym=golden.sema.useIndexOfIgnoreCase
   decl golden.sema.useLastIndexOfIgnoreCase fun useLastIndexOfIgnoreCase sym=golden.sema.useLastIndexOfIgnoreCase
   decl golden.sema.useIndexOfIgnoreCaseFalse fun useIndexOfIgnoreCaseFalse sym=golden.sema.useIndexOfIgnoreCaseFalse

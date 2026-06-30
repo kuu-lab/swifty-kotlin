@@ -6,7 +6,7 @@ symbol fq=kotlin.text.toList#0 kind=function vis=public flags=synthetic sig=recv
 symbol fq=kotlin.text.toList#1 kind=function vis=public flags=synthetic sig=recv=kotlin.CharSequence params=[] ret=kotlin.collections.List<out Char>
 symbol fq=stringToList kind=function vis=public flags=_ sig=recv=_ params=[String] ret=kotlin.collections.List<Char>
 symbol fq=stringToList.$1.s kind=valueParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl stringToList fun stringToList sym=stringToList
   decl charSequenceToList fun charSequenceToList sym=charSequenceToList
 expr e@4:43#0 name(s) type=String ref=stringToList.$1.s

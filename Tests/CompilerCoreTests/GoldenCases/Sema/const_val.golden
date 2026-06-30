@@ -6,7 +6,7 @@ symbol fq=golden.sema.NEG kind=property vis=public flags=constValue type=Int
 symbol fq=golden.sema.RATE kind=property vis=public flags=constValue type=Double
 symbol fq=golden.sema.useConst kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol fq=golden.sema.useNegConst kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.MAX property MAX var=0 sym=golden.sema.MAX
   decl golden.sema.NAME property NAME var=0 sym=golden.sema.NAME
   decl golden.sema.FLAG property FLAG var=0 sym=golden.sema.FLAG

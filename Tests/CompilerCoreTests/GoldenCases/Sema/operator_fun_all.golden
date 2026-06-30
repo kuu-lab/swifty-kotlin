@@ -21,7 +21,7 @@ symbol fq=golden.sema.Vec.unaryMinus kind=function vis=public flags=operatorFunc
 symbol fq=golden.sema.Vec.x kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.Vec.y kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.useOperators kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.Vec class Vec sym=golden.sema.Vec
   decl golden.sema.useOperators fun useOperators sym=golden.sema.useOperators
 expr e@4:18 name(x0) type=<error>
@@ -64,27 +64,27 @@ expr e@11:64 name(y) type=Int ref=golden.sema.Vec.y
 expr e@11:41 if cond=e@11:45#1 then=e@11:57 else=e@11:64 type=Int
 expr e@15:17#1 int(1) type=Int
 expr e@15:20#1 int(2) type=Int
-expr e@15:13#3 call callee=e@15:13#2 args=[_:e@15:17#1,_:e@15:20#1] type=golden.sema.Vec call=golden.sema.Vec.<init>
-expr e@15:5#6 localDecl a mutable=0 type=_ init=e@15:13#3 type=Unit ref=__local_0.a
+expr e@15:13#2 call callee=e@15:13#1 args=[_:e@15:17#1,_:e@15:20#1] type=golden.sema.Vec call=golden.sema.Vec.<init>
+expr e@15:5#6 localDecl a mutable=0 type=_ init=e@15:13#2 type=Unit ref=__local_0.a
 expr e@16:17 int(3) type=Int
 expr e@16:20 int(4) type=Int
 expr e@16:13#2 call callee=e@16:13#1 args=[_:e@16:17,_:e@16:20] type=golden.sema.Vec call=golden.sema.Vec.<init>
 expr e@16:5#6 localDecl b mutable=0 type=_ init=e@16:13#2 type=Unit ref=__local_1.b
-expr e@17:13#3 name(a) type=golden.sema.Vec ref=__local_0.a
+expr e@17:13#4 name(a) type=golden.sema.Vec ref=__local_0.a
 expr e@17:17 name(b) type=golden.sema.Vec ref=__local_1.b
-expr e@17:13#4 binary(add) lhs=e@17:13#3 rhs=e@17:17 type=golden.sema.Vec call=golden.sema.Vec.plus
-expr e@17:5#3 localDecl c mutable=0 type=_ init=e@17:13#4 type=Unit ref=__local_2.c
+expr e@17:13#5 binary(add) lhs=e@17:13#4 rhs=e@17:17 type=golden.sema.Vec call=golden.sema.Vec.plus
+expr e@17:5#4 localDecl c mutable=0 type=_ init=e@17:13#5 type=Unit ref=__local_2.c
 expr e@18:13#1 name(a) type=golden.sema.Vec ref=__local_0.a
 expr e@18:17#1 name(b) type=golden.sema.Vec ref=__local_1.b
 expr e@18:13#2 binary(subtract) lhs=e@18:13#1 rhs=e@18:17#1 type=golden.sema.Vec call=golden.sema.Vec.minus
-expr e@18:5#4 localDecl d mutable=0 type=_ init=e@18:13#2 type=Unit ref=__local_3.d
+expr e@18:5#5 localDecl d mutable=0 type=_ init=e@18:13#2 type=Unit ref=__local_3.d
 expr e@19:13#0 name(a) type=golden.sema.Vec ref=__local_0.a
 expr e@19:17 int(2) type=Int
 expr e@19:13#1 binary(multiply) lhs=e@19:13#0 rhs=e@19:17 type=golden.sema.Vec call=golden.sema.Vec.times
 expr e@19:5#6 localDecl e mutable=0 type=_ init=e@19:13#1 type=Unit ref=__local_4.e
-expr e@20:14 name(a) type=golden.sema.Vec ref=__local_0.a
-expr e@20:13#1 unary(unaryMinus) operand=e@20:14 type=golden.sema.Vec call=golden.sema.Vec.unaryMinus
-expr e@20:5#5 localDecl f mutable=0 type=_ init=e@20:13#1 type=Unit ref=__local_5.f
+expr e@20:14#1 name(a) type=golden.sema.Vec ref=__local_0.a
+expr e@20:13#1 unary(unaryMinus) operand=e@20:14#1 type=golden.sema.Vec call=golden.sema.Vec.unaryMinus
+expr e@20:5#4 localDecl f mutable=0 type=_ init=e@20:13#1 type=Unit ref=__local_5.f
 expr e@21:13#0 name(a) type=golden.sema.Vec ref=__local_0.a
 expr e@21:15 int(0) type=Int
 expr e@21:13#1 indexedAccess receiver=e@21:13#0 indices=[e@21:15] type=Int call=golden.sema.Vec.get

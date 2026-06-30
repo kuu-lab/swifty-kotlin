@@ -41,7 +41,7 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=processLinkedMap kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableMap<String, Int>] ret=Unit
 symbol fq=processLinkedMap.$0.map kind=valueParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl processLinkedMap fun processLinkedMap sym=processLinkedMap
   decl createLinkedMap fun createLinkedMap sym=createLinkedMap
   decl OrderedMapHolder class OrderedMapHolder sym=OrderedMapHolder
@@ -61,22 +61,22 @@ expr e@15:40#1 call callee=e@15:40#0 args=[] type=kotlin.collections.MutableMap<
 expr e@15:5#6 localDecl lhm mutable=0 type=MutableMap<String,Int> init=e@15:40#1 type=Unit ref=__local_0.lhm
 expr e@16:5#6 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@16:9 string(z) type=String
-expr e@16:16#2 int(26) type=Int
-expr e@16:5#8 indexedAssign receiver=e@16:5#6 indices=[e@16:9] value=e@16:16#2 type=Unit call=kotlin.collections.MutableMap.set targs=[String,Int]
-expr e@17:5#3 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
-expr e@17:9#6 string(a) type=String
+expr e@16:16#1 int(26) type=Int
+expr e@16:5#8 indexedAssign receiver=e@16:5#6 indices=[e@16:9] value=e@16:16#1 type=Unit call=kotlin.collections.MutableMap.set targs=[String,Int]
+expr e@17:5#4 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
+expr e@17:9#4 string(a) type=String
 expr e@17:16#1 int(1) type=Int
-expr e@17:5#5 indexedAssign receiver=e@17:5#3 indices=[e@17:9#6] value=e@17:16#1 type=Unit call=kotlin.collections.MutableMap.set targs=[String,Int]
-expr e@18:5#4 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
-expr e@18:9#4 string(m) type=String
-expr e@18:16#1 int(13) type=Int
-expr e@18:5#6 indexedAssign receiver=e@18:5#4 indices=[e@18:9#4] value=e@18:16#1 type=Unit call=kotlin.collections.MutableMap.set targs=[String,Int]
+expr e@17:5#6 indexedAssign receiver=e@17:5#4 indices=[e@17:9#4] value=e@17:16#1 type=Unit call=kotlin.collections.MutableMap.set targs=[String,Int]
+expr e@18:5#5 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
+expr e@18:9#2 string(m) type=String
+expr e@18:16#2 int(13) type=Int
+expr e@18:5#7 indexedAssign receiver=e@18:5#5 indices=[e@18:9#2] value=e@18:16#2 type=Unit call=kotlin.collections.MutableMap.set targs=[String,Int]
 expr e@19:13 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@19:5#7 call callee=e@19:5#6 args=[_:e@19:13] type=Unit call=kotlin.io.println#1
 expr e@20:13#1 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@20:13#2 memberCall recv=e@20:13#1 callee=keys args=[] type=kotlin.collections.Set<out String> call=kotlin.collections.Map.keys targs=[String,Int]
 expr e@20:13#3 memberCall recv=e@20:13#2 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.collections.Collection.toList
-expr e@20:5#6 call callee=e@20:5#5 args=[_:e@20:13#3] type=Unit call=kotlin.io.println#1
+expr e@20:5#5 call callee=e@20:5#4 args=[_:e@20:13#3] type=Unit call=kotlin.io.println#1
 expr e@21:13#0 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@21:13#1 memberCall recv=e@21:13#0 callee=values args=[] type=kotlin.collections.Collection<out Int> call=kotlin.collections.Map.values targs=[String,Int]
 expr e@21:13#2 memberCall recv=e@21:13#1 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.collections.Collection.toList
@@ -90,7 +90,7 @@ expr e@22:44#3 memberCall recv=e@22:44#2 callee=value args=[] type=Int call=kotl
 expr e@22:31#1 stringTemplate[expr(e@22:34#3),lit(=),expr(e@22:44#3)] type=String
 expr e@22:29 lambda params=[] body=e@22:31#1 label=map type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any
 expr e@22:13#4 memberCall recv=e@22:13#3 callee=map args=[_:e@22:29] type=kotlin.collections.List<String>
-expr e@22:5#5 call callee=e@22:5#4 args=[_:e@22:13#4] type=Unit call=kotlin.io.println#1
+expr e@22:5#6 call callee=e@22:5#5 args=[_:e@22:13#4] type=Unit call=kotlin.io.println#1
 expr e@23:5#4 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@23:9#2 string(z) type=String
 expr e@23:16 int(99) type=Int
@@ -113,11 +113,11 @@ expr e@28:13#1 memberCall recv=e@28:13#0 callee=containsValue args=[_:e@28:31#1]
 expr e@28:5#4 call callee=e@28:5#3 args=[_:e@28:13#1] type=Unit call=kotlin.io.println#1
 expr e@30:47#0 name(LinkedHashMap) type=Any ref=kotlin.collections.LinkedHashMap
 expr e@30:47#1 call callee=e@30:47#0 args=[] type=kotlin.collections.MutableMap<String, String>
-expr e@30:5#7 localDecl lhm2 mutable=0 type=LinkedHashMap<String,String> init=e@30:47#1 type=Unit ref=__local_1.lhm2
-expr e@31:5#6 name(lhm2) type=kotlin.collections.MutableMap<String, String> ref=__local_1.lhm2
+expr e@30:5#6 localDecl lhm2 mutable=0 type=LinkedHashMap<String,String> init=e@30:47#1 type=Unit ref=__local_1.lhm2
+expr e@31:5#5 name(lhm2) type=kotlin.collections.MutableMap<String, String> ref=__local_1.lhm2
 expr e@31:10 string(key1) type=String
 expr e@31:20#1 string(value1) type=String
-expr e@31:5#8 indexedAssign receiver=e@31:5#6 indices=[e@31:10] value=e@31:20#1 type=Unit call=kotlin.collections.MutableMap.set targs=[String,String]
+expr e@31:5#7 indexedAssign receiver=e@31:5#5 indices=[e@31:10] value=e@31:20#1 type=Unit call=kotlin.collections.MutableMap.set targs=[String,String]
 expr e@32:5#6 name(lhm2) type=kotlin.collections.MutableMap<String, String> ref=__local_1.lhm2
 expr e@32:10 string(key2) type=String
 expr e@32:20 string(value2) type=String
@@ -127,18 +127,18 @@ expr e@33:5#6 call callee=e@33:5#5 args=[_:e@33:13] type=Unit call=kotlin.io.pri
 expr e@36:44#0 name(LinkedHashMap) type=Any ref=kotlin.collections.LinkedHashMap
 expr e@36:44#1 call callee=e@36:44#0 args=[] type=kotlin.collections.MutableMap<Int, String>
 expr e@36:5#7 localDecl mutable mutable=0 type=MutableMap<Int,String> init=e@36:44#1 type=Unit ref=__local_2.mutable
-expr e@37:5#6 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
+expr e@37:5#5 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@37:13#3 int(1) type=Int
 expr e@37:18#1 string(one) type=String
-expr e@37:5#8 indexedAssign receiver=e@37:5#6 indices=[e@37:13#3] value=e@37:18#1 type=Unit call=kotlin.collections.MutableMap.set targs=[Int,String]
+expr e@37:5#7 indexedAssign receiver=e@37:5#5 indices=[e@37:13#3] value=e@37:18#1 type=Unit call=kotlin.collections.MutableMap.set targs=[Int,String]
 expr e@38:5#3 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@38:13#2 int(2) type=Int
 expr e@38:18 string(two) type=String
 expr e@38:5#5 indexedAssign receiver=e@38:5#3 indices=[e@38:13#2] value=e@38:18 type=Unit call=kotlin.collections.MutableMap.set targs=[Int,String]
-expr e@39:5#3 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
+expr e@39:5#4 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@39:13#1 int(3) type=Int
 expr e@39:18 string(three) type=String
-expr e@39:5#5 indexedAssign receiver=e@39:5#3 indices=[e@39:13#1] value=e@39:18 type=Unit call=kotlin.collections.MutableMap.set targs=[Int,String]
+expr e@39:5#6 indexedAssign receiver=e@39:5#4 indices=[e@39:13#1] value=e@39:18 type=Unit call=kotlin.collections.MutableMap.set targs=[Int,String]
 expr e@40:13 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@40:5#6 call callee=e@40:5#5 args=[_:e@40:13] type=Unit call=kotlin.io.println#1
 expr e@43:5#1 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
@@ -158,23 +158,23 @@ expr e@45:5#4 call callee=e@45:5#3 args=[_:e@45:13#2] type=Unit call=kotlin.io.p
 expr e@48:13#3 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@48:21 int(1) type=Int
 expr e@48:13#4 indexedAccess receiver=e@48:13#3 indices=[e@48:21] type=String? call=kotlin.collections.Map.get targs=[Int,String]
-expr e@48:5#4 call callee=e@48:5#3 args=[_:e@48:13#4] type=Unit call=kotlin.io.println#1
-expr e@49:13#7 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
+expr e@48:5#3 call callee=e@48:5#2 args=[_:e@48:13#4] type=Unit call=kotlin.io.println#1
+expr e@49:13#6 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@49:21#1 int(99) type=Int
-expr e@49:13#8 indexedAccess receiver=e@49:13#7 indices=[e@49:21#1] type=String? call=kotlin.collections.Map.get targs=[Int,String]
-expr e@49:5#3 call callee=e@49:5#2 args=[_:e@49:13#8] type=Unit call=kotlin.io.println#1
+expr e@49:13#7 indexedAccess receiver=e@49:13#6 indices=[e@49:21#1] type=String? call=kotlin.collections.Map.get targs=[Int,String]
+expr e@49:5#3 call callee=e@49:5#2 args=[_:e@49:13#7] type=Unit call=kotlin.io.println#1
 expr e@52:13#1 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@52:13#2 memberCall recv=e@52:13#1 callee=keys args=[] type=kotlin.collections.Set<out Int> call=kotlin.collections.Map.keys targs=[Int,String]
-expr e@52:5#4 call callee=e@52:5#3 args=[_:e@52:13#2] type=Unit call=kotlin.io.println#1
+expr e@52:5#5 call callee=e@52:5#4 args=[_:e@52:13#2] type=Unit call=kotlin.io.println#1
 expr e@53:13#1 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@53:13#2 memberCall recv=e@53:13#1 callee=values args=[] type=kotlin.collections.Collection<out String> call=kotlin.collections.Map.values targs=[Int,String]
 expr e@53:5#5 call callee=e@53:5#4 args=[_:e@53:13#2] type=Unit call=kotlin.io.println#1
 expr e@54:13#0 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=__local_2.mutable
 expr e@54:13#1 memberCall recv=e@54:13#0 callee=entries args=[] type=kotlin.collections.Set<out kotlin.collections.Map.Entry<out Int, out String>> call=kotlin.collections.Map.entries targs=[Int,String]
-expr e@54:5#5 call callee=e@54:5#4 args=[_:e@54:13#1] type=Unit call=kotlin.io.println#1
+expr e@54:5#4 call callee=e@54:5#3 args=[_:e@54:13#1] type=Unit call=kotlin.io.println#1
 expr e@56:51#0 name(LinkedHashMap) type=Any ref=kotlin.collections.LinkedHashMap
 expr e@56:51#1 call callee=e@56:51#0 args=[] type=kotlin.collections.MutableMap<Double, Boolean>
-expr e@56:5#2 localDecl generic mutable=0 type=LinkedHashMap<Double,Boolean> init=e@56:51#1 type=Unit ref=__local_3.generic
+expr e@56:5#3 localDecl generic mutable=0 type=LinkedHashMap<Double,Boolean> init=e@56:51#1 type=Unit ref=__local_3.generic
 expr e@57:5#6 name(generic) type=kotlin.collections.MutableMap<Double, Boolean> ref=__local_3.generic
 expr e@57:13#2 double(1.5) type=Double
 expr e@57:20 bool(true) type=Boolean
@@ -200,18 +200,18 @@ expr e@68:24 name(value) type=String ref=__for_destructuring_0.value
 expr e@68:17 stringTemplate[expr(e@68:19),lit(=),expr(e@68:24)] type=String
 expr e@68:9#2 call callee=e@68:9#1 args=[_:e@68:17] type=Unit call=kotlin.io.println#1
 expr e@67:35 blockExpr stmts=[] trailing=e@68:9#2 type=Unit
-expr e@67:5#6 forDestructuring names=[key,value] iterable=e@67:26#2 body=e@67:35 type=Unit
+expr e@67:5#5 forDestructuring names=[key,value] iterable=e@67:26#2 body=e@67:35 type=Unit
 expr e@71:22 name(lhm2) type=kotlin.collections.MutableMap<String, String> ref=__local_1.lhm2
-expr e@71:5#3 call callee=e@71:5#2 args=[_:e@71:22] type=<error>
+expr e@71:5#4 call callee=e@71:5#3 args=[_:e@71:22] type=<error>
 expr e@73:19#1 call callee=e@73:19#0 args=[] type=kotlin.collections.MutableMap<Int, String> call=createLinkedMap
-expr e@73:5#5 localDecl created mutable=0 type=_ init=e@73:19#1 type=Unit ref=__local_5.created
+expr e@73:5#4 localDecl created mutable=0 type=_ init=e@73:19#1 type=Unit ref=__local_5.created
 expr e@74:5#2 name(created) type=kotlin.collections.MutableMap<Int, String> ref=__local_5.created
 expr e@74:13 int(1) type=Int
 expr e@74:18 string(one) type=String
 expr e@74:5#4 indexedAssign receiver=e@74:5#2 indices=[e@74:13] value=e@74:18 type=Unit call=kotlin.collections.MutableMap.set targs=[Int,String]
 expr e@75:13#3 name(created) type=kotlin.collections.MutableMap<Int, String> ref=__local_5.created
 expr e@75:13#4 memberCall recv=e@75:13#3 callee=size args=[] type=Int
-expr e@75:5#1 call callee=e@75:5#0 args=[_:e@75:13#4] type=Unit call=kotlin.io.println#1
+expr e@75:5#2 call callee=e@75:5#1 args=[_:e@75:13#4] type=Unit call=kotlin.io.println#1
 expr e@77:18#3 call callee=e@77:18#2 args=[] type=OrderedMapHolder call=OrderedMapHolder.<init>
 expr e@77:5#4 localDecl holder mutable=0 type=_ init=e@77:18#3 type=Unit ref=__local_6.holder
 expr e@78:5#3 name(holder) type=OrderedMapHolder ref=__local_6.holder

@@ -11,7 +11,7 @@ symbol fq=golden.sema.intersect.$1.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.safeValue kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.safeValue.$2.T & Any] ret=Int? bounds=[Any?]
 symbol fq=golden.sema.safeValue.$2.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.safeValue.$2.x kind=valueParameter vis=private flags=_
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.A interface A sym=golden.sema.A
   decl golden.sema.B interface B sym=golden.sema.B
   decl golden.sema.intersect fun intersect sym=golden.sema.intersect
@@ -29,12 +29,12 @@ expr e@13:24#0 name(x) type=golden.sema.A & golden.sema.B ref=golden.sema.inters
 expr e@13:24#1 memberCall recv=e@13:24#0 callee=b args=[] type=Int call=golden.sema.B.b
 expr e@13:24#2 memberCall recv=e@13:24#1 callee=toString args=[] type=String
 expr e@13:16#2 binary(add) lhs=e@13:16#1 rhs=e@13:24#2 type=String
-expr e@13:9#4 return value=e@13:16#2 type=Nothing
-expr e@12:27 blockExpr stmts=[] trailing=e@13:9#4 type=Nothing
+expr e@13:9#2 return value=e@13:16#2 type=Nothing
+expr e@12:27 blockExpr stmts=[] trailing=e@13:9#2 type=Nothing
 expr e@12:5#4 if cond=e@12:9#3 then=e@12:27 else=_ type=Unit
 expr e@15:12#3 string(unknown) type=String
 expr e@15:5#6 return value=e@15:12#3 type=Nothing
-expr e@18:24#1 int(7) type=Int
+expr e@18:24#2 int(7) type=Int
 expr e@20:47#0 name(x) type=golden.sema.directValue.$0.T & Any ref=golden.sema.directValue.$0.x
 expr e@20:47#1 memberCall recv=e@20:47#0 callee=idTag args=[] type=Int call=golden.sema.idTag
 expr e@21:46#0 name(x) type=golden.sema.safeValue.$2.T & Any ref=golden.sema.safeValue.$2.x

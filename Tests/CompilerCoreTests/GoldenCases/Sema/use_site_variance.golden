@@ -18,7 +18,7 @@ symbol fq=golden.sema.writeBlocked kind=function vis=public flags=_ sig=recv=_ p
 symbol fq=golden.sema.writeBlocked.$5.box kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.writeOnly kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Box<in Int>] ret=Unit
 symbol fq=golden.sema.writeOnly.$6.box kind=valueParameter vis=private flags=_
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.E class E sym=golden.sema.E
   decl golden.sema.Box class Box sym=golden.sema.Box
   decl golden.sema.readOnly fun readOnly sym=golden.sema.readOnly
@@ -31,12 +31,12 @@ expr e@6:26#1 call callee=e@6:26#0 args=[] type=golden.sema.E call=golden.sema.E
 expr e@6:20 throw value=e@6:26#1 type=Nothing
 expr e@10:40#0 name(box) type=golden.sema.Box<out Any> ref=golden.sema.readOnly.$1.box
 expr e@10:40#1 memberCall recv=e@10:40#0 callee=get args=[] type=Any call=golden.sema.Box.get targs=[Any]
-expr e@13:5#6 name(box) type=golden.sema.Box<out Any> ref=golden.sema.writeBlocked.$5.box
+expr e@13:5#5 name(box) type=golden.sema.Box<out Any> ref=golden.sema.writeBlocked.$5.box
 expr e@13:13#1 int(42) type=Int
-expr e@13:5#7 memberCall recv=e@13:5#6 callee=set args=[_:e@13:13#1] type=<error>
-expr e@17:5#3 name(box) type=golden.sema.Box<in Int> ref=golden.sema.writeOnly.$6.box
-expr e@17:13#3 int(42) type=Int
-expr e@17:5#4 memberCall recv=e@17:5#3 callee=set args=[_:e@17:13#3] type=Unit call=golden.sema.Box.set targs=[Any?]
+expr e@13:5#6 memberCall recv=e@13:5#5 callee=set args=[_:e@13:13#1] type=<error>
+expr e@17:5#4 name(box) type=golden.sema.Box<in Int> ref=golden.sema.writeOnly.$6.box
+expr e@17:13#4 int(42) type=Int
+expr e@17:5#5 memberCall recv=e@17:5#4 callee=set args=[_:e@17:13#4] type=Unit call=golden.sema.Box.set targs=[Any?]
 expr e@20:35#0 name(box) type=golden.sema.Box<*> ref=golden.sema.starRead.$2.box
 expr e@20:35#1 memberCall recv=e@20:35#0 callee=get args=[] type=Any? call=golden.sema.Box.get targs=[Any?]
 expr e@23:13#2 name(box) type=golden.sema.Box<*> ref=golden.sema.starReadInferred.$3.box

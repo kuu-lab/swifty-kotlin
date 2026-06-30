@@ -8,7 +8,7 @@ symbol fq=golden.sema.classifyBool kind=function vis=public flags=_ sig=recv=_ p
 symbol fq=golden.sema.classifyBool.$1.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.classifyColor kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Color] ret=String
 symbol fq=golden.sema.classifyColor.$2.c kind=valueParameter vis=private flags=_
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.Color class Color sym=golden.sema.Color
   decl golden.sema.classify fun classify sym=golden.sema.classify
   decl golden.sema.classifyColor fun classifyColor sym=golden.sema.classifyColor
@@ -29,12 +29,12 @@ expr e@12:5#5 memberCall recv=e@12:5#4 callee=Red args=[] type=golden.sema.Color
 expr e@12:16#1 name(Color) type=golden.sema.Color ref=golden.sema.Color
 expr e@12:16#2 memberCall recv=e@12:16#1 callee=Green args=[] type=golden.sema.Color ref=golden.sema.Color.Green
 expr e@12:31 string(warm) type=String
-expr e@13:5#6 name(Color) type=golden.sema.Color ref=golden.sema.Color
-expr e@13:5#7 memberCall recv=e@13:5#6 callee=Blue args=[] type=golden.sema.Color ref=golden.sema.Color.Blue
+expr e@13:5#5 name(Color) type=golden.sema.Color ref=golden.sema.Color
+expr e@13:5#6 memberCall recv=e@13:5#5 callee=Blue args=[] type=golden.sema.Color ref=golden.sema.Color.Blue
 expr e@13:19 string(cold) type=String
-expr e@11:39 when subject=e@11:45 branches=[e@12:5#5,e@12:16#2->e@12:31,e@13:5#7->e@13:19] else=_ type=String
+expr e@11:39 when subject=e@11:45 branches=[e@12:5#5,e@12:16#2->e@12:31,e@13:5#6->e@13:19] else=_ type=String
 expr e@16:46 name(b) type=Boolean ref=golden.sema.classifyBool.$1.b
-expr e@17:5#3 bool(true) type=Boolean
+expr e@17:5#4 bool(true) type=Boolean
 expr e@17:11 bool(false) type=Boolean
 expr e@17:20#1 string(always) type=String
-expr e@16:40 when subject=e@16:46 branches=[e@17:5#3,e@17:11->e@17:20#1] else=_ type=String
+expr e@16:40 when subject=e@16:46 branches=[e@17:5#4,e@17:11->e@17:20#1] else=_ type=String

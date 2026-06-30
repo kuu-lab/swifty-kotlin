@@ -9,7 +9,7 @@ symbol fq=kotlin.collections.Map.Entry kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map.Entry.value kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.V
 symbol fq=kotlin.collections.Map.K kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl chained fun chained sym=chained
 expr e@2:18#0 name(values) type=kotlin.collections.List<Int> ref=chained.$0.values
 expr e@2:34#2 name(it) type=Int ref=s-0
@@ -36,8 +36,8 @@ expr e@2:18#4 memberCall recv=e@2:18#3 callee=associateWith args=[_:e@5:24] type
 expr e@2:5 localDecl result mutable=0 type=_ init=e@2:18#4 type=Unit ref=__local_0.result
 expr e@6:18#2 name(values) type=kotlin.collections.List<Int> ref=chained.$0.values
 expr e@6:35#2 name(it) type=Int ref=s-5
-expr e@6:40#1 int(3) type=Int
-expr e@6:35#3 binary(modulo) lhs=e@6:35#2 rhs=e@6:40#1 type=Int
+expr e@6:40#2 int(3) type=Int
+expr e@6:35#3 binary(modulo) lhs=e@6:35#2 rhs=e@6:40#2 type=Int
 expr e@6:33 lambda params=[] body=e@6:35#3 label=groupBy type=(Int) -> Any
 expr e@6:18#3 memberCall recv=e@6:18#2 callee=groupBy args=[_:e@6:33] type=kotlin.collections.Map<Int, kotlin.collections.List<Int>>
 expr e@6:56#3 name(it) type=kotlin.collections.Map.Entry<out Int, out kotlin.collections.List<Int>> ref=s-6

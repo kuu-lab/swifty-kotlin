@@ -15,7 +15,7 @@ symbol fq=__local_13.ls kind=local vis=private flags=_ type=Int
 symbol fq=__local_14.i kind=local vis=private flags=_ type=Int
 symbol fq=__local_15.id kind=local vis=private flags=_ type=Double
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@2:13 double(3.14) type=Double
 expr e@2:5 localDecl d mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.d
@@ -43,21 +43,21 @@ expr e@12:13#2 long(42) type=Long
 expr e@12:5#4 localDecl l mutable=0 type=_ init=e@12:13#2 type=Unit ref=__local_8.l
 expr e@13:14#2 name(l) type=Long ref=__local_8.l
 expr e@13:14#3 memberCall recv=e@13:14#2 callee=toFloat args=[] type=Float
-expr e@13:5#6 localDecl lf mutable=0 type=_ init=e@13:14#3 type=Unit ref=__local_9.lf
-expr e@14:14#2 name(l) type=Long ref=__local_8.l
-expr e@14:14#3 memberCall recv=e@14:14#2 callee=toDouble args=[] type=Double
-expr e@14:5#7 localDecl ld mutable=0 type=_ init=e@14:14#3 type=Unit ref=__local_10.ld
+expr e@13:5#5 localDecl lf mutable=0 type=_ init=e@13:14#3 type=Unit ref=__local_9.lf
+expr e@14:14#0 name(l) type=Long ref=__local_8.l
+expr e@14:14#1 memberCall recv=e@14:14#0 callee=toDouble args=[] type=Double
+expr e@14:5#6 localDecl ld mutable=0 type=_ init=e@14:14#1 type=Unit ref=__local_10.ld
 expr e@15:14#0 name(l) type=Long ref=__local_8.l
 expr e@15:14#1 memberCall recv=e@15:14#0 callee=toInt args=[] type=Int
 expr e@15:5#6 localDecl li mutable=0 type=_ init=e@15:14#1 type=Unit ref=__local_11.li
-expr e@16:14#0 name(l) type=Long ref=__local_8.l
-expr e@16:14#1 memberCall recv=e@16:14#0 callee=toByte args=[] type=Int
-expr e@16:5#6 localDecl lb mutable=0 type=_ init=e@16:14#1 type=Unit ref=__local_12.lb
+expr e@16:14#2 name(l) type=Long ref=__local_8.l
+expr e@16:14#3 memberCall recv=e@16:14#2 callee=toByte args=[] type=Int
+expr e@16:5#6 localDecl lb mutable=0 type=_ init=e@16:14#3 type=Unit ref=__local_12.lb
 expr e@17:14#0 name(l) type=Long ref=__local_8.l
 expr e@17:14#1 memberCall recv=e@17:14#0 callee=toShort args=[] type=Int
-expr e@17:5#3 localDecl ls mutable=0 type=_ init=e@17:14#1 type=Unit ref=__local_13.ls
+expr e@17:5#4 localDecl ls mutable=0 type=_ init=e@17:14#1 type=Unit ref=__local_13.ls
 expr e@19:13 int(100) type=Int
 expr e@19:5#6 localDecl i mutable=0 type=_ init=e@19:13 type=Unit ref=__local_14.i
-expr e@20:14#0 name(i) type=Int ref=__local_14.i
-expr e@20:14#1 memberCall recv=e@20:14#0 callee=toDouble args=[] type=Double
-expr e@20:5#5 localDecl id mutable=0 type=_ init=e@20:14#1 type=Unit ref=__local_15.id
+expr e@20:14#1 name(i) type=Int ref=__local_14.i
+expr e@20:14#2 memberCall recv=e@20:14#1 callee=toDouble args=[] type=Double
+expr e@20:5#4 localDecl id mutable=0 type=_ init=e@20:14#2 type=Unit ref=__local_15.id

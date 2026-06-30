@@ -5,18 +5,16 @@ symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kot
 symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.text.zip#0 kind=function vis=public flags=synthetic sig=recv=String params=[kotlin.CharSequence] ret=kotlin.collections.List<out kotlin.Pair<out Char, out Char>>
-symbol fq=kotlin.text.zip#1 kind=function vis=public flags=inlineFunction|synthetic sig=recv=String params=[kotlin.CharSequence,(Char, Char) -> kotlin.text.zip.R] ret=kotlin.collections.List<out kotlin.text.zip.R>
 symbol fq=kotlin.text.zip#2 kind=function vis=public flags=synthetic sig=recv=kotlin.CharSequence params=[kotlin.CharSequence] ret=kotlin.collections.List<out kotlin.Pair<out Char, out Char>>
 symbol fq=kotlin.text.zip.R kind=typeParameter vis=private flags=_
 symbol fq=kotlin.text.zip.other kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.zip.transform kind=valueParameter vis=private flags=synthetic
 symbol fq=stringZip kind=function vis=public flags=_ sig=recv=_ params=[String,kotlin.CharSequence] ret=kotlin.collections.List<kotlin.Pair<Char, Char>>
 symbol fq=stringZip.$1.other kind=valueParameter vis=private flags=_
 symbol fq=stringZip.$1.s kind=valueParameter vis=private flags=_
 symbol fq=stringZipTransform kind=function vis=public flags=_ sig=recv=_ params=[String,kotlin.CharSequence] ret=kotlin.collections.List<String>
 symbol fq=stringZipTransform.$2.other kind=valueParameter vis=private flags=_
 symbol fq=stringZipTransform.$2.s kind=valueParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl stringZip fun stringZip sym=stringZip
   decl charSequenceZip fun charSequenceZip sym=charSequenceZip
   decl stringZipTransform fun stringZipTransform sym=stringZipTransform
@@ -32,4 +30,4 @@ expr e@6:97#1 name(a) type=Char ref=s-0
 expr e@6:99#1 name(b) type=Char ref=s-1
 expr e@6:95#1 stringTemplate[expr(e@6:97#1),expr(e@6:99#1)] type=String
 expr e@6:85 lambda params=[a,b] body=e@6:95#1 label=zip type=(Char, Char) -> kotlin.text.zip.R
-expr e@6:72#1 memberCall recv=e@6:72#0 callee=zip args=[_:e@6:78,_:e@6:85] type=kotlin.collections.List<out String> call=kotlin.text.zip#1 targs=[String]
+expr e@6:72#1 memberCall recv=e@6:72#0 callee=zip args=[_:e@6:78,_:e@6:85] type=<error>

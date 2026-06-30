@@ -11,13 +11,13 @@ symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Map<kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[kotlin.collections.Map.K] ret=kotlin.collections.Map.V?
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.length.$get kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@3:26 string(a) type=String
 expr e@3:31 string(bb) type=String
@@ -27,7 +27,7 @@ expr e@3:15#1 call callee=e@3:15#0 args=[_:e@3:26,_:e@3:31,_:e@3:37,_:e@3:43] ty
 expr e@3:5 localDecl seq mutable=0 type=_ init=e@3:15#1 type=Unit ref=__local_0.seq
 expr e@4:19#0 name(seq) type=kotlin.sequences.Sequence<out String> ref=__local_0.seq
 expr e@4:33#2 name(it) type=String ref=s-0
-expr e@4:33#3 memberCall recv=e@4:33#2 callee=length args=[] type=Int call=kotlin.text.length
+expr e@4:33#3 memberCall recv=e@4:33#2 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@4:31 lambda params=[] body=e@4:33#3 label=groupBy type=(String) -> Any
 expr e@4:19#1 memberCall recv=e@4:19#0 callee=groupBy args=[_:e@4:31] type=kotlin.collections.Map<Int, kotlin.collections.List<String>>
 expr e@4:5#2 localDecl grouped mutable=0 type=_ init=e@4:19#1 type=Unit ref=__local_1.grouped
@@ -35,10 +35,10 @@ expr e@5:13#1 name(grouped) type=kotlin.collections.Map<Int, kotlin.collections.
 expr e@5:21 int(1) type=Int
 expr e@5:13#2 indexedAccess receiver=e@5:13#1 indices=[e@5:21] type=kotlin.collections.List<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.List<String>]
 expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:13#2] type=Unit call=kotlin.io.println#1
-expr e@6:13#1 name(grouped) type=kotlin.collections.Map<Int, kotlin.collections.List<String>> ref=__local_1.grouped
+expr e@6:13#3 name(grouped) type=kotlin.collections.Map<Int, kotlin.collections.List<String>> ref=__local_1.grouped
 expr e@6:21 int(2) type=Int
-expr e@6:13#2 indexedAccess receiver=e@6:13#1 indices=[e@6:21] type=kotlin.collections.List<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.List<String>]
-expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#2] type=Unit call=kotlin.io.println#1
+expr e@6:13#4 indexedAccess receiver=e@6:13#3 indices=[e@6:21] type=kotlin.collections.List<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.List<String>]
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#4] type=Unit call=kotlin.io.println#1
 expr e@7:13#0 name(grouped) type=kotlin.collections.Map<Int, kotlin.collections.List<String>> ref=__local_1.grouped
 expr e@7:21#1 int(3) type=Int
 expr e@7:13#1 indexedAccess receiver=e@7:13#0 indices=[e@7:21#1] type=kotlin.collections.List<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.List<String>]
@@ -70,4 +70,4 @@ expr e@12:5#5 call callee=e@12:5#4 args=[_:e@12:13#3] type=Unit call=kotlin.io.p
 expr e@13:13#1 name(byParity) type=kotlin.collections.Map<String, kotlin.collections.List<Any>> ref=__local_3.byParity
 expr e@13:22 string(even) type=String
 expr e@13:13#2 indexedAccess receiver=e@13:13#1 indices=[e@13:22] type=kotlin.collections.List<Any>? call=kotlin.collections.Map.get targs=[String,kotlin.collections.List<Any>]
-expr e@13:5#7 call callee=e@13:5#6 args=[_:e@13:13#2] type=Unit call=kotlin.io.println#1
+expr e@13:5#6 call callee=e@13:5#5 args=[_:e@13:13#2] type=Unit call=kotlin.io.println#1

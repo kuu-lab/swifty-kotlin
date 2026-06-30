@@ -21,7 +21,7 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.ubyteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UByte] ret=kotlin.UByteArray vararg=[1]
 symbol fq=kotlin.uintArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UInt] ret=kotlin.UIntArray vararg=[1]
 symbol fq=kotlin.ushortArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UShort] ret=kotlin.UShortArray vararg=[1]
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:31#0 int(1) type=Int
 expr e@4:31#1 memberCall recv=e@4:31#0 callee=toUByte args=[] type=UByte
@@ -62,10 +62,10 @@ expr e@12:21#0 name(ulongs) type=kotlin.ULongArray ref=__local_3.ulongs
 expr e@12:21#1 memberCall recv=e@12:21#0 callee=asList args=[] type=kotlin.collections.List<ULong> call=kotlin.ULongArray.asList
 expr e@12:5#4 localDecl ulongList mutable=0 type=_ init=e@12:21#1 type=Unit ref=__local_7.ulongList
 expr e@14:13#2 name(ubyteList) type=kotlin.collections.List<UByte> ref=__local_4.ubyteList
-expr e@14:5#8 call callee=e@14:5#7 args=[_:e@14:13#2] type=Unit call=kotlin.io.println#1
-expr e@15:13#2 name(ushortList) type=kotlin.collections.List<UShort> ref=__local_5.ushortList
-expr e@15:5#7 call callee=e@15:5#6 args=[_:e@15:13#2] type=Unit call=kotlin.io.println#1
+expr e@14:5#7 call callee=e@14:5#6 args=[_:e@14:13#2] type=Unit call=kotlin.io.println#1
+expr e@15:13#1 name(ushortList) type=kotlin.collections.List<UShort> ref=__local_5.ushortList
+expr e@15:5#7 call callee=e@15:5#6 args=[_:e@15:13#1] type=Unit call=kotlin.io.println#1
 expr e@16:13#1 name(uintList) type=kotlin.collections.List<UInt> ref=__local_6.uintList
 expr e@16:5#7 call callee=e@16:5#6 args=[_:e@16:13#1] type=Unit call=kotlin.io.println#1
-expr e@17:13#3 name(ulongList) type=kotlin.collections.List<ULong> ref=__local_7.ulongList
-expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#3] type=Unit call=kotlin.io.println#1
+expr e@17:13#4 name(ulongList) type=kotlin.collections.List<ULong> ref=__local_7.ulongList
+expr e@17:5#5 call callee=e@17:5#4 args=[_:e@17:13#4] type=Unit call=kotlin.io.println#1

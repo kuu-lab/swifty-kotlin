@@ -4,7 +4,7 @@ symbol fq=choose.$0.left kind=valueParameter vis=private flags=_
 symbol fq=choose.$0.right kind=valueParameter vis=private flags=_
 symbol fq=useWhen kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
 symbol fq=useWhen.$1.v kind=valueParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl choose fun choose sym=choose
   decl useWhen fun useWhen sym=useWhen
 expr e@1:61 name(flag) type=Boolean ref=choose.$0.flag

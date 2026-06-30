@@ -8,7 +8,7 @@ symbol fq=visitWithAllParams kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=visitWithAllParams.$0.path kind=valueParameter vis=private flags=_
 symbol fq=visitWithFollowLinksDefault kind=function vis=public flags=_ sig=recv=_ params=[kotlin.io.path.Path] ret=Unit
 symbol fq=visitWithFollowLinksDefault.$1.path kind=valueParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl visitWithAllParams fun visitWithAllParams sym=visitWithAllParams
   decl visitWithFollowLinksDefault fun visitWithFollowLinksDefault sym=visitWithFollowLinksDefault
 expr e@5:5#2 name(path) type=kotlin.io.path.Path ref=visitWithAllParams.$0.path

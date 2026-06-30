@@ -12,7 +12,7 @@ symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic s
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@2:26 int(1) type=Int
 expr e@2:29 int(2) type=Int
@@ -54,19 +54,19 @@ expr e@16:63#1 int(0) type=Int
 expr e@16:50#6 binary(equal) lhs=e@16:50#5 rhs=e@16:63#1 type=Boolean
 expr e@16:32 lambda params=[index,value] body=e@16:50#6 label=filterIndexedTo type=(Int, Int) -> Boolean
 expr e@16:5#7 memberCall recv=e@16:5#6 callee=filterIndexedTo args=[_:e@16:25,_:e@16:32] type=kotlin.collections.MutableList<Int>
-expr e@17:13#3 name(dest3) type=kotlin.collections.MutableList<Int> ref=__local_3.dest3
-expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#3] type=Unit call=kotlin.io.println#1
+expr e@17:13#4 name(dest3) type=kotlin.collections.MutableList<Int> ref=__local_3.dest3
+expr e@17:5#5 call callee=e@17:5#4 args=[_:e@17:13#4] type=Unit call=kotlin.io.println#1
 expr e@20:34 int(1) type=Int
 expr e@20:37 name(null) type=Nothing?
 expr e@20:43 int(2) type=Int
 expr e@20:46 name(null) type=Nothing?
 expr e@20:52 int(3) type=Int
 expr e@20:23#1 call callee=e@20:23#0 args=[_:e@20:34,_:e@20:37,_:e@20:43,_:e@20:46,_:e@20:52] type=kotlin.sequences.Sequence<out Int?> call=kotlin.sequences.sequenceOf targs=[Int?]
-expr e@20:5#5 localDecl seqNullable mutable=0 type=_ init=e@20:23#1 type=Unit ref=__local_4.seqNullable
+expr e@20:5#4 localDecl seqNullable mutable=0 type=_ init=e@20:23#1 type=Unit ref=__local_4.seqNullable
 expr e@21:17#1 call callee=e@21:17#0 args=[] type=kotlin.collections.MutableList<Int>
 expr e@21:5#3 localDecl dest4 mutable=0 type=_ init=e@21:17#1 type=Unit ref=__local_5.dest4
-expr e@22:5#4 name(seqNullable) type=kotlin.sequences.Sequence<out Int?> ref=__local_4.seqNullable
+expr e@22:5#5 name(seqNullable) type=kotlin.sequences.Sequence<out Int?> ref=__local_4.seqNullable
 expr e@22:33#1 name(dest4) type=kotlin.collections.MutableList<Int> ref=__local_5.dest4
-expr e@22:5#5 memberCall recv=e@22:5#4 callee=filterNotNullTo args=[_:e@22:33#1] type=kotlin.collections.MutableList<Int>
+expr e@22:5#6 memberCall recv=e@22:5#5 callee=filterNotNullTo args=[_:e@22:33#1] type=kotlin.collections.MutableList<Int>
 expr e@23:13#2 name(dest4) type=kotlin.collections.MutableList<Int> ref=__local_5.dest4
 expr e@23:5#5 call callee=e@23:5#4 args=[_:e@23:13#2] type=Unit call=kotlin.io.println#1

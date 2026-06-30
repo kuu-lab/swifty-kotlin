@@ -27,7 +27,7 @@ symbol fq=golden.sema.tryPartialCatchRethrow kind=function vis=public flags=_ si
 symbol fq=golden.sema.tryPartialCatchRethrow.$2.flag kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Exception kind=class vis=public flags=synthetic type=kotlin.Exception
 symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.Handled class Handled sym=golden.sema.Handled
   decl golden.sema.Unhandled class Unhandled sym=golden.sema.Unhandled
   decl golden.sema.tryCatchExpr fun tryCatchExpr sym=golden.sema.tryCatchExpr
@@ -59,14 +59,14 @@ expr e@13:26#2 blockExpr stmts=[] trailing=e@13:28 type=String ref=__try_1_catch
 expr e@11:5#2 try body=e@11:9 catches=[e@12:41,e@13:26#2] finally=_ type=String
 expr e@16:11 string(result) type=String
 expr e@16:9 blockExpr stmts=[] trailing=e@16:11 type=String
-expr e@17:13#3 blockExpr stmts=[] trailing=_ type=Unit
-expr e@16:5#6 try body=e@16:9 catches=[] finally=e@17:13#3 type=String
+expr e@17:13#4 blockExpr stmts=[] trailing=_ type=Unit
+expr e@16:5#6 try body=e@16:9 catches=[] finally=e@17:13#4 type=String
 expr e@20:11 string(ok) type=String
-expr e@20:9#2 blockExpr stmts=[] trailing=e@20:11 type=String
+expr e@20:9#4 blockExpr stmts=[] trailing=e@20:11 type=String
 expr e@21:28#1 string(err) type=String
 expr e@21:26 blockExpr stmts=[] trailing=e@21:28#1 type=String ref=__try_2_catch_0.e
 expr e@22:13#2 blockExpr stmts=[] trailing=_ type=Unit
-expr e@20:5#5 try body=e@20:9#2 catches=[e@21:26] finally=e@22:13#2 type=String
+expr e@20:5#4 try body=e@20:9#4 catches=[e@21:26] finally=e@22:13#2 type=String
 expr e@25:27 string(ok) type=String
 expr e@25:25 blockExpr stmts=[] trailing=e@25:27 type=String
 expr e@25:57 string(err) type=String
@@ -76,14 +76,14 @@ expr e@25:5#6 localDecl x mutable=0 type=String init=e@25:21 type=Unit ref=__loc
 expr e@26:12#3 name(x) type=String ref=__local_0.x
 expr e@26:5#6 return value=e@26:12#3 type=Nothing
 expr e@30:11 string(ok) type=String
-expr e@30:9#3 blockExpr stmts=[] trailing=e@30:11 type=String
+expr e@30:9#1 blockExpr stmts=[] trailing=e@30:11 type=String
 expr e@31:15 int(123) type=Int
 expr e@31:13#1 blockExpr stmts=[] trailing=e@31:15 type=Int
-expr e@30:5#7 try body=e@30:9#3 catches=[] finally=e@31:13#1 type=String
+expr e@30:5#6 try body=e@30:9#1 catches=[] finally=e@31:13#1 type=String
 expr e@35:13#0 name(flag) type=Int ref=golden.sema.tryMultiCatchJoin.$1.flag
 expr e@35:21#1 int(0) type=Int
 expr e@35:13#1 binary(equal) lhs=e@35:13#0 rhs=e@35:21#1 type=Boolean
-expr e@35:24 string(ok) type=String
+expr e@35:24#1 string(ok) type=String
 expr e@35:38#0 name(flag) type=Int ref=golden.sema.tryMultiCatchJoin.$1.flag
 expr e@35:46 int(1) type=Int
 expr e@35:38#1 binary(equal) lhs=e@35:38#0 rhs=e@35:46 type=Boolean
@@ -92,13 +92,13 @@ expr e@35:49#2 throw value=e@35:55#1 type=Nothing
 expr e@35:76#1 call callee=e@35:76#0 args=[] type=golden.sema.Unhandled call=golden.sema.Unhandled.<init>
 expr e@35:70 throw value=e@35:76#1 type=Nothing
 expr e@35:34 if cond=e@35:38#1 then=e@35:49#2 else=e@35:70 type=Nothing
-expr e@35:9#6 if cond=e@35:13#1 then=e@35:24 else=e@35:34 type=String
-expr e@34:9#4 blockExpr stmts=[] trailing=e@35:9#6 type=String
-expr e@37:9#2 string(handled) type=String
-expr e@36:26 blockExpr stmts=[] trailing=e@37:9#2 type=String ref=__try_4_catch_0.e
+expr e@35:9#4 if cond=e@35:13#1 then=e@35:24#1 else=e@35:34 type=String
+expr e@34:9#2 blockExpr stmts=[] trailing=e@35:9#4 type=String
+expr e@37:9#4 string(handled) type=String
+expr e@36:26 blockExpr stmts=[] trailing=e@37:9#4 type=String ref=__try_4_catch_0.e
 expr e@39:9#8 int(7) type=Int
 expr e@38:28#1 blockExpr stmts=[] trailing=e@39:9#8 type=Int ref=__try_4_catch_1.e
-expr e@34:5#7 try body=e@34:9#4 catches=[e@36:26,e@38:28#1] finally=_ type=Any
+expr e@34:5#8 try body=e@34:9#2 catches=[e@36:26,e@38:28#1] finally=_ type=Any
 expr e@43:5#1 localDecl x mutable=1 type=Int init=_ type=Unit ref=__local_1.x
 expr e@45:13#1 name(flag) type=Boolean ref=golden.sema.tryPartialCatchRethrow.$2.flag
 expr e@45:25#1 call callee=e@45:25#0 args=[] type=golden.sema.Handled call=golden.sema.Handled.<init>

@@ -7,7 +7,7 @@ symbol fq=golden.sema.RightSuper kind=interface vis=public flags=_
 symbol fq=golden.sema.RightSuper.greet kind=function vis=public flags=overrideMember sig=recv=golden.sema.RightSuper params=[] ret=String
 symbol fq=golden.sema.WithCompanion kind=interface vis=public flags=_
 symbol fq=golden.sema.WithSuperCall kind=class vis=public flags=_
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.InterfaceProperties interface InterfaceProperties sym=golden.sema.InterfaceProperties
   decl golden.sema.InterfaceSuperCalls interface InterfaceSuperCalls sym=golden.sema.InterfaceSuperCalls
   decl golden.sema.LeftSuper interface LeftSuper sym=golden.sema.LeftSuper
@@ -29,6 +29,6 @@ expr e@31:36#2 binary(add) lhs=e@31:36#1 rhs=e@31:63#1 type=String
 expr e@31:73#0 super<RightSuper> type=golden.sema.RightSuper
 expr e@31:73#1 memberCall recv=e@31:73#0 callee=greet args=[] type=String call=golden.sema.RightSuper.greet
 expr e@31:36#3 binary(add) lhs=e@31:36#2 rhs=e@31:73#1 type=String
-expr e@36:24 string(test) type=String
+expr e@36:24#1 string(test) type=String
 expr e@37:32 string(helper) type=String
 expr e@44:42 string(done) type=String

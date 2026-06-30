@@ -112,7 +112,7 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.contains#0 kind=function vis=public flags=synthetic|operatorFunction sig=recv=String params=[String] ret=Boolean
 symbol fq=kotlin.text.contains.other kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.User class User sym=golden.sema.User
   decl golden.sema.Database class Database sym=golden.sema.Database
   decl golden.sema.Calculator class Calculator sym=golden.sema.Calculator
@@ -153,17 +153,17 @@ expr e@24:50#1 binary(greaterThan) lhs=e@24:50#0 rhs=e@24:54 type=Boolean
 expr e@25:39#0 name(x) type=Int ref=golden.sema.Calculator.square.$1.x
 expr e@25:43 name(x) type=Int ref=golden.sema.Calculator.square.$1.x
 expr e@25:39#1 binary(multiply) lhs=e@25:39#0 rhs=e@25:43 type=Int
-expr e@29:17#2 name(calculator) type=golden.sema.Calculator ref=golden.sema.Calculator.Companion.safeSquare.$0.calculator
+expr e@29:17#3 name(calculator) type=golden.sema.Calculator ref=golden.sema.Calculator.Companion.safeSquare.$0.calculator
 expr e@29:42 name(x) type=Int ref=golden.sema.Calculator.Companion.safeSquare.$0.x
-expr e@29:17#3 memberCall recv=e@29:17#2 callee=validateInput args=[_:e@29:42] type=Boolean call=golden.sema.Calculator.validateInput
+expr e@29:17#4 memberCall recv=e@29:17#3 callee=validateInput args=[_:e@29:42] type=Boolean call=golden.sema.Calculator.validateInput
 expr e@30:24#2 name(calculator) type=golden.sema.Calculator ref=golden.sema.Calculator.Companion.safeSquare.$0.calculator
 expr e@30:42 name(x) type=Int ref=golden.sema.Calculator.Companion.safeSquare.$0.x
 expr e@30:24#3 memberCall recv=e@30:24#2 callee=square args=[_:e@30:42] type=Int call=golden.sema.Calculator.square
 expr e@30:17#1 return value=e@30:24#3 type=Nothing
 expr e@29:46 blockExpr stmts=[] trailing=e@30:17#1 type=Nothing
-expr e@29:13 if cond=e@29:17#3 then=e@29:46 else=_ type=Unit
+expr e@29:13 if cond=e@29:17#4 then=e@29:46 else=_ type=Unit
 expr e@32:20 int(0) type=Int
-expr e@32:13#3 return value=e@32:20 type=Nothing
+expr e@32:13#2 return value=e@32:20 type=Nothing
 expr e@39:35 string(AppLogger) type=String
 expr e@40:37 string(INFO) type=String
 expr e@41:58 name(level) type=String ref=golden.sema.Logger.Companion.level
@@ -197,10 +197,10 @@ expr e@64:36 stringTemplate[expr(e@64:38),lit( (),expr(e@64:46),lit() - ID: ),ex
 expr e@70:30#1 name(address) type=String ref=golden.sema.EmailAddress.Companion.create.$6.address
 expr e@70:17#1 call callee=e@70:17#0 args=[_:e@70:30#1] type=Boolean call=golden.sema.EmailAddress.Companion.isValidEmail
 expr e@71:37 name(address) type=String ref=golden.sema.EmailAddress.Companion.create.$6.address
-expr e@71:24#1 call callee=e@71:24#0 args=[_:e@71:37] type=golden.sema.EmailAddress call=golden.sema.EmailAddress.<init>
-expr e@71:17 return value=e@71:24#1 type=Nothing
-expr e@70:40 blockExpr stmts=[] trailing=e@71:17 type=Nothing
-expr e@70:13 if cond=e@70:17#1 then=e@70:40 else=_ type=Unit
+expr e@71:24#2 call callee=e@71:24#1 args=[_:e@71:37] type=golden.sema.EmailAddress call=golden.sema.EmailAddress.<init>
+expr e@71:17#1 return value=e@71:24#2 type=Nothing
+expr e@70:40 blockExpr stmts=[] trailing=e@71:17#1 type=Nothing
+expr e@70:13#1 if cond=e@70:17#1 then=e@70:40 else=_ type=Unit
 expr e@73:20#2 name(null) type=Nothing?
 expr e@73:13#2 return value=e@73:20#2 type=Nothing
 expr e@77:20#1 name(address) type=String ref=golden.sema.EmailAddress.Companion.isValidEmail.$7.address

@@ -10,7 +10,7 @@ symbol fq=kotlin.arrayOf kind=function vis=public flags=synthetic sig=recv=_ par
 symbol fq=kotlin.arrayOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.text.StringBuilder kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.StringBuilder.toString kind=function vis=public flags=synthetic sig=recv=kotlin.text.StringBuilder params=[] ret=String
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.useAppendVarargStrings fun useAppendVarargStrings sym=golden.sema.useAppendVarargStrings
   decl golden.sema.useAppendVarargAny fun useAppendVarargAny sym=golden.sema.useAppendVarargAny
   decl golden.sema.useAppendVarargSpread fun useAppendVarargSpread sym=golden.sema.useAppendVarargSpread
@@ -36,17 +36,17 @@ expr e@11:5#3 memberCall recv=e@11:5#2 callee=append args=[_:e@11:15,_:e@11:24,_
 expr e@12:12#2 name(sb) type=kotlin.text.StringBuilder ref=__local_1.sb
 expr e@12:12#3 memberCall recv=e@12:12#2 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e@12:5#4 return value=e@12:12#3 type=Nothing
-expr e@16:14#0 name(StringBuilder) type=Any ref=kotlin.text.StringBuilder
-expr e@16:14#1 call callee=e@16:14#0 args=[] type=kotlin.text.StringBuilder
-expr e@16:5#6 localDecl sb mutable=0 type=_ init=e@16:14#1 type=Unit ref=__local_2.sb
+expr e@16:14#2 name(StringBuilder) type=Any ref=kotlin.text.StringBuilder
+expr e@16:14#3 call callee=e@16:14#2 args=[] type=kotlin.text.StringBuilder
+expr e@16:5#6 localDecl sb mutable=0 type=_ init=e@16:14#3 type=Unit ref=__local_2.sb
 expr e@17:25 string(x) type=String
 expr e@17:30 string(y) type=String
 expr e@17:35 string(z) type=String
 expr e@17:17#1 call callee=e@17:17#0 args=[_:e@17:25,_:e@17:30,_:e@17:35] type=kotlin.Array<String> call=kotlin.arrayOf targs=[String]
-expr e@17:5#3 localDecl parts mutable=0 type=_ init=e@17:17#1 type=Unit ref=__local_3.parts
-expr e@18:5#4 name(sb) type=kotlin.text.StringBuilder ref=__local_2.sb
-expr e@18:16#1 name(parts) type=kotlin.Array<String> ref=__local_3.parts
-expr e@18:5#5 memberCall recv=e@18:5#4 callee=append args=[_:e@18:16#1] type=<error>
+expr e@17:5#4 localDecl parts mutable=0 type=_ init=e@17:17#1 type=Unit ref=__local_3.parts
+expr e@18:5#5 name(sb) type=kotlin.text.StringBuilder ref=__local_2.sb
+expr e@18:16#2 name(parts) type=kotlin.Array<String> ref=__local_3.parts
+expr e@18:5#6 memberCall recv=e@18:5#5 callee=append args=[_:e@18:16#2] type=<error>
 expr e@19:12#4 name(sb) type=kotlin.text.StringBuilder ref=__local_2.sb
 expr e@19:12#5 memberCall recv=e@19:12#4 callee=toString args=[] type=String call=kotlin.text.StringBuilder.toString
 expr e@19:5#6 return value=e@19:12#5 type=Nothing

@@ -29,7 +29,7 @@ symbol fq=testWalkBottomUp kind=function vis=public flags=_ sig=recv=_ params=[j
 symbol fq=testWalkBottomUp.$5.dir kind=valueParameter vis=private flags=_
 symbol fq=testWalkTopDown kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk
 symbol fq=testWalkTopDown.$6.dir kind=valueParameter vis=private flags=_
-file f13 package=_
+file f15 package=_
   decl testWalkTopDown fun testWalkTopDown sym=testWalkTopDown
   decl testWalkBottomUp fun testWalkBottomUp sym=testWalkBottomUp
   decl testMaxDepth fun testMaxDepth sym=testMaxDepth

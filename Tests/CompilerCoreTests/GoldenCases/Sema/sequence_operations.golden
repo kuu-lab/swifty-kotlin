@@ -21,7 +21,7 @@ symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic s
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@2:24 int(1) type=Int
 expr e@2:27 int(2) type=Int
@@ -43,9 +43,9 @@ expr e@5:13#1 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
 expr e@5:20 int(1) type=Int
 expr e@5:13#2 memberCall recv=e@5:13#1 callee=drop args=[_:e@5:20] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.Sequence.drop
 expr e@5:5#2 localDecl d mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_2.d
-expr e@6:13#1 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
-expr e@6:13#2 memberCall recv=e@6:13#1 callee=distinct args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.Sequence.distinct
-expr e@6:5#3 localDecl u mutable=0 type=_ init=e@6:13#2 type=Unit ref=__local_3.u
+expr e@6:13#3 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
+expr e@6:13#4 memberCall recv=e@6:13#3 callee=distinct args=[] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.Sequence.distinct
+expr e@6:5#3 localDecl u mutable=0 type=_ init=e@6:13#4 type=Unit ref=__local_3.u
 expr e@7:13#0 name(s) type=kotlin.sequences.Sequence<out Int> ref=__local_0.s
 expr e@7:30 int(4) type=Int
 expr e@7:33 int(5) type=Int

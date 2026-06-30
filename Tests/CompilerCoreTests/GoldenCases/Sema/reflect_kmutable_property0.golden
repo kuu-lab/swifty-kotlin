@@ -15,7 +15,7 @@ symbol fq=kotlin.reflect.KMutableProperty0.set.value kind=valueParameter vis=pri
 symbol fq=kotlin.reflect.KProperty0 kind=interface vis=public flags=synthetic
 symbol fq=kotlin.reflect.KProperty0.V kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.reflect.KProperty0.get kind=function vis=public flags=synthetic sig=recv=kotlin.reflect.KProperty0<out kotlin.reflect.KProperty0.V> params=[] ret=kotlin.reflect.KProperty0.V
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.assignTo fun assignTo sym=golden.sema.assignTo
   decl golden.sema.readFrom fun readFrom sym=golden.sema.readFrom
   decl golden.sema.swap fun swap sym=golden.sema.swap
@@ -28,8 +28,8 @@ expr e@12:5#4 return value=e@12:12#3 type=Nothing
 expr e@16:15#0 name(prop) type=kotlin.reflect.KMutableProperty0<String> ref=golden.sema.swap.$2.prop
 expr e@16:15#1 memberCall recv=e@16:15#0 callee=get args=[] type=String call=kotlin.reflect.KProperty0.get targs=[String]
 expr e@16:5#6 localDecl old mutable=0 type=_ init=e@16:15#1 type=Unit ref=__local_0.old
-expr e@17:5#3 name(prop) type=kotlin.reflect.KMutableProperty0<String> ref=golden.sema.swap.$2.prop
+expr e@17:5#4 name(prop) type=kotlin.reflect.KMutableProperty0<String> ref=golden.sema.swap.$2.prop
 expr e@17:14 name(newValue) type=String ref=golden.sema.swap.$2.newValue
-expr e@17:5#4 memberCall recv=e@17:5#3 callee=set args=[_:e@17:14] type=Unit call=kotlin.reflect.KMutableProperty0.set targs=[String]
-expr e@18:12#4 name(old) type=String ref=__local_0.old
-expr e@18:5#4 return value=e@18:12#4 type=Nothing
+expr e@17:5#5 memberCall recv=e@17:5#4 callee=set args=[_:e@17:14] type=Unit call=kotlin.reflect.KMutableProperty0.set targs=[String]
+expr e@18:12#6 name(old) type=String ref=__local_0.old
+expr e@18:5#5 return value=e@18:12#6 type=Nothing

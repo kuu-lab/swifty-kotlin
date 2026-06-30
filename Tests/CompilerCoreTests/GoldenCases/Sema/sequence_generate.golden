@@ -12,7 +12,7 @@ symbol fq=kotlin.sequences.Sequence.take kind=function vis=public flags=syntheti
 symbol fq=kotlin.sequences.Sequence.take.n kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@4:31 int(1) type=Int
 expr e@4:40#2 name(it) type=Int ref=s-0
@@ -56,7 +56,7 @@ expr e@12:14#1 call callee=e@12:14#0 args=[_:e@12:31,_:e@12:39] type=kotlin.sequ
 expr e@12:14#2 memberCall recv=e@12:14#1 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
 expr e@12:5#4 localDecl s3 mutable=0 type=_ init=e@12:14#2 type=Unit ref=__local_2.s3
 expr e@13:13#1 name(s3) type=kotlin.collections.List<Int> ref=__local_2.s3
-expr e@13:5#7 call callee=e@13:5#6 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
+expr e@13:5#6 call callee=e@13:5#5 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
 expr e@16:28#1 int(42) type=Int
 expr e@16:26 lambda params=[] body=e@16:28#1 type=() -> Int?
 expr e@16:5#6 localDecl fn mutable=0 type=()->Int? init=e@16:26 type=Unit ref=__local_3.fn
@@ -65,6 +65,6 @@ expr e@17:14#1 call callee=e@17:14#0 args=[_:e@17:31] type=kotlin.sequences.Sequ
 expr e@17:40 int(3) type=Int
 expr e@17:14#2 memberCall recv=e@17:14#1 callee=take args=[_:e@17:40] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.Sequence.take
 expr e@17:14#3 memberCall recv=e@17:14#2 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.sequences.Sequence.toList
-expr e@17:5#3 localDecl s4 mutable=0 type=_ init=e@17:14#3 type=Unit ref=__local_4.s4
+expr e@17:5#4 localDecl s4 mutable=0 type=_ init=e@17:14#3 type=Unit ref=__local_4.s4
 expr e@18:13#1 name(s4) type=kotlin.collections.List<Int> ref=__local_4.s4
-expr e@18:5#5 call callee=e@18:5#4 args=[_:e@18:13#1] type=Unit call=kotlin.io.println#1
+expr e@18:5#6 call callee=e@18:5#5 args=[_:e@18:13#1] type=Unit call=kotlin.io.println#1

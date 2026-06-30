@@ -1,7 +1,7 @@
 symbol fq=golden.sema.counter kind=property vis=public flags=mutable type=Int
 symbol fq=golden.sema.increment kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.pi kind=property vis=public flags=_ type=Double
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.pi property pi var=0 sym=golden.sema.pi
   decl golden.sema.counter property counter var=1 sym=golden.sema.counter
   decl golden.sema.increment fun increment sym=golden.sema.increment
