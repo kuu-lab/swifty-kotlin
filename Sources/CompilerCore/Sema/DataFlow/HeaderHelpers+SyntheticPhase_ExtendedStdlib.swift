@@ -2,11 +2,9 @@ import Foundation
 
 /// Extended stdlib batch of synthetic stub registrations from `registerSyntheticDelegateStubs`.
 ///
-/// This Phase covers a subset of the original middle-section of the central
-/// dispatch: Atomic/Enum/Serialization/Coroutines/Native stubs.
-/// JS/Wasm/JVM-specific registrations (Uuid, URI/URL, Locale, BigInteger,
-/// ThreadLocal, Concurrency, ReadWriteLock, JsArray, ExperimentalMarker) have
-/// been removed as they are not applicable to the Native target.
+/// This Phase covers a 66-call block that previously sat in the middle of the
+/// central dispatch: Atomic/Enum/Uuid/Serialization/Networking/Logging/
+/// Locale/NumberFormat/Streams/Concurrency/Coroutines/JS-binding stubs.
 ///
 /// Why this file exists: the central dispatch in `HeaderHelpers.swift` is the
 /// single largest source of textual merge conflicts in the repo, because every
@@ -23,7 +21,8 @@ import Foundation
 /// dependency; otherwise prefer alphabetical order within the surrounding peer group.
 ///
 /// Companion file: `HeaderHelpers+SyntheticPhase_PlatformAndJS.swift` covers
-/// the trailing Wasm/JS batch.
+/// the trailing 28-call Wasm/Js batch. Both Phase files preserve the original
+/// dispatch order exactly.
 extension DataFlowSemaPhase {
     func registerSyntheticPhase_ExtendedStdlib(
         symbols: SymbolTable,
@@ -33,16 +32,25 @@ extension DataFlowSemaPhase {
         registerSyntheticExperimentalBitwiseStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticAtomicStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticSerializationStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticURIStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticURLStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticLocaleConstructorStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinAnnotationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeInteropStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticBigIntegerStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeInvokeStubs(symbols: symbols, interner: interner)
+        registerSyntheticThreadLocalStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeSetterStubs(symbols: symbols, interner: interner)
+        registerSyntheticConcurrencyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineCancellationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineIntrinsicsStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticReadWriteLockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeRefRuntimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBase64Stubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeGetterStubs(symbols: symbols, interner: interner)
+        registerSyntheticExperimentalMarkerStubs(symbols: symbols, interner: interner)
     }
 }
