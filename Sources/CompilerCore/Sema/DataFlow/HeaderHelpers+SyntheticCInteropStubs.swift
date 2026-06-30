@@ -2286,6 +2286,7 @@ extension DataFlowSemaPhase {
                 receiverType: toKStringFromUtf16UShortReceiverType,
                 parameters: [],
                 returnType: types.stringType,
+                externalLinkName: "kk_cpointer_toKStringFromUtf16",
                 symbols: symbols,
                 interner: interner
             )
