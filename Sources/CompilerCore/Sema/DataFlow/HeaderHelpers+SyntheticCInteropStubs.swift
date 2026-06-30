@@ -2546,6 +2546,50 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+        // STDLIB-CINTEROP-FN-047: inline fun <reified T : CVariable> zeroValue(): CValue<T>
+        let zeroValueFunctionName = interner.intern("zeroValue")
+        let zeroValueFunctionFQName = cinteropPkg + [zeroValueFunctionName]
+        let zeroValueTypeParameterName = interner.intern("T")
+        let zeroValueTypeParameterFQName = zeroValueFunctionFQName + [zeroValueTypeParameterName]
+        let zeroValueTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
+            fqName: zeroValueTypeParameterFQName
+        ) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: zeroValueTypeParameterName,
+                fqName: zeroValueTypeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic, .reifiedTypeParameter]
+            )
+        }
+        symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: zeroValueTypeParameterSymbol)
+        symbols.setTypeParameterUpperBounds([cVariableType], for: zeroValueTypeParameterSymbol)
+        let zeroValueTypeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: zeroValueTypeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let zeroValueReturnType = types.make(.classType(ClassType(
+            classSymbol: cValueSymbol,
+            args: [.invariant(zeroValueTypeParameterType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
+            named: "zeroValue",
+            packageFQName: cinteropPkg,
+            receiverType: nil,
+            parameters: [],
+            returnType: zeroValueReturnType,
+            typeParameterSymbols: [zeroValueTypeParameterSymbol],
+            typeParameterUpperBoundsList: [[cVariableType]],
+            reifiedTypeParameterIndices: [0],
+            flags: [.synthetic, .inlineFunction],
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticCInteropVector128Stubs(
             cinteropPkg: cinteropPkg,
             cinteropPkgSymbol: cinteropPkgSymbol,
