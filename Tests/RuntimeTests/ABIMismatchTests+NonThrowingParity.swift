@@ -122,6 +122,7 @@ extension ABIMismatchTests {
         "kk_builder_set_addAll",
         "kk_byteArray_asUByteArray",
         "kk_byteArray_toCValues",
+        "kk_bytearray_toKString",
         "kk_cinterop_writeBits",
         "kk_callable_ref_arity",
         "kk_callable_ref_is_suspend",
