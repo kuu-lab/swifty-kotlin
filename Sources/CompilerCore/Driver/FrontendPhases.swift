@@ -78,6 +78,7 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/collections/CollectionFactories",
         "kotlin/collections/ListFilterHOF",
         "kotlin/collections/ListWindowChunk",
+        "kotlin/comparisons/Comparators",
         "kotlin/logging/AdvancedLogger",
         "kotlin/reflect/KClassAnnotationRegistration",
         "kotlin/sequences/SequenceWindowChunk",
