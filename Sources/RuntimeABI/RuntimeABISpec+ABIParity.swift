@@ -85,50 +85,6 @@ public extension RuntimeABISpec {
         abiParitySpec("component2", parameters: [
             p("pairRaw", .intptr),
         ]),
-        abiParitySpec("kk_adv_logger_add_async_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_add_file_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_add_rolling_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_add_structured_appender", parameters: [
-            p("loggerRaw", .intptr),
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_log", parameters: [
-            p("loggerRaw", .intptr),
-            p("levelRaw", .intptr),
-            p("messageRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_log_throwable", parameters: [
-            p("loggerRaw", .intptr),
-            p("levelRaw", .intptr),
-            p("messageRaw", .intptr),
-            p("throwableRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_set_filter", parameters: [
-            p("loggerRaw", .intptr),
-            p("prefixRaw", .intptr),
-        ]),
-        abiParitySpec("kk_adv_logger_set_level", parameters: [
-            p("loggerRaw", .intptr),
-            p("levelRaw", .intptr),
-        ]),
-        abiParitySpec("kk_async_appender_wrap_file", parameters: [
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_async_appender_wrap_rolling", parameters: [
-            p("appenderRaw", .intptr),
-        ]),
-        abiParitySpec("kk_async_appender_wrap_structured", parameters: [
-            p("appenderRaw", .intptr),
-        ]),
         abiParitySpec("kk_atomic_ref_array_compareAndExchangeAt", parameters: [
             p("receiver", .intptr),
             p("index", .intptr),
@@ -321,6 +277,14 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_byteArray_toCValues", parameters: [
             p("arrayRaw", .intptr),
         ],
+            isThrowing: false),
+        abiParitySpec("kk_cinterop_writeBits", parameters: [
+            p("ptr", .intptr),
+            p("offset", .intptr),
+            p("size", .intptr),
+            p("value", .intptr),
+        ],
+            returnType: .void,
             isThrowing: false),
         abiParitySpec("kk_files_copy", parameters: [
             p("filesRaw", .intptr),

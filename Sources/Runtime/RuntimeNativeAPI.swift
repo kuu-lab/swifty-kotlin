@@ -1058,3 +1058,22 @@ public func kk_cname_lookup(_ externNameRaw: Int) -> Int {
     }
     return runtimeCNameRegistry.lookup(externName: name)
 }
+
+// STDLIB-CINTEROP-FN-046: writeBits(ptr: NativePtr, offset: Long, size: Int, value: Long)
+// Writes `size` bits from the low-order bits of `value` into raw memory starting
+// at bit position `offset` from the address `ptr`.
+@_cdecl("kk_cinterop_writeBits")
+public func kk_cinterop_writeBits(_ ptr: Int, _ offset: Int, _ size: Int, _ value: Int) {
+    guard ptr != 0, let rawPtr = UnsafeMutableRawPointer(bitPattern: ptr) else { return }
+    for i in 0..<size {
+        let bit = (value >> i) & 1
+        let bitIndex = offset + i
+        let bytePtr = rawPtr.advanced(by: bitIndex >> 3).bindMemory(to: UInt8.self, capacity: 1)
+        let mask: UInt8 = 1 << UInt8(bitIndex & 7)
+        if bit != 0 {
+            bytePtr.pointee |= mask
+        } else {
+            bytePtr.pointee &= ~mask
+        }
+    }
+}

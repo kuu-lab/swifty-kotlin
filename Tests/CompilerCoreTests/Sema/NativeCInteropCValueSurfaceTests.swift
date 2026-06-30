@@ -87,5 +87,74 @@ struct NativeCInteropCValueSurfaceTests {
             ctx.diagnostics.hasError
         ), "Expected CValue to resolve, got: \(ctx.diagnostics.diagnostics)")
     }
+
+    @Test
+    func testCValueWriteMethodRegistered() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected CValue surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
+        let cValueSymbol = try #require(
+            sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("CValue")]),
+            "kotlinx.cinterop.CValue must be registered"
+        )
+        let cValueFQName = try #require(sema.symbols.symbol(cValueSymbol)?.fqName)
+        let cVariableSymbol = try #require(
+            sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("CVariable")])
+        )
+        let cVariableType = sema.types.make(.classType(ClassType(
+            classSymbol: cVariableSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let typeParameterSymbol = try #require(
+            sema.types.nominalTypeParameterSymbols(for: cValueSymbol).first
+        )
+        let typeParameterType = sema.types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let cValueType = sema.types.make(.classType(ClassType(
+            classSymbol: cValueSymbol,
+            args: [.invariant(typeParameterType)],
+            nullability: .nonNull
+        )))
+        let writeMethods = sema.symbols.lookupAll(fqName: cValueFQName + [interner.intern("write")])
+        let writeSig = try #require(
+            writeMethods.compactMap { sema.symbols.functionSignature(for: $0) }.first {
+                $0.receiverType == cValueType
+                    && $0.parameterTypes == [typeParameterType]
+                    && $0.returnType == sema.types.unitType
+                    && $0.classTypeParameterCount == 1
+            },
+            "CValue.write(location: T): Unit must be registered"
+        )
+        _ = writeSig
+        let writeFlags = try #require(sema.symbols.symbol(writeMethods[0])?.flags)
+        #expect(writeFlags.contains(.abstractType))
+    }
+
+    @Test
+    func testCValueWriteResolvesInSource() throws {
+        let ctx = makeContextFromSource("""
+        import kotlinx.cinterop.CValue
+        import kotlinx.cinterop.CVariable
+        import kotlinx.cinterop.ExperimentalForeignApi
+
+        @ExperimentalForeignApi
+        fun <T : CVariable> applyValue(value: CValue<T>, location: T) {
+            value.write(location)
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!(
+            ctx.diagnostics.hasError
+        ), "Expected CValue.write to resolve, got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
