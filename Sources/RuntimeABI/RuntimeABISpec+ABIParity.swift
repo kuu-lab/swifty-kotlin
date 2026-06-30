@@ -289,6 +289,10 @@ public extension RuntimeABISpec {
         ],
             returnType: .void,
             isThrowing: false),
+        abiParitySpec("kk_uLongArray_toCValues", parameters: [
+            p("arrayRaw", .intptr),
+        ],
+            isThrowing: false),
         abiParitySpec("kk_files_copy", parameters: [
             p("filesRaw", .intptr),
             p("sourceRaw", .intptr),

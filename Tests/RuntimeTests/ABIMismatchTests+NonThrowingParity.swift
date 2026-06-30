@@ -1130,6 +1130,7 @@ extension ABIMismatchTests {
         "kk_uByteArray_asByteArray",
         "kk_uIntArray_asIntArray",
         "kk_uLongArray_asLongArray",
+        "kk_uLongArray_toCValues",
         "kk_uShortArray_asShortArray",
         "kk_ubyte_to_byte",
         "kk_ubyte_to_char",

@@ -35,7 +35,7 @@
 ### Phase 5: 非スコープ/高度領域
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [ ] STDLIB-CINTEROP-FN-016: `CPointer<T>.set(index, value)` を追加する
-- [ ] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
 - [x] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
 - [x] STDLIB-CINTEROP-FN-034: `CPointer<ShortVar>.toKStringFromUtf16()` を追加する

@@ -496,6 +496,18 @@ final class RuntimeCValuesBox: @unchecked Sendable {
         }
     }
 
+    init(ulongs: [Int]) {
+        let count = ulongs.count
+        storage = UnsafeMutableBufferPointer<Int8>.allocate(capacity: max(1, count * 8))
+        for (i, elem) in ulongs.enumerated() {
+            withUnsafeBytes(of: UInt64(bitPattern: Int64(elem))) { raw in
+                for j in 0..<8 {
+                    storage[i * 8 + j] = Int8(bitPattern: raw[j])
+                }
+            }
+        }
+    }
+
     deinit {
         storage.deallocate()
     }
@@ -512,6 +524,14 @@ public func kk_byteArray_toCValues(_ arrayRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_byteArray_toCValues")
     }
     return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
+}
+
+@_cdecl("kk_uLongArray_toCValues")
+public func kk_uLongArray_toCValues(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_uLongArray_toCValues")
+    }
+    return registerRuntimeObject(RuntimeCValuesBox(ulongs: array.elements))
 }
 
 // MARK: - Pinned<T>
