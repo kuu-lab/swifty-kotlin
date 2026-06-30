@@ -1011,6 +1011,20 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
+            // CValue<T>.write(location: T) — STDLIB-CINTEROP-FN-045
+            registerSyntheticNativeBitSetMemberFunction(
+                named: "write",
+                ownerSymbol: cValueSymbol,
+                receiverType: cValueType,
+                parameters: [(name: "location", type: cValueTypeParameterType)],
+                returnType: types.unitType,
+                typeParameterSymbols: [cValueTypeParameterSymbol],
+                typeParameterUpperBoundsList: [[cVariableType]],
+                classTypeParameterCount: 1,
+                flags: [.synthetic, .abstractType],
+                symbols: symbols,
+                interner: interner
+            )
         }
         configureSingleTypeParameterNominal(
             ownerSymbol: cValuesSymbol,
