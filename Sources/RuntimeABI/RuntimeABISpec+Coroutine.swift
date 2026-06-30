@@ -273,24 +273,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_async_task_cancel",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kxmini_async_with_dispatcher",
-            parameters: [
-                RuntimeABIParameter(name: "dispatcherTag", type: .intptr),
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_with_dispatcher_and_cont",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
