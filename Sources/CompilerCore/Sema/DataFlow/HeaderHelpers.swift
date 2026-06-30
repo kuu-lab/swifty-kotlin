@@ -1005,6 +1005,7 @@ extension DataFlowSemaPhase {
     ) {
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
+        registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
         registerSyntheticPropertyInterfaceStubs(
             symbols: symbols, types: types, interner: interner,
@@ -1178,6 +1179,27 @@ extension DataFlowSemaPhase {
                     valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count)),
                 for: memberSymbol)
         }
+    }
+
+    func registerSyntheticNumberStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
+    ) {
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        guard let anySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("Any")]) else { return }
+
+        let numberSymbol = ensureClassSymbol(
+            named: "Number",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.insertFlags([.synthetic, .abstractType], for: numberSymbol)
+        symbols.setDirectSupertypes([anySymbol], for: numberSymbol)
+        types.setNominalDirectSupertypes([anySymbol], for: numberSymbol)
+        types.numberClassSymbol = numberSymbol
     }
 
     func registerSyntheticContractStubs(
