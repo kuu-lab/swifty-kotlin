@@ -15,26 +15,8 @@
 - Kotlin release process: https://kotlinlang.org/docs/releases.html
 - Runtime/API 差分は `Scripts/diff_kotlinc.sh` と `RuntimeABISpec` / ABI テストを起点に確認
 
-#### kotlin.io.path 関数の実装
-
-#### kotlin.system 関数の実装
-
-#### kotlin.text 型の実装
-
-#### kotlin.text プロパティの実装
-
 #### kotlin.text 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
-
-#### kotlin.time 型の実装
-
-#### kotlin.time プロパティの実装
-
-#### kotlin.time 関数の実装
-
-#### kotlin.uuid 型の実装
-
-#### kotlin.uuid 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 
@@ -163,39 +145,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 - [ ] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
 
-### Phase M14: kotlin.properties
-> 移行元: `Sources/Runtime/RuntimeDelegates.swift` (41 @_cdecl)
-> 移行先: `Stdlib/kotlin/properties/`
-
-
-### Phase M15: kotlin.reflect
-> 移行元: `Sources/Runtime/RuntimeReflection.swift` (55 @_cdecl)
-> 移行先: `Stdlib/kotlin/reflect/`
-
-
-### Phase M16: kotlin.concurrent.atomics
-> 移行元: `Sources/Runtime/RuntimeAtomic.swift` (97 @_cdecl)
-> 移行先: `Stdlib/kotlin/concurrent/atomics/`
-
-
-### Phase M17: kotlin.collections Set/Map 基本操作
-> 移行元: `Sources/Runtime/RuntimeSetAndMap.swift` (53 @_cdecl)
-> 移行先: `Stdlib/kotlin/collections/`
-
-
 ## ターゲット外バックログ（本体非追跡）
-### JS/Wasm/JVM固有のstub削除（Nativeターゲット専用コンパイラのため不要）
-#### JS Array関連stub
-#### JS Map関連stub
-#### JS Set関連stub
-#### JS型変換関連stub
-#### Wasm Export stub
-#### Wasm Import stub
-#### Wasm Unsafe Annotation stub
-#### Wasm Unsafe Memory Allocator stub
-#### Wasm Unsafe Pointer stub
-#### Wasm Unsafe Scoped Allocator stub
-#### JVM Time相互運用stub
 #### JVM Atomic相互運用stub
 - [ ] CLEANUP-STUB-024: `kk_java_atomic_int_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
 - [ ] CLEANUP-STUB-028: `kk_java_atomic_int_array_asKotlinAtomicArray` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
