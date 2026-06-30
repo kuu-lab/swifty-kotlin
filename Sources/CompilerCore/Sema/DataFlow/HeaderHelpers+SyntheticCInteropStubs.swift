@@ -2245,6 +2245,29 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // fun CPointer<ShortVar>.toKStringFromUtf16(): String — STDLIB-CINTEROP-FN-034
+        if let shortVarSymbolForUtf16 = symbols.lookup(fqName: cinteropPkg + [interner.intern("ShortVar")]) {
+            let shortVarTypeForUtf16 = types.make(.classType(ClassType(
+                classSymbol: shortVarSymbolForUtf16,
+                args: [],
+                nullability: .nonNull
+            )))
+            let toKStringFromUtf16ShortReceiverType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(shortVarTypeForUtf16)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "toKStringFromUtf16",
+                packageFQName: cinteropPkg,
+                receiverType: toKStringFromUtf16ShortReceiverType,
+                parameters: [],
+                returnType: types.stringType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         // fun CPointer<UShortVar>.toKStringFromUtf16(): String
         if let uShortVarSymbolForUtf16 = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarTypeForUtf16 = types.make(.classType(ClassType(
