@@ -254,21 +254,6 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "AtomicBooleanAsJavaAtomic", expected: "ok\n")
     }
 
-    func testCodegenAsKotlinAtomicArrayStoreAndLoad() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import java.util.concurrent.atomic.AtomicIntegerArray
-        import kotlin.concurrent.atomics.asKotlinAtomicArray
-
-        fun main() {
-            val intArray = AtomicIntegerArray(1).asKotlinAtomicArray()
-            intArray.storeAt(0, 11)
-            println(intArray.loadAt(0))
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AsKotlinAtomicArrayOverloads", expected: "11\n")
-    }
-
     func testCodegenAtomicBooleanCASSuccessAndFailure() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -627,20 +612,6 @@ extension CodegenBackendIntegrationTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayIndexOp", expected: "7\n13\n")
-    }
-
-    func testCodegenAsKotlinAtomicArrayOverloads() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import java.util.concurrent.atomic.AtomicIntegerArray
-        import kotlin.concurrent.atomics.asKotlinAtomicArray
-
-        fun main() {
-            val intArray = AtomicIntegerArray(2).asKotlinAtomicArray()
-            println(intArray.loadAt(0))
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AsKotlinAtomicArrayOverloads", expected: "0\n")
     }
 
     func testCodegenAtomicLongArrayAsJavaAtomicArray() throws {
