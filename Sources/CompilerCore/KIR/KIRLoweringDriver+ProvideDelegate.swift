@@ -130,13 +130,3 @@ extension KIRLoweringDriver {
         initInstructions.append(.storeGlobal(value: delegateObjExpr, symbol: delegateStorageSymbol))
     }
 }
-
-extension ABILoweringPass {
-    static func kPropertyStubCallees(_ interner: StringInterner) -> Set<InternedString> {
-        [
-            interner.intern("kk_kproperty_stub_create"),
-            interner.intern("kk_kproperty_stub_name"),
-            interner.intern("kk_kproperty_stub_return_type"),
-        ]
-    }
-}
