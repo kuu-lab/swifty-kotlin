@@ -343,7 +343,6 @@ extension ABIMismatchTests {
         "kk_iterable_toMutableList",
         "kk_iterable_toMutableSet",
         "kk_iterator_builder_build",
-        "kk_java_atomic_int_asKotlinAtomic",
         "kk_java_atomic_long_array_asKotlinAtomicArray",
         "kk_job_await_completion",
         "kk_job_cancel",
