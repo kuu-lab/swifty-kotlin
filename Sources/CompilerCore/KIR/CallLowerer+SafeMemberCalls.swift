@@ -1223,7 +1223,7 @@ extension CallLowerer {
             )
         }
         if parentSymbol.kind == .class {
-            return resolveVtableDispatch(parentID: parentID, sema: sema)
+            return resolveVtableDispatch(callee: callee, parentID: parentID, layout: layout, sema: sema)
         }
         return nil
     }
@@ -1260,23 +1260,28 @@ extension CallLowerer {
     }
 
     private func resolveVtableDispatch(
+        callee: SymbolID,
         parentID: SymbolID,
+        layout: NominalLayout,
         sema: SemaModule
     ) -> KIRDispatchKind? {
         // Only use virtual dispatch if the class actually has subtypes.
         // In Kotlin, classes are final by default; virtual dispatch is only
         // needed when the class is open/abstract (has known subtypes).
         //
-        // GEN-VTABLE-DISABLE (DEBT-KIR-001): Vtable dispatch stays off until the
-        // full kk_alloc pipeline is wired:
-        //   1. Codegen emits per-class KTypeInfo globals with populated vtables.
+        // GEN-VTABLE-DISABLE (DEBT-KIR-001): kk_alloc (RuntimeGC.swift) is done.
+        // Two prerequisites remain before enabling:
+        //   1. Codegen emits per-class KTypeInfo globals with populated vtable arrays.
         //   2. Class construction calls kk_alloc(size, &typeInfo) instead of
-        //      kk_object_new (RuntimeObjectBox lacks KKObjHeader.typeInfo).
-        // kk_vtable_lookup reads typeInfo only from heapObjects (kk_alloc);
-        // enabling dispatch before (1)+(2) would panic at runtime.
+        //      kk_object_new (RuntimeObjectBox has no KKObjHeader.typeInfo field).
+        // kk_vtable_lookup reads typeInfo via KKObjHeader set only by kk_alloc;
+        // enabling before (1)+(2) panics at runtime.
+        // TODO(DEBT-KIR-001): when both land, replace `return nil` with:
+        //   return layout.vtableSlots[callee].map { .vtable(slot: $0) }
         let subtypes = sema.symbols.directSubtypes(of: parentID)
         guard !subtypes.isEmpty else { return nil }
-        // TODO(DEBT-KIR-001): return .vtable(slot:) once prerequisites above land.
+        _ = layout
+        _ = callee
         return nil
     }
 }
