@@ -134,4 +134,100 @@ extension VirtualDispatchTests {
         }
         XCTAssertEqual(slot, 0, "speak should occupy vtable slot 0 in makeVtableFixture")
     }
+
+    /// Verifies vtable slot selection is per-callee, not always slot 0.
+    /// A class with two virtual methods must dispatch each to its own slot.
+    /// Gated on the same prerequisites as the single-method case.
+    func testResolveVtableDispatchSelectsCorrectNonZeroSlot() throws {
+        throw XCTSkip(
+            "GEN-VTABLE-DISABLE (DEBT-KIR-001): re-enable after codegen emits KTypeInfo vtables and class ctor uses kk_alloc"
+        )
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let classSym = symbols.define(
+            kind: .class,
+            name: interner.intern("Shape"),
+            fqName: [interner.intern("Shape")],
+            declSite: nil,
+            visibility: .public
+        )
+        let subclassSym = symbols.define(
+            kind: .class,
+            name: interner.intern("Circle"),
+            fqName: [interner.intern("Circle")],
+            declSite: nil,
+            visibility: .public
+        )
+        symbols.setDirectSupertypes([classSym], for: subclassSym)
+
+        let drawSym = symbols.define(
+            kind: .function,
+            name: interner.intern("draw"),
+            fqName: [interner.intern("Shape"), interner.intern("draw")],
+            declSite: nil,
+            visibility: .public
+        )
+        let areaSym = symbols.define(
+            kind: .function,
+            name: interner.intern("area"),
+            fqName: [interner.intern("Shape"), interner.intern("area")],
+            declSite: nil,
+            visibility: .public
+        )
+        symbols.setParentSymbol(classSym, for: drawSym)
+        symbols.setParentSymbol(classSym, for: areaSym)
+
+        symbols.setNominalLayout(
+            NominalLayout(
+                objectHeaderWords: 2,
+                instanceFieldCount: 0,
+                instanceSizeWords: 2,
+                vtableSlots: [drawSym: 0, areaSym: 1],
+                itableSlots: [:],
+                superClass: nil
+            ),
+            for: classSym
+        )
+
+        let sema = SemaModule(
+            symbols: symbols,
+            types: types,
+            bindings: BindingTable(),
+            diagnostics: DiagnosticEngine()
+        )
+        let loweringContext = KIRLoweringContext()
+        loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
+        let driver = KIRLoweringDriver(ctx: loweringContext)
+        let callLowerer = CallLowerer(driver: driver)
+
+        let shapeType = types.make(.classType(ClassType(
+            classSymbol: classSym,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let drawDispatch = callLowerer.resolveVirtualDispatch(
+            callee: drawSym,
+            receiverTypeID: shapeType,
+            sema: sema
+        )
+        let areaDispatch = callLowerer.resolveVirtualDispatch(
+            callee: areaSym,
+            receiverTypeID: shapeType,
+            sema: sema
+        )
+
+        guard case let .vtable(drawSlot) = drawDispatch else {
+            XCTFail("Expected vtable dispatch for draw, got \(String(describing: drawDispatch))")
+            return
+        }
+        guard case let .vtable(areaSlot) = areaDispatch else {
+            XCTFail("Expected vtable dispatch for area, got \(String(describing: areaDispatch))")
+            return
+        }
+        XCTAssertEqual(drawSlot, 0, "draw should occupy vtable slot 0")
+        XCTAssertEqual(areaSlot, 1, "area should occupy vtable slot 1")
+    }
 }

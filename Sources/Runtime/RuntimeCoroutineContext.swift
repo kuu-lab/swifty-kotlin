@@ -678,26 +678,28 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
     // When called from inside a coroutine, the caller's GCD thread must not be
     // blocked while the dispatched block runs.  Instead we install a completion
     // resumer on the *caller* state so the outer suspend-entry loop can re-enter
-    // without holding any thread.  The dispatched block runs its own inner
-    // suspend-entry loop on the target queue (which may itself release that
-    // thread for internal suspensions via the existing continuation model).
+    // without holding any thread.  The dispatched block starts its own inner
+    // suspend-entry loop on the target queue and returns immediately (async path);
+    // the dispatcher thread is released rather than blocked for the duration of
+    // the block (DEBT-CORO-003: previously the dispatcher thread was blocked by
+    // the inner completionGate semaphore inside runSuspendEntryLoopWithContinuation).
     if let callerState = RuntimeContinuationState.current {
         let capturedContinuation = continuation
         dispatcher.dispatchAsync {
             let savedScope = RuntimeCoroutineScope.current
             RuntimeCoroutineScope.current = parentScope
             defer { RuntimeCoroutineScope.current = savedScope }
-            var blockThrown: Int = 0
-            let blockResult = runSuspendEntryLoopWithContinuation(
+            _ = runSuspendEntryLoopWithContinuation(
                 entryPointRaw: blockFnPtr,
                 continuation: capturedContinuation,
-                outThrown: &blockThrown
+                onCompletion: { result, thrown in
+                    if thrown != 0 {
+                        callerState.resume(withException: thrown)
+                    } else {
+                        callerState.resume(with: result)
+                    }
+                }
             )
-            if blockThrown != 0 {
-                callerState.resume(withException: blockThrown)
-            } else {
-                callerState.resume(with: blockResult)
-            }
         }
         return Int(bitPattern: kk_coroutine_suspended())
     }

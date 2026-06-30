@@ -1011,6 +1011,20 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
+            // CValue<T>.write(location: T) — STDLIB-CINTEROP-FN-045
+            registerSyntheticNativeBitSetMemberFunction(
+                named: "write",
+                ownerSymbol: cValueSymbol,
+                receiverType: cValueType,
+                parameters: [(name: "location", type: cValueTypeParameterType)],
+                returnType: types.unitType,
+                typeParameterSymbols: [cValueTypeParameterSymbol],
+                typeParameterUpperBoundsList: [[cVariableType]],
+                classTypeParameterCount: 1,
+                flags: [.synthetic, .abstractType],
+                symbols: symbols,
+                interner: interner
+            )
         }
         configureSingleTypeParameterNominal(
             ownerSymbol: cValuesSymbol,
@@ -2245,6 +2259,29 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // fun CPointer<ShortVar>.toKStringFromUtf16(): String — STDLIB-CINTEROP-FN-034
+        if let shortVarSymbolForUtf16 = symbols.lookup(fqName: cinteropPkg + [interner.intern("ShortVar")]) {
+            let shortVarTypeForUtf16 = types.make(.classType(ClassType(
+                classSymbol: shortVarSymbolForUtf16,
+                args: [],
+                nullability: .nonNull
+            )))
+            let toKStringFromUtf16ShortReceiverType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(shortVarTypeForUtf16)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "toKStringFromUtf16",
+                packageFQName: cinteropPkg,
+                receiverType: toKStringFromUtf16ShortReceiverType,
+                parameters: [],
+                returnType: types.stringType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         // fun CPointer<UShortVar>.toKStringFromUtf16(): String
         if let uShortVarSymbolForUtf16 = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarTypeForUtf16 = types.make(.classType(ClassType(
@@ -2523,11 +2560,123 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+        // STDLIB-CINTEROP-FN-047: inline fun <reified T : CVariable> zeroValue(): CValue<T>
+        let zeroValueFunctionName = interner.intern("zeroValue")
+        let zeroValueFunctionFQName = cinteropPkg + [zeroValueFunctionName]
+        let zeroValueTypeParameterName = interner.intern("T")
+        let zeroValueTypeParameterFQName = zeroValueFunctionFQName + [zeroValueTypeParameterName]
+        let zeroValueTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
+            fqName: zeroValueTypeParameterFQName
+        ) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: zeroValueTypeParameterName,
+                fqName: zeroValueTypeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic, .reifiedTypeParameter]
+            )
+        }
+        symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: zeroValueTypeParameterSymbol)
+        symbols.setTypeParameterUpperBounds([cVariableType], for: zeroValueTypeParameterSymbol)
+        let zeroValueTypeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: zeroValueTypeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let zeroValueReturnType = types.make(.classType(ClassType(
+            classSymbol: cValueSymbol,
+            args: [.invariant(zeroValueTypeParameterType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
+            named: "zeroValue",
+            packageFQName: cinteropPkg,
+            receiverType: nil,
+            parameters: [],
+            returnType: zeroValueReturnType,
+            typeParameterSymbols: [zeroValueTypeParameterSymbol],
+            typeParameterUpperBoundsList: [[cVariableType]],
+            reifiedTypeParameterIndices: [0],
+            flags: [.synthetic, .inlineFunction],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // fun writeBits(ptr: NativePtr, offset: Long, size: Int, value: Long) — STDLIB-CINTEROP-FN-046
+        registerSyntheticNativeTopLevelFunction(
+            named: "writeBits",
+            packageFQName: cinteropPkg,
+            receiverType: nil,
+            parameters: [
+                (name: "ptr", type: nativePtrType),
+                (name: "offset", type: types.longType),
+                (name: "size", type: types.intType),
+                (name: "value", type: types.longType),
+            ],
+            returnType: types.unitType,
+            externalLinkName: "kk_cinterop_writeBits",
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCInteropVector128Stubs(
             cinteropPkg: cinteropPkg,
             cinteropPkgSymbol: cinteropPkgSymbol,
             symbols: symbols,
             types: types,
+            interner: interner
+        )
+        registerSyntheticCInteropInternalStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    private func registerSyntheticCInteropInternalStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let internalPkg = ensurePackage(
+            path: ["kotlinx", "cinterop", "internal"],
+            symbols: symbols,
+            interner: interner
+        )
+        let internalPkgSymbol = symbols.lookup(fqName: internalPkg)
+
+        // STDLIB-CINTEROP-INTERNAL-TYPE-002: CEnumEntryAlias
+        // @Target(AnnotationTarget.CLASS)
+        // @Retention(AnnotationRetention.BINARY)
+        // annotation class CEnumEntryAlias(val entryName: String)
+        let cEnumEntryAliasSymbol = ensureAnnotationClassSymbol(
+            named: "CEnumEntryAlias",
+            in: internalPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let internalPkgSymbol {
+            symbols.setParentSymbol(internalPkgSymbol, for: cEnumEntryAliasSymbol)
+        }
+        appendStandardAnnotationMetadata(
+            to: cEnumEntryAliasSymbol,
+            targets: ["AnnotationTarget.CLASS"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        let cEnumEntryAliasType = types.make(.classType(ClassType(
+            classSymbol: cEnumEntryAliasSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cEnumEntryAliasType, for: cEnumEntryAliasSymbol)
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: cEnumEntryAliasSymbol,
+            ownerType: cEnumEntryAliasType,
+            parameters: [(name: "entryName", type: types.stringType)],
+            defaultValues: [false],
+            symbols: symbols,
             interner: interner
         )
     }
