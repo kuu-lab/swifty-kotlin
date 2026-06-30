@@ -278,6 +278,14 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
+        abiParitySpec("kk_cinterop_writeBits", parameters: [
+            p("ptr", .intptr),
+            p("offset", .intptr),
+            p("size", .intptr),
+            p("value", .intptr),
+        ],
+            returnType: .void,
+            isThrowing: false),
         abiParitySpec("kk_files_copy", parameters: [
             p("filesRaw", .intptr),
             p("sourceRaw", .intptr),
