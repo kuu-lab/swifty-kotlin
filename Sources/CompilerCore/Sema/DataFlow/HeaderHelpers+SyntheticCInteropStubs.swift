@@ -2590,6 +2590,22 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // fun writeBits(ptr: NativePtr, offset: Long, size: Int, value: Long) — STDLIB-CINTEROP-FN-046
+        registerSyntheticNativeTopLevelFunction(
+            named: "writeBits",
+            packageFQName: cinteropPkg,
+            receiverType: nil,
+            parameters: [
+                (name: "ptr", type: nativePtrType),
+                (name: "offset", type: types.longType),
+                (name: "size", type: types.intType),
+                (name: "value", type: types.longType),
+            ],
+            returnType: types.unitType,
+            externalLinkName: "kk_cinterop_writeBits",
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCInteropVector128Stubs(
             cinteropPkg: cinteropPkg,
             cinteropPkgSymbol: cinteropPkgSymbol,

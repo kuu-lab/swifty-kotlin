@@ -49,7 +49,7 @@
 - [ ] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
 - [x] STDLIB-CINTEROP-FN-044: `vectorOf(Int, Int, Int, Int)` の公式 annotation/signature を既存 stub と整合させる
-- [ ] STDLIB-CINTEROP-FN-046: `writeBits(ptr, offset, size, value)` を追加する
+- [x] STDLIB-CINTEROP-FN-046: `writeBits(ptr, offset, size, value)` を追加する
 - [x] STDLIB-CINTEROP-FN-047: `zeroValue<T>()` を追加する
 - [ ] STDLIB-CINTEROP-INTERNAL-TYPE-001: `kotlinx.cinterop.internal.CCall` annotation を追加する
 - [ ] STDLIB-CINTEROP-INTERNAL-TYPE-004: `kotlinx.cinterop.internal.CGlobalAccess` annotation を追加する
