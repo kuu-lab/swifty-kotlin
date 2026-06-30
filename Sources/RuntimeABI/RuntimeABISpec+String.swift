@@ -879,6 +879,18 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "ByteArray"
         ),
+        // STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
+        RuntimeABIFunctionSpec(
+            name: "kk_bytearray_toKString",
+            parameters: [
+                RuntimeABIParameter(name: "arrRaw", type: .intptr),
+                RuntimeABIParameter(name: "startIndex", type: .intptr),
+                RuntimeABIParameter(name: "endIndex", type: .intptr),
+                RuntimeABIParameter(name: "throwOnInvalidSequence", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "ByteArray"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toList",
             parameters: [
