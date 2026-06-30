@@ -2553,6 +2553,58 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        registerSyntheticCInteropInternalStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    private func registerSyntheticCInteropInternalStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let internalPkg = ensurePackage(
+            path: ["kotlinx", "cinterop", "internal"],
+            symbols: symbols,
+            interner: interner
+        )
+        let internalPkgSymbol = symbols.lookup(fqName: internalPkg)
+
+        // STDLIB-CINTEROP-INTERNAL-TYPE-002: CEnumEntryAlias
+        // @Target(AnnotationTarget.CLASS)
+        // @Retention(AnnotationRetention.BINARY)
+        // annotation class CEnumEntryAlias(val entryName: String)
+        let cEnumEntryAliasSymbol = ensureAnnotationClassSymbol(
+            named: "CEnumEntryAlias",
+            in: internalPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let internalPkgSymbol {
+            symbols.setParentSymbol(internalPkgSymbol, for: cEnumEntryAliasSymbol)
+        }
+        appendStandardAnnotationMetadata(
+            to: cEnumEntryAliasSymbol,
+            targets: ["AnnotationTarget.CLASS"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        let cEnumEntryAliasType = types.make(.classType(ClassType(
+            classSymbol: cEnumEntryAliasSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cEnumEntryAliasType, for: cEnumEntryAliasSymbol)
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: cEnumEntryAliasSymbol,
+            ownerType: cEnumEntryAliasType,
+            parameters: [(name: "entryName", type: types.stringType)],
+            defaultValues: [false],
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     private func registerSyntheticCInteropVector128Stubs(
