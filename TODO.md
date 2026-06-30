@@ -178,7 +178,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
 - [ ] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
 - [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
-- [ ] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
+- [x] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
 - [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
 - [ ] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
 - [ ] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
