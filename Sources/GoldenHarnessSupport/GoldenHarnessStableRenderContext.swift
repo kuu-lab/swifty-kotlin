@@ -4,17 +4,24 @@ import Foundation
 final class StableRenderContext {
     let sema: SemaModule
     let interner: StringInterner
+    let arena: ASTArena
 
     private let symbolFQ: [Int32: String]
     private let overloadSuffix: [Int32: String]
+    /// Maps `ExprID.rawValue` to a stable, source-position-derived key so that
+    /// inserting an expression elsewhere in the file does not renumber every
+    /// later expression in the golden dump.
+    private let exprKeys: [Int32: String]
     private(set) var requiredSymbols = Set<Int32>()
 
     // swiftlint:disable:next force_try
     private static let typeRefRegex = try! NSRegularExpression(pattern: "(Class#|T#)(\\d+)")
 
-    init(sema: SemaModule, interner: StringInterner) {
+    init(sema: SemaModule, interner: StringInterner, ast: ASTModule, sourceManager: SourceManager) {
         self.sema = sema
         self.interner = interner
+        self.arena = ast.arena
+        self.exprKeys = Self.buildExprKeys(arena: ast.arena, sourceManager: sourceManager)
 
         var fqMap: [Int32: String] = [:]
         var fqGroups: [String: [SemanticSymbol]] = [:]
@@ -43,6 +50,50 @@ final class StableRenderContext {
         let fq = symbolFQ[symbolID.rawValue] ?? "_"
         let suffix = overloadSuffix[symbolID.rawValue] ?? ""
         return fq + suffix
+    }
+
+    /// Returns the stable, source-position-derived key for an expression.
+    func exprKey(_ id: ExprID) -> String {
+        exprKeys[id.rawValue] ?? "e?\(id.rawValue)"
+    }
+
+    /// Renders a syntactic type reference to a stable, arena-ID-free string.
+    /// Used for the type positions that have no resolved sema `TypeID` binding
+    /// (local declaration annotations, object-literal supertypes, local-function
+    /// return types). The output never contains arena ordinals, so it stays
+    /// stable across unrelated source edits.
+    func renderTypeRef(_ id: TypeRefID) -> String {
+        guard let ref = arena.typeRef(id) else { return "?" }
+        switch ref {
+        case let .named(path, args, nullable):
+            let name = path.map { interner.resolve($0) }.joined(separator: ".")
+            let argStr = args.isEmpty
+                ? ""
+                : "<\(args.map { renderTypeArgRef($0) }.joined(separator: ","))>"
+            return "\(name)\(argStr)\(nullable ? "?" : "")"
+        case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
+            var prefix = isSuspend ? "suspend " : ""
+            if !contextReceivers.isEmpty {
+                prefix += "context(\(contextReceivers.map { renderTypeRef($0) }.joined(separator: ","))) "
+            }
+            let recv = receiver.map { "\(renderTypeRef($0))." } ?? ""
+            let params = params.map { renderTypeRef($0) }.joined(separator: ",")
+            let core = "\(prefix)\(recv)(\(params))->\(renderTypeRef(returnType))"
+            return nullable ? "(\(core))?" : core
+        case let .intersection(parts):
+            return parts.map { renderTypeRef($0) }.joined(separator: "&")
+        case let .annotated(base, _):
+            return renderTypeRef(base)
+        }
+    }
+
+    private func renderTypeArgRef(_ arg: TypeArgRef) -> String {
+        switch arg {
+        case let .invariant(ref): return renderTypeRef(ref)
+        case let .out(ref): return "out \(renderTypeRef(ref))"
+        case let .in(ref): return "in \(renderTypeRef(ref))"
+        case .star: return "*"
+        }
     }
 
     func requireSymbol(_ symbolID: SymbolID) {
@@ -96,6 +147,50 @@ final class StableRenderContext {
     }
 
     // MARK: - Private
+
+    /// Builds the stable expression keys for every expression in the arena.
+    ///
+    /// Each key is derived from the expression's source start position
+    /// (`e@<line>:<column>`) so the dump stays stable when unrelated
+    /// expressions are inserted elsewhere. When several expressions share the
+    /// same start position, a deterministic occurrence suffix (`#0`, `#1`, …)
+    /// in arena order disambiguates them. Synthetic expressions without a
+    /// source range fall back to a re-numbered ordinal (`e?<index>`).
+    private static func buildExprKeys(arena: ASTArena, sourceManager: SourceManager) -> [Int32: String] {
+        let exprs = arena.exprs
+        var baseKeys: [(id: Int32, base: String)] = []
+        baseKeys.reserveCapacity(exprs.count)
+        var syntheticCounter = 0
+        for raw in exprs.indices {
+            let id = ExprID(rawValue: Int32(raw))
+            if let range = arena.exprRange(id) {
+                let location = sourceManager.lineColumn(of: range.start)
+                baseKeys.append((Int32(raw), "e@\(location.line):\(location.column)"))
+            } else {
+                baseKeys.append((Int32(raw), "e?\(syntheticCounter)"))
+                syntheticCounter += 1
+            }
+        }
+
+        var counts: [String: Int] = [:]
+        for entry in baseKeys {
+            counts[entry.base, default: 0] += 1
+        }
+
+        var occurrences: [String: Int] = [:]
+        var result: [Int32: String] = [:]
+        result.reserveCapacity(baseKeys.count)
+        for entry in baseKeys {
+            if (counts[entry.base] ?? 0) > 1 {
+                let index = occurrences[entry.base, default: 0]
+                occurrences[entry.base] = index + 1
+                result[entry.id] = "\(entry.base)#\(index)"
+            } else {
+                result[entry.id] = entry.base
+            }
+        }
+        return result
+    }
 
     private func stabilizeTypeRefs(in text: String) -> String {
         let nsText = text as NSString

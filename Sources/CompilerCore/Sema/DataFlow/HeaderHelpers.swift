@@ -1178,12 +1178,6 @@ extension DataFlowSemaPhase {
         // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
         // The Phase file preserves the exact original call order.
         registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlyMapStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlySetStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

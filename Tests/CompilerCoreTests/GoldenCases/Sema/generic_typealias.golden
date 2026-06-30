@@ -8,16 +8,16 @@ symbol fq=golden.sema.useFunc.$1.f kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.usePredicate kind=function vis=public flags=_ sig=recv=_ params=[(Int) -> Boolean] ret=Boolean
 symbol fq=golden.sema.usePredicate.$2.p kind=valueParameter vis=private flags=_
 file f13 package=golden.sema
-  decl d0 typealias Predicate sym=golden.sema.Predicate
-  decl d1 typealias Func sym=golden.sema.Func
-  decl d2 typealias StringAlias sym=golden.sema.StringAlias
-  decl d3 fun usePredicate sym=golden.sema.usePredicate
-  decl d4 fun useFunc sym=golden.sema.useFunc
-  decl d5 fun useAlias sym=golden.sema.useAlias
-expr e0 name(p) type=(Int) -> Boolean ref=golden.sema.usePredicate.$2.p
-expr e1 int(42) type=Int
-expr e2 call callee=e0 args=[_:e1] type=Boolean
-expr e3 name(f) type=(String) -> String ref=golden.sema.useFunc.$1.f
-expr e4 string(hello) type=String
-expr e5 call callee=e3 args=[_:e4] type=String
-expr e6 name(s) type=String ref=golden.sema.useAlias.$0.s
+  decl golden.sema.Predicate typealias Predicate sym=golden.sema.Predicate
+  decl golden.sema.Func typealias Func sym=golden.sema.Func
+  decl golden.sema.StringAlias typealias StringAlias sym=golden.sema.StringAlias
+  decl golden.sema.usePredicate fun usePredicate sym=golden.sema.usePredicate
+  decl golden.sema.useFunc fun useFunc sym=golden.sema.useFunc
+  decl golden.sema.useAlias fun useAlias sym=golden.sema.useAlias
+expr e@7:39#0 name(p) type=(Int) -> Boolean ref=golden.sema.usePredicate.$2.p
+expr e@7:41 int(42) type=Int
+expr e@7:39#1 call callee=e@7:39#0 args=[_:e@7:41] type=Boolean
+expr e@8:32#0 name(f) type=(String) -> String ref=golden.sema.useFunc.$1.f
+expr e@8:34 string(hello) type=String
+expr e@8:32#1 call callee=e@8:32#0 args=[_:e@8:34] type=String
+expr e@9:32 name(s) type=String ref=golden.sema.useAlias.$0.s

@@ -9,17 +9,17 @@ symbol fq=visitWithAllParams.$0.path kind=valueParameter vis=private flags=_
 symbol fq=visitWithFollowLinksDefault kind=function vis=public flags=_ sig=recv=_ params=[kotlin.io.path.Path] ret=Unit
 symbol fq=visitWithFollowLinksDefault.$1.path kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun visitWithAllParams sym=visitWithAllParams
-  decl d1 fun visitWithFollowLinksDefault sym=visitWithFollowLinksDefault
-expr e0 name(path) type=kotlin.io.path.Path ref=visitWithAllParams.$0.path
-expr e1 int(5) type=Int
-expr e2 bool(true) type=Boolean
-expr e3 blockExpr stmts=[] trailing=_ type=Unit
-expr e4 lambda params=[] body=e3 label=visitFileTree type=kotlin.io.path.FileVisitorBuilder.() -> Unit
-expr e5 memberCall recv=e0 callee=visitFileTree args=[maxDepth:e1,followLinks:e2,_:e4] type=Unit call=kotlin.io.path.visitFileTree#0
-expr e6 name(path) type=kotlin.io.path.Path ref=visitWithFollowLinksDefault.$1.path
-expr e7 int(3) type=Int
-expr e8 bool(false) type=Boolean
-expr e9 blockExpr stmts=[] trailing=_ type=Unit
-expr e10 lambda params=[] body=e9 label=visitFileTree type=kotlin.io.path.FileVisitorBuilder.() -> Unit
-expr e11 memberCall recv=e6 callee=visitFileTree args=[maxDepth:e7,followLinks:e8,_:e10] type=Unit call=kotlin.io.path.visitFileTree#0
+  decl visitWithAllParams fun visitWithAllParams sym=visitWithAllParams
+  decl visitWithFollowLinksDefault fun visitWithFollowLinksDefault sym=visitWithFollowLinksDefault
+expr e@5:5#2 name(path) type=kotlin.io.path.Path ref=visitWithAllParams.$0.path
+expr e@5:35 int(5) type=Int
+expr e@5:52 bool(true) type=Boolean
+expr e@5:59 blockExpr stmts=[] trailing=_ type=Unit
+expr e@5:58 lambda params=[] body=e@5:59 label=visitFileTree type=kotlin.io.path.FileVisitorBuilder.() -> Unit
+expr e@5:5#3 memberCall recv=e@5:5#2 callee=visitFileTree args=[maxDepth:e@5:35,followLinks:e@5:52,_:e@5:58] type=Unit call=kotlin.io.path.visitFileTree#0
+expr e@10:5#1 name(path) type=kotlin.io.path.Path ref=visitWithFollowLinksDefault.$1.path
+expr e@10:35 int(3) type=Int
+expr e@10:52 bool(false) type=Boolean
+expr e@10:60 blockExpr stmts=[] trailing=_ type=Unit
+expr e@10:59 lambda params=[] body=e@10:60 label=visitFileTree type=kotlin.io.path.FileVisitorBuilder.() -> Unit
+expr e@10:5#2 memberCall recv=e@10:5#1 callee=visitFileTree args=[maxDepth:e@10:35,followLinks:e@10:52,_:e@10:59] type=Unit call=kotlin.io.path.visitFileTree#0

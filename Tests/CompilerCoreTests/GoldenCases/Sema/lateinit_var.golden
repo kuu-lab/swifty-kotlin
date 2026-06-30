@@ -8,33 +8,32 @@ symbol fq=__try_0_catch_0.e kind=local vis=internal flags=_ type=kotlin.Exceptio
 symbol fq=kotlin.Exception kind=class vis=public flags=synthetic type=kotlin.Exception
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.isInitialized kind=property vis=public flags=synthetic type=Boolean
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 class Config sym=Config
-  decl d1 fun main sym=main
-expr e0 callableRef recv=_ member=name type=String ref=Config.name
-expr e1 memberCall recv=e0 callee=isInitialized args=[] type=Boolean ref=kotlin.isInitialized
-expr e2 string(test) type=String
-expr e3 localAssign name value=e2 type=Unit ref=Config.name
-expr e4 call callee=e5 args=[] type=Config call=Config.<init>
-expr e6 localDecl c mutable=0 type=_ init=e4 type=Unit ref=__local_0.c
-expr e7 name(c) type=Config ref=__local_0.c
-expr e8 memberCall recv=e7 callee=isReady args=[] type=Boolean call=Config.isReady
-expr e9 call callee=e10 args=[_:e8] type=Unit call=kotlin.io.println#1
-expr e11 name(c) type=Config ref=__local_0.c
-expr e12 memberCall recv=e11 callee=name args=[] type=String ref=Config.name
-expr e13 call callee=e14 args=[_:e12] type=Unit call=kotlin.io.println#1
-expr e15 blockExpr stmts=[] trailing=e13 type=Unit
-expr e16 string(caught) type=String
-expr e17 call callee=e18 args=[_:e16] type=Unit call=kotlin.io.println#1
-expr e19 blockExpr stmts=[] trailing=e17 type=Unit ref=__try_0_catch_0.e
-expr e20 try body=e15 catches=[e19] finally=_ type=Unit
-expr e21 name(c) type=Config ref=__local_0.c
-expr e22 memberCall recv=e21 callee=setup args=[] type=Unit call=Config.setup
-expr e23 name(c) type=Config ref=__local_0.c
-expr e24 memberCall recv=e23 callee=isReady args=[] type=Boolean call=Config.isReady
-expr e25 call callee=e26 args=[_:e24] type=Unit call=kotlin.io.println#1
-expr e27 name(c) type=Config ref=__local_0.c
-expr e28 memberCall recv=e27 callee=name args=[] type=String ref=Config.name
-expr e29 call callee=e30 args=[_:e28] type=Unit call=kotlin.io.println#1
+  decl Config class Config sym=Config
+  decl main fun main sym=main
+expr e@4:30#0 callableRef recv=_ member=name type=String ref=Config.name
+expr e@4:30#1 memberCall recv=e@4:30#0 callee=isInitialized args=[] type=Boolean
+expr e@6:26 string(test) type=String
+expr e@6:19#1 localAssign name value=e@6:26 type=Unit ref=Config.name
+expr e@10:13#1 call callee=e@10:13#0 args=[] type=Config call=Config.<init>
+expr e@10:5#1 localDecl c mutable=0 type=_ init=e@10:13#1 type=Unit ref=__local_0.c
+expr e@11:13#1 name(c) type=Config ref=__local_0.c
+expr e@11:13#2 memberCall recv=e@11:13#1 callee=isReady args=[] type=Boolean call=Config.isReady
+expr e@11:5#3 call callee=e@11:5#2 args=[_:e@11:13#2] type=Unit call=kotlin.io.println#1
+expr e@13:17#0 name(c) type=Config ref=__local_0.c
+expr e@13:17#1 memberCall recv=e@13:17#0 callee=name args=[] type=String ref=Config.name
+expr e@13:9#5 call callee=e@13:9#4 args=[_:e@13:17#1] type=Unit call=kotlin.io.println#1
+expr e@12:9#1 blockExpr stmts=[] trailing=e@13:9#5 type=Unit
+expr e@15:17#1 string(caught) type=String
+expr e@15:9#1 call callee=e@15:9#0 args=[_:e@15:17#1] type=Unit call=kotlin.io.println#1
+expr e@14:28 blockExpr stmts=[] trailing=e@15:9#1 type=Unit ref=__try_0_catch_0.e
+expr e@12:5#4 try body=e@12:9#1 catches=[e@14:28] finally=_ type=Unit
+expr e@17:5#3 name(c) type=Config ref=__local_0.c
+expr e@17:5#4 memberCall recv=e@17:5#3 callee=setup args=[] type=Unit call=Config.setup
+expr e@18:13#1 name(c) type=Config ref=__local_0.c
+expr e@18:13#2 memberCall recv=e@18:13#1 callee=isReady args=[] type=Boolean call=Config.isReady
+expr e@18:5#5 call callee=e@18:5#4 args=[_:e@18:13#2] type=Unit call=kotlin.io.println#1
+expr e@19:13#0 name(c) type=Config ref=__local_0.c
+expr e@19:13#1 memberCall recv=e@19:13#0 callee=name args=[] type=String ref=Config.name
+expr e@19:5#7 call callee=e@19:5#6 args=[_:e@19:13#1] type=Unit call=kotlin.io.println#1

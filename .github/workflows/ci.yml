@@ -22,7 +22,16 @@ jobs:
         with:
           node-version: '18'
       - name: Install jscpd
-        run: npm install -g jscpd@4.0.8
+        run: |
+          for attempt in 1 2 3; do
+            if npm install -g jscpd@4.0.8; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed, retrying in $((attempt * 5))s..."
+            sleep $((attempt * 5))
+          done
+          echo "npm install failed after 3 attempts" >&2
+          exit 1
       - name: Run jscpd
         run: jscpd --threshold 5.6 --min-lines 15 --format swift Sources/
       - name: jscpd reproduce hint on failure
@@ -58,6 +67,8 @@ jobs:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
           key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-
       - name: Show toolchain versions
         run: swift --version
       - name: Build compiler and tests

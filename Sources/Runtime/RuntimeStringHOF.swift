@@ -887,6 +887,41 @@ public func kk_string_reduce(
     return acc
 }
 
+// MARK: - STDLIB-TEXT-FN-048: CharSequence.reduceIndexedOrNull
+
+@_cdecl("kk_string_reduceIndexedOrNull")
+public func kk_string_reduceIndexedOrNull(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard !codeUnits.isEmpty else {
+        return runtimeNullSentinelInt
+    }
+    var acc = Int(codeUnits[0])
+    guard codeUnits.count > 1 else {
+        return acc
+    }
+    for index in 1 ..< codeUnits.count {
+        var thrown = 0
+        acc = maybeUnbox(runtimeInvokeCollectionLambda3(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            arg1: index,
+            arg2: acc,
+            arg3: Int(codeUnits[index]),
+            outThrown: &thrown
+        ))
+        if thrown != 0 {
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+    }
+    return acc
+}
+
 // MARK: - STDLIB-TEXT-FN-049: CharSequence.reduceOrNull
 
 @_cdecl("kk_string_reduceOrNull")

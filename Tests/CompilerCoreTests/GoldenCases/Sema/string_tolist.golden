@@ -7,9 +7,9 @@ symbol fq=kotlin.text.toList#1 kind=function vis=public flags=synthetic sig=recv
 symbol fq=stringToList kind=function vis=public flags=_ sig=recv=_ params=[String] ret=kotlin.collections.List<Char>
 symbol fq=stringToList.$1.s kind=valueParameter vis=private flags=_
 file f13 package=_
-  decl d0 fun stringToList sym=stringToList
-  decl d1 fun charSequenceToList sym=charSequenceToList
-expr e0 name(s) type=String ref=stringToList.$1.s
-expr e1 memberCall recv=e0 callee=toList args=[] type=kotlin.collections.List<out Char> call=kotlin.text.toList#0
-expr e2 name(cs) type=kotlin.CharSequence ref=charSequenceToList.$0.cs
-expr e3 memberCall recv=e2 callee=toList args=[] type=kotlin.collections.List<out Char> call=kotlin.text.toList#1
+  decl stringToList fun stringToList sym=stringToList
+  decl charSequenceToList fun charSequenceToList sym=charSequenceToList
+expr e@4:43#0 name(s) type=String ref=stringToList.$1.s
+expr e@4:43#1 memberCall recv=e@4:43#0 callee=toList args=[] type=kotlin.collections.List<out Char> call=kotlin.text.toList#0
+expr e@5:56#0 name(cs) type=kotlin.CharSequence ref=charSequenceToList.$0.cs
+expr e@5:56#1 memberCall recv=e@5:56#0 callee=toList args=[] type=kotlin.collections.List<out Char> call=kotlin.text.toList#1

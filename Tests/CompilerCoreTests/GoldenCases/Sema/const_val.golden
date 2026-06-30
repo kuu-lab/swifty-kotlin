@@ -7,23 +7,23 @@ symbol fq=golden.sema.RATE kind=property vis=public flags=constValue type=Double
 symbol fq=golden.sema.useConst kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol fq=golden.sema.useNegConst kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 file f13 package=golden.sema
-  decl d0 property MAX var=0 sym=golden.sema.MAX
-  decl d1 property NAME var=0 sym=golden.sema.NAME
-  decl d2 property FLAG var=0 sym=golden.sema.FLAG
-  decl d3 property RATE var=0 sym=golden.sema.RATE
-  decl d4 property NEG var=0 sym=golden.sema.NEG
-  decl d5 object Constants sym=golden.sema.Constants
-  decl d6 fun useConst sym=golden.sema.useConst
-  decl d7 fun useNegConst sym=golden.sema.useNegConst
-expr e0 int(100) type=Int
-expr e1 string(hello) type=String
-expr e2 bool(true) type=Boolean
-expr e3 double(3.14) type=Double
-expr e4 int(42) type=Int
-expr e5 unary(unaryMinus) operand=e4 type=Int
-expr e6 int(200) type=Int
-expr e7 string(world) type=String
-expr e8 name(MAX) type=Int ref=golden.sema.MAX
-expr e9 int(50) type=Int
-expr e10 binary(greaterThan) lhs=e8 rhs=e9 type=Boolean
-expr e11 name(NEG) type=Int ref=golden.sema.NEG
+  decl golden.sema.MAX property MAX var=0 sym=golden.sema.MAX
+  decl golden.sema.NAME property NAME var=0 sym=golden.sema.NAME
+  decl golden.sema.FLAG property FLAG var=0 sym=golden.sema.FLAG
+  decl golden.sema.RATE property RATE var=0 sym=golden.sema.RATE
+  decl golden.sema.NEG property NEG var=0 sym=golden.sema.NEG
+  decl golden.sema.Constants object Constants sym=golden.sema.Constants
+  decl golden.sema.useConst fun useConst sym=golden.sema.useConst
+  decl golden.sema.useNegConst fun useNegConst sym=golden.sema.useNegConst
+expr e@3:17 int(100) type=Int
+expr e@4:18 string(hello) type=String
+expr e@5:18 bool(true) type=Boolean
+expr e@6:18#2 double(3.14) type=Double
+expr e@7:18 int(42) type=Int
+expr e@7:17 unary(unaryMinus) operand=e@7:18 type=Int
+expr e@10:23 int(200) type=Int
+expr e@11:23 string(world) type=String
+expr e@14:27#0 name(MAX) type=Int ref=golden.sema.MAX
+expr e@14:33 int(50) type=Int
+expr e@14:27#1 binary(greaterThan) lhs=e@14:27#0 rhs=e@14:33 type=Boolean
+expr e@16:26 name(NEG) type=Int ref=golden.sema.NEG

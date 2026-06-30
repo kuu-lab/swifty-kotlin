@@ -5,9 +5,9 @@ symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 file f13 package=golden.sema
-  decl d0 fun usePlatformType sym=golden.sema.usePlatformType
-expr e0 name(v) type=String ref=golden.sema.usePlatformType.$0.v
-expr e1 memberCall recv=e0 callee=length args=[] type=Int call=kotlin.text.length
-expr e2 localDecl len mutable=0 type=t0 init=e1 type=Unit ref=__local_0.len
-expr e3 name(len) type=Int ref=__local_0.len
-expr e4 call callee=e5 args=[_:e3] type=Unit call=kotlin.io.println#1
+  decl golden.sema.usePlatformType fun usePlatformType sym=golden.sema.usePlatformType
+expr e@7:20#0 name(v) type=String ref=golden.sema.usePlatformType.$0.v
+expr e@7:20#1 memberCall recv=e@7:20#0 callee=length args=[] type=Int call=kotlin.text.length
+expr e@7:5#3 localDecl len mutable=0 type=Int init=e@7:20#1 type=Unit ref=__local_0.len
+expr e@8:13 name(len) type=Int ref=__local_0.len
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13] type=Unit call=kotlin.io.println#1

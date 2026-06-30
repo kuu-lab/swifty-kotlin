@@ -1,0 +1,10 @@
+symbol fq=golden.sema.makeZero kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlinx.cinterop.CValue<golden.sema.makeZero.$6848.T> bounds=[kotlinx.cinterop.CVariable]
+symbol fq=golden.sema.makeZero.$6848.T kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.CValue kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CValue<kotlinx.cinterop.CValue.T>
+symbol fq=kotlinx.cinterop.CValue.T kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.CVariable kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CVariable
+symbol fq=kotlinx.cinterop.zeroValue kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=kotlinx.cinterop.CValue<kotlinx.cinterop.zeroValue.T> bounds=[kotlinx.cinterop.CVariable]
+symbol fq=kotlinx.cinterop.zeroValue.T kind=typeParameter vis=private flags=synthetic|reifiedTypeParameter
+file f13 package=golden.sema
+  decl golden.sema.makeZero fun makeZero sym=golden.sema.makeZero
+expr e@9:45#1 call callee=e@9:45#0 args=[] type=kotlinx.cinterop.CValue<golden.sema.makeZero.$6848.T> call=kotlinx.cinterop.zeroValue targs=[golden.sema.makeZero.$6848.T]

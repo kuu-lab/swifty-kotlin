@@ -16,32 +16,32 @@ symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private f
 symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f13 package=_
-  decl d0 fun main sym=main
-expr e0 string(a) type=String
-expr e1 string(bb) type=String
-expr e2 string(ccc) type=String
-expr e3 string(dd) type=String
-expr e4 string(e) type=String
-expr e5 call callee=e6 args=[_:e0,_:e1,_:e2,_:e3,_:e4] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
-expr e7 localDecl seq mutable=0 type=_ init=e5 type=Unit ref=__local_0.seq
-expr e8 call callee=e9 args=[] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>
-expr e10 localDecl dest mutable=0 type=_ init=e8 type=Unit ref=__local_1.dest
-expr e11 name(seq) type=kotlin.sequences.Sequence<out String> ref=__local_0.seq
-expr e12 name(dest) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_1.dest
-expr e13 name(it) type=String ref=s-0
-expr e14 memberCall recv=e13 callee=length args=[] type=Int call=kotlin.text.length
-expr e15 lambda params=[] body=e14 label=groupByTo type=(String) -> Int
-expr e16 memberCall recv=e11 callee=groupByTo args=[_:e12,_:e15] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>
-expr e17 localDecl result mutable=0 type=_ init=e16 type=Unit ref=__local_2.result
-expr e18 name(result) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_2.result
-expr e19 int(1) type=Int
-expr e20 indexedAccess receiver=e18 indices=[e19] type=kotlin.collections.MutableList<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.MutableList<String>]
-expr e21 call callee=e22 args=[_:e20] type=Unit call=kotlin.io.println#1
-expr e23 name(result) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_2.result
-expr e24 int(2) type=Int
-expr e25 indexedAccess receiver=e23 indices=[e24] type=kotlin.collections.MutableList<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.MutableList<String>]
-expr e26 call callee=e27 args=[_:e25] type=Unit call=kotlin.io.println#1
-expr e28 name(result) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_2.result
-expr e29 int(3) type=Int
-expr e30 indexedAccess receiver=e28 indices=[e29] type=kotlin.collections.MutableList<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.MutableList<String>]
-expr e31 call callee=e32 args=[_:e30] type=Unit call=kotlin.io.println#1
+  decl main fun main sym=main
+expr e@2:26 string(a) type=String
+expr e@2:31 string(bb) type=String
+expr e@2:37 string(ccc) type=String
+expr e@2:44 string(dd) type=String
+expr e@2:50 string(e) type=String
+expr e@2:15#1 call callee=e@2:15#0 args=[_:e@2:26,_:e@2:31,_:e@2:37,_:e@2:44,_:e@2:50] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
+expr e@2:5 localDecl seq mutable=0 type=_ init=e@2:15#1 type=Unit ref=__local_0.seq
+expr e@4:16#1 call callee=e@4:16#0 args=[] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>
+expr e@4:5#2 localDecl dest mutable=0 type=_ init=e@4:16#1 type=Unit ref=__local_1.dest
+expr e@5:18#0 name(seq) type=kotlin.sequences.Sequence<out String> ref=__local_0.seq
+expr e@5:32 name(dest) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_1.dest
+expr e@5:40#2 name(it) type=String ref=s-0
+expr e@5:40#3 memberCall recv=e@5:40#2 callee=length args=[] type=Int call=kotlin.text.length
+expr e@5:38 lambda params=[] body=e@5:40#3 label=groupByTo type=(String) -> Int
+expr e@5:18#1 memberCall recv=e@5:18#0 callee=groupByTo args=[_:e@5:32,_:e@5:38] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>
+expr e@5:5#2 localDecl result mutable=0 type=_ init=e@5:18#1 type=Unit ref=__local_2.result
+expr e@6:13#1 name(result) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_2.result
+expr e@6:20 int(1) type=Int
+expr e@6:13#2 indexedAccess receiver=e@6:13#1 indices=[e@6:20] type=kotlin.collections.MutableList<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.MutableList<String>]
+expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#2] type=Unit call=kotlin.io.println#1
+expr e@7:13#0 name(result) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_2.result
+expr e@7:20 int(2) type=Int
+expr e@7:13#1 indexedAccess receiver=e@7:13#0 indices=[e@7:20] type=kotlin.collections.MutableList<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.MutableList<String>]
+expr e@7:5#4 call callee=e@7:5#3 args=[_:e@7:13#1] type=Unit call=kotlin.io.println#1
+expr e@8:13#0 name(result) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_2.result
+expr e@8:20 int(3) type=Int
+expr e@8:13#1 indexedAccess receiver=e@8:13#0 indices=[e@8:20] type=kotlin.collections.MutableList<String>? call=kotlin.collections.Map.get targs=[Int,kotlin.collections.MutableList<String>]
+expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13#1] type=Unit call=kotlin.io.println#1

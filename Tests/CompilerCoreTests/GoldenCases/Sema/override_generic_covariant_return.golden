@@ -19,24 +19,24 @@ symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=sy
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 class ListProvider sym=golden.sema.ListProvider
-  decl d1 class IntListProvider sym=golden.sema.IntListProvider
-  decl d2 class NumberHolder sym=golden.sema.NumberHolder
-  decl d3 class IntHolder sym=golden.sema.IntHolder
-  decl d4 fun main sym=golden.sema.main
-expr e0 call callee=e1 args=[] type=kotlin.collections.List<golden.sema.ListProvider.$class0.T> call=kotlin.collections.emptyList
-expr e2 call callee=e3 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.emptyList
-expr e4 call callee=e5 args=[] type=kotlin.RuntimeException call=kotlin.RuntimeException.<init>#0
-expr e6 throw value=e4 type=Nothing
-expr e7 int(42) type=Int
-expr e8 call callee=e9 args=[] type=golden.sema.IntListProvider call=golden.sema.IntListProvider.<init>
-expr e10 localDecl listProvider mutable=0 type=_ init=e8 type=Unit ref=__local_0.listProvider
-expr e11 call callee=e12 args=[] type=golden.sema.IntHolder call=golden.sema.IntHolder.<init>
-expr e13 localDecl valueHolder mutable=0 type=_ init=e11 type=Unit ref=__local_1.valueHolder
-expr e14 name(listProvider) type=golden.sema.IntListProvider ref=__local_0.listProvider
-expr e15 memberCall recv=e14 callee=items args=[] type=kotlin.collections.List<Int> call=golden.sema.IntListProvider.items
-expr e16 memberCall recv=e15 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e17 call callee=e18 args=[_:e16] type=Unit call=kotlin.io.println#1
-expr e19 name(valueHolder) type=golden.sema.IntHolder ref=__local_1.valueHolder
-expr e20 memberCall recv=e19 callee=value args=[] type=Int call=golden.sema.IntHolder.value
-expr e21 call callee=e22 args=[_:e20] type=Unit call=kotlin.io.println#1
+  decl golden.sema.ListProvider class ListProvider sym=golden.sema.ListProvider
+  decl golden.sema.IntListProvider class IntListProvider sym=golden.sema.IntListProvider
+  decl golden.sema.NumberHolder class NumberHolder sym=golden.sema.NumberHolder
+  decl golden.sema.IntHolder class IntHolder sym=golden.sema.IntHolder
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@4:33#1 call callee=e@4:33#0 args=[] type=kotlin.collections.List<golden.sema.ListProvider.$class0.T> call=kotlin.collections.emptyList
+expr e@9:39#1 call callee=e@9:39#0 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.emptyList
+expr e@13:33#1 call callee=e@13:33#0 args=[] type=kotlin.RuntimeException call=kotlin.RuntimeException.<init>#0
+expr e@13:27#2 throw value=e@13:33#1 type=Nothing
+expr e@18:33#1 int(42) type=Int
+expr e@22:24#1 call callee=e@22:24#0 args=[] type=golden.sema.IntListProvider call=golden.sema.IntListProvider.<init>
+expr e@22:5#4 localDecl listProvider mutable=0 type=_ init=e@22:24#1 type=Unit ref=__local_0.listProvider
+expr e@23:23#1 call callee=e@23:23#0 args=[] type=golden.sema.IntHolder call=golden.sema.IntHolder.<init>
+expr e@23:5#4 localDecl valueHolder mutable=0 type=_ init=e@23:23#1 type=Unit ref=__local_1.valueHolder
+expr e@24:13#0 name(listProvider) type=golden.sema.IntListProvider ref=__local_0.listProvider
+expr e@24:13#1 memberCall recv=e@24:13#0 callee=items args=[] type=kotlin.collections.List<Int> call=golden.sema.IntListProvider.items
+expr e@24:13#2 memberCall recv=e@24:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@24:5#4 call callee=e@24:5#3 args=[_:e@24:13#2] type=Unit call=kotlin.io.println#1
+expr e@25:13#0 name(valueHolder) type=golden.sema.IntHolder ref=__local_1.valueHolder
+expr e@25:13#1 memberCall recv=e@25:13#0 callee=value args=[] type=Int call=golden.sema.IntHolder.value
+expr e@25:5#7 call callee=e@25:5#6 args=[_:e@25:13#1] type=Unit call=kotlin.io.println#1

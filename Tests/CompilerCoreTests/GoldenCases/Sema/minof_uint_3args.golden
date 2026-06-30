@@ -7,8 +7,8 @@ symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synth
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
 file f13 package=golden.sema
-  decl d0 fun threeArgMinUInt sym=golden.sema.threeArgMinUInt
-expr e0 name(a) type=UInt ref=golden.sema.threeArgMinUInt.$0.a
-expr e1 name(b) type=UInt ref=golden.sema.threeArgMinUInt.$0.b
-expr e2 name(c) type=UInt ref=golden.sema.threeArgMinUInt.$0.c
-expr e3 call callee=e4 args=[_:e0,_:e1,_:e2] type=UInt call=kotlin.comparisons.minOf#16
+  decl golden.sema.threeArgMinUInt fun threeArgMinUInt sym=golden.sema.threeArgMinUInt
+expr e@3:62 name(a) type=UInt ref=golden.sema.threeArgMinUInt.$0.a
+expr e@3:65 name(b) type=UInt ref=golden.sema.threeArgMinUInt.$0.b
+expr e@3:68 name(c) type=UInt ref=golden.sema.threeArgMinUInt.$0.c
+expr e@3:56#1 call callee=e@3:56#0 args=[_:e@3:62,_:e@3:65,_:e@3:68] type=UInt call=kotlin.comparisons.minOf#16

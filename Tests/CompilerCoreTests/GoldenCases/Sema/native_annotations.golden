@@ -19,16 +19,16 @@ symbol fq=kotlinx.cinterop.CValuesRef kind=class vis=public flags=synthetic|abst
 symbol fq=kotlinx.cinterop.CValuesRef.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.IntVar kind=class vis=public flags=synthetic type=kotlinx.cinterop.IntVar
 file f13 package=golden.sema annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class,kotlin.experimental.ExperimentalObjCEnum::class,kotlin.experimental.ExperimentalObjCName::class,kotlin.experimental.ExperimentalObjCRefinement::class)]
-  decl d0 class SwiftRefined sym=golden.sema.SwiftRefined
-  decl d1 class NativeEnumBridge sym=golden.sema.NativeEnumBridge
-  decl d2 class ExportEnumToObjC sym=golden.sema.ExportEnumToObjC
-  decl d3 class NativeGreeter sym=golden.sema.NativeGreeter
-  decl d4 class SwiftFacade sym=golden.sema.SwiftFacade
-  decl d5 class NativeStatus sym=golden.sema.NativeStatus
-  decl d6 fun nativeSum sym=golden.sema.nativeSum
-  decl d7 fun takesPointer sym=golden.sema.takesPointer
-expr e0 name(person) type=String ref=golden.sema.NativeGreeter.greet.$0.person
-expr e1 name(a) type=Int ref=golden.sema.nativeSum.$1.a
-expr e2 name(b) type=Int ref=golden.sema.nativeSum.$1.b
-expr e3 binary(add) lhs=e1 rhs=e2 type=Int
-expr e4 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>? ref=golden.sema.takesPointer.$2.ptr
+  decl golden.sema.SwiftRefined class SwiftRefined sym=golden.sema.SwiftRefined
+  decl golden.sema.NativeEnumBridge class NativeEnumBridge sym=golden.sema.NativeEnumBridge
+  decl golden.sema.ExportEnumToObjC class ExportEnumToObjC sym=golden.sema.ExportEnumToObjC
+  decl golden.sema.NativeGreeter class NativeGreeter sym=golden.sema.NativeGreeter
+  decl golden.sema.SwiftFacade class SwiftFacade sym=golden.sema.SwiftFacade
+  decl golden.sema.NativeStatus class NativeStatus sym=golden.sema.NativeStatus
+  decl golden.sema.nativeSum fun nativeSum sym=golden.sema.nativeSum
+  decl golden.sema.takesPointer fun takesPointer sym=golden.sema.takesPointer
+expr e@40:90 name(person) type=String ref=golden.sema.NativeGreeter.greet.$0.person
+expr e@54:38#1 name(a) type=Int ref=golden.sema.nativeSum.$1.a
+expr e@54:42 name(b) type=Int ref=golden.sema.nativeSum.$1.b
+expr e@54:38#2 binary(add) lhs=e@54:38#1 rhs=e@54:42 type=Int
+expr e@61:24#1 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>? ref=golden.sema.takesPointer.$2.ptr
