@@ -84,18 +84,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
       - name: Setup Swift and LLVM
         uses: ./.github/actions/setup-swift-llvm
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
+        id: spm-cache
         uses: actions/cache@v5
         with:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
           key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-
       - name: Show toolchain versions
         run: swift --version
+      - name: Build (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        run: swift build --build-tests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run smoke tests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "4"
@@ -169,13 +182,21 @@ jobs:
         with:
           swift-version: "6.2"
       - name: Cache SPM build artifacts
+        id: spm-cache
         uses: actions/cache@v5
         with:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
           key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-
       - name: Show toolchain versions
         run: swift --version
+      - name: Build (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        env:
+          SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
+        run: swift build --build-tests -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
         env:
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
@@ -247,11 +268,17 @@ jobs:
           fi
           echo "KOTLINC_CLASSPATH=${TOOLS_DIR}/kotlinx-coroutines-core-jvm.jar" >> "$GITHUB_ENV"
       - name: Cache SPM build artifacts
+        id: spm-cache
         uses: actions/cache@v5
         with:
           path: .build
           # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
           key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-
+      - name: Build kswiftc (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        run: swift build -Xswiftc -swift-version -Xswiftc 6
       - name: Verify prerequisites
         run: |
           java -version
