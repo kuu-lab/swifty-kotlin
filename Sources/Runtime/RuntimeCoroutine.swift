@@ -2874,14 +2874,19 @@ func runSuspendEntryLoop(
     )
 }
 
+/// `onCompletion` が nil の場合: 呼び出しスレッドを completionGate でブロックする同期パス。
+/// `onCompletion` が非 nil の場合: ループ開始後すぐに返り、完了時にコールバックを呼ぶ非同期パス
+/// (DEBT-CORO-003: dispatcher スレッドをブロックしない continuation ベース実装)。
 func runSuspendEntryLoopWithContinuation(
     entryPointRaw: Int,
     continuation: Int,
-    outThrown: UnsafeMutablePointer<Int>? = nil
+    outThrown: UnsafeMutablePointer<Int>? = nil,
+    onCompletion: (@Sendable (_ result: Int, _ thrown: Int) -> Void)? = nil
 ) -> Int {
     guard let entryPoint = suspendEntryPoint(from: entryPointRaw) else {
         outThrown?.pointee = 0
         _ = kk_coroutine_state_exit(continuation, 0)
+        onCompletion?(0, 0)
         return 0
     }
 
@@ -2900,14 +2905,15 @@ func runSuspendEntryLoopWithContinuation(
     //      The current GCD thread is released — no blocking.
     //   3. When the resume closure fires, it repeats from step 1.
     //   4. When the entry point returns a concrete value (not suspended) or
-    //      throws, signal the completion gate so the caller unblocks.
+    //      throws, signal the completion gate (sync path) or invoke onCompletion
+    //      (async path) so the caller is unblocked / notified.
     //
-    // The completion gate semaphore is only waited on by the outermost
-    // synchronous caller (runBlocking, join, await, withContext).  Launched
-    // coroutines never block a GCD thread during internal suspensions.
+    // The completion gate semaphore is only used by the synchronous path
+    // (runBlocking, join, await).  The async path (onCompletion != nil) never
+    // blocks any GCD thread — the completion callback is invoked instead.
 
-    let completionGate = DispatchSemaphore(value: 0)
-    // Thread-safe result box — written inside the loop, read after the gate.
+    // Sync path only: gate and result box.
+    let completionGate: DispatchSemaphore? = onCompletion == nil ? DispatchSemaphore(value: 0) : nil
     final class ResultBox: @unchecked Sendable { var value: Int = 0 }
     let resultBox = ResultBox()
 
@@ -2946,7 +2952,6 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.removeKey()
-            outThrown?.pointee = thrownValue
             RuntimeJobHandle.current = nil
             _ = kk_coroutine_state_exit(continuation, 0)
             // Record the thrown exception in the continuation state so callers
@@ -2954,28 +2959,44 @@ func runSuspendEntryLoopWithContinuation(
             // distinguish a thrown exception from a normal (possibly non-zero)
             // return value without inspecting the object-pointer registry.
             contState?.thrownException = thrownValue
-            resultBox.value = 0
-            completionGate.signal()
+            if let onCompletion {
+                loopBodyBox.body = nil
+                onCompletion(0, thrownValue)
+            } else {
+                outThrown?.pointee = thrownValue
+                resultBox.value = 0
+                completionGate?.signal()
+            }
             return
         }
         if result != suspendedToken {
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.removeKey()
-            outThrown?.pointee = 0
             RuntimeJobHandle.current = nil
-            resultBox.value = result
-            completionGate.signal()
+            if let onCompletion {
+                loopBodyBox.body = nil
+                onCompletion(result, 0)
+            } else {
+                outThrown?.pointee = 0
+                resultBox.value = result
+                completionGate?.signal()
+            }
             return
         }
         guard let state = runtimeContinuationState(from: continuation) else {
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.removeKey()
-            outThrown?.pointee = 0
             RuntimeJobHandle.current = nil
-            resultBox.value = 0
-            completionGate.signal()
+            if let onCompletion {
+                loopBodyBox.body = nil
+                onCompletion(0, 0)
+            } else {
+                outThrown?.pointee = 0
+                resultBox.value = 0
+                completionGate?.signal()
+            }
             return
         }
         // CORO-004: Install a continuation closure instead of blocking.
@@ -3005,17 +3026,26 @@ func runSuspendEntryLoopWithContinuation(
     // Kick off the first iteration synchronously on the current thread.
     loopBodyBox.body?()
 
-    // Block only at the outermost level until the coroutine completes.
-    completionGate.wait()
+    if let gate = completionGate {
+        // Sync path: block until the coroutine completes.
+        gate.wait()
 
-    // Break the strong reference cycle: loopBodyBox -> closure -> loopBodyBox
-    loopBodyBox.body = nil
-    RuntimeCoroutineScope.removeScope(forTask: currentTaskKey)
-    RuntimeContinuationState.removeState(forTask: currentTaskKey)
+        // Break the strong reference cycle: loopBodyBox -> closure -> loopBodyBox
+        loopBodyBox.body = nil
+        RuntimeCoroutineScope.removeScope(forTask: currentTaskKey)
+        RuntimeContinuationState.removeState(forTask: currentTaskKey)
+        RuntimeCoroutineScopeTaskKey.removeKey()
+        RuntimeJobHandle.current = nil
+
+        return resultBox.value
+    }
+
+    // Async path: return immediately.  The resume continuation chain handles
+    // global-map cleanup (currentTaskKey entries) when the loop eventually
+    // completes.  Clean up only the initial thread's locals here.
     RuntimeCoroutineScopeTaskKey.removeKey()
     RuntimeJobHandle.current = nil
-
-    return resultBox.value
+    return 0
 }
 
 // MARK: - STDLIB-CORO-068: Suspend Function Invocation
