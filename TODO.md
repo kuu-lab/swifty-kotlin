@@ -37,7 +37,7 @@
 - [ ] STDLIB-CINTEROP-FN-016: `CPointer<T>.set(index, value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
-- [ ] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
+- [x] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
 - [x] STDLIB-CINTEROP-FN-034: `CPointer<ShortVar>.toKStringFromUtf16()` を追加する
 - [x] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
@@ -164,7 +164,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-054: JS DefinedExternally stub削除（`HeaderHelpers+SyntheticJsDefinedExternallyStubs.swift`）
 - [ ] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
 - [ ] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
-- [ ] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
+- [x] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
 - [ ] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
 - [ ] CLEANUP-STUB-063: JS PrimitiveWrappers stub削除（`HeaderHelpers+SyntheticJsPrimitiveWrappers.swift`）
 - [ ] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
@@ -172,19 +172,18 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
 - [ ] CLEANUP-STUB-067: JS CollectionsReadonlyArray stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayStubs.swift`）
 - [ ] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
-- [ ] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetStubs.swift`）
+- [x] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToMutableSetStubs.swift`）
 - [ ] CLEANUP-STUB-069: JS CollectionsReadonlyMap stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyMapToMapStubs.swift`）
 - [ ] CLEANUP-STUB-072: JS Fun stub削除（`HeaderHelpers+SyntheticJsFunStubs.swift`）
-- [ ] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
+- [x] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
 - [ ] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
 - [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
-- [ ] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
+- [x] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
 - [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
 - [ ] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
 - [ ] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
-- [ ] CLEANUP-STUB-087: JS BooleanInterop stub削除（`HeaderHelpers+SyntheticJsBooleanInteropStubs.swift` — `JsBoolean` 変換 surface）
 - [ ] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` の計 15 シンボル。各 stub 削除タスクの完了に合わせて段階的に外す）
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換

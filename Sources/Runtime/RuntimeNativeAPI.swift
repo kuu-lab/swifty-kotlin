@@ -79,6 +79,20 @@ public func kk_cpointer_toKStringFromUtf32(_ handle: Int) -> Int {
     return registerRuntimeObject(RuntimeStringBox(result))
 }
 
+@_cdecl("kk_cpointer_toKStringFromUtf16")
+public func kk_cpointer_toKStringFromUtf16(_ handle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else { return 0 }
+    guard let box = tryCast(ptr, to: RuntimeCPointerBox.self) else { return 0 }
+    guard box.address != 0, let utf16 = UnsafePointer<UInt16>(bitPattern: box.address) else { return 0 }
+    var units: [UInt16] = []
+    var index = 0
+    while utf16[index] != 0 {
+        units.append(utf16[index])
+        index += 1
+    }
+    return registerRuntimeObject(RuntimeStringBox(String(decoding: units, as: UTF16.self)))
+}
+
 @_cdecl("kk_copaque_pointer_new")
 public func kk_copaque_pointer_new(_ address: Int) -> Int {
     registerRuntimeObject(RuntimeCOpaquePointerBox(address: UInt(bitPattern: address)))
