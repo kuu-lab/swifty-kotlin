@@ -885,6 +885,7 @@ extension ABIMismatchTests {
         "kk_sequence_builder_create",
         "kk_sequence_builder_yield",
         "kk_sequence_chunked",
+        "kk_sequence_completed_sentinel",
         "kk_sequence_constrainOnce",
         "kk_sequence_distinct",
         "kk_sequence_drop",
