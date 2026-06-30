@@ -233,12 +233,11 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-TIME-082: Duration predicate / absoluteValue ---
         // absoluteValue, isNegative, isPositive, isInfinite are implemented in Kotlin source
-        // (BundledKotlinStdlib.kotlinTimeSource). The __kk_duration_* bridges below are called
-        // from that Kotlin source. The public API symbols (absoluteValue, isNegative, …) are
-        // direct stubs kept for backward-compatible member dispatch while the Kotlin-source
-        // dispatch path matures (MIGRATION-TIME-001).
+        // (Stdlib/kotlin/time/Duration.kt, auto-loaded by LoadSourcesPhase).
+        // The __kk_duration_* bridges below are called from that Kotlin source.
+        // MIGRATION-TIME-001 complete: direct compat stubs removed; dispatch via Kotlin source.
 
-        // Bridge stubs (called from BundledKotlinStdlib.kotlinTimeSource)
+        // Bridge stubs (called from Stdlib/kotlin/time/Duration.kt)
         registerDurationMemberMethod(
             named: "__kk_duration_absoluteValue",
             externalLinkName: "kk_duration_absoluteValue",
@@ -287,7 +286,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Direct dispatch stubs — public API surface (MIGRATION-TIME-001 compat layer)
+        // MIGRATION-TIME-001 complete: absoluteValue, isNegative, isPositive, isInfinite
+        // are now resolved via Kotlin source extension functions / properties in
+        // Stdlib/kotlin/time/Duration.kt. Direct compat stubs removed.
+        /*
         registerDurationMemberProperty(
             named: "absoluteValue",
             externalLinkName: "kk_duration_absoluteValue",
@@ -332,6 +334,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        */
 
         // isFinite stays as a direct property stub (not yet migrated)
         registerDurationMemberProperty(
@@ -369,12 +372,10 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-TIME-082: Duration operator bridges (MIGRATION-TIME-001) ---
         // plus, minus, times, div, unaryMinus are implemented in Kotlin source
-        // (BundledKotlinStdlib.kotlinTimeSource). The __kk_duration_* entries below are
-        // bridges called from that Kotlin source. The public operator symbols (plus, minus, …)
-        // are direct stubs kept for backward-compatible member dispatch while the Kotlin-source
-        // dispatch path matures (MIGRATION-TIME-001).
+        // (Stdlib/kotlin/time/Duration.kt, auto-loaded by LoadSourcesPhase).
+        // MIGRATION-TIME-001 complete: direct compat stubs removed; dispatch via Kotlin source.
 
-        // Bridge stubs (called from BundledKotlinStdlib.kotlinTimeSource)
+        // Bridge stubs (called from Stdlib/kotlin/time/Duration.kt)
         registerDurationMemberMethod(
             named: "__kk_duration_plus",
             externalLinkName: "kk_duration_plus",
@@ -447,7 +448,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Direct dispatch stubs — public operator surface (MIGRATION-TIME-001 compat layer)
+        // MIGRATION-TIME-001 complete: plus, minus, times, div, unaryMinus are now resolved
+        // via Kotlin source extension operators in Stdlib/kotlin/time/Duration.kt.
+        // Direct compat stubs removed.
+        /*
         registerDurationMemberMethod(
             named: "plus",
             externalLinkName: "kk_duration_plus",
@@ -513,6 +517,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        */
 
         // compareTo stays as a direct synthetic stub (not in MIGRATION-TIME-001 scope)
         registerDurationMemberMethod(
