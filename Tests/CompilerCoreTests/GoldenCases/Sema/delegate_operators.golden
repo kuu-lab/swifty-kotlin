@@ -9,7 +9,7 @@ symbol fq=golden.sema.ReadWriteDelegate.stored kind=property vis=private flags=m
 symbol fq=golden.sema.provided kind=property vis=public flags=_ type=String
 symbol fq=golden.sema.readOnly kind=property vis=public flags=_ type=String
 symbol fq=golden.sema.readWrite kind=property vis=public flags=mutable type=String
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.ReadOnlyDelegate class ReadOnlyDelegate sym=golden.sema.ReadOnlyDelegate
   decl golden.sema.ReadWriteDelegate class ReadWriteDelegate sym=golden.sema.ReadWriteDelegate
   decl golden.sema.DelegateProvider class DelegateProvider sym=golden.sema.DelegateProvider

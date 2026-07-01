@@ -11,7 +11,7 @@ symbol fq=basicDestructuring kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=destructuringWithUnderscore kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f15 package=_
+file f0 package=_
   decl Point class Point sym=Point
   decl basicDestructuring fun basicDestructuring sym=basicDestructuring
   decl destructuringWithUnderscore fun destructuringWithUnderscore sym=destructuringWithUnderscore

@@ -7,7 +7,7 @@ symbol fq=kotlin.text.removeRange#1 kind=function vis=public flags=synthetic sig
 symbol fq=kotlin.text.removeRange.endIndex kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.removeRange.range kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.removeRange.startIndex kind=valueParameter vis=private flags=synthetic
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.useRemoveRangeIndices fun useRemoveRangeIndices sym=golden.sema.useRemoveRangeIndices
   decl golden.sema.useRemoveRangeStart fun useRemoveRangeStart sym=golden.sema.useRemoveRangeStart
   decl golden.sema.useRemoveRangeEmpty fun useRemoveRangeEmpty sym=golden.sema.useRemoveRangeEmpty

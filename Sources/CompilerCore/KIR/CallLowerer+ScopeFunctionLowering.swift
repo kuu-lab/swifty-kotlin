@@ -233,6 +233,72 @@ extension CallLowerer {
             }
             return result
 
+        case .scopeUseContents:
+            // useContents: lambda has the contained C variable as implicit receiver.
+            let contentType: TypeID? = sema.bindings.exprTypes[args[0].expr].flatMap { lambdaType in
+                if case let .functionType(functionType) = sema.types.kind(of: lambdaType) {
+                    return functionType.receiver
+                }
+                return nil
+            } ?? {
+                guard let receiverType = sema.bindings.exprTypes[receiverExpr],
+                      case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                      let cValueSymbol = sema.symbols.lookup(fqName: [
+                          interner.intern("kotlinx"),
+                          interner.intern("cinterop"),
+                          interner.intern("CValue"),
+                      ]),
+                      classType.classSymbol == cValueSymbol,
+                      let firstArg = classType.args.first
+                else {
+                    return nil
+                }
+                switch firstArg {
+                case let .invariant(type), let .out(type), let .in(type):
+                    return sema.types.makeNonNullable(type)
+                case .star:
+                    return sema.types.anyType
+                }
+            }()
+            guard let contentType else {
+                return nil
+            }
+
+            let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+            let receiverSymExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: contentType)
+
+            let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
+            let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+            driver.ctx.setLocalValue(receiverSymExpr, for: receiverSymbol)
+            driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverSymExpr)
+
+            let loweredLambdaID = driver.lowerExpr(
+                args[0].expr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+
+            driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
+
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: boundType
+            )
+            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
+                instructions.append(.call(
+                    symbol: info.symbol,
+                    callee: info.callee,
+                    arguments: info.captureArguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                return nil
+            }
+            return result
+
         case .scopeUse:
             // use: like `let`, lambda takes `it` as explicit parameter,
             // but receiver.close() is called in a finally block (try-finally semantics).

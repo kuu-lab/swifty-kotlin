@@ -4,7 +4,7 @@ symbol fq=golden.sema.minOfULongTwoArg.$0.b kind=valueParameter vis=private flag
 symbol fq=kotlin.comparisons.minOf#17 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[ULong,ULong] ret=ULong
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.minOfULongTwoArg fun minOfULongTwoArg sym=golden.sema.minOfULongTwoArg
 expr e@3:57 name(a) type=ULong ref=golden.sema.minOfULongTwoArg.$0.a
 expr e@3:60 name(b) type=ULong ref=golden.sema.minOfULongTwoArg.$0.b

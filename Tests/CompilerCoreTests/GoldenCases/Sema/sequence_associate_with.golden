@@ -13,7 +13,7 @@ symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=syn
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=testAssociateWithInts kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=testAssociateWithStrings kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl testAssociateWithInts fun testAssociateWithInts sym=testAssociateWithInts
   decl testAssociateWithStrings fun testAssociateWithStrings sym=testAssociateWithStrings
 expr e@2:29 int(1) type=Int

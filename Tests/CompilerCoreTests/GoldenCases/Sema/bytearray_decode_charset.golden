@@ -16,7 +16,7 @@ symbol fq=kotlin.text.decodeToString#0 kind=function vis=public flags=_ sig=recv
 symbol fq=kotlin.text.decodeToString#3 kind=function vis=public flags=_ sig=recv=kotlin.ByteArray params=[kotlin.text.Charset] ret=String
 symbol fq=kotlin.text.decodeToString.$0.charset kind=valueParameter vis=private flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl main fun main sym=main
 expr e@2:29 int(72) type=Int
 expr e@2:33 int(101) type=Int

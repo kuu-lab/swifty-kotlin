@@ -8,7 +8,7 @@ symbol fq=golden.sema.Producer.$class0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.Producer.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Producer<golden.sema.Producer.$class0.T> params=[golden.sema.Producer.$class0.T] ret=golden.sema.Producer<golden.sema.Producer.$class0.T>
 symbol fq=golden.sema.Producer.<init>.$0.item kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.validVariance kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Producer class Producer sym=golden.sema.Producer
   decl golden.sema.Consumer class Consumer sym=golden.sema.Consumer
   decl golden.sema.validVariance fun validVariance sym=golden.sema.validVariance

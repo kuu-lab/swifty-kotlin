@@ -5,7 +5,7 @@ symbol fq=golden.sema.useIt kind=function vis=public flags=_ sig=recv=_ params=[
 symbol fq=golden.sema.useIt.$0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.useIt.$0.t kind=valueParameter vis=private flags=_
 symbol fq=kotlin.io.Closeable kind=interface vis=public flags=synthetic
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.MyAutoResource class MyAutoResource sym=golden.sema.MyAutoResource
   decl golden.sema.useIt fun useIt sym=golden.sema.useIt
   decl golden.sema.callSite fun callSite sym=golden.sema.callSite

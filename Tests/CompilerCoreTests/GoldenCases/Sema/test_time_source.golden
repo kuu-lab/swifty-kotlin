@@ -15,7 +15,7 @@ symbol fq=kotlin.time.TestTimeSource.plusAssign kind=function vis=public flags=s
 symbol fq=kotlin.time.TestTimeSource.plusAssign.duration kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.time.inWholeMilliseconds.$get kind=function vis=public flags=synthetic sig=recv=kotlin.time.Duration params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl main fun main sym=main
 expr e@8:18#1 call callee=e@8:18#0 args=[] type=kotlin.time.TestTimeSource call=kotlin.time.TestTimeSource.<init>
 expr e@8:5#2 localDecl source mutable=0 type=_ init=e@8:18#1 type=Unit ref=__local_0.source

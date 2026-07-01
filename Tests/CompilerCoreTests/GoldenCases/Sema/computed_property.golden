@@ -1,6 +1,6 @@
 symbol fq=golden.sema.Widget kind=class vis=public flags=_
 symbol fq=golden.sema.Widget.$backing_backed kind=backingField vis=private flags=mutable type=Int
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Widget class Widget sym=golden.sema.Widget
 expr e@4:34 string(hello) type=String
 expr e@8:30 name(value) type=Int ref=s-0

@@ -34,7 +34,7 @@ symbol fq=golden.sema.useConstraints kind=function vis=public flags=_ sig=recv=_
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.Comparable.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.Comparable.compareTo kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.Comparable.T params=[kotlin.Comparable.T] ret=Int
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.clamp fun clamp sym=golden.sema.clamp
   decl golden.sema.maxItem fun maxItem sym=golden.sema.maxItem
   decl golden.sema.processItem fun processItem sym=golden.sema.processItem

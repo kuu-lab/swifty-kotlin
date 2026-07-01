@@ -329,37 +329,10 @@ struct NativeEmitter {
             functionDeclInfo.append((function.symbol, functionName, function.params.count))
         }
 
-        let globalSlotNames: [(SymbolID, String)] = llvmGlobalVariables.map { symbol, _ in
-            (symbol, "kk_global_root_slot_\(max(0, Int(symbol.rawValue)))")
-        }
-
         // Parallel codegen is disabled: LLVMLinkModules2 requires source and
         // destination modules to share the same LLVMContext.  Per-function
         // contexts produce cross-context type references that segfault on link.
-        let canParallelize = false
-
-        if canParallelize {
-            for (_, llvmGlobal) in llvmGlobalVariables {
-                bindings.setExternalLinkage(llvmGlobal)
-            }
-            do {
-                try emitFunctionBodiesParallel(
-                    emittableFunctions: emittableFunctions,
-                    mainModule: llvmModule,
-                    mainContext: context,
-                    functionDeclInfo: functionDeclInfo,
-                    globalSlotNames: globalSlotNames,
-                    triple: triple
-                )
-            } catch {
-                bindings.disposeModule(llvmModule)
-                bindings.disposeContext(context)
-                throw error
-            }
-            for (_, llvmGlobal) in llvmGlobalVariables {
-                bindings.setInternalLinkage(llvmGlobal)
-            }
-        } else {
+        do {
             let diContext: DebugInfoContext? = (debugInfo && bindings.debugLocationAvailable)
                 ? createDebugInfoContext(
                     llvmModule: llvmModule,

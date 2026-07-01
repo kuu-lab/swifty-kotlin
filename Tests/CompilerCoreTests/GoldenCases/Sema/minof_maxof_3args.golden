@@ -38,7 +38,7 @@ symbol fq=kotlin.comparisons.minOf#7 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.twoArgInt fun twoArgInt sym=golden.sema.twoArgInt
   decl golden.sema.twoArgMinInt fun twoArgMinInt sym=golden.sema.twoArgMinInt
   decl golden.sema.threeArgMaxInt fun threeArgMaxInt sym=golden.sema.threeArgMaxInt

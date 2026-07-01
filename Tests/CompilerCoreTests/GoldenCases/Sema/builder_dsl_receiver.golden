@@ -7,7 +7,7 @@ symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=sy
 symbol fq=kotlin.text.StringBuilder kind=class vis=public flags=synthetic
 symbol fq=kotlin.text.StringBuilder.append#7 kind=function vis=public flags=synthetic sig=recv=kotlin.text.StringBuilder params=[String?] ret=kotlin.text.StringBuilder
 symbol fq=kotlin.text.StringBuilder.append.value kind=valueParameter vis=private flags=synthetic
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.useBuildStringReceiverThis fun useBuildStringReceiverThis sym=golden.sema.useBuildStringReceiverThis
   decl golden.sema.useBuildListReceiverThis fun useBuildListReceiverThis sym=golden.sema.useBuildListReceiverThis
 expr e@4:5#2 this type=kotlin.text.StringBuilder

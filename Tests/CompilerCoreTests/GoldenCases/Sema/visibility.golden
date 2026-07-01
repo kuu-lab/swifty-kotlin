@@ -2,7 +2,7 @@ symbol fq=golden.sema.internalFun kind=function vis=internal flags=_ sig=recv=_ 
 symbol fq=golden.sema.privateFun kind=function vis=private flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.publicFun kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.useAll kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.publicFun fun publicFun sym=golden.sema.publicFun
   decl golden.sema.internalFun fun internalFun sym=golden.sema.internalFun
   decl golden.sema.privateFun fun privateFun sym=golden.sema.privateFun
