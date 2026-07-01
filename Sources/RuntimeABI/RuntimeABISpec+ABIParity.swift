@@ -997,7 +997,7 @@ public extension RuntimeABISpec {
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_string_toByte_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
@@ -1027,13 +1027,13 @@ public extension RuntimeABISpec {
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_string_toShortOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_string_toShort_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),

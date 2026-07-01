@@ -262,13 +262,13 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "toIntOrNull", sema: sema, interner: interner) == "kk_string_toIntOrNull",
-            "String.toIntOrNull should link to kk_string_toIntOrNull"
+            externalLink(for: "toIntOrNull", sema: sema, interner: interner) == "kk_string_toIntOrNull_flat",
+            "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
         )
         #expect(
             externalLinks(for: "toIntOrNull", sema: sema, interner: interner)
-                .contains("kk_string_toIntOrNull_radix"),
-            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix"
+                .contains("kk_string_toIntOrNull_radix_flat"),
+            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix_flat"
         )
         #expect(
             externalLink(for: "toUByteOrNull", sema: sema, interner: interner) == "kk_string_toUByteOrNull",

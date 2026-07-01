@@ -346,6 +346,8 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     private static let whenOrdinalRegex = try! NSRegularExpression(pattern: "(__when_)(\\d+)")
     // swiftlint:disable:next force_try
     private static let localFunOrdinalRegex = try! NSRegularExpression(pattern: "(__localfun_)(\\d+)")
+    // swiftlint:disable:next force_try
+    private static let fileOrdinalRegex = try! NSRegularExpression(pattern: "(file f)(\\d+)(?= package=)")
 
     static func normalize(_ output: String) -> String {
         var normalized = output
@@ -361,6 +363,7 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: whenOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: localFunOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: negativeSymbolReferenceRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: fileOrdinalRegex)
         return normalized
     }
 
