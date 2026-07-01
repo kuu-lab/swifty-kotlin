@@ -53,9 +53,13 @@ public fun IntRange.toList(): List<Int> {
 }
 
 public fun IntRange.count(): Int {
-    var count = 0
-    for (element in this) { count += 1 }
-    return count
+    return if (step > 0) {
+        if (first > last) 0 else (last - first) / step + 1
+    } else if (step < 0) {
+        if (first < last) 0 else (first - last) / (-step) + 1
+    } else {
+        0
+    }
 }
 
 // MARK: - IntProgression
@@ -83,9 +87,13 @@ public fun IntProgression.toList(): List<Int> {
 }
 
 public fun IntProgression.count(): Int {
-    var count = 0
-    for (element in this) { count += 1 }
-    return count
+    return if (step > 0) {
+        if (first > last) 0 else (last - first) / step + 1
+    } else if (step < 0) {
+        if (first < last) 0 else (first - last) / (-step) + 1
+    } else {
+        0
+    }
 }
 
 // MARK: - LongRange
@@ -113,9 +121,14 @@ public fun LongRange.toList(): List<Long> {
 }
 
 public fun LongRange.count(): Int {
-    var count = 0
-    for (element in this) { count += 1 }
-    return count
+    val count = if (step > 0L) {
+        if (first > last) 0L else (last - first) / step + 1L
+    } else if (step < 0L) {
+        if (first < last) 0L else (first - last) / (-step) + 1L
+    } else {
+        0L
+    }
+    return count.toInt()
 }
 
 // MARK: - LongProgression
@@ -143,9 +156,14 @@ public fun LongProgression.toList(): List<Long> {
 }
 
 public fun LongProgression.count(): Int {
-    var count = 0
-    for (element in this) { count += 1 }
-    return count
+    val count = if (step > 0L) {
+        if (first > last) 0L else (last - first) / step + 1L
+    } else if (step < 0L) {
+        if (first < last) 0L else (first - last) / (-step) + 1L
+    } else {
+        0L
+    }
+    return count.toInt()
 }
 
 // MARK: - CharRange
@@ -173,9 +191,13 @@ public fun CharRange.toList(): List<Char> {
 }
 
 public fun CharRange.count(): Int {
-    var count = 0
-    for (element in this) { count += 1 }
-    return count
+    return if (step > 0) {
+        if (first > last) 0 else (last - first) / step + 1
+    } else if (step < 0) {
+        if (first < last) 0 else (first - last) / (-step) + 1
+    } else {
+        0
+    }
 }
 
 // MARK: - CharProgression
@@ -203,7 +225,11 @@ public fun CharProgression.toList(): List<Char> {
 }
 
 public fun CharProgression.count(): Int {
-    var count = 0
-    for (element in this) { count += 1 }
-    return count
+    return if (step > 0) {
+        if (first > last) 0 else (last - first) / step + 1
+    } else if (step < 0) {
+        if (first < last) 0 else (first - last) / (-step) + 1
+    } else {
+        0
+    }
 }

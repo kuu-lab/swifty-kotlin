@@ -122,7 +122,7 @@ expr e@56:13#0 name(container) type=TagContainer ref=__local_7.container
 expr e@56:13#1 memberCall recv=e@56:13#0 callee=tags args=[] type=kotlin.collections.MutableSet<String> ref=TagContainer.tags
 expr e@56:13#2 memberCall recv=e@56:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e@56:5#4 call callee=e@56:5#3 args=[_:e@56:13#2] type=Unit call=kotlin.io.println#1
-expr e@58:5#3 call callee=e@58:5#2 args=[] type=Unit call=nestedSets
+expr e@58:5#2 call callee=e@58:5#1 args=[] type=Unit call=nestedSets
 expr e@60:33 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
 expr e@60:23#1 call callee=e@60:23#0 args=[_:e@60:33] type=kotlin.collections.MutableSet<String> call=constrain targs=[kotlin.collections.MutableSet<String>]
 expr e@60:5#6 localDecl constrained mutable=0 type=_ init=e@60:23#1 type=Unit ref=__local_8.constrained

@@ -122,7 +122,7 @@ expr e@56:13#0 name(created) type=kotlin.collections.LinkedHashSet<Int> ref=__lo
 expr e@56:13#1 memberCall recv=e@56:13#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e@56:5#4 call callee=e@56:5#3 args=[_:e@56:13#1] type=Unit call=kotlin.io.println#1
 expr e@58:21#1 call callee=e@58:21#0 args=[] type=OrderedTags call=OrderedTags.<init>
-expr e@58:5#2 localDecl container mutable=0 type=_ init=e@58:21#1 type=Unit ref=__local_7.container
+expr e@58:5#1 localDecl container mutable=0 type=_ init=e@58:21#1 type=Unit ref=__local_7.container
 expr e@59:5#3 name(container) type=OrderedTags ref=__local_7.container
 expr e@59:5#4 memberCall recv=e@59:5#3 callee=tags args=[] type=kotlin.collections.LinkedHashSet<String> ref=OrderedTags.tags
 expr e@59:24 string(property) type=String
@@ -133,7 +133,7 @@ expr e@60:13#4 memberCall recv=e@60:13#3 callee=size args=[] type=Int ref=kotlin
 expr e@60:5#7 call callee=e@60:5#6 args=[_:e@60:13#4] type=Unit call=kotlin.io.println#1
 expr e@62:5#4 call callee=e@62:5#3 args=[] type=Unit call=nestedLinkedSets
 expr e@64:17#1 call callee=e@64:17#0 args=[] type=MySet call=MySet.<init>
-expr e@64:5#1 localDecl mySet mutable=0 type=_ init=e@64:17#1 type=Unit ref=__local_8.mySet
+expr e@64:5 localDecl mySet mutable=0 type=_ init=e@64:17#1 type=Unit ref=__local_8.mySet
 expr e@65:5#2 name(mySet) type=MySet ref=__local_8.mySet
 expr e@65:15 string(inherited) type=String
 expr e@65:5#3 memberCall recv=e@65:5#2 callee=add args=[_:e@65:15] type=<error>
@@ -145,7 +145,7 @@ expr e@68:23#2 call callee=e@68:23#1 args=[_:e@68:39] type=kotlin.collections.Li
 expr e@68:5#4 localDecl constrained mutable=0 type=_ init=e@68:23#2 type=Unit ref=__local_9.constrained
 expr e@69:13#0 name(constrained) type=kotlin.collections.LinkedHashSet<String> ref=__local_9.constrained
 expr e@69:13#1 memberCall recv=e@69:13#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@69:5#3 call callee=e@69:5#2 args=[_:e@69:13#1] type=Unit call=kotlin.io.println#1
+expr e@69:5#2 call callee=e@69:5#1 args=[_:e@69:13#1] type=Unit call=kotlin.io.println#1
 expr e@71:13#0 name(set) type=kotlin.collections.LinkedHashSet<String> ref=__local_2.set
 expr e@71:13#1 memberCall recv=e@71:13#0 callee=linkedExtension args=[] type=String call=linkedExtension
 expr e@71:5#3 call callee=e@71:5#2 args=[_:e@71:13#1] type=Unit call=kotlin.io.println#1

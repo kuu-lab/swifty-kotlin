@@ -112,10 +112,10 @@ expr e@53:5#4 localDecl flag mutable=0 type=_ init=e@53:16#1 type=Unit ref=__loc
 expr e@54:13 name(flag) type=Boolean ref=__local_1.flag
 expr e@54:5#5 call callee=e@54:5#4 args=[_:e@54:13] type=Unit call=kotlin.io.println#1
 expr e@56:30 bool(false) type=Boolean
-expr e@56:17#5 call callee=e@56:17#4 args=[_:e@56:30] type=Boolean call=returnsFalse
-expr e@56:5#3 localDecl flag2 mutable=0 type=_ init=e@56:17#5 type=Unit ref=__local_2.flag2
-expr e@57:13#2 name(flag2) type=Boolean ref=__local_2.flag2
-expr e@57:5#8 call callee=e@57:5#7 args=[_:e@57:13#2] type=Unit call=kotlin.io.println#1
+expr e@56:17#4 call callee=e@56:17#3 args=[_:e@56:30] type=Boolean call=returnsFalse
+expr e@56:5#3 localDecl flag2 mutable=0 type=_ init=e@56:17#4 type=Unit ref=__local_2.flag2
+expr e@57:13#4 name(flag2) type=Boolean ref=__local_2.flag2
+expr e@57:5#7 call callee=e@57:5#6 args=[_:e@57:13#4] type=Unit call=kotlin.io.println#1
 expr e@59:22 string(world) type=String
 expr e@59:5#3 localDecl y mutable=0 type=String? init=e@59:22 type=Unit ref=__local_3.y
 expr e@60:30 name(y) type=String? ref=__local_3.y
