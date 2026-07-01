@@ -618,7 +618,11 @@ final class ExprTypeChecker {
             else {
                 return true
             }
-            return sema.types.isSubtype(receiverType, signatureReceiverType)
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: signatureReceiverType,
+                sema: sema
+            )
         }
 
         for name in names {
@@ -704,7 +708,11 @@ final class ExprTypeChecker {
                     continue
                 }
                 guard receiverType != sema.types.errorType,
-                      sema.types.isSubtype(receiverType, signatureReceiverType)
+                      driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                          callSiteReceiver: receiverType,
+                          declaredReceiver: signatureReceiverType,
+                          sema: sema
+                      )
                 else {
                     continue
                 }
