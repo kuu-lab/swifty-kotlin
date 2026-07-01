@@ -50,7 +50,7 @@
 - [x] STDLIB-CINTEROP-FN-044: `vectorOf(Int, Int, Int, Int)` の公式 annotation/signature を既存 stub と整合させる
 - [x] STDLIB-CINTEROP-FN-046: `writeBits(ptr, offset, size, value)` を追加する
 - [x] STDLIB-CINTEROP-FN-047: `zeroValue<T>()` を追加する
-- [ ] STDLIB-CINTEROP-INTERNAL-TYPE-001: `kotlinx.cinterop.internal.CCall` annotation を追加する
+- [x] STDLIB-CINTEROP-INTERNAL-TYPE-001: `kotlinx.cinterop.internal.CCall` annotation を追加する
 - [x] STDLIB-DOM-TYPE-001: `org.w3c.dom.ItemArrayLike<T>` external interface を追加する
 - [ ] STDLIB-JVM-166: Java プレビュー機能の実装
 - [ ] STDLIB-REFL-175: アノテーション処理高度機能実装
