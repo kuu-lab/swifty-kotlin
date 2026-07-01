@@ -121,6 +121,9 @@ public fun LongRange.toList(): List<Long> {
 }
 
 public fun LongRange.count(): Int {
+    val first = first.toLong()
+    val last = last.toLong()
+    val step = step.toLong()
     val count = if (step > 0L) {
         if (first > last) 0L else (last - first) / step + 1L
     } else if (step < 0L) {
@@ -156,6 +159,9 @@ public fun LongProgression.toList(): List<Long> {
 }
 
 public fun LongProgression.count(): Int {
+    val first = first.toLong()
+    val last = last.toLong()
+    val step = step.toLong()
     val count = if (step > 0L) {
         if (first > last) 0L else (last - first) / step + 1L
     } else if (step < 0L) {

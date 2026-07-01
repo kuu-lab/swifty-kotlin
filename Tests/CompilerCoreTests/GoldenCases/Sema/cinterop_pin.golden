@@ -8,7 +8,7 @@ symbol fq=kotlinx.cinterop.Pinned.get kind=function vis=public flags=synthetic s
 symbol fq=kotlinx.cinterop.Pinned.unpin kind=function vis=public flags=synthetic sig=recv=kotlinx.cinterop.Pinned<kotlinx.cinterop.Pinned.T> params=[] ret=Unit bounds=[Any]
 symbol fq=kotlinx.cinterop.pin kind=function vis=public flags=inlineFunction|synthetic sig=recv=kotlinx.cinterop.pin.T params=[] ret=kotlinx.cinterop.Pinned<kotlinx.cinterop.pin.T> bounds=[Any]
 symbol fq=kotlinx.cinterop.pin.T kind=typeParameter vis=private flags=synthetic
-file f14 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.testPin fun testPin sym=golden.sema.testPin
 expr e@9:31#0 name(obj) type=Any ref=golden.sema.testPin.$0.obj
 expr e@9:31#1 memberCall recv=e@9:31#0 callee=pin args=[] type=kotlinx.cinterop.Pinned<Any> call=kotlinx.cinterop.pin targs=[Any]

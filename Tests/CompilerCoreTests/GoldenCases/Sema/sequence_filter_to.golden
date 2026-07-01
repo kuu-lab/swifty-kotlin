@@ -12,7 +12,7 @@ symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic s
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f14 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@2:26 int(1) type=Int
 expr e@2:29 int(2) type=Int
