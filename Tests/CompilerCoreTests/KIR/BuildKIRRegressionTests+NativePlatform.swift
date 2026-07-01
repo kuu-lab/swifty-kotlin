@@ -421,6 +421,30 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    @Test func testCPointerShortVarToKStringLowersToRuntimeCallee() throws {
+        let source = """
+        import kotlinx.cinterop.CPointer
+        import kotlinx.cinterop.ShortVar
+        import kotlinx.cinterop.toKString
+
+        fun decode(p: CPointer<ShortVar>): String = p.toKString()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "decode", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                callees.contains("kk_cpointer_toKStringFromUtf16"),
+                "Expected kk_cpointer_toKStringFromUtf16 runtime call in KIR"
+            )
+        }
+    }
+
     @Test func testCPointerUShortVarToKStringFromUtf16LowersToRuntimeCallee() throws {
         let source = """
         import kotlinx.cinterop.CPointer
