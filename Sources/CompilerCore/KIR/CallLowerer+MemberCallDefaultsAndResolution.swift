@@ -183,6 +183,41 @@ extension CallLowerer {
         }
     }
 
+    /// STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex = 0, endIndex = size,
+    /// throwOnInvalidSequence = false). The generic default-argument filler
+    /// (`CallSupportLowerer.normalizedCallArguments`) substitutes an `0` sentinel
+    /// for every omitted parameter, which is only correct for `startIndex` and
+    /// `throwOnInvalidSequence` here — `endIndex` must default to the receiver's
+    /// size, not `0`.
+    func materializeByteArrayToKStringDefaultArguments(
+        _ defaultMask: Int64,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction],
+        arguments: inout [KIRExprID]
+    ) {
+        guard arguments.count >= 4 else {
+            return
+        }
+
+        let endIndexMaskBit = Int64(1) << 1
+        guard (defaultMask & endIndexMaskBit) != 0 else {
+            return
+        }
+        let intType = sema.types.intType
+        let sizeExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_size"),
+            arguments: [arguments[0]],
+            result: sizeExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        arguments[2] = sizeExpr
+    }
+
     /// Callees with an externalLinkName (C runtime functions such as
     /// kk_array_get) are never dispatched virtually.
     func tryEmitVirtualDispatch(

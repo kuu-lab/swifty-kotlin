@@ -281,6 +281,14 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
+        // STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
+        abiParitySpec("kk_byteArray_toKString", parameters: [
+            p("arrRaw", .intptr),
+            p("startIndex", .intptr),
+            p("endIndex", .intptr),
+            p("throwOnInvalidSequence", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_cinterop_writeBits", parameters: [
             p("ptr", .intptr),
             p("offset", .intptr),
@@ -295,13 +303,6 @@ public extension RuntimeABISpec {
             isThrowing: false),
         abiParitySpec("kk_uByteArray_toCValues", parameters: [
             p("arrayRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_bytearray_toKString", parameters: [
-            p("arrRaw", .intptr),
-            p("startIndex", .intptr),
-            p("endIndex", .intptr),
-            p("throwOnInvalidSequence", .intptr),
         ],
             isThrowing: false),
         abiParitySpec("kk_files_copy", parameters: [
