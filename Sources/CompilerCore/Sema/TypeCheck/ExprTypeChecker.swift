@@ -609,6 +609,18 @@ final class ExprTypeChecker {
         var candidates: [SymbolID] = []
         var seen: Set<SymbolID> = []
 
+        func operatorCandidateMatchesReceiver(_ candidate: SymbolID) -> Bool {
+            guard receiverType != sema.types.errorType else {
+                return false
+            }
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let signatureReceiverType = signature.receiverType
+            else {
+                return true
+            }
+            return sema.types.isSubtype(receiverType, signatureReceiverType)
+        }
+
         for name in names {
             let nameStr = ctx.interner.resolve(name)
             let isInheritedOperator = inheritedOperatorNames.contains(nameStr)
@@ -621,6 +633,9 @@ final class ExprTypeChecker {
                 guard seen.insert(candidate).inserted,
                       let symbol = sema.symbols.symbol(candidate)
                 else {
+                    continue
+                }
+                guard operatorCandidateMatchesReceiver(candidate) else {
                     continue
                 }
                 // Accept explicit operator functions, and also accept overrides
@@ -665,6 +680,9 @@ final class ExprTypeChecker {
                     else {
                         continue
                     }
+                    guard operatorCandidateMatchesReceiver(candidate) else {
+                        continue
+                    }
                     candidates.append(candidate)
                 }
             }
@@ -685,7 +703,9 @@ final class ExprTypeChecker {
                 else {
                     continue
                 }
-                guard sema.types.isSubtype(receiverType, signatureReceiverType) else {
+                guard receiverType != sema.types.errorType,
+                      sema.types.isSubtype(receiverType, signatureReceiverType)
+                else {
                     continue
                 }
                 candidates.append(candidate)

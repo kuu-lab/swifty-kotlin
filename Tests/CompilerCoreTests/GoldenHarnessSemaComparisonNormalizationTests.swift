@@ -49,6 +49,26 @@ struct GoldenHarnessSemaComparisonNormalizationTests {
     }
 
     @Test
+    func normalizesSemaFileIDs() {
+        let expected = """
+        symbol fq=sample.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+        file f13 package=sample
+          decl sample.main fun main sym=sample.main
+        """
+
+        let actual = """
+        symbol fq=sample.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+        file f14 package=sample
+          decl sample.main fun main sym=sample.main
+        """
+
+        #expect(
+            GoldenHarness.normalizedForComparison(suiteName: "Sema", output: actual)
+                == GoldenHarness.normalizedForComparison(suiteName: "Sema", output: expected)
+        )
+    }
+
+    @Test
     func normalizationIsIdempotent() {
         let input = """
         symbol fq=sample.Box kind=class vis=public flags=_

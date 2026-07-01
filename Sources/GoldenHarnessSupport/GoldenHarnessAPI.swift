@@ -326,6 +326,8 @@ private enum GoldenHarnessDiagnosticsComparisonNormalizer {
 
 private enum GoldenHarnessSemaComparisonNormalizer {
     // swiftlint:disable:next force_try
+    private static let semaFileIDRegex = try! NSRegularExpression(pattern: "(\\bfile f)(\\d+)(?= package=)")
+    // swiftlint:disable:next force_try
     private static let negativeSymbolReferenceRegex = try! NSRegularExpression(pattern: "(s-)(\\d+)")
     // swiftlint:disable:next force_try
     private static let syntheticScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$)(\\d+)(?=\\.)")
@@ -350,6 +352,7 @@ private enum GoldenHarnessSemaComparisonNormalizer {
 
     static func normalize(_ output: String) -> String {
         var normalized = output
+        normalized = rewriteOrdinalMatches(in: normalized, regex: semaFileIDRegex)
         // Scope prefix ordinals
         normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: tpScopeOrdinalRegex)
