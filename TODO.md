@@ -27,7 +27,7 @@
 ### Phase 5: 非スコープ/高度領域
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [x] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
-- [ ] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
+- [x] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
 - [ ] STDLIB-JVM-166: Java プレビュー機能の実装
@@ -80,7 +80,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 - [x] MIGRATION-RANGE-001: Range/Progression クラス API を Kotlin source に移行する（`IntRange`, `LongRange`, `CharRange`, `IntProgression`, `LongProgression`, `CharProgression` の iterator/contains/isEmpty）
 - [x] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`）— IntRange/IntProgression/LongRange/LongProgression/CharRange/CharProgression 対応。`first`/`last`/`step`/`reversed` は既存 synthetic stub で完結（純 Kotlin 化には新規ネイティブブリッジが必要で挙動変化がないため対象外）。`count(predicate)` は Range member fallback（`CallTypeChecker+RangeMemberFallback.swift`）の arity allow-list が0引数のみ許可し呼び出し不能なため対象外
-- [ ] MIGRATION-RANGE-003: Range ユーティリティを Kotlin source に移行する（`coerceIn`, `coerceAtLeast`, `coerceAtMost`, `until`, `downTo`）
+- [x] MIGRATION-RANGE-003: Range ユーティリティを Kotlin source に移行する（`coerceIn`, `coerceAtLeast`, `coerceAtMost`）— `until`/`downTo` は MIGRATION-RANGE-001 完了後に対応（IntRange/IntProgression 型移行が前提）
 
 ### Phase M7: kotlin.random
 > 移行元: `Sources/Runtime/RuntimeRandom.swift` (38 @_cdecl)
@@ -114,9 +114,9 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] CLEANUP-STUB-034: `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift`のJS/Wasm/JVM関連呼び出し削除
 #### その他JS固有stub（ファイル単位）
 - [x] CLEANUP-STUB-035: JS Console stub削除（`HeaderHelpers+SyntheticJsConsoleStubs.swift`）
-- [ ] CLEANUP-STUB-036: JS Eval stub削除（`HeaderHelpers+SyntheticJsEvalStubs.swift`）
-- [ ] CLEANUP-STUB-037: JS Json stub削除（`HeaderHelpers+SyntheticJsJsonStubs.swift`）
-- [ ] CLEANUP-STUB-040: JS ParseIntRadix stub削除（`HeaderHelpers+SyntheticJsParseIntRadixStubs.swift`）
+- [x] CLEANUP-STUB-036: JS Eval stub削除（`HeaderHelpers+SyntheticJsEvalStubs.swift`）
+- [x] CLEANUP-STUB-037: JS Json stub削除（`HeaderHelpers+SyntheticJsJsonStubs.swift`）
+- [x] CLEANUP-STUB-040: JS ParseIntRadix stub削除（`HeaderHelpers+SyntheticJsParseIntRadixStubs.swift`）
 - [x] CLEANUP-STUB-041: JS ParseFloat stub削除（`HeaderHelpers+SyntheticJsParseFloatStubs.swift`）
 - [x] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` の計 15 シンボル）。列挙済みの 15 シンボルは各 stub 削除タスクの完了に伴い段階的に削除済み。当初のリストに含まれていなかった `kk_js_readonly_set_toMutableSet`（CLEANUP-STUB-068 で `JsReadonlySet` 型を削除した際に取り残された spec-only エントリ）を追加で削除し、`RuntimeABISpec` 配下の `kk_js_*` 登録をゼロ件にした
 - JDBC / DB コネクション・トランザクション・プール
@@ -171,8 +171,8 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-GUARD-001: LoC メトリクススクリプト `Scripts/loc_report.sh` を追加する（ディレクトリ別行数 / `HeaderHelpers+Synthetic*` 合計行数 / `"kk_` リテラル数 / `interner.resolve == "..."` 数を TSV 出力）。ベースライン値を `docs/refactoring-metrics.md` に記録する
 - [ ] RF-GUARD-002: `.jscpd.json` の `path` に `Tests/` を追加し重複率を再計測する（まず report-only ジョブで観測、閾値は実測後に設定。現状 Tests/ は完全に未監視）
 - [x] RF-GUARD-003: SwiftLint の `file_length` / `type_body_length` を有効化し、既存違反は `.swiftlint.baseline.json` で凍結する（新規悪化のみ CI fail にするラチェット）
-- [ ] RF-GUARD-004: `RuntimeABIExternalLinkValidationTests` の検証範囲を調査し、「CompilerCore が emit しうる全 `kk_*` 名が `RuntimeABISpec` に宣言されている」ことの検証ギャップ一覧を作る（enforcing 化は RF-KIR-005）
-- [ ] RF-GUARD-005: リファクタ PR の必須ゲート（全テスト + golden + `diff_kotlinc.sh` green、`loc_report.sh` の悪化なし）を `CLAUDE.md` に明文化する
+- [x] RF-GUARD-004: `RuntimeABIExternalLinkValidationTests` の検証範囲を調査し、「CompilerCore が emit しうる全 `kk_*` 名が `RuntimeABISpec` に宣言されている」ことの検証ギャップ一覧を作る（enforcing 化は RF-KIR-005）。調査結果: [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md)
+- [x] RF-GUARD-005: リファクタ PR の必須ゲート（全テスト + golden + `diff_kotlinc.sh` green、`loc_report.sh` の悪化なし）を `CLAUDE.md` に明文化する
 
 ### Phase RF1: プロセス資産の修復（依存なし・並列可）
 - [ ] RF-HYG-001: TODO.md の重複タスク ID を解消する（`STDLIB-TEXT-FN-088〜108` ブロックに同一 ID が最大 7 回出現し `[x]`/`[ ]` が矛盾、`STDLIB-COMP-FN-030/032/034` 重複、`PARITY-NUM-001` ×2、`PARITY-SEMA-003` ×2 等）。実装の実態を確認して真の状態へ正規化する
