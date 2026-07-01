@@ -39,7 +39,7 @@
 - [x] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
 - [x] STDLIB-CINTEROP-FN-034: `CPointer<ShortVar>.toKStringFromUtf16()` を追加する
 - [x] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
-- [ ] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-032: `CPointer<UShortVar>.toKString()` を追加する
@@ -50,7 +50,6 @@
 - [x] STDLIB-CINTEROP-FN-046: `writeBits(ptr, offset, size, value)` を追加する
 - [x] STDLIB-CINTEROP-FN-047: `zeroValue<T>()` を追加する
 - [ ] STDLIB-CINTEROP-INTERNAL-TYPE-001: `kotlinx.cinterop.internal.CCall` annotation を追加する
-- [ ] STDLIB-CINTEROP-INTERNAL-TYPE-004: `kotlinx.cinterop.internal.CGlobalAccess` annotation を追加する
 - [x] STDLIB-DOM-TYPE-001: `org.w3c.dom.ItemArrayLike<T>` external interface を追加する
 - [ ] STDLIB-JVM-166: Java プレビュー機能の実装
 - [ ] STDLIB-REFL-175: アノテーション処理高度機能実装
@@ -100,7 +99,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeRangeAndDispatch.swift` (46), `RuntimeRangeIntRangeHOF.swift` (30), `RuntimeRangeLongRange.swift`, `RuntimeRangeUIntULongRange.swift`
 > 移行先: `Stdlib/kotlin/ranges/`
 
-- [ ] MIGRATION-RANGE-001: Range/Progression クラス API を Kotlin source に移行する（`IntRange`, `LongRange`, `CharRange`, `IntProgression`, `LongProgression`, `CharProgression` の iterator/contains/isEmpty）
+- [x] MIGRATION-RANGE-001: Range/Progression クラス API を Kotlin source に移行する（`IntRange`, `LongRange`, `CharRange`, `IntProgression`, `LongProgression`, `CharProgression` の iterator/contains/isEmpty）
 - [ ] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`, `first`, `last`, `reversed`, `step`）
 - [ ] MIGRATION-RANGE-003: Range ユーティリティを Kotlin source に移行する（`coerceIn`, `coerceAtLeast`, `coerceAtMost`, `until`, `downTo`）
 
@@ -176,7 +175,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
 - [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
 - [x] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
-- [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
+- [x] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
 - [x] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
 - [x] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）

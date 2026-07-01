@@ -554,6 +554,14 @@ public func kk_uIntArray_toCValues(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeCValuesBox(uints: array.elements))
 }
 
+@_cdecl("kk_uByteArray_toCValues")
+public func kk_uByteArray_toCValues(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_uByteArray_toCValues")
+    }
+    return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
+}
+
 // MARK: - Pinned<T>
 
 /// Runtime backing for `kotlin.native.ref.Pinned<T>`.

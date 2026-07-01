@@ -2457,6 +2457,7 @@ extension DataFlowSemaPhase {
                 receiverType: uByteArrayReceiverType,
                 parameters: [],
                 returnType: uByteArrayToCValuesReturnType,
+                externalLinkName: "kk_uByteArray_toCValues",
                 symbols: symbols,
                 interner: interner
             )
@@ -2785,6 +2786,64 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // STDLIB-CINTEROP-INTERNAL-TYPE-004: CGlobalAccess
+        // @Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY_SETTER)
+        // @Retention(AnnotationRetention.BINARY)
+        // annotation class CGlobalAccess(val name: String) {
+        //     @Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY_SETTER)
+        //     @Retention(AnnotationRetention.BINARY)
+        //     annotation class Pointer
+        // }
+        let cGlobalAccessSymbol = ensureAnnotationClassSymbol(
+            named: "CGlobalAccess",
+            in: internalPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let internalPkgSymbol {
+            symbols.setParentSymbol(internalPkgSymbol, for: cGlobalAccessSymbol)
+        }
+        appendStandardAnnotationMetadata(
+            to: cGlobalAccessSymbol,
+            targets: ["AnnotationTarget.PROPERTY_GETTER", "AnnotationTarget.PROPERTY_SETTER"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        let cGlobalAccessType = types.make(.classType(ClassType(
+            classSymbol: cGlobalAccessSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cGlobalAccessType, for: cGlobalAccessSymbol)
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: cGlobalAccessSymbol,
+            ownerType: cGlobalAccessType,
+            parameters: [(name: "name", type: types.stringType)],
+            defaultValues: [false],
+            symbols: symbols,
+            interner: interner
+        )
+
+        let cGlobalAccessPointerSymbol = ensureAnnotationClassSymbol(
+            named: "Pointer",
+            in: internalPkg + [interner.intern("CGlobalAccess")],
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.setParentSymbol(cGlobalAccessSymbol, for: cGlobalAccessPointerSymbol)
+        appendStandardAnnotationMetadata(
+            to: cGlobalAccessPointerSymbol,
+            targets: ["AnnotationTarget.PROPERTY_GETTER", "AnnotationTarget.PROPERTY_SETTER"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        let cGlobalAccessPointerType = types.make(.classType(ClassType(
+            classSymbol: cGlobalAccessPointerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cGlobalAccessPointerType, for: cGlobalAccessPointerSymbol)
     }
 
     private func registerSyntheticCInteropVector128Stubs(
