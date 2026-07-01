@@ -45,19 +45,60 @@ extension CallLowerer {
         }
 
         let comparisonOp: KIRBinaryOp
+        // Float/Double route through the kk_min_float/kk_max_float/kk_min_double/
+        // kk_max_double runtime helpers instead of a plain `<`/`>` comparison so
+        // that NaN propagation and signed-zero ordering match Kotlin's actual
+        // minOf/maxOf semantics (see RuntimeNumericCompat.swift for details).
+        let floatingPointRuntimeCallee: String?
         switch specialKind {
-        case .maxOfInt, .maxOfLong, .maxOfDouble, .maxOfFloat:
+        case .maxOfInt, .maxOfLong:
             guard args.count == 2 else { return nil }
             comparisonOp = .greaterThan
-        case .minOfInt, .minOfLong, .minOfDouble, .minOfFloat:
+            floatingPointRuntimeCallee = nil
+        case .maxOfDouble:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_double"
+        case .maxOfFloat:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_float"
+        case .minOfInt, .minOfLong:
             guard args.count == 2 else { return nil }
             comparisonOp = .lessThan
-        case .maxOfInt3, .maxOfLong3, .maxOfDouble3, .maxOfFloat3:
+            floatingPointRuntimeCallee = nil
+        case .minOfDouble:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_double"
+        case .minOfFloat:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_float"
+        case .maxOfInt3, .maxOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .greaterThan
-        case .minOfInt3, .minOfLong3, .minOfDouble3, .minOfFloat3:
+            floatingPointRuntimeCallee = nil
+        case .maxOfDouble3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_double"
+        case .maxOfFloat3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .greaterThan
+            floatingPointRuntimeCallee = "kk_max_float"
+        case .minOfInt3, .minOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
+        case .minOfDouble3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_double"
+        case .minOfFloat3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = "kk_min_float"
         default:
             return nil
         }
@@ -71,6 +112,7 @@ extension CallLowerer {
             return lowerTwoArgComparison(
                 args: args,
                 comparisonOp: comparisonOp,
+                floatingPointRuntimeCallee: floatingPointRuntimeCallee,
                 boolType: boolType,
                 resultType: resultType,
                 ast: ast,
@@ -84,6 +126,7 @@ extension CallLowerer {
             return lowerThreeArgComparison(
                 args: args,
                 comparisonOp: comparisonOp,
+                floatingPointRuntimeCallee: floatingPointRuntimeCallee,
                 boolType: boolType,
                 resultType: resultType,
                 ast: ast,
@@ -179,12 +222,21 @@ extension CallLowerer {
 
         enum ComparisonStrategy {
             case primitive
+            /// Float/Double: dispatches to kk_min_float/kk_max_float/kk_min_double/
+            /// kk_max_double instead of a plain `<`/`>` so NaN propagation and
+            /// signed-zero ordering match Kotlin's minOf/maxOf (see lowerTwoArgComparison).
+            case floatingPoint(runtimeCallee: InternedString)
             case genericComparable
             case comparator(comparatorArgIndex: Int, trampolineCallee: InternedString)
         }
 
         let comparisonStrategy: ComparisonStrategy
-        if isPrimitiveOverload {
+        if isPrimitiveOverload,
+           let firstParamType = signature.parameterTypes.first,
+           let floatingPointCallee = floatingPointMinMaxRuntimeCallee(for: firstParamType, sema: sema, isMin: isMin)
+        {
+            comparisonStrategy = .floatingPoint(runtimeCallee: interner.intern(floatingPointCallee))
+        } else if isPrimitiveOverload {
             comparisonStrategy = .primitive
         } else if isGenericComparable {
             comparisonStrategy = .genericComparable
@@ -228,6 +280,19 @@ extension CallLowerer {
 
         for argIndex in comparisonArgIndices.dropFirst() {
             let candidateExpr = loweredArgIDs[argIndex]
+            if case let .floatingPoint(runtimeCallee) = comparisonStrategy {
+                let newCurrent = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: runtimeCallee,
+                    arguments: [candidateExpr, currentExpr],
+                    result: newCurrent,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                currentExpr = newCurrent
+                continue
+            }
             let conditionExpr: KIRExprID
             switch comparisonStrategy {
             case .primitive:
@@ -236,6 +301,8 @@ extension CallLowerer {
                     type: boolType
                 )
                 instructions.append(.binary(op: primitiveOp, lhs: candidateExpr, rhs: currentExpr, result: conditionExpr))
+            case .floatingPoint:
+                fatalError("unreachable: floatingPoint handled above via early continue")
             case .genericComparable:
                 let compareResultExpr = arena.appendExpr(
                     .temporary(Int32(arena.expressions.count)),
@@ -339,10 +406,34 @@ extension CallLowerer {
         }
     }
 
+    /// Returns the NaN/signed-zero-aware runtime helper for a Float/Double
+    /// `minOf`/`maxOf` element type, or nil for other primitive types (Int,
+    /// Long, unsigned types) which have no NaN/signed-zero distinction and
+    /// can keep using a plain `<`/`>` comparison.
+    private func floatingPointMinMaxRuntimeCallee(
+        for type: TypeID,
+        sema: SemaModule,
+        isMin: Bool
+    ) -> String? {
+        switch sema.types.kind(of: type) {
+        case .primitive(.float, .nonNull):
+            return isMin ? "kk_min_float" : "kk_max_float"
+        case .primitive(.double, .nonNull):
+            return isMin ? "kk_min_double" : "kk_max_double"
+        default:
+            return nil
+        }
+    }
+
     /// Lowers maxOf(a, b) / minOf(a, b) as: if (a > b) a else b
+    /// When `floatingPointRuntimeCallee` is set (Float/Double overloads), the
+    /// comparison instead dispatches to a `kk_min_float`/`kk_max_float`/
+    /// `kk_min_double`/`kk_max_double` runtime call, which implements NaN
+    /// propagation and signed-zero ordering that a plain `<`/`>` cannot.
     private func lowerTwoArgComparison(
         args: [CallArgument],
         comparisonOp: KIRBinaryOp,
+        floatingPointRuntimeCallee: String?,
         boolType: TypeID,
         resultType: TypeID,
         ast: ASTModule,
@@ -352,9 +443,6 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
-        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
-
         let lhsExpr = driver.lowerExpr(
             args[0].expr,
             ast: ast,
@@ -373,6 +461,22 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        if let floatingPointRuntimeCallee {
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(floatingPointRuntimeCallee),
+                arguments: [lhsExpr, rhsExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
 
         let conditionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
         instructions.append(.binary(
@@ -396,9 +500,13 @@ extension CallLowerer {
     }
 
     /// Lowers maxOf(a, b, c) / minOf(a, b, c) as: val tmp = maxOf(a, b); maxOf(tmp, c)
+    /// When `floatingPointRuntimeCallee` is set (Float/Double overloads), both
+    /// steps dispatch to the runtime min/max helper instead of a plain `<`/`>`
+    /// comparison; see `lowerTwoArgComparison` for why.
     private func lowerThreeArgComparison(
         args: [CallArgument],
         comparisonOp: KIRBinaryOp,
+        floatingPointRuntimeCallee: String?,
         boolType: TypeID,
         resultType: TypeID,
         ast: ASTModule,
@@ -408,9 +516,6 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
-        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
-
         let aExpr = driver.lowerExpr(
             args[0].expr,
             ast: ast,
@@ -438,6 +543,32 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        if let floatingPointRuntimeCallee {
+            let calleeID = interner.intern(floatingPointRuntimeCallee)
+            let tmp = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: calleeID,
+                arguments: [aExpr, bExpr],
+                result: tmp,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: calleeID,
+                arguments: [tmp, cExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
 
         let cond1 = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
         instructions.append(.binary(op: comparisonOp, lhs: aExpr, rhs: bExpr, result: cond1))
