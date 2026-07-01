@@ -49,7 +49,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "PropGetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -113,7 +113,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "PropSetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -223,7 +223,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "BFSetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -303,7 +303,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ComputedProp", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -376,7 +376,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let funcID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [funcID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "BackedProp", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(funcID) else {

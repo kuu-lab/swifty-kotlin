@@ -47,12 +47,7 @@ extension LoweringABIAndPropertyRegressionTests {
             arena: arena
         )
 
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         // Must not crash.
         try runLowering(
@@ -126,12 +121,7 @@ extension LoweringABIAndPropertyRegressionTests {
             files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
             arena: arena
         )
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         // Must not crash even with zero args.
         try runLowering(
@@ -191,12 +181,7 @@ extension LoweringABIAndPropertyRegressionTests {
             files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
             arena: arena
         )
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         try runLowering(
             module: module,
@@ -287,12 +272,7 @@ extension LoweringABIAndPropertyRegressionTests {
             arena: arena
         )
 
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         try runLowering(
             module: module,

@@ -79,7 +79,7 @@ extension VirtualDispatchTests {
         _ = arena.appendDecl(.function(inlineFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "InlineVirtual",
@@ -175,7 +175,7 @@ extension VirtualDispatchTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "RegularCall",
@@ -361,7 +361,7 @@ extension VirtualDispatchTests {
         let outerID = arena.appendDecl(.function(outerSuspendFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID, outerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "VirtualSuspend",

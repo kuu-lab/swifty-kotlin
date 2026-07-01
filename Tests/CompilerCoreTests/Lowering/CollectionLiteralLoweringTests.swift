@@ -1079,12 +1079,7 @@ struct CollectionLiteralLoweringTests {
         let symbols = SymbolTable()
         let bindings = BindingTable()
         let diag = DiagnosticEngine()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: bindings,
-            diagnostics: diag
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diag).ctx
         let options = CompilerOptions(
             moduleName: "CollLiteralTest",
             inputs: [],

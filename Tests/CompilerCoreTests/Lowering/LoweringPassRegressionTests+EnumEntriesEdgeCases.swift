@@ -66,7 +66,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Color",
@@ -94,7 +94,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Direction",
@@ -124,7 +124,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Planet",
@@ -163,7 +163,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Season",
@@ -194,7 +194,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Empty",
@@ -230,7 +230,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Singleton",
@@ -272,7 +272,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Side",
@@ -316,7 +316,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Status",
@@ -344,7 +344,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Coin",
@@ -373,7 +373,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let entryNames = ["ALPHA", "BETA", "GAMMA"]
         let (module, _, _) = try makeEnumModule(
@@ -417,7 +417,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Fruit",
@@ -446,7 +446,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Flag",

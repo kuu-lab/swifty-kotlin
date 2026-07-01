@@ -91,7 +91,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -216,7 +216,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -356,7 +356,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -485,7 +485,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -578,7 +578,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -678,7 +678,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -909,7 +909,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -981,7 +981,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -1086,7 +1086,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -1181,7 +1181,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -1267,7 +1267,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
