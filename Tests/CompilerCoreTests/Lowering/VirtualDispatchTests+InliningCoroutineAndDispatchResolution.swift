@@ -381,8 +381,7 @@ extension VirtualDispatchTests {
 
         // After coroutine lowering, the suspend function should be rewritten.
         // Look for the lowered suspend function (kk_suspend_outerSuspend)
-        let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(fn) = decl else { return nil }
+        let allFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
             return fn
         }
         let suspendFunction = allFunctions.first { fn in

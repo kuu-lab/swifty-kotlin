@@ -199,8 +199,7 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let mainFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let mainFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 return ctx.interner.resolve(function.name) == "main" ? function : nil
             }.first
             let body = try #require(mainFunction?.body)

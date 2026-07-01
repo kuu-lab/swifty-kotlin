@@ -195,11 +195,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
         #expect(functionNames.contains("Color$enumValuesCount"))
         #expect(functionNames.contains("Base$sealedSubtypeCount"))
@@ -272,11 +269,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
 
         // Verify count helper still exists
@@ -450,11 +444,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
         #expect(functionNames.contains("hashCode"), "Missing hashCode, got: \(functionNames)")
 
@@ -855,11 +846,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
 
         // Verify toString and equals are synthesized

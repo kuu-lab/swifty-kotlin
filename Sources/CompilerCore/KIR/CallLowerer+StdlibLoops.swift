@@ -21,7 +21,7 @@ extension CallLowerer {
         let unitType = sema.types.unitType
         let lessThanCallee = interner.intern("kk_op_lt")
         let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = interner.intern("kk_unbox_int")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         let countExpr = driver.lowerExpr(
             args[0].expr,

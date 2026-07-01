@@ -78,9 +78,8 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumEntriesGetter"
         )
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(fn) = decl else { return nil }
-            return interner.resolve(fn.name)
+        let functionNames = findAllKIRFunctions(in: module).map { fn in
+            interner.resolve(fn.name)
         }
 
         #expect(functionNames.contains("entries$get"),
@@ -284,9 +283,8 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumValuesAndEntries"
         )
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(fn) = decl else { return nil }
-            return interner.resolve(fn.name)
+        let functionNames = findAllKIRFunctions(in: module).map { fn in
+            interner.resolve(fn.name)
         }
         #expect(functionNames.contains("values"),
                 "values() must be synthesized; got: \(functionNames)")
@@ -386,9 +384,8 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumPerEntryHelpers"
         )
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(fn) = decl else { return nil }
-            return interner.resolve(fn.name)
+        let functionNames = findAllKIRFunctions(in: module).map { fn in
+            interner.resolve(fn.name)
         }
 
         for name in entryNames {
