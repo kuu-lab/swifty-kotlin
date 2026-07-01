@@ -66,7 +66,7 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 
 ## コーディング規約
 
-- Swift 5.9, macOS 12+, 4スペースインデント
+- Swift 6.2（Swift language mode 6）, macOS 12+, 4スペースインデント
 - 型/enum/プロトコル: `UpperCamelCase`、関数/変数: `lowerCamelCase`
 - フォーマッタ未設定 — 既存ファイルのスタイルに従う
 - コミットメッセージ: 短く命令形（例: "Add ...", "Fix ..."）
