@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-06-28
+最終更新: 2026-07-02
 
 ---
 
@@ -149,8 +149,8 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-HYG-003: MIGRATION-TEXT-004 / MIGRATION-TEXT-009 の完了状態を監査する（`Stdlib/*.kt` は現状コンパイラから一切読み込まれておらず、実態は Runtime ブリッジ整理 + 死蔵 .kt 併置。完了の定義を RF-STDLIB 系の新基準で再判定し注記する）
 - [x] RF-HYG-004: Stdlib ソース配置を一本化する（ルート `Stdlib/kotlin/text/StringComparison.kt` と `Sources/CompilerCore/Stdlib/kotlin/text/StringSplitJoin.kt` の 2 系統を統合。推奨: `Bundle.module` で読める `Sources/CompilerCore/Stdlib/`。Swift ソース 0 件の `Stdlib` ターゲットと未使用 `resources: [.process("Stdlib")]` の Package.swift 設定もここで整理）
 - [x] RF-HYG-005: `docs/ARCHITECTURE.md` を実態に同期する（モジュール構成に LSPServer / KSwiftLSPCLI / GoldenHarnessSupport / GoldenHarnessWorker / Stdlib / RuntimeTestsParallel を追加、「テストFW: XCTest」を「XCTest 主体 + Golden は Swift Testing」に修正、CI ジョブ表へ full-swift-tests / diff-regression-shards を反映）
-- [ ] RF-HYG-006: `docs/spec.md` / `docs/debugging.md` の stale 記述を監査する（参照ファイルの実在チェックを含む）
-- [ ] RF-HYG-007: `.vscode/launch.json` の git 追跡可否を決定する（不要なら gitignore へ）
+- [x] RF-HYG-006: `docs/spec.md` / `docs/debugging.md` の stale 記述を監査する（参照ファイルの実在チェックを含む）
+- [x] RF-HYG-007: `.vscode/launch.json` の git 追跡可否を決定する（不要なら gitignore へ）
 
 ### Phase RF2: Stdlib ソースパイプライン基盤（本計画のクリティカルパス）
 > 背景: M1–M17 の前提となる「bundled .kt をコンパイルに含める機構」は基本配線済みだが、opt-out、source origin、合成スタブとの優先順位、incremental/golden 安定化を設計として固定する必要がある。
