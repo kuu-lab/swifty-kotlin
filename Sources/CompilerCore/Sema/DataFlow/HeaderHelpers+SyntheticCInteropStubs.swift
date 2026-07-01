@@ -1683,6 +1683,7 @@ extension DataFlowSemaPhase {
             ],
             returnType: types.stringType,
             defaultValues: [true, true, true],
+            externalLinkName: "kk_byteArray_toKString",
             symbols: symbols,
             interner: interner
         )

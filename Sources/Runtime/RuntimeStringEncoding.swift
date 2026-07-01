@@ -279,6 +279,27 @@ public func kk_bytearray_decodeToString_range_throw(
     )
 }
 
+// STDLIB-CINTEROP-FN-029: kotlinx.cinterop.ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
+// Same UTF-8 decode semantics as decodeToString — toKString is cinterop's
+// historical name for the identical operation.
+@_cdecl("kk_byteArray_toKString")
+public func kk_byteArray_toKString(
+    _ arrRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ throwOnInvalidSequence: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeDecodeByteArrayRange(
+        arrRaw,
+        startIndex,
+        endIndex,
+        throwOnInvalidSequence: throwOnInvalidSequence != 0,
+        outThrown: outThrown,
+        caller: #function
+    )
+}
+
 // STDLIB-574: ByteArray.decodeToString(charset)
 // Charset IDs follow CharsetTag: 0 = UTF-8, 1 = ISO-8859-1 (Latin-1), 2 = US-ASCII
 @_cdecl("kk_bytearray_decodeToString_charset")
