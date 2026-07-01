@@ -73,6 +73,9 @@ public enum ScopeFunctionKind: Equatable {
     /// pin() first, passes the resulting Pinned<T> (not the receiver) to the lambda, and
     /// wraps in try-finally calling unpin().
     case scopeUsePinned
+    /// CValue<T>.useContents { } (STDLIB-CINTEROP-FN-041): temporarily exposes
+    /// the contained native value as the lambda receiver.
+    case scopeUseContents
 }
 
 /// Identifies takeIf / takeUnless extension calls (STDLIB-160).
