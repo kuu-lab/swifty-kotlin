@@ -227,34 +227,6 @@ private func runtimeDecodeByteArrayRange(
     )
 }
 
-// STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
-@_cdecl("kk_bytearray_toKString")
-public func kk_bytearray_toKString(
-    _ arrRaw: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ throwOnInvalidSequenceRaw: Int
-) -> Int {
-    guard let elements = runtimeByteArrayElements(from: arrRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bytearray_toKString received invalid byte array handle \(arrRaw)")
-    }
-    let size = elements.count
-    let start = startIndex < 0 ? 0 : startIndex
-    let end = endIndex > size ? size : endIndex
-    guard start <= end else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bytearray_toKString invalid range [\(startIndex), \(endIndex)) for size \(size)")
-    }
-    let bytes = elements[start..<end].map { UInt8(truncatingIfNeeded: $0) }
-    let throwOnInvalidSequence = throwOnInvalidSequenceRaw != 0
-    if throwOnInvalidSequence {
-        guard let decoded = String(data: Data(bytes), encoding: .utf8) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bytearray_toKString: malformed UTF-8 sequence")
-        }
-        return runtimeMakeStringRaw(decoded)
-    }
-    return runtimeMakeStringRaw(String(decoding: bytes, as: UTF8.self))
-}
-
 // STDLIB-574: ByteArray.decodeToString()
 @_cdecl("kk_bytearray_decodeToString")
 public func kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
@@ -291,6 +263,27 @@ public func kk_bytearray_decodeToString_range(
 // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex, throwOnInvalidSequence)
 @_cdecl("kk_bytearray_decodeToString_range_throw")
 public func kk_bytearray_decodeToString_range_throw(
+    _ arrRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ throwOnInvalidSequence: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeDecodeByteArrayRange(
+        arrRaw,
+        startIndex,
+        endIndex,
+        throwOnInvalidSequence: throwOnInvalidSequence != 0,
+        outThrown: outThrown,
+        caller: #function
+    )
+}
+
+// STDLIB-CINTEROP-FN-029: kotlinx.cinterop.ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
+// Same UTF-8 decode semantics as decodeToString — toKString is cinterop's
+// historical name for the identical operation.
+@_cdecl("kk_byteArray_toKString")
+public func kk_byteArray_toKString(
     _ arrRaw: Int,
     _ startIndex: Int,
     _ endIndex: Int,
