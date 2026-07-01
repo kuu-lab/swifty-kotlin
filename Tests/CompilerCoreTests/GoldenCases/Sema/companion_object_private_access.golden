@@ -170,8 +170,8 @@ expr e@41:58 name(level) type=String ref=golden.sema.Logger.Companion.level
 expr e@41:66 name(message) type=String ref=golden.sema.Logger.Companion.format.$8.message
 expr e@41:55 stringTemplate[lit([),expr(e@41:58),lit(] ),expr(e@41:66)] type=String
 expr e@45:16#0 name(Companion) type=golden.sema.Logger.Companion ref=golden.sema.Logger.Companion
-expr e@45:33 name(message) type=String ref=golden.sema.Logger.log.$9.message
-expr e@45:16#1 memberCall recv=e@45:16#0 callee=format args=[_:e@45:33] type=String call=golden.sema.Logger.Companion.format
+expr e@45:33#2 name(message) type=String ref=golden.sema.Logger.log.$9.message
+expr e@45:16#1 memberCall recv=e@45:16#0 callee=format args=[_:e@45:33#2] type=String call=golden.sema.Logger.Companion.format
 expr e@45:9#1 return value=e@45:16#1 type=Nothing
 expr e@49:16#1 name(Companion) type=golden.sema.Logger.Companion ref=golden.sema.Logger.Companion
 expr e@49:16#2 memberCall recv=e@49:16#1 callee=tag args=[] type=String ref=golden.sema.Logger.Companion.tag
@@ -193,7 +193,7 @@ expr e@61:77#1 call callee=e@61:77#0 args=[_:e@61:85,_:e@61:89,_:e@61:95] type=g
 expr e@64:38 name(name) type=String ref=golden.sema.Product.name
 expr e@64:46 name(price) type=Double ref=golden.sema.Product.price
 expr e@64:60 name(id) type=String ref=golden.sema.Product.id
-expr e@64:36 stringTemplate[expr(e@64:38),lit( (),expr(e@64:46),lit() - ID: ),expr(e@64:60)] type=String
+expr e@64:36#1 stringTemplate[expr(e@64:38),lit( (),expr(e@64:46),lit() - ID: ),expr(e@64:60)] type=String
 expr e@70:30#1 name(address) type=String ref=golden.sema.EmailAddress.Companion.create.$6.address
 expr e@70:17#1 call callee=e@70:17#0 args=[_:e@70:30#1] type=Boolean call=golden.sema.EmailAddress.Companion.isValidEmail
 expr e@71:37 name(address) type=String ref=golden.sema.EmailAddress.Companion.create.$6.address
@@ -234,9 +234,9 @@ expr e@116:34#1 string(Bob) type=String
 expr e@116:17#4 memberCall recv=e@116:17#3 callee=createChild args=[_:e@116:34#1] type=golden.sema.User call=golden.sema.User.Companion.createChild
 expr e@116:5#4 localDecl child mutable=0 type=_ init=e@116:17#4 type=Unit ref=__local_1.child
 expr e@117:18#1 name(User) type=golden.sema.User.Companion ref=golden.sema.User
-expr e@117:38 string(Charlie) type=String
+expr e@117:38#1 string(Charlie) type=String
 expr e@117:49 int(25) type=Int
-expr e@117:18#2 memberCall recv=e@117:18#1 callee=fromNameAndAge args=[_:e@117:38,_:e@117:49] type=golden.sema.User call=golden.sema.User.Companion.fromNameAndAge
+expr e@117:18#2 memberCall recv=e@117:18#1 callee=fromNameAndAge args=[_:e@117:38#1,_:e@117:49] type=golden.sema.User call=golden.sema.User.Companion.fromNameAndAge
 expr e@117:5#2 localDecl custom mutable=0 type=_ init=e@117:18#2 type=Unit ref=__local_2.custom
 expr e@119:13#0 name(adult) type=golden.sema.User ref=__local_0.adult
 expr e@119:13#1 memberCall recv=e@119:13#0 callee=getInfo args=[] type=String call=golden.sema.User.getInfo
@@ -250,8 +250,8 @@ expr e@121:5#3 call callee=e@121:5#2 args=[_:e@121:13#1] type=Unit call=kotlin.i
 expr e@123:14#1 call callee=e@123:14#0 args=[] type=golden.sema.Database call=golden.sema.Database.<init>
 expr e@123:5#1 localDecl db mutable=0 type=_ init=e@123:14#1 type=Unit ref=__local_3.db
 expr e@124:13#2 name(Database) type=golden.sema.Database.Companion ref=golden.sema.Database
-expr e@124:36 name(db) type=golden.sema.Database ref=__local_3.db
-expr e@124:13#3 memberCall recv=e@124:13#2 callee=getConnection args=[_:e@124:36] type=String call=golden.sema.Database.Companion.getConnection
+expr e@124:36#1 name(db) type=golden.sema.Database ref=__local_3.db
+expr e@124:13#3 memberCall recv=e@124:13#2 callee=getConnection args=[_:e@124:36#1] type=String call=golden.sema.Database.Companion.getConnection
 expr e@124:5#3 call callee=e@124:5#2 args=[_:e@124:13#3] type=Unit call=kotlin.io.println#1
 expr e@125:13#0 name(Database) type=golden.sema.Database.Companion ref=golden.sema.Database
 expr e@125:40 name(db) type=golden.sema.Database ref=__local_3.db

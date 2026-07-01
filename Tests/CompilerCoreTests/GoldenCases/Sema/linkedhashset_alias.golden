@@ -97,8 +97,8 @@ expr e@43:13#4 memberCall recv=e@43:13#3 callee=size args=[] type=Int ref=kotlin
 expr e@43:5#2 call callee=e@43:5#1 args=[_:e@43:13#4] type=Unit call=kotlin.io.println#1
 expr e@45:31 int(1) type=Int
 expr e@45:34 int(2) type=Int
-expr e@45:37#1 int(3) type=Int
-expr e@45:19#1 call callee=e@45:19#0 args=[_:e@45:31,_:e@45:34,_:e@45:37#1] type=kotlin.collections.LinkedHashSet<Int>
+expr e@45:37 int(3) type=Int
+expr e@45:19#1 call callee=e@45:19#0 args=[_:e@45:31,_:e@45:34,_:e@45:37] type=kotlin.collections.LinkedHashSet<Int>
 expr e@45:5#4 localDecl ordered mutable=0 type=_ init=e@45:19#1 type=Unit ref=__local_4.ordered
 expr e@46:5#8 name(ordered) type=kotlin.collections.LinkedHashSet<Int> ref=__local_4.ordered
 expr e@46:20#3 int(2) type=Int

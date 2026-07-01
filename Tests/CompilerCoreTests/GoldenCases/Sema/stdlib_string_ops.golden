@@ -217,8 +217,8 @@ expr e@53:29#0 string() type=String
 expr e@53:29#1 memberCall recv=e@53:29#0 callee=isEmpty args=[] type=Boolean call=kotlin.text.isEmpty
 expr e@55:32#3 string(x) type=String
 expr e@55:32#4 memberCall recv=e@55:32#3 callee=isNotEmpty args=[] type=Boolean call=kotlin.text.isNotEmpty#0
-expr e@57:29#0 string(  ) type=String
-expr e@57:29#1 memberCall recv=e@57:29#0 callee=isBlank args=[] type=Boolean call=kotlin.text.isBlank#0
+expr e@57:29#2 string(  ) type=String
+expr e@57:29#3 memberCall recv=e@57:29#2 callee=isBlank args=[] type=Boolean call=kotlin.text.isBlank#0
 expr e@59:32#0 string(x) type=String
 expr e@59:32#1 memberCall recv=e@59:32#0 callee=isNotBlank args=[] type=Boolean call=kotlin.text.isNotBlank#0
 expr e@61:24#1 string(hello) type=String
@@ -244,11 +244,11 @@ expr e@73:33#0 string(abcabc) type=String
 expr e@73:55 string(abc) type=String
 expr e@73:62 string(X) type=String
 expr e@73:33#1 memberCall recv=e@73:33#0 callee=replaceFirst args=[_:e@73:55,_:e@73:62] type=String call=kotlin.text.replaceFirst#0
-expr e@75:43#0 string(abcABC) type=String
+expr e@75:43#1 string(abcABC) type=String
 expr e@75:65 string(abc) type=String
 expr e@75:72 string(X) type=String
 expr e@75:90 bool(true) type=Boolean
-expr e@75:43#1 memberCall recv=e@75:43#0 callee=replaceFirst args=[_:e@75:65,_:e@75:72,ignoreCase:e@75:90] type=String call=kotlin.text.replaceFirst#1
+expr e@75:43#2 memberCall recv=e@75:43#1 callee=replaceFirst args=[_:e@75:65,_:e@75:72,ignoreCase:e@75:90] type=String call=kotlin.text.replaceFirst#1
 expr e@77:33#0 string(hello) type=String
 expr e@77:54#0 int(0) type=Int
 expr e@77:57 int(2) type=Int

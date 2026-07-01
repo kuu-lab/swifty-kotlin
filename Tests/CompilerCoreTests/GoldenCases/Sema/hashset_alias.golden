@@ -97,8 +97,8 @@ expr e@42:5#4 memberCall recv=e@42:5#3 callee=remove args=[_:e@42:17] type=Boole
 expr e@43:13#3 name(nums) type=kotlin.collections.MutableSet<Int> ref=__local_4.nums
 expr e@43:13#4 memberCall recv=e@43:13#3 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e@43:5#2 call callee=e@43:5#1 args=[_:e@43:13#4] type=Unit call=kotlin.io.println#1
-expr e@45:33 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@45:5#4 localDecl readOnly mutable=0 type=Set<String> init=e@45:33 type=Unit ref=__local_5.readOnly
+expr e@45:33#2 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
+expr e@45:5#4 localDecl readOnly mutable=0 type=Set<String> init=e@45:33#2 type=Unit ref=__local_5.readOnly
 expr e@46:13#1 name(readOnly) type=kotlin.collections.Set<String> ref=__local_5.readOnly
 expr e@46:13#2 memberCall recv=e@46:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e@46:5#9 call callee=e@46:5#8 args=[_:e@46:13#2] type=Unit call=kotlin.io.println#1
