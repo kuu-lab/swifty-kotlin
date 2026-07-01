@@ -408,6 +408,18 @@ extension CallLowerer {
                 arguments: &finalArguments
             )
         }
+        if normalized.defaultMask != 0,
+           loweredCallee == interner.intern("kk_byteArray_toKString")
+        {
+            materializeByteArrayToKStringDefaultArguments(
+                normalized.defaultMask,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArguments
+            )
+        }
         if loweredCallee == interner.intern("kk_list_windowed_transform") {
             let originalArgumentCount = finalArguments.count
             if originalArgumentCount >= 3 {
