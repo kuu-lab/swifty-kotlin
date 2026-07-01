@@ -5,7 +5,8 @@ This document describes how to use the DWARF debug information emitted by the
 
 ## Prerequisites
 
-- `kswiftc` built from source (`swift build -c release`)
+- `kswiftc` built from source (`swift build -c release`, then use
+  `.build/release/kswiftc` or put it on `PATH`)
 - LLVM C API backend available (dynamically loaded `libLLVM`)
 - `lldb` installed (ships with Xcode Command Line Tools on macOS)
 
@@ -109,12 +110,12 @@ Source locations flow through the compiler pipeline as follows:
 
 1. **Parser** records `SourceRange` (file, start offset, end offset) for each
    AST expression node.
-2. **KIR Lowering** (`ExprLowerer+InstructionLocationTracking.swift`) extracts the `SourceRange` from
+2. **KIR Lowering** (`Sources/CompilerCore/KIR/ExprLowerer+InstructionLocationTracking.swift`) extracts the `SourceRange` from
    each `Expr` and records it in `KIRLoweringEmitContext.instructionLocations`
    as a parallel array alongside the emitted instructions.
 3. **KIRFunction** stores both `body` (instructions) and
    `instructionLocations` (per-instruction source ranges).
-4. **NativeEmitter** (`NativeEmitter+FunctionEmission.swift`) reads
+4. **NativeEmitter** (`Sources/CompilerBackend/NativeEmitter+FunctionEmission.swift`) reads
    `instructionLocations[i]` for each instruction and calls
    `LLVMSetCurrentDebugLocation2` to attach the corresponding `DILocation`.
 5. **Fallback**: If per-instruction location is unavailable (e.g., after a
