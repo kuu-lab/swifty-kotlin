@@ -22,38 +22,21 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let unboxCallee: String? = switch sema.types.kind(of: type) {
-        case .primitive(.int, .nonNull),
-             .primitive(.uint, .nonNull), .primitive(.ushort, .nonNull), .primitive(.ubyte, .nonNull):
-            "kk_unbox_int"
-        case .primitive(.long, .nonNull), .primitive(.ulong, .nonNull):
-            "kk_unbox_long"
-        case .primitive(.boolean, .nonNull):
-            "kk_unbox_bool"
-        case .primitive(.char, .nonNull):
-            "kk_unbox_char"
-        case .primitive(.float, .nonNull):
-            "kk_unbox_float"
-        case .primitive(.double, .nonNull):
-            "kk_unbox_double"
-        default:
-            nil
+        let typeKind = sema.types.kind(of: type)
+        guard case .primitive(_, .nonNull) = typeKind else {
+            return exprID
         }
+        let unboxCallee = ABILoweringPass.primitiveUnboxingCallee(for: typeKind, interner: interner)
         guard let unboxCallee else {
             return exprID
         }
-        let normalizedExpr = arena.appendExpr(
-            .temporary(Int32(clamping: arena.expressions.count)),
-            type: type
+        let normalizedExpr = emitNonThrowingCall(
+            callee: unboxCallee,
+            arg: exprID,
+            resultType: type,
+            arena: arena,
+            into: &instructions
         )
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern(unboxCallee),
-            arguments: [exprID],
-            result: normalizedExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
         return normalizedExpr
     }
 

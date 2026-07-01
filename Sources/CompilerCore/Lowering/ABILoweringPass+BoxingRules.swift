@@ -316,18 +316,13 @@ extension ABILoweringPass {
         else {
             return operand
         }
-        let unboxed = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: resultType
-        )
-        newBody.append(.call(
-            symbol: nil,
+        let unboxed = emitNonThrowingCall(
             callee: callee,
-            arguments: [operand],
-            result: unboxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: operand,
+            resultType: resultType,
+            arena: module.arena,
+            into: &newBody
+        )
         return unboxed
     }
 
@@ -391,18 +386,13 @@ extension ABILoweringPass {
             return operand
         }
         let resultType = operandType ?? types.make(targetKind)
-        let unboxed = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: resultType
-        )
-        newBody.append(.call(
-            symbol: nil,
+        let unboxed = emitNonThrowingCall(
             callee: callee,
-            arguments: [operand],
-            result: unboxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: operand,
+            resultType: resultType,
+            arena: module.arena,
+            into: &newBody
+        )
         return unboxed
     }
 

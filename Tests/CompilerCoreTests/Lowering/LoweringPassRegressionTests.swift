@@ -264,12 +264,7 @@ struct LoweringPassRegressionTests {
             try LoweringPhase().run(ctx)
 
             let module = try #require(ctx.kir)
-            let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else {
-                    return nil
-                }
-                return function
-            }
+            let allFunctions = findAllKIRFunctions(in: module)
 
             let loweredOuter = try #require(allFunctions.first(where: { function in
                 ctx.interner.resolve(function.name) == "kk_suspend_outerSuspendHost"
@@ -338,12 +333,7 @@ struct LoweringPassRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let allCallees = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else {
-                    return nil
-                }
-                return function
-            }.flatMap { function in
+            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
                 extractCallees(from: function.body, interner: ctx.interner)
             }
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.severity): \($0.message)" }

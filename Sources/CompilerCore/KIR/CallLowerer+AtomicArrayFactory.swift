@@ -80,7 +80,7 @@ extension CallLowerer {
         let storeAtCallee = interner.intern(storeAtCalleeName)
         let lessThanCallee = interner.intern("kk_op_lt")
         let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = interner.intern("kk_unbox_int")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         let sizeExpr = driver.lowerExpr(
             args[0].expr,

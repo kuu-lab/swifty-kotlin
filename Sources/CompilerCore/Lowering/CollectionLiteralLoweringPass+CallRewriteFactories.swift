@@ -99,18 +99,13 @@ extension CollectionLiteralLoweringPass {
                            interner: ctx.interner
                        )
                     {
-                        let boxedArg = module.arena.appendExpr(
-                            .temporary(Int32(module.arena.expressions.count)),
-                            type: types.anyType
-                        )
-                        loweredBody.append(.call(
-                            symbol: nil,
+                        let boxedArg = emitNonThrowingCall(
                             callee: boxCallee,
-                            arguments: [arg],
-                            result: boxedArg,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            arg: arg,
+                            resultType: types.anyType,
+                            arena: module.arena,
+                            into: &loweredBody
+                        )
                         storedArg = boxedArg
                     } else {
                         storedArg = arg
@@ -339,18 +334,13 @@ extension CollectionLiteralLoweringPass {
                            interner: ctx.interner
                        )
                     {
-                        let boxedArg = module.arena.appendExpr(
-                            .temporary(Int32(module.arena.expressions.count)),
-                            type: types.anyType
-                        )
-                        loweredBody.append(.call(
-                            symbol: nil,
+                        let boxedArg = emitNonThrowingCall(
                             callee: boxCallee,
-                            arguments: [arg],
-                            result: boxedArg,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            arg: arg,
+                            resultType: types.anyType,
+                            arena: module.arena,
+                            into: &loweredBody
+                        )
                         storedArg = boxedArg
                     } else {
                         storedArg = arg

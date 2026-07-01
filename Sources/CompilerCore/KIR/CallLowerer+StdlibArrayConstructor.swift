@@ -23,7 +23,7 @@ extension CallLowerer {
         let arraySetCallee = interner.intern("kk_array_set")
         let lessThanCallee = interner.intern("kk_op_lt")
         let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = interner.intern("kk_unbox_int")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         // 1. Lower the size argument
         let sizeExpr = driver.lowerExpr(

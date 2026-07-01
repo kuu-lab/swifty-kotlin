@@ -343,8 +343,7 @@ struct KIRDelegateAccessorTests {
             let interner = ctx.interner
 
             // Check that a getter function was synthesized.
-            let getterFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let getterFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 let name = interner.resolve(fn.name)
                 return name == "get" ? fn : nil
             }
@@ -391,8 +390,7 @@ struct KIRDelegateAccessorTests {
             let interner = ctx.interner
 
             // Check that a setter function was synthesized.
-            let setterFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let setterFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 let name = interner.resolve(fn.name)
                 return name == "set" ? fn : nil
             }
@@ -430,8 +428,7 @@ struct KIRDelegateAccessorTests {
             let interner = ctx.interner
 
             // There should be no setter function with setValue for a val property.
-            let setterWithSetValue = module.arena.declarations.contains { decl in
-                guard case let .function(fn) = decl else { return false }
+            let setterWithSetValue = findAllKIRFunctions(in: module).contains { fn in
                 let name = interner.resolve(fn.name)
                 guard name == "set" else { return false }
                 let callees = extractCallees(from: fn.body, interner: interner)
@@ -487,8 +484,7 @@ struct KIRDelegateAccessorTests {
 
             // Find the getter and check that getValue resolves as a direct member call,
             // rather than using the delegate storage field as the callee symbol.
-            let getterFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let getterFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 let name = interner.resolve(fn.name)
                 guard name == "get" else { return nil }
                 let callees = extractCallees(from: fn.body, interner: interner)
@@ -528,8 +524,7 @@ struct ConstructorDelegateInitTests {
             let interner = ctx.interner
 
             // In KIR, constructors are named after the class (e.g. "Foo"), not "<init>".
-            let constructors = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 guard interner.resolve(fn.name) == "Foo" else { return nil }
                 return fn
             }
