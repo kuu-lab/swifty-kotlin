@@ -18,7 +18,7 @@ symbol fq=kotlinx.cinterop.CPointer.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.CValuesRef kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CValuesRef<kotlinx.cinterop.CValuesRef.T>
 symbol fq=kotlinx.cinterop.CValuesRef.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.IntVar kind=class vis=public flags=synthetic type=kotlinx.cinterop.IntVar
-file f13 package=golden.sema annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class,kotlin.experimental.ExperimentalObjCEnum::class,kotlin.experimental.ExperimentalObjCName::class,kotlin.experimental.ExperimentalObjCRefinement::class)]
+file f14 package=golden.sema annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class,kotlin.experimental.ExperimentalObjCEnum::class,kotlin.experimental.ExperimentalObjCName::class,kotlin.experimental.ExperimentalObjCRefinement::class)]
   decl golden.sema.SwiftRefined class SwiftRefined sym=golden.sema.SwiftRefined
   decl golden.sema.NativeEnumBridge class NativeEnumBridge sym=golden.sema.NativeEnumBridge
   decl golden.sema.ExportEnumToObjC class ExportEnumToObjC sym=golden.sema.ExportEnumToObjC

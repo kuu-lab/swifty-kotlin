@@ -8,7 +8,7 @@ symbol fq=kotlin.time.Duration.Companion.seconds.$get#2 kind=function vis=public
 symbol fq=kotlin.time.inWholeMilliseconds.$get kind=function vis=public flags=synthetic sig=recv=kotlin.time.Duration params=[] ret=Long
 symbol fq=kotlin.time.inWholeSeconds.$get kind=function vis=public flags=synthetic sig=recv=kotlin.time.Duration params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f14 package=_
   decl main fun main sym=main
 expr e@6:14#0 long(5) type=Long
 expr e@6:14#1 memberCall recv=e@6:14#0 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get#2

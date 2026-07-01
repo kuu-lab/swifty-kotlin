@@ -16,7 +16,7 @@ symbol fq=kotlin.text.encodeToByteArray.$0.endIndex kind=valueParameter vis=priv
 symbol fq=kotlin.text.encodeToByteArray.$0.startIndex kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.encodeToByteArray.$1.charset kind=valueParameter vis=private flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f14 package=_
   decl main fun main sym=main
 expr e@2:13 string(Hello) type=String
 expr e@2:5 localDecl s mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.s

@@ -8,7 +8,7 @@ symbol fq=golden.sema.classifyBool kind=function vis=public flags=_ sig=recv=_ p
 symbol fq=golden.sema.classifyBool.$1.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.classifyColor kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Color] ret=String
 symbol fq=golden.sema.classifyColor.$2.c kind=valueParameter vis=private flags=_
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.Color class Color sym=golden.sema.Color
   decl golden.sema.classify fun classify sym=golden.sema.classify
   decl golden.sema.classifyColor fun classifyColor sym=golden.sema.classifyColor

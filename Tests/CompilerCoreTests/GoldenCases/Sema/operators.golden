@@ -30,7 +30,7 @@ symbol fq=typeCheck kind=function vis=public flags=_ sig=recv=_ params=[Any] ret
 symbol fq=typeCheck.$10.v kind=valueParameter vis=private flags=_
 symbol fq=unsafeCast kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
 symbol fq=unsafeCast.$11.v kind=valueParameter vis=private flags=_
-file f13 package=_
+file f14 package=_
   decl typeCheck fun typeCheck sym=typeCheck
   decl negatedTypeCheck fun negatedTypeCheck sym=negatedTypeCheck
   decl unsafeCast fun unsafeCast sym=unsafeCast
@@ -80,18 +80,18 @@ expr e@32:5#6 localDecl d mutable=1 type=_ init=e@32:13#3 type=Unit ref=__local_
 expr e@33:10#1 int(3) type=Int
 expr e@33:5#6 compoundAssign(divAssign) name=d value=e@33:10#1 type=Unit ref=__local_3.d
 expr e@34:12#1 name(d) type=Int ref=__local_3.d
-expr e@34:5#7 return value=e@34:12#1 type=Nothing
+expr e@34:5#8 return value=e@34:12#1 type=Nothing
 expr e@38:13#2 name(x) type=Int ref=compoundMod.$2.x
-expr e@38:5#3 localDecl e mutable=1 type=_ init=e@38:13#2 type=Unit ref=__local_4.e
+expr e@38:5#4 localDecl e mutable=1 type=_ init=e@38:13#2 type=Unit ref=__local_4.e
 expr e@39:10#1 int(4) type=Int
-expr e@39:5#4 compoundAssign(modAssign) name=e value=e@39:10#1 type=Unit ref=__local_4.e
-expr e@40:12#3 name(e) type=Int ref=__local_4.e
-expr e@40:5#5 return value=e@40:12#3 type=Nothing
+expr e@39:5#5 compoundAssign(modAssign) name=e value=e@39:10#1 type=Unit ref=__local_4.e
+expr e@40:12#4 name(e) type=Int ref=__local_4.e
+expr e@40:5#6 return value=e@40:12#4 type=Nothing
 expr e@43:41#1 name(s) type=String? ref=safeCallExample.$8.s
 expr e@43:41#2 safeMemberCall recv=e@43:41#1 callee=hashCode args=[] type=<error>
 expr e@46:24#1 int(3) type=Int
 expr e@46:15#1 call callee=e@46:15#0 args=[_:e@46:24#1] type=kotlin.IntArray
-expr e@46:5#7 localDecl arr mutable=1 type=_ init=e@46:15#1 type=Unit ref=__local_5.arr
+expr e@46:5#8 localDecl arr mutable=1 type=_ init=e@46:15#1 type=Unit ref=__local_5.arr
 expr e@47:5#8 name(arr) type=kotlin.IntArray ref=__local_5.arr
 expr e@47:9#3 int(0) type=Int
 expr e@47:14#2 int(42) type=Int

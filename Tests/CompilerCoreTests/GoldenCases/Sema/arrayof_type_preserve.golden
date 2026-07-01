@@ -58,7 +58,7 @@ symbol fq=kotlin.longArrayOf kind=function vis=public flags=synthetic sig=recv=_
 symbol fq=kotlin.shortArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ShortArray vararg=[1]
 symbol fq=longArrayOfLiteral kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=shortArrayOfLiteral kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f14 package=_
   decl arrayOfInts fun arrayOfInts sym=arrayOfInts
   decl arrayOfStrings fun arrayOfStrings sym=arrayOfStrings
   decl intArrayOfLiteral fun intArrayOfLiteral sym=intArrayOfLiteral
@@ -136,7 +136,7 @@ expr e@37:13#4 call callee=e@37:13#3 args=[_:e@37:25#1,_:e@37:30,_:e@37:35] type
 expr e@37:5#6 localDecl h mutable=0 type=_ init=e@37:13#4 type=Unit ref=__local_7.h
 expr e@38:13#2 name(h) type=kotlin.CharArray ref=__local_7.h
 expr e@38:13#3 memberCall recv=e@38:13#2 callee=size args=[] type=Int ref=kotlin.CharArray.size
-expr e@38:5#4 call callee=e@38:5#3 args=[_:e@38:13#3] type=Unit call=kotlin.io.println#1
+expr e@38:5#5 call callee=e@38:5#4 args=[_:e@38:13#3] type=Unit call=kotlin.io.println#1
 expr e@42:25 int(1) type=Int
 expr e@42:28#1 string(two) type=String
 expr e@42:35 double(3.0) type=Double
@@ -156,16 +156,16 @@ expr e@48:13#3 name(i) type=kotlin.Array<Int> ref=__local_9.i
 expr e@48:13#4 memberCall recv=e@48:13#3 callee=size args=[] type=Int ref=kotlin.Array.size
 expr e@48:5#4 call callee=e@48:5#3 args=[_:e@48:13#4] type=Unit call=kotlin.io.println#1
 expr e@52:34#1 call callee=e@52:34#0 args=[] type=kotlin.Array<String> call=kotlin.arrayOf targs=[String]
-expr e@52:5#3 localDecl strings mutable=0 type=Array<String> init=e@52:34#1 type=Unit ref=__local_10.strings
+expr e@52:5#4 localDecl strings mutable=0 type=Array<String> init=e@52:34#1 type=Unit ref=__local_10.strings
 expr e@53:13#1 name(strings) type=kotlin.Array<String> ref=__local_10.strings
 expr e@53:13#2 memberCall recv=e@53:13#1 callee=size args=[] type=Int ref=kotlin.Array.size
 expr e@53:5#5 call callee=e@53:5#4 args=[_:e@53:13#2] type=Unit call=kotlin.io.println#1
 expr e@57:44 int(3) type=Int
 expr e@57:33#1 call callee=e@57:33#0 args=[_:e@57:44,_:e@57:47#2] type=kotlin.Array<Int>
-expr e@57:5#6 localDecl array mutable=0 type=Array<out Any> init=e@57:33#1 type=Unit ref=__local_11.array
+expr e@57:5#7 localDecl array mutable=0 type=Array<out Any> init=e@57:33#1 type=Unit ref=__local_11.array
 expr e@58:13#4 name(array) type=kotlin.Array<out Any> ref=__local_11.array
 expr e@58:13#5 memberCall recv=e@58:13#4 callee=size args=[] type=Int ref=kotlin.Array.size
-expr e@58:5#2 call callee=e@58:5#1 args=[_:e@58:13#5] type=Unit call=kotlin.io.println#1
+expr e@58:5#3 call callee=e@58:5#2 args=[_:e@58:13#5] type=Unit call=kotlin.io.println#1
 expr e@62:38 int(3) type=Int
 expr e@62:32#1 call callee=e@62:32#0 args=[_:e@62:38,_:e@62:41#1] type=kotlin.Array<String>
 expr e@62:5#3 localDecl array mutable=0 type=Array<String> init=e@62:32#1 type=Unit ref=__local_12.array
@@ -180,7 +180,7 @@ expr e@67:13#3 call callee=e@67:13#2 args=[_:e@67:26#3,_:e@67:39#1] type=kotlin.
 expr e@67:5#6 localDecl a mutable=0 type=_ init=e@67:13#3 type=Unit ref=__local_13.a
 expr e@68:13#3 name(a) type=kotlin.ShortArray ref=__local_13.a
 expr e@68:13#4 memberCall recv=e@68:13#3 callee=size args=[] type=Int ref=kotlin.ShortArray.size
-expr e@68:5#4 call callee=e@68:5#3 args=[_:e@68:13#4] type=Unit call=kotlin.io.println#1
+expr e@68:5#5 call callee=e@68:5#4 args=[_:e@68:13#4] type=Unit call=kotlin.io.println#1
 expr e@72:25#1 int(1) type=Int
 expr e@72:25#2 memberCall recv=e@72:25#1 callee=toByte args=[] type=Int
 expr e@72:37#0 int(2) type=Int

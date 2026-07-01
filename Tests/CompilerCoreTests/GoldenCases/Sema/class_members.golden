@@ -2,7 +2,7 @@ symbol fq=golden.sema.Counter kind=class vis=public flags=_
 symbol fq=golden.sema.Counter.count kind=property vis=public flags=mutable type=Int
 symbol fq=golden.sema.Counter.initial kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.Singleton kind=object vis=public flags=_
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.Counter class Counter sym=golden.sema.Counter
   decl golden.sema.Singleton object Singleton sym=golden.sema.Singleton
 expr e@4:24 name(initial0) type=<error>

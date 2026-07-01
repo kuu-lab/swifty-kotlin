@@ -15,7 +15,7 @@ symbol fq=__local_13.ls kind=local vis=private flags=_ type=Int
 symbol fq=__local_14.i kind=local vis=private flags=_ type=Int
 symbol fq=__local_15.id kind=local vis=private flags=_ type=Double
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f14 package=_
   decl main fun main sym=main
 expr e@2:13 double(3.14) type=Double
 expr e@2:5 localDecl d mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.d
