@@ -383,6 +383,7 @@ public final class SymbolTable {
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
     private var externalLinkNames: [SymbolID: String] = [:]
+    private var stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind] = [:]
     private var typeAliasUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
     private var parentSymbols: [SymbolID: SymbolID] = [:]
@@ -752,6 +753,14 @@ public final class SymbolTable {
 
     public func externalLinkName(for symbol: SymbolID) -> String? {
         externalLinkNames[symbol]
+    }
+
+    public func setStdlibSpecialCallKind(_ kind: StdlibSpecialCallKind, for symbol: SymbolID) {
+        stdlibSpecialCallKindsBySymbol[symbol] = kind
+    }
+
+    public func stdlibSpecialCallKind(forSymbol symbol: SymbolID) -> StdlibSpecialCallKind? {
+        stdlibSpecialCallKindsBySymbol[symbol]
     }
 
     public func setTypeAliasUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
