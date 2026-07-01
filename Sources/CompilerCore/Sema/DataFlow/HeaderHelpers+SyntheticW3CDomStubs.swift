@@ -1,16 +1,16 @@
-/// Synthetic Kotlin/JS collections `JsReadonlyArray<out E>` surface.
+/// Synthetic `org.w3c.dom` external interface stubs.
 extension DataFlowSemaPhase {
-    func registerSyntheticJsCollectionsReadonlyArrayStubs(
+    func registerSyntheticW3CDomStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
         let pkg = ensurePackage(
-            path: ["kotlin", "js", "collections"],
+            path: ["org", "w3c", "dom"],
             symbols: symbols,
             interner: interner
         )
-        _ = ensureJsReadonlyArray(
+        registerItemArrayLike(
             packageFQName: pkg,
             symbols: symbols,
             types: types,
@@ -18,16 +18,23 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func ensureJsReadonlyArray(
+    /// Register `org.w3c.dom.ItemArrayLike<out T>` as a synthetic external interface.
+    ///
+    /// Kotlin/JS stdlib declaration:
+    ///   external interface ItemArrayLike<out T> { val length: Int; fun item(index: Int): T? }
+    ///
+    /// Only the type surface (interface + covariant type parameter) is registered here.
+    /// Members (`length`, `item`) are omitted until a downstream consumer requires them.
+    private func registerItemArrayLike(
         packageFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
-    ) -> (symbol: SymbolID, typeParameterSymbol: SymbolID) {
-        let interfaceName = interner.intern("JsReadonlyArray")
+    ) {
+        let interfaceName = interner.intern("ItemArrayLike")
         let interfaceFQName = packageFQName + [interfaceName]
         let interfaceSymbol = ensureInterfaceSymbol(
-            named: "JsReadonlyArray",
+            named: "ItemArrayLike",
             in: packageFQName,
             symbols: symbols,
             interner: interner
@@ -35,9 +42,8 @@ extension DataFlowSemaPhase {
         if let packageSymbol = symbols.lookup(fqName: packageFQName) {
             symbols.setParentSymbol(packageSymbol, for: interfaceSymbol)
         }
-        appendJsCollectionsReadonlyArrayAnnotation(to: interfaceSymbol, symbols: symbols)
 
-        let typeParamName = interner.intern("E")
+        let typeParamName = interner.intern("T")
         let typeParamFQName = interfaceFQName + [typeParamName]
         let typeParamSymbol: SymbolID
         if let existing = symbols.lookup(fqName: typeParamFQName),
@@ -54,6 +60,7 @@ extension DataFlowSemaPhase {
             )
         }
         symbols.setParentSymbol(interfaceSymbol, for: typeParamSymbol)
+        symbols.setTypeParameterUpperBounds([types.nullableAnyType], for: typeParamSymbol)
 
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
@@ -67,21 +74,5 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: interfaceSymbol)
         symbols.setPropertyType(interfaceType, for: interfaceSymbol)
-
-        return (interfaceSymbol, typeParamSymbol)
-    }
-
-    private func appendJsCollectionsReadonlyArrayAnnotation(
-        to symbol: SymbolID,
-        symbols: SymbolTable
-    ) {
-        let experimentalRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.js.ExperimentalJsCollectionsApi"
-        )
-        var annotations = symbols.annotations(for: symbol)
-        if !annotations.contains(experimentalRecord) {
-            annotations.append(experimentalRecord)
-            symbols.setAnnotations(annotations, for: symbol)
-        }
     }
 }

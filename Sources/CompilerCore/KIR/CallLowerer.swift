@@ -816,12 +816,14 @@ final class CallLowerer {
                 .temporary(Int32(arena.expressions.count)),
                 type: boundType ?? sema.types.anyType
             )
+            let sbCalleeName = interner.resolve(implicitStringBuilderCall.callee)
+            let sbCanThrow = isThrowingStringBuilderRuntimeFunction(sbCalleeName)
             instructions.append(.call(
                 symbol: nil,
                 callee: implicitStringBuilderCall.callee,
                 arguments: [implicitStringBuilderCall.receiver] + loweredArgIDs,
                 result: result,
-                canThrow: false,
+                canThrow: sbCanThrow,
                 thrownResult: nil
             ))
             return result
@@ -1344,6 +1346,30 @@ final class CallLowerer {
     private func needsThrownChannel(calleeName: InternedString, interner: StringInterner) -> Bool {
         let name = interner.resolve(calleeName)
         return name == "kk_runCatching" || name == "kk_synchronized"
+    }
+
+    /// Returns true if the given StringBuilder runtime function performs bounds
+    /// checking and may throw IndexOutOfBoundsException via the outThrown channel.
+    func isThrowingStringBuilderRuntimeFunction(_ name: String) -> Bool {
+        switch name {
+        case "kk_string_builder_insert_obj",
+             "kk_string_builder_insert_char",
+             "kk_string_builder_insert_bool",
+             "kk_string_builder_insert_float",
+             "kk_string_builder_insert_double",
+             "kk_string_builder_delete_obj",
+             "kk_string_builder_deleteRange",
+             "kk_string_builder_deleteCharAt",
+             "kk_string_builder_deleteAt",
+             "kk_string_builder_insertRange_obj",
+             "kk_string_builder_setRange",
+             "kk_string_builder_replace_obj",
+             "kk_string_builder_setCharAt",
+             "kk_string_builder_get":
+            return true
+        default:
+            return false
+        }
     }
 
     private func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {

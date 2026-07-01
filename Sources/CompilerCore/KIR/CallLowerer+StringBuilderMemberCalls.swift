@@ -55,7 +55,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result
@@ -97,7 +97,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result
@@ -126,7 +126,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result
@@ -151,7 +151,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result

@@ -296,13 +296,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerAtomicAsKotlinAtomicFunctions(
-            packageFQName: atomicsPkg,
-            receiverPackageFQName: concurrentPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerAtomicArrayOfNullsFactory(
             packageFQName: atomicsPkg,
             symbols: symbols,
@@ -1726,21 +1719,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-    }
-
-    private func registerAtomicAsKotlinAtomicFunctions(
-        packageFQName: [InternedString],
-        receiverPackageFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let javaAtomicPackage = ensurePackage(
-            path: ["java", "util", "concurrent", "atomic"],
-            symbols: symbols,
-            interner: interner
-        )
-
     }
 
     private func registerAtomicExtensionFunction(

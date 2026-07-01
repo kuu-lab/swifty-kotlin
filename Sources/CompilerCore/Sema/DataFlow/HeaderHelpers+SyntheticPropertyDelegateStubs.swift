@@ -141,14 +141,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let kAnnotatedElementSymbol = registerSyntheticKAnnotatedElementStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinReflectPkg: kotlinReflectPkg
-        )
-        let kDeclarationContainerSymbol = registerSyntheticKDeclarationContainerStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinReflectPkg: kotlinReflectPkg
-        )
         let kPropertySymbol = ensureInterfaceSymbol(
             named: "KProperty", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -164,17 +156,9 @@ extension DataFlowSemaPhase {
         // STDLIB-REFLECT-066: Register kotlin.reflect.KType and typeOf<T>() stubs
         registerSyntheticKTypeStubs(
             symbols: symbols, types: types, interner: interner,
-            kotlinReflectPkg: kotlinReflectPkg, kotlinPkg: kotlinPkg,
-            kAnnotatedElementSymbol: kAnnotatedElementSymbol
-        )
-        registerSyntheticKVisibilityEnum(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinReflectPkg: kotlinReflectPkg
+            kotlinReflectPkg: kotlinReflectPkg, kotlinPkg: kotlinPkg
         )
         registerSyntheticKParameterStub(
-            kAnnotatedElementSymbol: kAnnotatedElementSymbol,
             symbols: symbols,
             types: types,
             interner: interner,
@@ -224,10 +208,6 @@ extension DataFlowSemaPhase {
 
         let kCallableSymbol = ensureInterfaceSymbol(
             named: "KCallable", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        addSyntheticDirectSupertypes(
-            [kAnnotatedElementSymbol], to: kCallableSymbol,
-            symbols: symbols, types: types
         )
         addSyntheticDirectSupertypes(
             [kCallableSymbol], to: kPropertySymbol,
@@ -338,7 +318,7 @@ extension DataFlowSemaPhase {
         )
         types.kClassInterfaceSymbol = kClassSymbol
         addSyntheticDirectSupertypes(
-            [kDeclarationContainerSymbol, kAnnotatedElementSymbol, kClassifierSymbol], to: kClassSymbol,
+            [kClassifierSymbol], to: kClassSymbol,
             symbols: symbols, types: types
         )
 
@@ -1003,64 +983,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // STDLIB-REFLECT-068: Register KAnnotatedElement with its annotations surface.
-    private func registerSyntheticKAnnotatedElementStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinReflectPkg: [InternedString]
-    ) -> SymbolID {
-        let kAnnotatedElementSymbol = ensureInterfaceSymbol(
-            named: "KAnnotatedElement", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        types.kAnnotatedElementInterfaceSymbol = kAnnotatedElementSymbol
-
-        guard let kAnnotatedElementInfo = symbols.symbol(kAnnotatedElementSymbol) else {
-            return kAnnotatedElementSymbol
-        }
-        let annotationsName = interner.intern("annotations")
-        let annotationsFQ = kAnnotatedElementInfo.fqName + [annotationsName]
-        if symbols.lookup(fqName: annotationsFQ) == nil {
-            let annotationsSymbol = symbols.define(
-                kind: .property, name: annotationsName, fqName: annotationsFQ,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(kAnnotatedElementSymbol, for: annotationsSymbol)
-            symbols.setPropertyType(types.anyType, for: annotationsSymbol)
-        }
-
-        return kAnnotatedElementSymbol
-    }
-
-    // STDLIB-REFLECT-069: Register KDeclarationContainer with its members surface.
-    private func registerSyntheticKDeclarationContainerStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinReflectPkg: [InternedString]
-    ) -> SymbolID {
-        let kDeclarationContainerSymbol = ensureInterfaceSymbol(
-            named: "KDeclarationContainer", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        types.kDeclarationContainerInterfaceSymbol = kDeclarationContainerSymbol
-
-        guard let kDeclarationContainerInfo = symbols.symbol(kDeclarationContainerSymbol) else {
-            return kDeclarationContainerSymbol
-        }
-        let membersName = interner.intern("members")
-        let membersFQ = kDeclarationContainerInfo.fqName + [membersName]
-        if symbols.lookup(fqName: membersFQ) == nil {
-            let membersSymbol = symbols.define(
-                kind: .property, name: membersName, fqName: membersFQ,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(kDeclarationContainerSymbol, for: membersSymbol)
-            symbols.setPropertyType(types.anyType, for: membersSymbol)
-        }
-
-        return kDeclarationContainerSymbol
-    }
-
     // STDLIB-REFLECT-TYPE-009: Register KMutableProperty<V> as a mutable KProperty surface.
     private func registerSyntheticKMutablePropertyStub(
         kMutablePropertySymbol: SymbolID,
@@ -1247,60 +1169,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-    }
-
-    // STDLIB-REFLECT-TYPE-022: Register KVisibility enum entries.
-    private func registerSyntheticKVisibilityEnum(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinReflectPkg: [InternedString]
-    ) {
-        let enumName = interner.intern("KVisibility")
-        let enumFQName = kotlinReflectPkg + [enumName]
-        let enumSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: enumFQName) {
-            enumSymbol = existing
-        } else {
-            enumSymbol = symbols.define(
-                kind: .enumClass,
-                name: enumName,
-                fqName: enumFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let packageSymbol = symbols.lookup(fqName: kotlinReflectPkg), packageSymbol != .invalid {
-            symbols.setParentSymbol(packageSymbol, for: enumSymbol)
-        }
-
-        let enumType = types.make(.classType(ClassType(
-            classSymbol: enumSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        for entryNameRaw in ["PUBLIC", "PROTECTED", "INTERNAL", "PRIVATE"] {
-            let entryName = interner.intern(entryNameRaw)
-            let entryFQName = enumFQName + [entryName]
-            let entrySymbol: SymbolID
-            if let existing = symbols.lookup(fqName: entryFQName) {
-                entrySymbol = existing
-            } else {
-                entrySymbol = symbols.define(
-                    kind: .field,
-                    name: entryName,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-            if symbols.propertyType(for: entrySymbol) == nil {
-                symbols.setPropertyType(enumType, for: entrySymbol)
-            }
-        }
     }
 
     // STDLIB-REFLECT-TYPE-010: Register KMutableProperty0<V> with mutable zero-receiver surface.
@@ -1919,8 +1787,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinReflectPkg: [InternedString],
-        kotlinPkg: [InternedString],
-        kAnnotatedElementSymbol: SymbolID
+        kotlinPkg: [InternedString]
     ) {
         let anyType = types.anyType
         let boolType = types.make(.primitive(.boolean, .nonNull))
@@ -1931,10 +1798,6 @@ extension DataFlowSemaPhase {
         let kTypeType = types.make(.classType(ClassType(
             classSymbol: kTypeSymbol, args: [], nullability: .nonNull
         )))
-        addSyntheticDirectSupertypes(
-            [kAnnotatedElementSymbol], to: kTypeSymbol,
-            symbols: symbols, types: types
-        )
 
         if let kTypeInfo = symbols.symbol(kTypeSymbol) {
             let isMarkedNullableName = interner.intern("isMarkedNullable")
@@ -2165,7 +2028,6 @@ extension DataFlowSemaPhase {
 
     // STDLIB-REFLECT-TYPE-013: Register KParameter interface and scalar properties.
     private func registerSyntheticKParameterStub(
-        kAnnotatedElementSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
@@ -2173,12 +2035,6 @@ extension DataFlowSemaPhase {
     ) {
         let kParameterSymbol = ensureInterfaceSymbol(
             named: "KParameter", in: kotlinReflectPkg, symbols: symbols, interner: interner
-        )
-        addSyntheticDirectSupertypes(
-            [kAnnotatedElementSymbol],
-            to: kParameterSymbol,
-            symbols: symbols,
-            types: types
         )
 
         guard let kParameterInfo = symbols.symbol(kParameterSymbol) else { return }
@@ -2567,77 +2423,6 @@ extension DataFlowSemaPhase {
                 ),
                 for: reflectFunctionSymbol
             )
-        }
-    }
-
-    /// Updates `KAnnotatedElement.annotations` to `List<Annotation>` once collection stubs exist.
-    func patchKAnnotatedElementAnnotationsType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
-        ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName),
-              let kAnnotatedElementSymbol = types.kAnnotatedElementInterfaceSymbol,
-              let annotationSymbol = types.annotationInterfaceSymbol,
-              let kAnnotatedElementInfo = symbols.symbol(kAnnotatedElementSymbol)
-        else {
-            return
-        }
-
-        let annotationType = types.make(.classType(ClassType(
-            classSymbol: annotationSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let listOfAnnotation = types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.out(annotationType)],
-            nullability: .nonNull
-        )))
-
-        let annotationsPropFQ = kAnnotatedElementInfo.fqName + [interner.intern("annotations")]
-        if let annotationsPropSymbol = symbols.lookup(fqName: annotationsPropFQ) {
-            symbols.setPropertyType(listOfAnnotation, for: annotationsPropSymbol)
-        }
-    }
-
-    /// Updates `KDeclarationContainer.members` to `Collection<KCallable<*>>` once collection stubs exist.
-    func patchKDeclarationContainerMembersType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let collectionFQName: [InternedString] = [
-            interner.intern("kotlin"), interner.intern("collections"), interner.intern("Collection"),
-        ]
-        let kCallableFQName: [InternedString] = [
-            interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KCallable"),
-        ]
-        guard let collectionSymbol = symbols.lookup(fqName: collectionFQName),
-              let kDeclarationContainerSymbol = types.kDeclarationContainerInterfaceSymbol,
-              let kCallableSymbol = symbols.lookup(fqName: kCallableFQName),
-              let kDeclarationContainerInfo = symbols.symbol(kDeclarationContainerSymbol)
-        else {
-            return
-        }
-
-        let kCallableStarType = types.make(.classType(ClassType(
-            classSymbol: kCallableSymbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
-        let collectionOfKCallable = types.make(.classType(ClassType(
-            classSymbol: collectionSymbol,
-            args: [.out(kCallableStarType)],
-            nullability: .nonNull
-        )))
-
-        let membersPropFQ = kDeclarationContainerInfo.fqName + [interner.intern("members")]
-        if let membersPropSymbol = symbols.lookup(fqName: membersPropFQ) {
-            symbols.setPropertyType(collectionOfKCallable, for: membersPropSymbol)
         }
     }
 

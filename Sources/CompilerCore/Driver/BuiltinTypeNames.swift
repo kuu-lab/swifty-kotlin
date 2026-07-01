@@ -67,7 +67,13 @@ struct BuiltinTypeNames {
         if let prim = primitiveType(for: name) {
             return types.withNullability(nullability, for: types.make(.primitive(prim, .nonNull)))
         }
-        if name == any || name == number {
+        if name == any {
+            return nullability == .nullable ? types.nullableAnyType : types.anyType
+        }
+        if name == number {
+            if let numberSym = types.numberClassSymbol {
+                return types.make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: nullability)))
+            }
             return nullability == .nullable ? types.nullableAnyType : types.anyType
         }
         if name == unit { return types.unitType }
