@@ -54,12 +54,18 @@ struct StringToLongFunctionTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            // Bundled stdlib (e.g. Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt)
+            // also contains zero-arg toLong() calls on Int/Long receivers. Match on the
+            // resolved callee rather than "first occurrence" so this doesn't depend on
+            // bundled-file processing order.
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+                firstExprID(in: ast) { exprID, expr in
                     guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == "toLong" && args.isEmpty
+                    guard ctx.interner.resolve(callee) == "toLong" && args.isEmpty else { return false }
+                    guard let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee else { return false }
+                    return sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_toLong"
                 },
-                "Expected member call to toLong() in AST"
+                "Expected member call to toLong() resolving to kk_string_toLong in AST"
             )
 
             let chosenCallee = try #require(
