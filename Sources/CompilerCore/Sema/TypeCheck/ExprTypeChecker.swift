@@ -681,8 +681,11 @@ final class ExprTypeChecker {
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),
                       let signature = sema.symbols.functionSignature(for: candidate),
-                      signature.receiverType != nil
+                      let signatureReceiverType = signature.receiverType
                 else {
+                    continue
+                }
+                guard sema.types.isSubtype(receiverType, signatureReceiverType) else {
                     continue
                 }
                 candidates.append(candidate)

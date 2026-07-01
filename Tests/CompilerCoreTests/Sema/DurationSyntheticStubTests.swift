@@ -124,6 +124,25 @@ struct DurationSyntheticStubTests {
     }
 
     @Test
+    func testDurationSourceOperatorsDoNotPoisonLambdaArithmeticFallback() throws {
+        let source = """
+        fun main() {
+            val square = { x: Int -> x * x }
+            square(5)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Duration source extension operators should not block primitive arithmetic fallback: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test
     func testDurationIsoAndParseSurfaceIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
