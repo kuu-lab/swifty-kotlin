@@ -1011,6 +1011,20 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
+            // CValue<T>.write(location: T) — STDLIB-CINTEROP-FN-045
+            registerSyntheticNativeBitSetMemberFunction(
+                named: "write",
+                ownerSymbol: cValueSymbol,
+                receiverType: cValueType,
+                parameters: [(name: "location", type: cValueTypeParameterType)],
+                returnType: types.unitType,
+                typeParameterSymbols: [cValueTypeParameterSymbol],
+                typeParameterUpperBoundsList: [[cVariableType]],
+                classTypeParameterCount: 1,
+                flags: [.synthetic, .abstractType],
+                symbols: symbols,
+                interner: interner
+            )
         }
         configureSingleTypeParameterNominal(
             ownerSymbol: cValuesSymbol,
@@ -2286,6 +2300,7 @@ extension DataFlowSemaPhase {
                 receiverType: toKStringFromUtf16UShortReceiverType,
                 parameters: [],
                 returnType: types.stringType,
+                externalLinkName: "kk_cpointer_toKStringFromUtf16",
                 symbols: symbols,
                 interner: interner
             )
@@ -2590,6 +2605,22 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // fun writeBits(ptr: NativePtr, offset: Long, size: Int, value: Long) — STDLIB-CINTEROP-FN-046
+        registerSyntheticNativeTopLevelFunction(
+            named: "writeBits",
+            packageFQName: cinteropPkg,
+            receiverType: nil,
+            parameters: [
+                (name: "ptr", type: nativePtrType),
+                (name: "offset", type: types.longType),
+                (name: "size", type: types.intType),
+                (name: "value", type: types.longType),
+            ],
+            returnType: types.unitType,
+            externalLinkName: "kk_cinterop_writeBits",
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCInteropVector128Stubs(
             cinteropPkg: cinteropPkg,
             cinteropPkgSymbol: cinteropPkgSymbol,

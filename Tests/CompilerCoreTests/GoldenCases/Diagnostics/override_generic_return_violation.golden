@@ -65,6 +65,32 @@
       "source": "kswiftk",
       "message": "Override of 'create' has incompatible return type. Expected covariant relationship with 'Class#0<T#5>' but found 'Class#0<Int>'.",
       "codeActions": []
+    },
+    {
+      "file": "override_generic_return_violation.kt",
+      "range": {
+        "start": { "line": 52, "character": 4 },
+        "end": { "line": 52, "character": 41 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
+      "source": "kswiftk",
+      "message": "Override of 'value' has incompatible return type. Expected covariant relationship with 'T#6' but found 'String'.",
+      "codeActions": []
+    },
+    {
+      "file": "override_generic_return_violation.kt",
+      "range": {
+        "start": { "line": 61, "character": 4 },
+        "end": { "line": 61, "character": 56 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
+      "source": "kswiftk",
+      "message": "Override of 'wrap' has incompatible return type. Expected covariant relationship with 'Class#7<T#8>' but found 'Class#7<String>'.",
+      "codeActions": []
     }
   ]
 }

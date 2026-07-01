@@ -96,14 +96,30 @@ extension TypeCheckHelpers {
     }
 
     /// Variance position when walking a type for use-site projection checks.
+    ///
+    /// `.invariant` represents a position that is simultaneously covariant and contravariant
+    /// (e.g. an invariant class type parameter). Any use-site projection through such a slot
+    /// is unsound, so both `out` and `in` projections are rejected when the position is invariant.
     private enum AliasVariancePosition {
         case out
         case contravariant
+        case invariant
 
         var flipped: AliasVariancePosition {
             switch self {
             case .out: .contravariant
             case .contravariant: .out
+            case .invariant: .invariant
+            }
+        }
+
+        /// Compose this outer position with a class type parameter's declaration-site variance.
+        /// Mirrors standard variance composition: out*out=out, out*in=in, **invariant=invariant.
+        func composed(with declaredVariance: TypeVariance) -> AliasVariancePosition {
+            switch declaredVariance {
+            case .out: self
+            case .in: flipped
+            case .invariant: .invariant
             }
         }
     }
@@ -177,8 +193,10 @@ extension TypeCheckHelpers {
                 range: range
             )
         case let .classType(classType):
-            for arg in classType.args {
-                let (innerType, innerPosition) = projectedAliasTypeArg(arg, position: position)
+            let paramVariances = sema.types.nominalTypeParameterVariances(for: classType.classSymbol)
+            for (index, arg) in classType.args.enumerated() {
+                let paramVariance: TypeVariance = index < paramVariances.count ? paramVariances[index] : .invariant
+                let (innerType, innerPosition) = projectedAliasTypeArg(arg, position: position, declaredVariance: paramVariance)
                 guard let innerType else { continue }
                 checkAliasUnderlyingTypeVariance(
                     innerType,
@@ -255,11 +273,14 @@ extension TypeCheckHelpers {
 
     private func projectedAliasTypeArg(
         _ arg: TypeArg,
-        position: AliasVariancePosition
+        position: AliasVariancePosition,
+        declaredVariance: TypeVariance = .invariant
     ) -> (TypeID?, AliasVariancePosition) {
         switch arg {
         case let .invariant(type):
-            (type, position)
+            // No explicit use-site projection: effective position is determined by composing
+            // the outer position with the class parameter's declaration-site variance.
+            (type, position.composed(with: declaredVariance))
         case let .out(type):
             (type, position)
         case let .in(type):
@@ -278,8 +299,12 @@ extension TypeCheckHelpers {
         let violation: (code: String, message: String)? = switch (projection, position) {
         case (.out, .contravariant):
             ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'out' but occurs in 'in' position")
+        case (.out, .invariant):
+            ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'out' but occurs in invariant position")
         case (.in, .out):
             ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'in' but occurs in 'out' position")
+        case (.in, .invariant):
+            ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'in' but occurs in invariant position")
         default:
             nil
         }
