@@ -69,6 +69,10 @@ public enum ScopeFunctionKind: Equatable {
     case scopeTopLevelRun
     /// Closeable.use { } (STDLIB-520): like `let`, but wraps in try-finally calling close().
     case scopeUse
+    /// T.usePinned { } (STDLIB-CINTEROP-FN-042): like `use`, but pins the receiver via
+    /// pin() first, passes the resulting Pinned<T> (not the receiver) to the lambda, and
+    /// wraps in try-finally calling unpin().
+    case scopeUsePinned
 }
 
 /// Identifies takeIf / takeUnless extension calls (STDLIB-160).
