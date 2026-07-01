@@ -468,5 +468,31 @@ extension BuildKIRRegressionTests {
             )
         }
     }
+
+    @Test func testCPointerUShortVarToKStringLowersToRuntimeCallee() throws {
+        // STDLIB-CINTEROP-FN-032: toKString() on CPointer<UShortVar> is an alias
+        // for toKStringFromUtf16() and must reuse the same runtime decoder.
+        let source = """
+        import kotlinx.cinterop.CPointer
+        import kotlinx.cinterop.UShortVar
+        import kotlinx.cinterop.toKString
+
+        fun decode(p: CPointer<UShortVar>): String = p.toKString()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "decode", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                callees.contains("kk_cpointer_toKStringFromUtf16"),
+                "Expected CPointer<UShortVar>.toKString() to lower to kk_cpointer_toKStringFromUtf16"
+            )
+        }
+    }
 }
 #endif
