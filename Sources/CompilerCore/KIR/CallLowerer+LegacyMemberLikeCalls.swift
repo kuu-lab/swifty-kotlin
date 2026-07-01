@@ -1252,7 +1252,7 @@ extension CallLowerer {
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     let runtimeCallee = calleeStr == "isNullOrEmpty"
                         ? "kk_string_isNullOrEmpty"
-                        : "kk_string_isNullOrBlank"
+                        : "kk_string_isNullOrBlank_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),

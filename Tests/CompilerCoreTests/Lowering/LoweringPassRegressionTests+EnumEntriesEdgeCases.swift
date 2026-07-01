@@ -322,8 +322,8 @@ extension LoweringPassRegressionTests {
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         let callees = extractCallees(from: valueOfFn.body, interner: interner)
 
-        #expect(callees.contains("kk_string_equals"),
-                "valueOf should call kk_string_equals; callees: \(callees)")
+        #expect(callees.contains("kk_string_equals_flat"),
+                "valueOf should call kk_string_equals_flat; callees: \(callees)")
         #expect(callees.contains("kk_enum_valueOf_throw"),
                 "valueOf should call kk_enum_valueOf_throw; callees: \(callees)")
     }

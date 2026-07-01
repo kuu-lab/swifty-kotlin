@@ -93,11 +93,11 @@ struct StringContainsFunctionTests {
         let sema = try #require(ctx.sema)
         let resolvedSymbols = sema.symbols.lookupAll(fqName: containsFQName)
         let hasIgnoreCaseLink = resolvedSymbols.contains { symbolID in
-            sema.symbols.externalLinkName(for: symbolID) == "kk_string_contains_ignoreCase"
+            sema.symbols.externalLinkName(for: symbolID) == "kk_string_contains_ignoreCase_flat"
         }
         #expect(
             hasIgnoreCaseLink,
-            "Expected a `kotlin.text/contains` symbol to expose externalLinkName=kk_string_contains_ignoreCase"
+            "Expected a `kotlin.text/contains` symbol to expose externalLinkName=kk_string_contains_ignoreCase_flat"
         )
     }
 }

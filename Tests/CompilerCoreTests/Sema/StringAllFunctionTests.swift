@@ -109,10 +109,10 @@ struct StringAllFunctionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let allFlags = try #require(
-                throwFlags["kk_string_all"],
-                "Expected kk_string_all call sites to appear in main()"
+                throwFlags["kk_string_all_flat"],
+                "Expected kk_string_all_flat call sites to appear in main()"
             )
-            #expect(allFlags.count == 2, "Expected two kk_string_all invocations")
+            #expect(allFlags.count == 2, "Expected two kk_string_all_flat invocations")
         }
     }
 }

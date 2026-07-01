@@ -55,7 +55,7 @@ struct StringRemovePrefixFunctionTests {
                     && signature.parameterTypes == [sema.types.stringType]
             })
             #expect(
-                sema.symbols.externalLinkName(for: symbol) == "kk_string_removePrefix"
+                sema.symbols.externalLinkName(for: symbol) == "kk_string_removePrefix_flat"
             )
             #expect(
                 sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,

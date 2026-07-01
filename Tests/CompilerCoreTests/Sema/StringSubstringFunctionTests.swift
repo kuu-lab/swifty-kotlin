@@ -58,7 +58,7 @@ struct StringSubstringFunctionTests {
                 "String.substring(startIndex, endIndex) should return String"
             )
         }
-        #expect(resolvedLink == "kk_string_substring")
+        #expect(resolvedLink == "kk_string_substring_flat")
     }
 
     @Test func testSubstringOneArgOverloadResolvesToRuntimeLink() throws {
@@ -82,6 +82,6 @@ struct StringSubstringFunctionTests {
                 "String.substring(startIndex) should return String"
             )
         }
-        #expect(resolvedLink == "kk_string_substring")
+        #expect(resolvedLink == "kk_string_substring_flat")
     }
 }

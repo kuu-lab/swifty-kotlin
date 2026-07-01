@@ -60,7 +60,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-                && sema.symbols.externalLinkName(for: candidate) == "kk_string_chunked_sequence_transform_flat"
+                && sema.symbols.externalLinkName(for: candidate) == "kk_string_chunked_sequence_transform"
         }) else {
             return nil
         }
@@ -160,7 +160,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-                && sema.symbols.externalLinkName(for: candidate) == "kk_string_windowedSequence_transform_flat"
+                && sema.symbols.externalLinkName(for: candidate) == "kk_string_windowedSequence_transform"
         }) else {
             return nil
         }

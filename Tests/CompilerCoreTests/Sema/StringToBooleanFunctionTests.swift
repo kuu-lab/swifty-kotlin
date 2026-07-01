@@ -168,13 +168,13 @@ struct StringToBooleanFunctionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let orNullFlags = try #require(
-                throwFlags["kk_string_toBooleanStrictOrNull"],
-                "Expected kk_string_toBooleanStrictOrNull calls to appear in main()"
+                throwFlags["kk_string_toBooleanStrictOrNull_flat"],
+                "Expected kk_string_toBooleanStrictOrNull_flat calls to appear in main()"
             )
             #expect(orNullFlags.count == 3)
             #expect(
                 orNullFlags.allSatisfy { $0 == false },
-                "kk_string_toBooleanStrictOrNull must be lowered as non-throwing"
+                "kk_string_toBooleanStrictOrNull_flat must be lowered as non-throwing"
             )
         }
     }

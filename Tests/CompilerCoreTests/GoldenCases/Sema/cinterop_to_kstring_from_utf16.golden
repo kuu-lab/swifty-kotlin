@@ -4,7 +4,7 @@ symbol fq=kotlinx.cinterop.CPointer kind=class vis=public flags=synthetic type=k
 symbol fq=kotlinx.cinterop.CPointer.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.UShortVar kind=class vis=public flags=synthetic type=kotlinx.cinterop.UShortVar
 symbol fq=kotlinx.cinterop.toKStringFromUtf16#1 kind=function vis=public flags=synthetic sig=recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.UShortVar> params=[] ret=String
-file f13 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.decodeUtf16 fun decodeUtf16 sym=golden.sema.decodeUtf16
 expr e@9:53#0 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.UShortVar> ref=golden.sema.decodeUtf16.$0.ptr
 expr e@9:53#1 memberCall recv=e@9:53#0 callee=toKStringFromUtf16 args=[] type=String call=kotlinx.cinterop.toKStringFromUtf16#1

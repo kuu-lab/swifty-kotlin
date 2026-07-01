@@ -44,7 +44,7 @@ struct StringIsBlankFunctionTests {
             "Expected kotlin.text.isBlank to be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_isBlank",
+            sema.symbols.externalLinkName(for: symbol) == "kk_string_isBlank_flat",
             "Expected isBlank extension to link to kk_string_isBlank"
         )
     }

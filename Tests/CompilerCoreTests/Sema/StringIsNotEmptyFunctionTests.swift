@@ -41,7 +41,7 @@ struct StringIsNotEmptyFunctionTests {
             "Expected kotlin.text.isNotEmpty to be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_isNotEmpty",
+            sema.symbols.externalLinkName(for: symbol) == "kk_string_isNotEmpty_flat",
             "Expected isNotEmpty extension to link to kk_string_isNotEmpty"
         )
     }
