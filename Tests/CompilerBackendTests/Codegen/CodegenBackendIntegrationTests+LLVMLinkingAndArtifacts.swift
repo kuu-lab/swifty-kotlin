@@ -151,6 +151,51 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendBridgesReflectedStringVirtualDispatchReturn() throws {
+        let source = """
+        interface Face {
+            fun label(): String
+        }
+
+        class Impl : Face {
+            override fun label(): String = "ok"
+        }
+
+        fun makeFace(): Face = Impl()
+
+        fun main() {
+            println(makeFace().label())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringVirtualDispatchIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertTrue(
+                ir.contains("call i64 %lookup_fptr_"),
+                "String virtual dispatch should call reflected implementations with raw callback ABI"
+            )
+            XCTAssertTrue(
+                ir.contains("virtual_callback_result"),
+                "Raw String virtual dispatch results should be bridged back to flat String ABI"
+            )
+            XCTAssertFalse(
+                ir.contains("call { ptr, i64, i64, i64 } %lookup_fptr_"),
+                "Interface dispatch must not expect a flat String return from a raw callback implementation"
+            )
+        }
+    }
+
     func testLLVMBackendBridgesRawAnyStringLengthAfterTypeCheck() throws {
         let source = """
         fun lengthIfString(value: Any): Int {
@@ -2103,4 +2148,3 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(fnName.hasPrefix("kk_fn_renamedForJava_"))
     }
 }
-

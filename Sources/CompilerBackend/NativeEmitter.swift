@@ -106,6 +106,38 @@ struct NativeEmitter {
                 }
             }
         }
+        guard !symbols.isEmpty else {
+            return []
+        }
+
+        // Dispatch declarations and concrete overrides must share the callback ABI
+        // when a same-shaped implementation is registered for reflection.
+        struct FunctionABIKey: Hashable {
+            let name: InternedString
+            let parameterCount: Int
+        }
+
+        var rawCallbackKeys: Set<FunctionABIKey> = []
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration,
+                  symbols.contains(function.symbol)
+            else {
+                continue
+            }
+            rawCallbackKeys.insert(FunctionABIKey(
+                name: function.name,
+                parameterCount: function.params.count
+            ))
+        }
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else {
+                continue
+            }
+            let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
+            if rawCallbackKeys.contains(key) {
+                symbols.insert(function.symbol)
+            }
+        }
         return symbols
     }
 
