@@ -1015,12 +1015,6 @@ extension DataFlowSemaPhase {
         // shuffled(random: Random) can look up the kotlin.random.Random symbol.
         registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
-        // STDLIB-REFLECT-068: Now that List is registered, update KAnnotatedElement.annotations
-        // to List<Annotation>.
-        patchKAnnotatedElementAnnotationsType(symbols: symbols, types: types, interner: interner)
-        // STDLIB-REFLECT-069: Now that Collection is registered, update
-        // KDeclarationContainer.members to Collection<KCallable<*>>.
-        patchKDeclarationContainerMembersType(symbols: symbols, types: types, interner: interner)
         // STDLIB-REFLECT-063: Now that List is registered, update KFunction.parameters type to
         // List<Any?> so that `.size` resolves correctly on the parameters property.
         patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
@@ -1069,6 +1063,7 @@ extension DataFlowSemaPhase {
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsJsonStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
         // Function interfaces are registered by TODO/IO stubs, so patch KProperty function supertypes here.
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
