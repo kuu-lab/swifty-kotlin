@@ -168,6 +168,31 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
+        // CORO-004 Phase 2: suspension-aware consumer API
+        RuntimeABIFunctionSpec(
+            name: "kk_iterator_builder_hasNext_coro",
+            parameters: [
+                RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuationRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Sequence"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_iterator_builder_next_coro",
+            parameters: [
+                RuntimeABIParameter(name: "iterRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Sequence"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_completed_sentinel",
+            parameters: [],
+            returnType: .intptr,
+            section: "Sequence",
+            isThrowing: false
+        ),
         // Factory functions (STDLIB-097)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_of",

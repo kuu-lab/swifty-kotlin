@@ -136,7 +136,24 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        the GCD pool is no longer occupied by the producer between yields.
 //        Each type exposes invokeBuilderLambda() for the next phase.
 //
-//        Remaining (CORO-004 Phase 2): CPS-transform sequence/iterator builder
+// [DEBT-CORO-002 PHASE 2 IN PROGRESS] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
+//        Consumer-side suspension infrastructure wired for both types.
+//
+//        RuntimeIteratorBuilderBox: probeHasNextAsync(callerState:) installs a
+//        resume continuation in consumerGate so no GCD thread is held while the
+//        producer runs.  New C entry points kk_iterator_builder_hasNext_coro /
+//        kk_iterator_builder_next_coro expose this for coroutine-aware callers.
+//        Existing kk_iterator_builder_hasNext / kk_iterator_builder_next are
+//        unchanged — callers do not yet check for COROUTINE_SUSPENDED.
+//
+//        RuntimeSequenceCoroutine: awaitProducerYieldAsync(callerState:) and
+//        nextElementAsync(callerState:) provide the same non-blocking consumer
+//        path.  End-of-sequence is signalled via kk_sequence_completed_sentinel()
+//        (backed by runtimeStorage.sequenceCompletedBox).  Not yet wired to
+//        runtimeTraverseSequenceWithState; that function must become
+//        suspension-aware to activate this path.
+//
+//        Remaining (CORO-004 Phase 3): CPS-transform sequence/iterator builder
 //        lambdas in CollectionLiteralLoweringPass so yield() returns
 //        COROUTINE_SUSPENDED.  Once the compiler emits that check, the runtime
 //        can use invokeBuilderLambda() as a per-element re-entry point, install
