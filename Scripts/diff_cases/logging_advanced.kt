@@ -1,4 +1,4 @@
-// SKIP-DIFF: uses runtime-only APIs (MDC, AdvancedLogger, StructuredAppender) not available in standard kotlinc
+// SKIP-DIFF (DEBT-DIFF-001): uses runtime-only APIs (MDC, AdvancedLogger, StructuredAppender) not available in standard kotlinc
 fun main() {
     // MDC basic usage
     println("=== MDC ===")

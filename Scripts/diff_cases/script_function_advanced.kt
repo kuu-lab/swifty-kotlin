@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-002): script-style diff runner parity / timeout tracking
 fun<T> List<T>.firstOrNull(predicate: (T) -> Boolean): T? {
     for (item in this) {
         if (predicate(item)) return item

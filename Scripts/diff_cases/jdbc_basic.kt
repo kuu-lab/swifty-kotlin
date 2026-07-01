@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-001): reference target/classpath/runtime-only case tracking
 import java.sql.DriverManager
 import java.sql.SQLException
 

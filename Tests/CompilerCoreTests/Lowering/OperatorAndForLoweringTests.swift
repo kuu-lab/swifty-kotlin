@@ -88,12 +88,7 @@ struct OperatorAndForLoweringTests {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: SymbolTable(),
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let arg = arena.appendExpr(.temporary(0), type: types.charType)
         let result = arena.appendExpr(.temporary(1), type: types.unitType)

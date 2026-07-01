@@ -153,7 +153,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -380,7 +380,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -562,7 +562,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -768,7 +768,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -896,7 +896,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -1078,7 +1078,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -1177,7 +1177,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(

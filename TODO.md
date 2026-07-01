@@ -251,8 +251,16 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### テスト衛生
 - [x] DEBT-TEST-002: `Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests.swift:548` と `LoweringABIAndPropertyRegressionTests.swift:6` に同一実装の `private func makeContext(...)` がコピー存在する。`Integration/TestSupport/Pipeline.swift` の `makeCompilationContext()` へ統一する
 - [x] DEBT-TEST-003: `Tests/CompilerCoreTests/Sema/SemaCacheContextTests.swift:8` の `makeContextFromSourceWithCache()` を、`Pipeline.swift` の `makeContextFromSource()` へ `frontendFlags` 引数を追加して統合する
-- [ ] DEBT-TEST-004: KIR / Lowering テスト群に散在する `SemaModule(...)` 直接構築（計 90 箇所超: `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios` / `VirtualDispatchTests+InliningCoroutineAndDispatchResolution` / `RuntimeTypeCheckTokenTests` 等）を `makeSemaModule()` ヘルパー利用へ移行する（ファイル単位で分割実施可）
-- [ ] DEBT-TEST-005: `Scripts/diff_cases` の `// SKIP-DIFF` / `// KSWIFTK_DIFF_IGNORE` 65 ケースを棚卸しし、各ケースへ対応タスク ID（SPEC-* / PARITY-* / DEBT-*）をコメント付与する。対応タスクが無い skip は新規起票する（skip 放置の防止。SPEC 方法論「修正後にマーカーを外せば回帰テストになる」の運用徹底）
+- [x] DEBT-TEST-004: KIR / Lowering テスト群に散在する `SemaModule(...)` 直接構築（計 90 箇所超: `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios` / `VirtualDispatchTests+InliningCoroutineAndDispatchResolution` / `RuntimeTypeCheckTokenTests` 等）を `makeSemaModule()` ヘルパー利用へ移行する（ファイル単位で分割実施可）
+- [x] DEBT-TEST-005: `Scripts/diff_cases` の `// SKIP-DIFF` / `// KSWIFTK_DIFF_IGNORE` 66 ケースを棚卸しし、各ケースへ対応タスク ID（SPEC-* / PARITY-* / DEBT-*）をコメント付与する。対応タスクが無い skip は新規起票する（skip 放置の防止。SPEC 方法論「修正後にマーカーを外せば回帰テストになる」の運用徹底）
+
+#### Diff skip 追跡（DEBT-TEST-005）
+- [ ] DEBT-DIFF-001: `Scripts/diff_cases` のうち JVM kotlinc reference では実行不能な target / classpath / runtime-only ケースを、diff harness の除外理由として維持するか、個別 runner / dependency injection で実行可能化するか棚卸しする。対象: Kotlin/Native・Kotlin/JS・KMP・`kotlin.io.path`・JDBC/SQLite・serialization・SLF4J/logging・system time/process API・assert JVM `-ea` 差分・compiler plugin API。
+- [ ] DEBT-DIFF-002: script-style diff cases の kotlinc JVM 起動 timeout / top-level execution parity を整理し、script runner 側で安定比較できるケースから `SKIP-DIFF` を外す。
+- [ ] DEBT-DIFF-003: advanced coroutine / channel / Flow / structured concurrency diff cases を `STDLIB-CORO-001` と `DEBT-CORO-002/003` の残課題へ分解し、実装済み API から順に skip を解除する。
+- [ ] DEBT-DIFF-004: value class の boxing / generics / collection / interface / interop parity を、Sema・KIR・Lowering・runtime ABI の責務別に分解して修正する。
+- [ ] DEBT-DIFF-005: common stdlib surface gap による skip（BigInteger、Sequence flatten/takeLast/subtract、scope functions、property delegates、Regex edge cases、ByteArray helpers、file.use、Duration/time、math/comparator APIs）を API 領域別タスクへ分割し、実装済みケースから skip を解除する。
+- [ ] DEBT-DIFF-006: type inference / variance / boxed numeric lowering 由来の diff skip を、診断期待ケースまたは parity regression として実行可能な形へ分解する。
 
 ### ドキュメント乖離
 - [ ] DEBT-DOC-001: `CLAUDE.md` コーディング規約の「Swift 5.9, macOS 12+」が実態（`Package.swift` は `swift-tools-version: 6.2` / `swiftLanguageModes: [.v6]`）と乖離している。修正する
