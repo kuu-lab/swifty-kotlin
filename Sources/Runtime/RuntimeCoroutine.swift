@@ -136,8 +136,9 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        the GCD pool is no longer occupied by the producer between yields.
 //        Each type exposes invokeBuilderLambda() for the next phase.
 //
-// [DEBT-CORO-002 PHASE 2 IN PROGRESS] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
-//        Consumer-side suspension infrastructure wired for both types.
+// [DEBT-CORO-002 PHASE 2 DONE] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
+//        Consumer-side suspension infrastructure is wired and covered for both
+//        runtime types.  Activation from generated code is still pending.
 //
 //        RuntimeIteratorBuilderBox: probeHasNextAsync(callerState:) installs a
 //        resume continuation in consumerGate so no GCD thread is held while the
@@ -2891,9 +2892,10 @@ func runSuspendEntryLoop(
     )
 }
 
-/// `onCompletion` が nil の場合: 呼び出しスレッドを completionGate でブロックする同期パス。
-/// `onCompletion` が非 nil の場合: ループ開始後すぐに返り、完了時にコールバックを呼ぶ非同期パス
-/// (DEBT-CORO-003: dispatcher スレッドをブロックしない continuation ベース実装)。
+/// When `onCompletion` is nil, this runs the synchronous path and blocks the
+/// caller on `completionGate`.
+/// When `onCompletion` is non-nil, this starts the loop, returns immediately,
+/// and invokes the callback on completion without blocking a dispatcher thread.
 func runSuspendEntryLoopWithContinuation(
     entryPointRaw: Int,
     continuation: Int,
