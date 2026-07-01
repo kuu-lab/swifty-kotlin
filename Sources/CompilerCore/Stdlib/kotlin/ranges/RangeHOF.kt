@@ -31,179 +31,179 @@ package kotlin.ranges
 // MARK: - IntRange
 
 public fun IntRange.forEach(action: (Int) -> Unit) {
-    for (x in this) { action(x) }
+    for (element in this) { action(element) }
 }
 
 public fun <R> IntRange.map(transform: (Int) -> R): List<R> {
     val result = mutableListOf<R>()
-    for (x in this) { result.add(transform(x)) }
+    for (element in this) { result.add(transform(element)) }
     return result
 }
 
 public fun IntRange.filter(predicate: (Int) -> Boolean): List<Int> {
     val result = mutableListOf<Int>()
-    for (x in this) { if (predicate(x)) result.add(x) }
+    for (element in this) { if (predicate(element)) result.add(element) }
     return result
 }
 
 public fun IntRange.toList(): List<Int> {
     val result = mutableListOf<Int>()
-    for (x in this) { result.add(x) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun IntRange.count(): Int {
     var count = 0
-    for (x in this) { count += 1 }
+    for (element in this) { count += 1 }
     return count
 }
 
 // MARK: - IntProgression
 
 public fun IntProgression.forEach(action: (Int) -> Unit) {
-    for (x in this) { action(x) }
+    for (element in this) { action(element) }
 }
 
 public fun <R> IntProgression.map(transform: (Int) -> R): List<R> {
     val result = mutableListOf<R>()
-    for (x in this) { result.add(transform(x)) }
+    for (element in this) { result.add(transform(element)) }
     return result
 }
 
 public fun IntProgression.filter(predicate: (Int) -> Boolean): List<Int> {
     val result = mutableListOf<Int>()
-    for (x in this) { if (predicate(x)) result.add(x) }
+    for (element in this) { if (predicate(element)) result.add(element) }
     return result
 }
 
 public fun IntProgression.toList(): List<Int> {
     val result = mutableListOf<Int>()
-    for (x in this) { result.add(x) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun IntProgression.count(): Int {
     var count = 0
-    for (x in this) { count += 1 }
+    for (element in this) { count += 1 }
     return count
 }
 
 // MARK: - LongRange
 
 public fun LongRange.forEach(action: (Long) -> Unit) {
-    for (x in this) { action(x) }
+    for (element in this) { action(element) }
 }
 
 public fun <R> LongRange.map(transform: (Long) -> R): List<R> {
     val result = mutableListOf<R>()
-    for (x in this) { result.add(transform(x)) }
+    for (element in this) { result.add(transform(element)) }
     return result
 }
 
 public fun LongRange.filter(predicate: (Long) -> Boolean): List<Long> {
     val result = mutableListOf<Long>()
-    for (x in this) { if (predicate(x)) result.add(x) }
+    for (element in this) { if (predicate(element)) result.add(element) }
     return result
 }
 
 public fun LongRange.toList(): List<Long> {
     val result = mutableListOf<Long>()
-    for (x in this) { result.add(x) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun LongRange.count(): Int {
     var count = 0
-    for (x in this) { count += 1 }
+    for (element in this) { count += 1 }
     return count
 }
 
 // MARK: - LongProgression
 
 public fun LongProgression.forEach(action: (Long) -> Unit) {
-    for (x in this) { action(x) }
+    for (element in this) { action(element) }
 }
 
 public fun <R> LongProgression.map(transform: (Long) -> R): List<R> {
     val result = mutableListOf<R>()
-    for (x in this) { result.add(transform(x)) }
+    for (element in this) { result.add(transform(element)) }
     return result
 }
 
 public fun LongProgression.filter(predicate: (Long) -> Boolean): List<Long> {
     val result = mutableListOf<Long>()
-    for (x in this) { if (predicate(x)) result.add(x) }
+    for (element in this) { if (predicate(element)) result.add(element) }
     return result
 }
 
 public fun LongProgression.toList(): List<Long> {
     val result = mutableListOf<Long>()
-    for (x in this) { result.add(x) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun LongProgression.count(): Int {
     var count = 0
-    for (x in this) { count += 1 }
+    for (element in this) { count += 1 }
     return count
 }
 
 // MARK: - CharRange
 
 public fun CharRange.forEach(action: (Char) -> Unit) {
-    for (x in this) { action(x) }
+    for (element in this) { action(element) }
 }
 
 public fun <R> CharRange.map(transform: (Char) -> R): List<R> {
     val result = mutableListOf<R>()
-    for (x in this) { result.add(transform(x)) }
+    for (element in this) { result.add(transform(element)) }
     return result
 }
 
 public fun CharRange.filter(predicate: (Char) -> Boolean): List<Char> {
     val result = mutableListOf<Char>()
-    for (x in this) { if (predicate(x)) result.add(x) }
+    for (element in this) { if (predicate(element)) result.add(element) }
     return result
 }
 
 public fun CharRange.toList(): List<Char> {
     val result = mutableListOf<Char>()
-    for (x in this) { result.add(x) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun CharRange.count(): Int {
     var count = 0
-    for (x in this) { count += 1 }
+    for (element in this) { count += 1 }
     return count
 }
 
 // MARK: - CharProgression
 
 public fun CharProgression.forEach(action: (Char) -> Unit) {
-    for (x in this) { action(x) }
+    for (element in this) { action(element) }
 }
 
 public fun <R> CharProgression.map(transform: (Char) -> R): List<R> {
     val result = mutableListOf<R>()
-    for (x in this) { result.add(transform(x)) }
+    for (element in this) { result.add(transform(element)) }
     return result
 }
 
 public fun CharProgression.filter(predicate: (Char) -> Boolean): List<Char> {
     val result = mutableListOf<Char>()
-    for (x in this) { if (predicate(x)) result.add(x) }
+    for (element in this) { if (predicate(element)) result.add(element) }
     return result
 }
 
 public fun CharProgression.toList(): List<Char> {
     val result = mutableListOf<Char>()
-    for (x in this) { result.add(x) }
+    for (element in this) { result.add(element) }
     return result
 }
 
 public fun CharProgression.count(): Int {
     var count = 0
-    for (x in this) { count += 1 }
+    for (element in this) { count += 1 }
     return count
 }
