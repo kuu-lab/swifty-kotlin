@@ -18,19 +18,6 @@ struct RuntimeMemorySnapshot: Equatable, Sendable {
     let uptimeNanos: UInt64
 }
 
-struct RuntimeMemoryLeakReport: Equatable, Sendable {
-    let baseline: RuntimeMemorySnapshot
-    let current: RuntimeMemorySnapshot
-    let leakedBytes: Int64
-    let heapObjectDelta: Int
-    let thresholdBytes: Int64
-    let thresholdObjectCount: Int
-
-    var hasLeak: Bool {
-        leakedBytes >= thresholdBytes || heapObjectDelta >= thresholdObjectCount
-    }
-}
-
 final class RuntimeMemoryHandle: @unchecked Sendable {
     static let shared = RuntimeMemoryHandle()
     private init() {}
@@ -53,22 +40,6 @@ func runtimeCaptureMemorySnapshot(nowNanos: UInt64 = DispatchTime.now().uptimeNa
         maxBytes: maxBytes,
         heapObjectCount: heapObjectCount,
         uptimeNanos: nowNanos
-    )
-}
-
-func runtimeDetectMemoryLeak(
-    since baseline: RuntimeMemorySnapshot,
-    current: RuntimeMemorySnapshot = runtimeCaptureMemorySnapshot(),
-    thresholdBytes: Int64 = 1 << 20,
-    thresholdObjectCount: Int = 1
-) -> RuntimeMemoryLeakReport {
-    RuntimeMemoryLeakReport(
-        baseline: baseline,
-        current: current,
-        leakedBytes: max(current.usedBytes - baseline.usedBytes, 0),
-        heapObjectDelta: max(current.heapObjectCount - baseline.heapObjectCount, 0),
-        thresholdBytes: max(thresholdBytes, 0),
-        thresholdObjectCount: max(thresholdObjectCount, 0)
     )
 }
 

@@ -45,41 +45,21 @@ final class CallLowerer {
         guard let argumentType = arena.exprType(argument) else {
             return argument
         }
-        let boxCallee: String? = switch sema.types.kind(of: argumentType) {
-        case .primitive(.int, .nonNull),
-             .primitive(.uint, .nonNull),
-             .primitive(.ubyte, .nonNull),
-             .primitive(.ushort, .nonNull):
-            "kk_box_int"
-        case .primitive(.boolean, .nonNull):
-            "kk_box_bool"
-        case .primitive(.long, .nonNull),
-             .primitive(.ulong, .nonNull):
-            "kk_box_long"
-        case .primitive(.float, .nonNull):
-            "kk_box_float"
-        case .primitive(.double, .nonNull):
-            "kk_box_double"
-        case .primitive(.char, .nonNull):
-            "kk_box_char"
-        default:
-            nil
+        let argumentKind = sema.types.kind(of: argumentType)
+        guard case .primitive(_, .nonNull) = argumentKind else {
+            return argument
         }
+        let boxCallee = ABILoweringPass.primitiveBoxingCallee(for: argumentKind, interner: interner)
         guard let boxCallee else {
             return argument
         }
-        let boxedArgument = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let boxedArgument = emitNonThrowingCall(
+            callee: boxCallee,
+            arg: argument,
+            resultType: sema.types.anyType,
+            arena: arena,
+            into: &instructions
         )
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern(boxCallee),
-            arguments: [argument],
-            result: boxedArgument,
-            canThrow: false,
-            thrownResult: nil
-        ))
         return boxedArgument
     }
 

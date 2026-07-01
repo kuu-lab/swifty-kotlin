@@ -11,12 +11,7 @@ struct RuntimeTypeCheckTokenTests {
     @Test func testClassifyBuiltinTypes() {
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let cases: [(TypeKind, RuntimeTypeCategory, Bool)] = [
             (.any(.nonNull), .any, false),
@@ -44,12 +39,7 @@ struct RuntimeTypeCheckTokenTests {
 
     @Test func testClassifyNothingType() {
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: SymbolTable(),
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let nothingNonNull = types.make(.nothing(.nonNull))
         let descriptorNonNull = RuntimeTypeCheckToken.classify(type: nothingNonNull, sema: sema)
@@ -64,12 +54,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let className = interner.intern("MyClass")
         let pkgName = interner.intern("pkg")
@@ -93,12 +78,7 @@ struct RuntimeTypeCheckTokenTests {
 
     @Test func testClassifyUnknownTypes() {
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: SymbolTable(),
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         // Function type should classify as unknown
         let intType = types.make(.primitive(.int, .nonNull))
@@ -119,12 +99,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let testTypes: [TypeKind] = [
             .any(.nonNull),
@@ -156,12 +131,7 @@ struct RuntimeTypeCheckTokenTests {
     @Test func testEncodeNothingUsesCanonicalLegacyTokens() {
         let interner = StringInterner()
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: SymbolTable(),
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let nothingNonNull = types.make(.nothing(.nonNull))
         #expect(
@@ -180,12 +150,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let className = interner.intern("Foo")
         let pkgName = interner.intern("bar")
@@ -218,12 +183,7 @@ struct RuntimeTypeCheckTokenTests {
     @Test func testSimpleNameConsistencyWithCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: SymbolTable(),
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let testCases: [(TypeKind, String)] = [
             (.any(.nonNull), "Any"),
@@ -253,12 +213,7 @@ struct RuntimeTypeCheckTokenTests {
     @Test func testSimpleNameForPrimitivesNotInCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: SymbolTable(),
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         // These primitives are handled by simpleName via direct TypeKind switch,
         // not through RuntimeTypeCategory
@@ -332,12 +287,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         // Simulate a type alias: typealias MyInt = Int
         // The resolved type should be Int, not a nominal type based on the alias name.
@@ -366,12 +316,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let pkgName = interner.intern("pkg")
         let range = makeRange()

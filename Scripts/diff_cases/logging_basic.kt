@@ -1,4 +1,4 @@
-// SKIP-DIFF: requires org.slf4j jar not available in the kotlinc diff harness
+// SKIP-DIFF (DEBT-DIFF-001): requires org.slf4j jar not available in the kotlinc diff harness
 import org.slf4j.LoggerFactory
 
 class MyService {

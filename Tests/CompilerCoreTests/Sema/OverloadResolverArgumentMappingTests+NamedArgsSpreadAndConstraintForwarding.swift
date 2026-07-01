@@ -24,7 +24,7 @@ extension OverloadResolverTests {
             symbols: symbols,
             interner: interner
         )
-        symbols.setTypeParameterUpperBound(boolType, for: typeParamSymbol)
+        symbols.setTypeParameterUpperBounds([boolType], for: typeParamSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 parameterTypes: [typeParamType],

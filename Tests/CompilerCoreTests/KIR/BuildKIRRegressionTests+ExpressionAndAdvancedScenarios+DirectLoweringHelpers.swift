@@ -33,12 +33,7 @@ func makeKIRDirectLoweringFixture() -> KIRDirectLoweringFixture {
     let symbols = SymbolTable()
     let types = TypeSystem()
     let bindings = BindingTable()
-    let sema = SemaModule(
-        symbols: symbols,
-        types: types,
-        bindings: bindings,
-        diagnostics: diagnostics
-    )
+    let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
     let astArena = ASTArena()
     let file = ASTFile(
         fileID: FileID(rawValue: 0),

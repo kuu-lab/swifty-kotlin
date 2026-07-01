@@ -408,22 +408,10 @@ extension CollectionLiteralLoweringPass {
         types: TypeSystem,
         interner: StringInterner
     ) -> InternedString? {
-        switch types.kind(of: typeID) {
-        case .primitive(.int, .nonNull), .primitive(.uint, .nonNull),
-             .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
-            return interner.intern("kk_unbox_int")
-        case .primitive(.long, .nonNull), .primitive(.ulong, .nonNull):
-            return interner.intern("kk_unbox_long")
-        case .primitive(.boolean, .nonNull):
-            return interner.intern("kk_unbox_bool")
-        case .primitive(.float, .nonNull):
-            return interner.intern("kk_unbox_float")
-        case .primitive(.double, .nonNull):
-            return interner.intern("kk_unbox_double")
-        case .primitive(.char, .nonNull):
-            return interner.intern("kk_unbox_char")
-        default:
+        let kind = types.kind(of: typeID)
+        guard case .primitive(_, .nonNull) = kind else {
             return nil
         }
+        return ABILoweringPass.primitiveUnboxingCallee(for: kind, interner: interner)
     }
 }

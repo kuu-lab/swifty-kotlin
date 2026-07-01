@@ -872,14 +872,6 @@ public final class SymbolTable {
         accessorOwnerProperties[accessorSymbol]
     }
 
-    func setTypeParameterUpperBound(_ bound: TypeID, for symbol: SymbolID) {
-        var bounds = typeParameterUpperBoundsMap[symbol] ?? []
-        if !bounds.contains(bound) {
-            bounds.append(bound)
-        }
-        typeParameterUpperBoundsMap[symbol] = bounds
-    }
-
     public func setTypeParameterUpperBounds(_ bounds: [TypeID], for symbol: SymbolID) {
         var uniqueBounds: [TypeID] = []
         uniqueBounds.reserveCapacity(bounds.count)

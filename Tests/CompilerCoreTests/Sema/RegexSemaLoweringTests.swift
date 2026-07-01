@@ -26,8 +26,7 @@ struct RegexSemaLoweringTests {
     /// Collect every callee name emitted across all KIR functions in a module.
     private func allCalleesInModule(_ module: KIRModule, interner: StringInterner) -> Set<String> {
         var result = Set<String>()
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+        for function in findAllKIRFunctions(in: module) {
             result.formUnion(extractCallees(from: function.body, interner: interner))
         }
         return result

@@ -202,21 +202,16 @@ extension DataEnumSealedSynthesisPass {
         )
         let param = KIRParameter(symbol: paramSymbol, type: intType)
         let paramRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: intType)
-        let unboxedOrdinalRef = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: intType
-        )
 
         var body: [KIRInstruction] = []
         body.append(.constValue(result: paramRef, value: .symbolRef(paramSymbol)))
-        body.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_unbox_int"),
-            arguments: [paramRef],
-            result: unboxedOrdinalRef,
-            canThrow: false,
-            thrownResult: nil
-        ))
+        let unboxedOrdinalRef = emitNonThrowingCall(
+            callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+            arg: paramRef,
+            resultType: intType,
+            arena: module.arena,
+            into: &body
+        )
         var labelCounter: Int32 = 6000
 
         for (ordinal, entry) in entries.enumerated() {

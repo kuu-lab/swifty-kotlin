@@ -9,6 +9,8 @@ private let runtimeKxMiniLaunchFunctionID = 9102
 private let runtimeKxMiniAsyncFunctionID = 9103
 private let runtimeKxMiniCancelFunctionID = 9104
 private let runtimeWithContextFunctionID = 9105
+private let runtimeWithContextSlowFunctionID = 9106
+private let runtimeOuterWithContextFunctionID = 9107
 private let runtimeCoroutineTestState = RuntimeCoroutineTestState()
 
 /// CORO-004: thread-safe probe to observe whether a completion/join resumer fired
@@ -119,6 +121,40 @@ func runtime_test_with_context_delay(_ continuation: Int, _ outThrown: UnsafeMut
     }
     outThrown?.pointee = 0
     return kk_coroutine_state_exit(continuation, 55)
+}
+
+/// withContext test entry: uses a longer delay so the caller-resumer path can be observed.
+@_cdecl("runtime_test_with_context_slow_delay")
+func runtime_test_with_context_slow_delay(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let label = kk_coroutine_state_enter(continuation, runtimeWithContextSlowFunctionID)
+    if label == 0 {
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_kxmini_delay(75, continuation)
+    }
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 56)
+}
+
+/// Outer withContext test entry: proves kk_with_context suspends and later resumes the caller.
+@_cdecl("runtime_test_outer_with_context_delay")
+func runtime_test_outer_with_context_delay(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let label = kk_coroutine_state_enter(continuation, runtimeOuterWithContextFunctionID)
+    if label == 0 {
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        let blockContinuation = kk_coroutine_continuation_new(runtimeWithContextSlowFunctionID)
+        let entryRaw = unsafeBitCast(
+            runtime_test_with_context_slow_delay as RuntimeTestSuspendEntry,
+            to: Int.self
+        )
+        let result = kk_with_context(kk_dispatcher_default(), entryRaw, blockContinuation)
+        if result == Int(bitPattern: kk_coroutine_suspended()) {
+            return result
+        }
+        _ = kk_coroutine_state_set_completion(continuation, result)
+    }
+    let completedValue = kk_coroutine_state_get_completion(continuation)
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, completedValue)
 }
 
 final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
@@ -599,8 +635,8 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(parent.cancel())
         XCTAssertTrue(parent.cancellationSnapshot())
         XCTAssertTrue(child.cancellationSnapshot())
-        XCTAssertTrue(parent.completeCancellationIfNeeded())
-        XCTAssertTrue(child.completeCancellationIfNeeded())
+        XCTAssertTrue(parent.complete(with: 0))
+        XCTAssertTrue(child.complete(with: 0))
         XCTAssertTrue(parent.completedSnapshot())
         XCTAssertTrue(child.completedSnapshot())
     }
@@ -612,7 +648,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertTrue(job.cancel(cause: cause))
         XCTAssertTrue(job.cancellationSnapshot())
-        XCTAssertTrue(job.completeCancellationIfNeeded())
+        XCTAssertTrue(job.complete(with: 0))
         XCTAssertEqual(job.join(), cause)
     }
 
@@ -731,6 +767,31 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 55, "withContext(IO) should handle suspension correctly")
     }
 
+    func testWithContextCoroutineCallerUsesContinuationCompletionPath() {
+        let continuation = kk_coroutine_continuation_new(runtimeOuterWithContextFunctionID)
+        let entryRaw = unsafeBitCast(
+            runtime_test_outer_with_context_delay as RuntimeTestSuspendEntry,
+            to: Int.self
+        )
+        let completed = XCTestExpectation(description: "withContext caller resumed")
+        let probe = ResumerProbe()
+
+        let immediate = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: entryRaw,
+            continuation: continuation,
+            onCompletion: { result, thrown in
+                probe.record(result: result, thrown: thrown)
+                completed.fulfill()
+            }
+        )
+
+        XCTAssertEqual(immediate, 0)
+        XCTAssertFalse(probe.fired, "withContext should suspend the caller instead of blocking until the block completes")
+        wait(for: [completed], timeout: 2.0)
+        XCTAssertEqual(probe.result, 56)
+        XCTAssertEqual(probe.thrown, 0)
+    }
+
     // MARK: - CORO-004: suspend-aware await / join resumers
 
     func testAsyncTaskCompletionResumerFiresWithResultOnComplete() {
@@ -813,6 +874,64 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         Thread.sleep(forTimeInterval: 0.05)
         gate.signal()
         wait(for: [done], timeout: 2.0)
+    }
+
+    func testSequenceCoroutineNextElementAsyncResumesCallerWithoutBlockingWaiter() {
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
+            Thread.sleep(forTimeInterval: 0.05)
+            _ = kk_sequence_builder_yield(builderRaw, 41)
+            return 0
+        }
+        let coroutine = RuntimeSequenceCoroutine(fnPtr: unsafeBitCast(thunk, to: Int.self), closureRaw: 0)
+        let callerState = RuntimeContinuationState(functionID: 9202)
+        let resumed = XCTestExpectation(description: "sequence caller resumed")
+        let probe = ResumerProbe()
+        callerState.installResumeContinuation {
+            probe.record(result: Int(callerState.completion), thrown: callerState.thrownException)
+            resumed.fulfill()
+        }
+
+        let next = coroutine.nextElementAsync(callerState: callerState)
+
+        XCTAssertNil(next, "nextElementAsync should return suspended instead of blocking for the producer")
+        XCTAssertFalse(probe.fired)
+        wait(for: [resumed], timeout: 2.0)
+        XCTAssertEqual(probe.result, 41)
+        XCTAssertEqual(probe.thrown, 0)
+        switch coroutine.nextElement() {
+        case .done:
+            break
+        case .value(let value):
+            XCTFail("expected coroutine to drain after the async element, got \(value)")
+        }
+    }
+
+    func testIteratorBuilderHasNextAsyncResumesCallerWithoutBlockingWaiter() {
+        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+            Thread.sleep(forTimeInterval: 0.05)
+            _ = kk_iterator_builder_yield(builderRaw, 17)
+            return 0
+        }
+        let builder = RuntimeIteratorBuilderBox(fnPtr: unsafeBitCast(thunk, to: Int.self))
+        let builderHandle = registerRuntimeObject(builder)
+        builder.bindRegisteredHandle(builderHandle)
+        let callerState = RuntimeContinuationState(functionID: 9203)
+        let resumed = XCTestExpectation(description: "iterator caller resumed")
+        let probe = ResumerProbe()
+        callerState.installResumeContinuation {
+            probe.record(result: Int(callerState.completion), thrown: callerState.thrownException)
+            resumed.fulfill()
+        }
+
+        let hasNext = builder.probeHasNextAsync(callerState: callerState)
+
+        XCTAssertEqual(hasNext, Int(bitPattern: kk_coroutine_suspended()))
+        XCTAssertFalse(probe.fired)
+        wait(for: [resumed], timeout: 2.0)
+        XCTAssertEqual(probe.result, 1)
+        XCTAssertEqual(probe.thrown, 0)
+        XCTAssertEqual(builder.consumeNext(), 17)
+        XCTAssertFalse(builder.probeHasNext())
     }
 
     func testAsyncTaskAwaitResultReturnsCompletedWhenAlreadyDone() {

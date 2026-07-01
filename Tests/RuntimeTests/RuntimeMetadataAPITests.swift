@@ -53,20 +53,21 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
             ]
         )
 
-        let serialized = try RuntimeMetadataCodec.serialize(metadata)
-        let decoded = try RuntimeMetadataCodec.deserialize(serialized)
+        let encoder = JSONEncoder()
+        if #available(macOS 10.13, *) {
+            encoder.outputFormatting = [.sortedKeys]
+        }
+        let data = try encoder.encode(metadata)
+        let serialized = String(decoding: data, as: UTF8.self)
+        let decoded = try JSONDecoder().decode(KotlinMetadata.self, from: data)
 
         XCTAssertEqual(decoded, metadata)
         XCTAssertTrue(serialized.contains("\"pluginId\":\"sample.plugin\""))
     }
 
     func testDeserializeRejectsInvalidJSON() {
-        XCTAssertThrowsError(try RuntimeMetadataCodec.deserialize("{not-json}")) { error in
-            guard case let RuntimeMetadataCodec.Error.decodingFailed(message) = error else {
-                return XCTFail("Expected decodingFailed error, got: \(error)")
-            }
-            XCTAssertFalse(message.isEmpty)
-        }
+        let data = Data("{not-json}".utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(KotlinMetadata.self, from: data))
     }
 
     func testKmFunctionCanBeBuiltFromRuntimeBoxes() {

@@ -107,8 +107,7 @@ extension ValueClassUnboxingTests {
         let kk_object_new = interner.intern("kk_object_new")
 
         var hasValueClassAlloc = false
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+        for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
                 if case let .call(_, callee, _, result, _, _, _, _) = instruction,
                    callee == kk_object_new,

@@ -521,8 +521,11 @@ extension ABIMismatchTests {
             "kk_sequence_of",
         ]
 
+        let externsByName = Dictionary(
+            uniqueKeysWithValues: RuntimeABIExterns.allExterns.map { ($0.name, $0) }
+        )
         for linkName in varargLinkNames {
-            guard let externDecl = RuntimeABIExterns.externDecl(named: linkName) else {
+            guard let externDecl = externsByName[linkName] else {
                 XCTFail("Vararg function '\(linkName)' not found in RuntimeABIExterns.allExterns")
                 continue
             }

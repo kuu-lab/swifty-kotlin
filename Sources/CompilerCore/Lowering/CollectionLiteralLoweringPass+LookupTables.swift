@@ -1261,7 +1261,7 @@ struct CollectionLiteralLookupTables {
         sumName = interner.intern("sum")
 
         // CharRange (STDLIB-290)
-        kkBoxCharName = interner.intern("kk_box_char")
+        kkBoxCharName = ABILoweringPass.primitiveBoxingCallee(for: .char, interner: interner)
         kkCharRangeToListName = interner.intern("kk_char_range_toList")
         kkCharRangeForEachName = interner.intern("kk_char_range_forEach")
 

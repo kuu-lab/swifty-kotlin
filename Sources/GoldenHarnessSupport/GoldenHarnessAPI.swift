@@ -325,6 +325,8 @@ private enum GoldenHarnessDiagnosticsComparisonNormalizer {
 
 private enum GoldenHarnessSemaComparisonNormalizer {
     // swiftlint:disable:next force_try
+    private static let semaFileIDRegex = try! NSRegularExpression(pattern: "(\\bfile f)(\\d+)(?= package=)")
+    // swiftlint:disable:next force_try
     private static let negativeSymbolReferenceRegex = try! NSRegularExpression(pattern: "(s-)(\\d+)")
     // swiftlint:disable:next force_try
     private static let syntheticScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$)(\\d+)(?=\\.)")
@@ -348,13 +350,20 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     private static let localFunOrdinalRegex = try! NSRegularExpression(pattern: "(__localfun_)(\\d+)")
     // swiftlint:disable:next force_try
     private static let fileOrdinalRegex = try! NSRegularExpression(pattern: "(file f)(\\d+)(?= package=)")
+    // swiftlint:disable:next force_try
+    private static let objectLiteralOrdinalRegex = try! NSRegularExpression(pattern: "(__ObjectLiteral_)(\\d+)(?=_)")
+    // swiftlint:disable:next force_try
+    private static let exprIDRegex = try! NSRegularExpression(pattern: "\\b(e@\\d+:\\d+)(?:#\\d+)?")
 
     static func normalize(_ output: String) -> String {
         var normalized = output
+        normalized = rewriteExpressionIDs(in: normalized)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: semaFileIDRegex)
         // Scope prefix ordinals
         normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: tpScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: syntheticScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: objectLiteralOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: localNameOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: forDestructuringOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: forVarOrdinalRegex)
@@ -365,6 +374,52 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: negativeSymbolReferenceRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: fileOrdinalRegex)
         return normalized
+    }
+
+    private static func rewriteExpressionIDs(in text: String) -> String {
+        let nsText = text as NSString
+        let range = NSRange(location: 0, length: nsText.length)
+        let matches = exprIDRegex.matches(in: text, range: range)
+        guard !matches.isEmpty else {
+            return text
+        }
+
+        var remappedIDs: [String: [String: Int]] = [:]
+        for match in matches {
+            let baseRange = match.range(at: 1)
+            let fullRange = match.range
+            guard baseRange.location != NSNotFound,
+                  fullRange.location != NSNotFound
+            else {
+                continue
+            }
+            let base = nsText.substring(with: baseRange)
+            let full = nsText.substring(with: fullRange)
+            var baseMap = remappedIDs[base, default: [:]]
+            if baseMap[full] == nil {
+                baseMap[full] = baseMap.count
+            }
+            remappedIDs[base] = baseMap
+        }
+
+        let mutable = NSMutableString(string: text)
+        for match in matches.reversed() {
+            let baseRange = match.range(at: 1)
+            let fullRange = match.range
+            guard baseRange.location != NSNotFound,
+                  fullRange.location != NSNotFound
+            else {
+                continue
+            }
+            let base = nsText.substring(with: baseRange)
+            let full = nsText.substring(with: fullRange)
+            guard let newID = remappedIDs[base]?[full] else {
+                continue
+            }
+            let replacement = newID == 0 ? base : "\(base)#\(newID)"
+            mutable.replaceCharacters(in: fullRange, with: replacement)
+        }
+        return mutable as String
     }
 
     private static func rewriteOrdinalMatches(

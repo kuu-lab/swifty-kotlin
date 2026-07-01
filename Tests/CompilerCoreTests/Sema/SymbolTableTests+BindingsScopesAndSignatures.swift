@@ -22,12 +22,12 @@ extension SymbolTableTests {
             declSite: nil,
             visibility: .public
         )
-        symbols.setTypeParameterUpperBound(types.anyType, for: id)
+        symbols.setTypeParameterUpperBounds([types.anyType], for: id)
         #expect(symbols.typeParameterUpperBound(for: id) == types.anyType)
     }
 
     @Test
-    func testSetTypeParameterUpperBoundAppendsDistinctBounds() {
+    func testSetTypeParameterUpperBoundsDeduplicatesBounds() {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
@@ -39,9 +39,7 @@ extension SymbolTableTests {
             visibility: .public
         )
 
-        symbols.setTypeParameterUpperBound(types.anyType, for: id)
-        symbols.setTypeParameterUpperBound(types.nullableAnyType, for: id)
-        symbols.setTypeParameterUpperBound(types.anyType, for: id)
+        symbols.setTypeParameterUpperBounds([types.anyType, types.nullableAnyType, types.anyType], for: id)
 
         #expect(symbols.typeParameterUpperBounds(for: id) == [types.anyType, types.nullableAnyType])
     }
