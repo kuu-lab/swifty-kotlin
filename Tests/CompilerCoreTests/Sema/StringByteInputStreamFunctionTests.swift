@@ -38,7 +38,7 @@ struct StringByteInputStreamFunctionTests {
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream"
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_flat"
             )
 
             // The chosen overload must be the zero-parameter, kotlin.io extension.
@@ -89,7 +89,7 @@ struct StringByteInputStreamFunctionTests {
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_charset"
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_charset_flat"
             )
 
             // Signature should accept a single Charset parameter.
@@ -179,7 +179,7 @@ struct StringByteInputStreamFunctionTests {
 
             let externalLinks = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
             #expect(
-                externalLinks == ["kk_string_byteInputStream", "kk_string_byteInputStream_charset"]
+                externalLinks == ["kk_string_byteInputStream_flat", "kk_string_byteInputStream_charset_flat"]
             )
 
             // Both overloads must declare String as their extension receiver.

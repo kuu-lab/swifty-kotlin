@@ -810,6 +810,66 @@ public func kk_string_removeSurrounding_pair(
     return runtimeMakeStringRaw(String(source[start ..< end]))
 }
 
+// MARK: - Flat ABI wrappers
+
+@_cdecl("kk_string_removePrefix_flat")
+public func kk_string_removePrefix_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ prefixData: UnsafePointer<UInt8>?, _ prefixLength: Int, _ prefixByteCount: Int, _ prefixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removePrefix(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(prefixData, prefixLength, prefixByteCount, prefixHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeSuffix_flat")
+public func kk_string_removeSuffix_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ suffixData: UnsafePointer<UInt8>?, _ suffixLength: Int, _ suffixByteCount: Int, _ suffixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeSuffix(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(suffixData, suffixLength, suffixByteCount, suffixHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeSurrounding_flat")
+public func kk_string_removeSurrounding_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeSurrounding(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeSurrounding_pair_flat")
+public func kk_string_removeSurrounding_pair_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ prefixData: UnsafePointer<UInt8>?, _ prefixLength: Int, _ prefixByteCount: Int, _ prefixHash: Int,
+    _ suffixData: UnsafePointer<UInt8>?, _ suffixLength: Int, _ suffixByteCount: Int, _ suffixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeSurrounding_pair(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(prefixData, prefixLength, prefixByteCount, prefixHash),
+        kk_string_from_flat(suffixData, suffixLength, suffixByteCount, suffixHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_takeLast")
 public func kk_string_takeLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

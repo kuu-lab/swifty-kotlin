@@ -58,10 +58,22 @@ extension NativeEmitter {
             _ value: LLVMCAPIBindings.LLVMValueRef,
             suffix: String
         ) -> [LLVMCAPIBindings.LLVMValueRef]? {
-            guard let data = bindings.buildExtractValue(state.builder, aggregate: value, index: 0, name: "str_data_\(suffix)"),
-                  let length = bindings.buildExtractValue(state.builder, aggregate: value, index: 1, name: "str_length_\(suffix)"),
-                  let byteCount = bindings.buildExtractValue(state.builder, aggregate: value, index: 2, name: "str_bytes_\(suffix)"),
-                  let hash = bindings.buildExtractValue(state.builder, aggregate: value, index: 3, name: "str_hash_\(suffix)")
+            // See the matching comment in NativeEmitter+FunctionEmission.swift: a KIR
+            // expression typed as String may still be materialized as a raw (boxed)
+            // Int64 handle rather than a flat struct (e.g. a HOF lambda parameter), so
+            // confirm the actual LLVM value is an aggregate before extracting fields.
+            let aggregate: LLVMCAPIBindings.LLVMValueRef
+            if bindings.isAggregateStructValue(value) {
+                aggregate = value
+            } else if let bridged = bridgeRuntimeRawToStringAggregate(value, suffix: "\(suffix)_from_raw") {
+                aggregate = bridged
+            } else {
+                return nil
+            }
+            guard let data = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 0, name: "str_data_\(suffix)"),
+                  let length = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 1, name: "str_length_\(suffix)"),
+                  let byteCount = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 2, name: "str_bytes_\(suffix)"),
+                  let hash = bindings.buildExtractValue(state.builder, aggregate: aggregate, index: 3, name: "str_hash_\(suffix)")
             else {
                 return nil
             }
@@ -253,9 +265,16 @@ extension NativeEmitter {
                 return (false, nil)
             }
             let firstType = argumentTypes.first.flatMap { $0 }
+            // `firstType` only reflects the Kotlin-level type (String → .stringStruct);
+            // it says nothing about how this particular KIR expression was materialized.
+            // Values that pass through a boxed/erased path (e.g. a HOF lambda parameter
+            // sourced from a collection element) are raw Int64 handles even though their
+            // semantic type is .stringStruct. Extracting a struct field from such a value
+            // crashes LLVM, so confirm the actual LLVM value is an aggregate before doing so.
             if let firstType,
                let typeSystem,
-               case .stringStruct = typeSystem.kind(of: firstType)
+               case .stringStruct = typeSystem.kind(of: firstType),
+               bindings.isAggregateStructValue(lhs)
             {
                 lowered = bindings.buildExtractValue(
                     state.builder,
@@ -263,12 +282,10 @@ extension NativeEmitter {
                     index: 1,
                     name: "string_length_\(instructionIndex)"
                 )
-            } else if calleeName == "__string_struct_get_length" || calleeName == "kk_string_struct_get_length",
-                      let bridged = bridgeRuntimeRawToStringAggregate(
-                          lhs,
-                          suffix: "string_length_raw_\(instructionIndex)"
-                      )
-            {
+            } else if let bridged = bridgeRuntimeRawToStringAggregate(
+                lhs,
+                suffix: "string_length_raw_\(instructionIndex)"
+            ) {
                 lowered = bindings.buildExtractValue(
                     state.builder,
                     aggregate: bridged,

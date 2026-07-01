@@ -112,7 +112,7 @@ extension CallLowerer {
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let sbNames = KnownCompilerNames(interner: interner)
                 let runtimeCallee: String? = if calleeName == sbNames.appendRange {
-                    "kk_string_builder_appendRange_obj"
+                    "kk_string_builder_appendRange_obj_flat"
                 } else if calleeName == sbNames.replace {
                     "kk_string_builder_replace_obj"
                 } else if calleeName == sbNames.setRange {

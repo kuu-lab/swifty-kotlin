@@ -106,7 +106,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
-            externalLinkName: "kk_string_builder_appendRange_obj",
+            externalLinkName: "kk_string_builder_appendRange_obj_flat",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [
@@ -177,7 +177,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "trim",
-            externalLinkName: "kk_string_trim",
+            externalLinkName: "kk_string_trim_flat",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -258,7 +258,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: localeSymbol,
             ownerType: localeType,
             parameters: [("identifier", stringType)],
-            externalLinkName: "kk_locale_new",
+            externalLinkName: "kk_locale_new_flat",
             symbols: symbols,
             interner: interner
         )
@@ -339,7 +339,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "normalize",
-            externalLinkName: "kk_string_normalize",
+            externalLinkName: "kk_string_normalize_flat",
             receiverType: stringType,
             parameters: [
                 ("form", normalizationFormType, false, false),
@@ -352,7 +352,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNormalized",
-            externalLinkName: "kk_string_isNormalized",
+            externalLinkName: "kk_string_isNormalized_flat",
             receiverType: stringType,
             parameters: [
                 ("form", normalizationFormType, false, false),
@@ -365,7 +365,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split",
+            externalLinkName: "kk_string_split_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -379,7 +379,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-EDGE-001: split with limit / ignoreCase ---
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit",
+            externalLinkName: "kk_string_split_limit_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -393,7 +393,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit",
+            externalLinkName: "kk_string_split_limit_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -407,7 +407,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit",
+            externalLinkName: "kk_string_split_limit_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -422,7 +422,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace",
+            externalLinkName: "kk_string_replace_flat",
             receiverType: stringType,
             parameters: [
                 ("oldValue", stringType, false, false),
@@ -437,7 +437,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldChar, newChar) — Char/Char overload
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_char",
+            externalLinkName: "kk_string_replace_char_flat",
             receiverType: stringType,
             parameters: [
                 ("oldChar", charType, false, false),
@@ -452,7 +452,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldValue, newValue, ignoreCase) — String/String with ignoreCase
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_ignoreCase",
+            externalLinkName: "kk_string_replace_ignoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("oldValue", stringType, false, false),
@@ -468,7 +468,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldChar, newChar, ignoreCase) — Char/Char with ignoreCase
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_char_ignoreCase",
+            externalLinkName: "kk_string_replace_char_ignoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("oldChar", charType, false, false),
@@ -483,7 +483,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "startsWith",
-            externalLinkName: "kk_string_startsWith",
+            externalLinkName: "kk_string_startsWith_flat",
             receiverType: stringType,
             parameters: [
                 ("prefix", stringType, false, false),
@@ -496,7 +496,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "endsWith",
-            externalLinkName: "kk_string_endsWith",
+            externalLinkName: "kk_string_endsWith_flat",
             receiverType: stringType,
             parameters: [
                 ("suffix", stringType, false, false),
@@ -509,7 +509,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contains",
-            externalLinkName: "kk_string_contains_str",
+            externalLinkName: "kk_string_contains_str_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -524,7 +524,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-012
         registerSyntheticStringExtensionFunction(
             named: "contains",
-            externalLinkName: "kk_string_contains_ignoreCase",
+            externalLinkName: "kk_string_contains_ignoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -706,7 +706,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "subSequence",
-            externalLinkName: "kk_string_subSequence",
+            externalLinkName: "kk_string_subSequence_flat",
             receiverType: stringType,
             parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
             returnType: stringType,
@@ -771,7 +771,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substring",
-            externalLinkName: "kk_string_substring",
+            externalLinkName: "kk_string_substring_flat",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -784,7 +784,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substring",
-            externalLinkName: "kk_string_substring",
+            externalLinkName: "kk_string_substring_flat",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -1096,7 +1096,7 @@ extension DataFlowSemaPhase {
         }()
         registerSyntheticStringExtensionFunction(
             named: "toSortedSet",
-            externalLinkName: "kk_string_toSortedSet",
+            externalLinkName: "kk_string_toSortedSet_flat",
             receiverType: stringType,
             parameters: [],
             returnType: setCharType,
@@ -1106,7 +1106,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "toSortedSet",
-            externalLinkName: "kk_string_toSortedSet",
+            externalLinkName: "kk_string_toSortedSet_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: setCharType,
@@ -1117,7 +1117,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toCharArray",
-            externalLinkName: "kk_string_toCharArray",
+            externalLinkName: "kk_string_toCharArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charArrayType,
@@ -1139,7 +1139,7 @@ extension DataFlowSemaPhase {
         }
         registerSyntheticStringExtensionFunction(
             named: "toTypedArray",
-            externalLinkName: "kk_string_toTypedArray",
+            externalLinkName: "kk_string_toTypedArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: arrayCharType,
@@ -1151,7 +1151,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-094: destination type erased to Any in the ABI ---
         registerSyntheticStringExtensionFunction(
             named: "toCollection",
-            externalLinkName: "kk_string_toCollection",
+            externalLinkName: "kk_string_toCollection_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("destination", types.anyType, false, false),
@@ -1164,7 +1164,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toCollection",
-            externalLinkName: "kk_string_toCollection",
+            externalLinkName: "kk_string_toCollection_flat",
             receiverType: stringType,
             parameters: [
                 ("destination", types.anyType, false, false),
@@ -1184,7 +1184,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
-            externalLinkName: "kk_string_asIterable",
+            externalLinkName: "kk_string_asIterable_flat",
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
@@ -1211,7 +1211,7 @@ extension DataFlowSemaPhase {
         }()
         registerSyntheticStringExtensionFunction(
             named: "iterator",
-            externalLinkName: "kk_string_iterator",
+            externalLinkName: "kk_string_iterator_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charIteratorType,
@@ -1221,7 +1221,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "iterator",
-            externalLinkName: "kk_string_iterator",
+            externalLinkName: "kk_string_iterator_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: charIteratorType,
@@ -1232,7 +1232,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "drop",
-            externalLinkName: "kk_string_drop",
+            externalLinkName: "kk_string_drop_flat",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1245,7 +1245,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "take",
-            externalLinkName: "kk_string_take",
+            externalLinkName: "kk_string_take_flat",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1258,7 +1258,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "dropLast",
-            externalLinkName: "kk_string_dropLast",
+            externalLinkName: "kk_string_dropLast_flat",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1271,7 +1271,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "takeLast",
-            externalLinkName: "kk_string_takeLast",
+            externalLinkName: "kk_string_takeLast_flat",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1286,7 +1286,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removePrefix",
-            externalLinkName: "kk_string_removePrefix",
+            externalLinkName: "kk_string_removePrefix_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("prefix", charSequenceType, false, false),
@@ -1299,7 +1299,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSuffix",
-            externalLinkName: "kk_string_removeSuffix",
+            externalLinkName: "kk_string_removeSuffix_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("suffix", charSequenceType, false, false),
@@ -1312,7 +1312,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding",
+            externalLinkName: "kk_string_removeSurrounding_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("delimiter", charSequenceType, false, false),
@@ -1325,7 +1325,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_pair",
+            externalLinkName: "kk_string_removeSurrounding_pair_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("prefix", charSequenceType, false, false),
@@ -1339,7 +1339,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removePrefix",
-            externalLinkName: "kk_string_removePrefix",
+            externalLinkName: "kk_string_removePrefix_flat",
             receiverType: stringType,
             parameters: [
                 ("prefix", stringType, false, false),
@@ -1352,7 +1352,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSuffix",
-            externalLinkName: "kk_string_removeSuffix",
+            externalLinkName: "kk_string_removeSuffix_flat",
             receiverType: stringType,
             parameters: [
                 ("suffix", stringType, false, false),
@@ -1365,7 +1365,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding",
+            externalLinkName: "kk_string_removeSurrounding_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1378,7 +1378,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_pair",
+            externalLinkName: "kk_string_removeSurrounding_pair_flat",
             receiverType: stringType,
             parameters: [
                 ("prefix", stringType, false, false),
@@ -1395,7 +1395,7 @@ extension DataFlowSemaPhase {
         // default `this` should be used.
         registerSyntheticStringExtensionFunction(
             named: "substringBefore",
-            externalLinkName: "kk_string_substringBefore",
+            externalLinkName: "kk_string_substringBefore_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1409,7 +1409,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringBefore",
-            externalLinkName: "kk_string_substringBefore_char",
+            externalLinkName: "kk_string_substringBefore_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1424,7 +1424,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-074: String.substringAfter(delimiter, missingDelimiterValue)
         registerSyntheticStringExtensionFunction(
             named: "substringAfter",
-            externalLinkName: "kk_string_substringAfter",
+            externalLinkName: "kk_string_substringAfter_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1438,7 +1438,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringAfter",
-            externalLinkName: "kk_string_substringAfter_char",
+            externalLinkName: "kk_string_substringAfter_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1452,7 +1452,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringBeforeLast",
-            externalLinkName: "kk_string_substringBeforeLast",
+            externalLinkName: "kk_string_substringBeforeLast_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1466,7 +1466,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringBeforeLast",
-            externalLinkName: "kk_string_substringBeforeLast_char",
+            externalLinkName: "kk_string_substringBeforeLast_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1480,7 +1480,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringAfterLast",
-            externalLinkName: "kk_string_substringAfterLast",
+            externalLinkName: "kk_string_substringAfterLast_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1494,7 +1494,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringAfterLast",
-            externalLinkName: "kk_string_substringAfterLast_char",
+            externalLinkName: "kk_string_substringAfterLast_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1510,7 +1510,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfter",
-            externalLinkName: "kk_string_replaceAfter",
+            externalLinkName: "kk_string_replaceAfter_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1525,7 +1525,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfter",
-            externalLinkName: "kk_string_replaceAfter_char",
+            externalLinkName: "kk_string_replaceAfter_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1542,7 +1542,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfterLast",
-            externalLinkName: "kk_string_replaceAfterLast",
+            externalLinkName: "kk_string_replaceAfterLast_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1557,7 +1557,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfterLast",
-            externalLinkName: "kk_string_replaceAfterLast_char",
+            externalLinkName: "kk_string_replaceAfterLast_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1574,7 +1574,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBefore",
-            externalLinkName: "kk_string_replaceBefore",
+            externalLinkName: "kk_string_replaceBefore_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1589,7 +1589,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBefore",
-            externalLinkName: "kk_string_replaceBefore_char",
+            externalLinkName: "kk_string_replaceBefore_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1606,7 +1606,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBeforeLast",
-            externalLinkName: "kk_string_replaceBeforeLast",
+            externalLinkName: "kk_string_replaceBeforeLast_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1621,7 +1621,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBeforeLast",
-            externalLinkName: "kk_string_replaceBeforeLast_char",
+            externalLinkName: "kk_string_replaceBeforeLast_char_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1646,7 +1646,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "matches",
-            externalLinkName: "kk_string_matches_regex",
+            externalLinkName: "kk_string_matches_regex_flat",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1659,7 +1659,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contains",
-            externalLinkName: "kk_string_contains_regex",
+            externalLinkName: "kk_string_contains_regex_flat",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1686,7 +1686,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_regex",
+            externalLinkName: "kk_string_split_regex_flat",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1699,7 +1699,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toRegex",
-            externalLinkName: "kk_string_toRegex",
+            externalLinkName: "kk_string_toRegex_flat",
             receiverType: stringType,
             parameters: [],
             returnType: regexType,
@@ -1712,7 +1712,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "get",
-            externalLinkName: "kk_string_get",
+            externalLinkName: "kk_string_get_flat",
             receiverType: stringType,
             parameters: [
                 ("index", intType, false, false),
@@ -1741,7 +1741,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "compareTo",
-            externalLinkName: "kk_string_compareToIgnoreCase",
+            externalLinkName: "kk_string_compareToIgnoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -1757,7 +1757,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isEmpty",
-            externalLinkName: "kk_string_isEmpty",
+            externalLinkName: "kk_string_isEmpty_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
@@ -1768,7 +1768,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty",
+            externalLinkName: "kk_string_isNotEmpty_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
@@ -1779,7 +1779,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty",
+            externalLinkName: "kk_string_isNotEmpty_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: boolType,
@@ -1790,7 +1790,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isBlank",
-            externalLinkName: "kk_string_isBlank",
+            externalLinkName: "kk_string_isBlank_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
@@ -1814,7 +1814,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-027: CharSequence.isBlank ---
         registerSyntheticStringExtensionFunction(
             named: "isBlank",
-            externalLinkName: "kk_string_isBlank",
+            externalLinkName: "kk_string_isBlank_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: boolType,
@@ -1826,7 +1826,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank",
+            externalLinkName: "kk_string_isNotBlank_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
@@ -1838,7 +1838,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-029: CharSequence.isNotBlank ---
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank",
+            externalLinkName: "kk_string_isNotBlank_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: boolType,
@@ -1881,7 +1881,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "first",
-            externalLinkName: "kk_string_first",
+            externalLinkName: "kk_string_first_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
@@ -1892,7 +1892,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "last",
-            externalLinkName: "kk_string_last",
+            externalLinkName: "kk_string_last_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
@@ -1903,7 +1903,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "single",
-            externalLinkName: "kk_string_single",
+            externalLinkName: "kk_string_single_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
@@ -1914,7 +1914,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "firstOrNull",
-            externalLinkName: "kk_string_firstOrNull",
+            externalLinkName: "kk_string_firstOrNull_flat",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
@@ -1925,7 +1925,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastOrNull",
-            externalLinkName: "kk_string_lastOrNull",
+            externalLinkName: "kk_string_lastOrNull_flat",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
@@ -1936,7 +1936,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "singleOrNull",
-            externalLinkName: "kk_string_singleOrNull",
+            externalLinkName: "kk_string_singleOrNull_flat",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
@@ -1983,7 +1983,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "getOrNull",
-            externalLinkName: "kk_string_getOrNull",
+            externalLinkName: "kk_string_getOrNull_flat",
             receiverType: stringType,
             parameters: [
                 ("index", intType, false, false),
@@ -2000,7 +2000,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "equals",
-            externalLinkName: "kk_string_equals",
+            externalLinkName: "kk_string_equals_flat",
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),
@@ -2013,7 +2013,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "equals",
-            externalLinkName: "kk_string_equalsIgnoreCase",
+            externalLinkName: "kk_string_equalsIgnoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),
@@ -2029,7 +2029,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceFirst",
-            externalLinkName: "kk_string_replaceFirst",
+            externalLinkName: "kk_string_replaceFirst_flat",
             receiverType: stringType,
             parameters: [
                 ("oldValue", stringType, false, false),
@@ -2059,7 +2059,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange",
+            externalLinkName: "kk_string_replaceRange_flat",
             receiverType: stringType,
             parameters: [
                 ("range", intType, false, false),
@@ -2090,7 +2090,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeRange",
-            externalLinkName: "kk_string_removeRange",
+            externalLinkName: "kk_string_removeRange_flat",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -2104,7 +2104,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeRange",
-            externalLinkName: "kk_string_removeRange_range",
+            externalLinkName: "kk_string_removeRange_range_flat",
             receiverType: stringType,
             parameters: [
                 ("range", intType, false, false),
@@ -2338,7 +2338,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_firstNotNullOf", for: memberSymbol)
+            symbols.setExternalLinkName("kk_string_firstNotNullOf_flat", for: memberSymbol)
 
             let transformParamName = interner.intern("transform")
             let transformParamSymbol = symbols.define(
@@ -2402,7 +2402,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_firstNotNullOfOrNull", for: memberSymbol)
+            symbols.setExternalLinkName("kk_string_firstNotNullOfOrNull_flat", for: memberSymbol)
 
             let transformParamName = interner.intern("transform")
             let transformParamSymbol = symbols.define(
@@ -2636,7 +2636,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
-            externalLinkName: "kk_string_trimStart",
+            externalLinkName: "kk_string_trimStart_flat",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2646,7 +2646,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
-            externalLinkName: "kk_string_trimStart_predicate",
+            externalLinkName: "kk_string_trimStart_predicate_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2656,7 +2656,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd",
+            externalLinkName: "kk_string_trimEnd_flat",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2666,7 +2666,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_predicate",
+            externalLinkName: "kk_string_trimEnd_predicate_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2677,7 +2677,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-144: String.trim (predicate overload) ---
         registerSyntheticStringExtensionFunction(
             named: "trim",
-            externalLinkName: "kk_string_trim_predicate",
+            externalLinkName: "kk_string_trim_predicate_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2719,7 +2719,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "splitToSequence",
-            externalLinkName: "kk_string_splitToSequence",
+            externalLinkName: "kk_string_splitToSequence_flat",
             receiverType: stringType,
             parameters: [("delimiter", stringType, false, false)],
             returnType: sequenceStringType,
@@ -2800,7 +2800,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toBooleanStrictOrNull",
-            externalLinkName: "kk_string_toBooleanStrictOrNull",
+            externalLinkName: "kk_string_toBooleanStrictOrNull_flat",
             receiverType: stringType,
             parameters: [],
             returnType: nullableBoolType,
@@ -2871,7 +2871,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lines",
-            externalLinkName: "kk_string_lines",
+            externalLinkName: "kk_string_lines_flat",
             receiverType: stringType,
             parameters: [],
             returnType: listStringType,
@@ -2884,7 +2884,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lineSequence",
-            externalLinkName: "kk_string_lineSequence",
+            externalLinkName: "kk_string_lineSequence_flat",
             receiverType: stringType,
             parameters: [],
             returnType: sequenceStringType,
@@ -2909,7 +2909,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray",
+            externalLinkName: "kk_string_toByteArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: listIntType,
@@ -2956,7 +2956,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray_charset",
+            externalLinkName: "kk_string_toByteArray_charset_flat",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
@@ -2970,7 +2970,7 @@ extension DataFlowSemaPhase {
         // STDLIB-145: String.toByteArray(startIndex, endIndex) — shares range function with encodeToByteArray
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_range",
+            externalLinkName: "kk_string_encodeToByteArray_range_flat",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -2985,7 +2985,7 @@ extension DataFlowSemaPhase {
         // MIGRATION-TEXT-007: Private primitives — called from BundledKotlinStdlib encodeToByteArray wrappers
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray",
+            externalLinkName: "kk_string_encodeToByteArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: byteArrayTypeForEncode,
@@ -2996,7 +2996,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_range",
-            externalLinkName: "kk_string_encodeToByteArray_range",
+            externalLinkName: "kk_string_encodeToByteArray_range_flat",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -3010,7 +3010,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_charset",
-            externalLinkName: "kk_string_encodeToByteArray_charset",
+            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
@@ -3290,7 +3290,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format",
+            externalLinkName: "kk_string_format_flat",
             returnType: stringType,
             parameters: [
                 (name: "format", type: stringType),
@@ -3303,7 +3303,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_locale",
+            externalLinkName: "kk_string_format_locale_flat",
             returnType: stringType,
             parameters: [
                 (name: "locale", type: types.makeNullable(localeType)),
@@ -3321,7 +3321,7 @@ extension DataFlowSemaPhase {
         // Receiver is the format string; routes to kk_string_format.
         registerSyntheticStringExtensionFunction(
             named: "format",
-            externalLinkName: "kk_string_format",
+            externalLinkName: "kk_string_format_flat",
             receiverType: stringType,
             parameters: [
                 ("args", types.nullableAnyType, false, true),
@@ -3336,7 +3336,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "chunked",
-            externalLinkName: "kk_string_chunked",
+            externalLinkName: "kk_string_chunked_flat",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3652,7 +3652,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zipWithNext",
-            externalLinkName: "kk_string_zipWithNext",
+            externalLinkName: "kk_string_zipWithNext_flat",
             receiverType: stringType,
             parameters: [],
             returnType: listPairCharCharType,
@@ -3663,7 +3663,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zipWithNext",
-            externalLinkName: "kk_string_zipWithNext",
+            externalLinkName: "kk_string_zipWithNext_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: listPairCharCharType,
@@ -3760,7 +3760,7 @@ extension DataFlowSemaPhase {
         }
         registerSyntheticStringExtensionFunction(
             named: "partition",
-            externalLinkName: "kk_string_partition",
+            externalLinkName: "kk_string_partition_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: pairStringStringType,
@@ -3780,7 +3780,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "asSequence",
-            externalLinkName: "kk_string_asSequence",
+            externalLinkName: "kk_string_asSequence_flat",
             receiverType: stringType,
             parameters: [],
             returnType: sequenceCharType,
@@ -3791,7 +3791,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
-            externalLinkName: "kk_string_asIterable",
+            externalLinkName: "kk_string_asIterable_flat",
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
@@ -3825,7 +3825,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "withIndex",
-            externalLinkName: "kk_string_withIndex",
+            externalLinkName: "kk_string_withIndex_flat",
             receiverType: stringType,
             parameters: [],
             returnType: iterableIndexedValueCharType,
@@ -3835,7 +3835,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "withIndex",
-            externalLinkName: "kk_string_withIndex",
+            externalLinkName: "kk_string_withIndex_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: iterableIndexedValueCharType,
@@ -3848,7 +3848,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "orEmpty",
-            externalLinkName: "kk_string_orEmpty",
+            externalLinkName: "kk_string_orEmpty_flat",
             receiverType: nullableStringType,
             parameters: [],
             returnType: stringType,
@@ -3861,7 +3861,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals",
+            externalLinkName: "kk_string_contentEquals_flat",
             receiverType: nullableStringType,
             parameters: [
                 ("other", nullableStringType, false, false),
@@ -3874,7 +3874,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_ignoreCase",
+            externalLinkName: "kk_string_contentEquals_ignoreCase_flat",
             receiverType: nullableStringType,
             parameters: [
                 ("other", nullableStringType, false, false),
@@ -3889,7 +3889,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-011: shares kk_string_concat with the `+` operator ---
         registerSyntheticStringExtensionFunction(
             named: "concat",
-            externalLinkName: "kk_string_concat",
+            externalLinkName: "kk_string_concat_flat",
             receiverType: stringType,
             parameters: [
                 ("str", stringType, false, false),
@@ -3939,7 +3939,7 @@ extension DataFlowSemaPhase {
         // zip(other: CharSequence): List<Pair<Char, Char>>
         registerSyntheticStringExtensionFunction(
             named: "zip",
-            externalLinkName: "kk_string_zip",
+            externalLinkName: "kk_string_zip_flat",
             receiverType: stringType,
             parameters: [
                 ("other", charSequenceType, false, false),
@@ -3952,7 +3952,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zip",
-            externalLinkName: "kk_string_zip",
+            externalLinkName: "kk_string_zip_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("other", charSequenceType, false, false),

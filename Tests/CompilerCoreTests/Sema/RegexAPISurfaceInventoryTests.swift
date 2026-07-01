@@ -153,7 +153,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_matches", "Regex.matches must link to kk_regex_matches")
+        #expect(link == "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches")
     }
 
     @Test func testRegexContainsMatchInIsRegistered() throws {
@@ -163,7 +163,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_containsMatchIn",
+        #expect(link == "kk_regex_containsMatchIn_flat",
                        "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
     }
 
@@ -174,7 +174,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_find", "Regex.find must link to kk_regex_find")
+        #expect(link == "kk_regex_find_flat", "Regex.find must link to kk_regex_find")
     }
 
     @Test func testRegexFindAllIsRegistered() throws {
@@ -184,7 +184,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_findAll", "Regex.findAll must link to kk_regex_findAll")
+        #expect(link == "kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
     }
 
     @Test func testRegexMatchEntireIsRegistered() throws {
@@ -194,7 +194,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_matchEntire",
+        #expect(link == "kk_regex_matchEntire_flat",
                        "Regex.matchEntire must link to kk_regex_matchEntire")
     }
 
@@ -252,7 +252,7 @@ struct RegexAPISurfaceInventoryTests {
         #expect(!(syms.isEmpty), "Regex.Companion.fromLiteral must be registered")
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            links.contains("kk_regex_from_literal"),
+            links.contains("kk_regex_from_literal_flat"),
             Comment(rawValue: "Regex.fromLiteral must link to kk_regex_from_literal; found: \(links)")
         )
     }
@@ -428,7 +428,7 @@ struct RegexAPISurfaceInventoryTests {
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            links.contains("kk_string_split_regex"),
+            links.contains("kk_string_split_regex_flat"),
             Comment(rawValue: "kotlin.text.split(Regex) must link to kk_string_split_regex; found: \(links)")
         )
     }
@@ -484,7 +484,7 @@ struct RegexAPISurfaceInventoryTests {
             let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option_flat"
             )
         }
     }
@@ -510,7 +510,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches_flat"
             )
         }
     }
@@ -536,7 +536,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn_flat"
             )
         }
     }
@@ -563,7 +563,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find_flat"
             )
         }
     }
@@ -590,7 +590,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire_flat"
             )
         }
     }
@@ -616,7 +616,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal_flat"
             )
         }
     }

@@ -2509,7 +2509,7 @@ extension CallLowerer {
                 } else if sema.types.isSubtype(firstArgType, sema.types.charType) {
                     runtimeCallee = "kk_string_replace_char_flat"
                 } else {
-                    runtimeCallee = "kk_string_replace"
+                    runtimeCallee = "kk_string_replace_flat"
                 }
                 instructions.append(.call(
                     symbol: nil,

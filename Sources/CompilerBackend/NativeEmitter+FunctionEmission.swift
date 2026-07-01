@@ -311,10 +311,24 @@ extension NativeEmitter {
             _ value: LLVMCAPIBindings.LLVMValueRef,
             suffix: String
         ) -> [LLVMCAPIBindings.LLVMValueRef]? {
-            guard let data = bindings.buildExtractValue(builder, aggregate: value, index: 0, name: "str_data_\(suffix)"),
-                  let length = bindings.buildExtractValue(builder, aggregate: value, index: 1, name: "str_length_\(suffix)"),
-                  let byteCount = bindings.buildExtractValue(builder, aggregate: value, index: 2, name: "str_bytes_\(suffix)"),
-                  let hash = bindings.buildExtractValue(builder, aggregate: value, index: 3, name: "str_hash_\(suffix)")
+            // `value`'s KIR-level semantic type may be String (i.e. isStringAggregateExpr
+            // returned true) even when this particular expression was materialized as a
+            // raw (boxed) Int64 handle rather than a flat struct — e.g. a HOF lambda
+            // parameter sourced from a collection element. Extracting a struct field from
+            // a non-aggregate LLVM value crashes LLVM, so confirm the actual LLVM value is
+            // an aggregate first, bridging from the raw handle when it is not.
+            let aggregate: LLVMCAPIBindings.LLVMValueRef
+            if bindings.isAggregateStructValue(value) {
+                aggregate = value
+            } else if let bridged = bridgeRuntimeRawToStringAggregate(value, suffix: "\(suffix)_from_raw") {
+                aggregate = bridged
+            } else {
+                return nil
+            }
+            guard let data = bindings.buildExtractValue(builder, aggregate: aggregate, index: 0, name: "str_data_\(suffix)"),
+                  let length = bindings.buildExtractValue(builder, aggregate: aggregate, index: 1, name: "str_length_\(suffix)"),
+                  let byteCount = bindings.buildExtractValue(builder, aggregate: aggregate, index: 2, name: "str_bytes_\(suffix)"),
+                  let hash = bindings.buildExtractValue(builder, aggregate: aggregate, index: 3, name: "str_hash_\(suffix)")
             else {
                 return nil
             }

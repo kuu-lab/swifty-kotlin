@@ -36,7 +36,7 @@ final class RuntimeBigIntegerTests: XCTestCase {
             kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "12345678901234567890")
+        XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "-12345678901234567890")
     }
 
     func testStringToBigIntegerAcceptsLeadingPlusAndZeros() {

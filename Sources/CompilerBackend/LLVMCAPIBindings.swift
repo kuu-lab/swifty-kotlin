@@ -73,6 +73,8 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildSelectFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildExtractValueFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildInsertValueFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMTypeOfFn = @convention(c) (LLVMValueRef?) -> LLVMTypeRef?
+    typealias LLVMGetTypeKindFn = @convention(c) (LLVMTypeRef?) -> Int32
     typealias LLVMBuildGlobalStringPtrFn = @convention(c) (LLVMBuilderRef?, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildPtrToIntFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildIntToPtrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -288,6 +290,8 @@ final class LLVMCAPIBindings {
     let buildLoadFn: LLVMBuildLoadFn?
     let buildSelectFn: LLVMBuildSelectFn?
     let buildExtractValueFn: LLVMBuildExtractValueFn?
+    let typeOfFn: LLVMTypeOfFn?
+    let getTypeKindFn: LLVMGetTypeKindFn?
     let buildInsertValueFn: LLVMBuildInsertValueFn?
     let buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?
     let buildPtrToIntFn: LLVMBuildPtrToIntFn?
@@ -391,6 +395,8 @@ final class LLVMCAPIBindings {
         buildSelectFn: LLVMBuildSelectFn?,
         buildExtractValueFn: LLVMBuildExtractValueFn? = nil,
         buildInsertValueFn: LLVMBuildInsertValueFn? = nil,
+        typeOfFn: LLVMTypeOfFn? = nil,
+        getTypeKindFn: LLVMGetTypeKindFn? = nil,
         buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?,
         buildPtrToIntFn: LLVMBuildPtrToIntFn?,
         buildIntToPtrFn: LLVMBuildIntToPtrFn?,
@@ -494,6 +500,8 @@ final class LLVMCAPIBindings {
         self.buildSelectFn = buildSelectFn
         self.buildExtractValueFn = buildExtractValueFn
         self.buildInsertValueFn = buildInsertValueFn
+        self.typeOfFn = typeOfFn
+        self.getTypeKindFn = getTypeKindFn
         self.buildGlobalStringPtrFn = buildGlobalStringPtrFn
         self.buildPtrToIntFn = buildPtrToIntFn
         self.buildIntToPtrFn = buildIntToPtrFn

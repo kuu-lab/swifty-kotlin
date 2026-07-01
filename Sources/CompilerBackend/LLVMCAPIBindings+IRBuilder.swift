@@ -119,6 +119,19 @@ extension LLVMCAPIBindings {
         return name.withCString { buildExtractValueFn(builder, aggregate, index, $0) }
     }
 
+    /// `LLVMStructTypeKind` raw value per the stable LLVM-C ABI (`llvm-c/Core.h`).
+    private static let structTypeKind: Int32 = 10
+
+    /// Returns true when `value`'s LLVM type is an aggregate struct type, so callers can
+    /// distinguish a flat string struct from a raw (boxed) Int64 handle before emitting
+    /// struct-field-extraction IR. Returns `false` (safe default) if type info is unavailable.
+    func isAggregateStructValue(_ value: LLVMValueRef?) -> Bool {
+        guard let typeOfFn, let getTypeKindFn, let type = typeOfFn(value) else {
+            return false
+        }
+        return getTypeKindFn(type) == Self.structTypeKind
+    }
+
     func buildInsertValue(
         _ builder: LLVMBuilderRef?,
         aggregate: LLVMValueRef?,

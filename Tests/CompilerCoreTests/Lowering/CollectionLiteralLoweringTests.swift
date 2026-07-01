@@ -949,7 +949,7 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_string_split"))
+        #expect(callees.contains("kk_string_split_flat"))
         #expect(callees.contains("kk_list_to_string"),
                       "split result should be recognized as list and routed through kk_list_to_string")
     }

@@ -1635,5 +1635,8 @@ public func kk_string_equalsIgnoreCase_flat(
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
+    if ignoreCaseRaw == 0 {
+        return source == other ? 1 : 0
+    }
     return source.caseInsensitiveCompare(other) == .orderedSame ? 1 : 0
 }
