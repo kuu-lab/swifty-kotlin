@@ -181,7 +181,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
 - [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [x] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
-- [x] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` の計 15 シンボル。各 stub 削除タスクの完了に合わせて段階的に外す）
+- [x] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` の計 15 シンボル）。列挙済みの 15 シンボルは各 stub 削除タスクの完了に伴い段階的に削除済み。当初のリストに含まれていなかった `kk_js_readonly_set_toMutableSet`（CLEANUP-STUB-068 で `JsReadonlySet` 型を削除した際に取り残された spec-only エントリ）を追加で削除し、`RuntimeABISpec` 配下の `kk_js_*` 登録をゼロ件にした
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換
 - `kotlin.jvm` / `kotlin.js` / `kotlin.wasm*` / `java.nio.file` 系・`kotlin.streams`

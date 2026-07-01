@@ -358,7 +358,6 @@ extension ABIMismatchTests {
         "kk_job_join",
         "kk_js_number_toDouble",
         "kk_js_number_toInt",
-        "kk_js_readonly_set_toMutableSet",
         "kk_json_default",
         "kk_json_encodeMapToString",
         "kk_json_encodeToString",
