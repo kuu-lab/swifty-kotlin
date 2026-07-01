@@ -5,7 +5,7 @@ symbol fq=kotlinx.cinterop.CValues kind=class vis=public flags=synthetic|abstrac
 symbol fq=kotlinx.cinterop.CValues.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.UIntVar kind=class vis=public flags=synthetic type=kotlinx.cinterop.UIntVar
 symbol fq=kotlinx.cinterop.toCValues#7 kind=function vis=public flags=synthetic sig=recv=kotlin.UIntArray params=[] ret=kotlinx.cinterop.CValues<kotlinx.cinterop.UIntVar>
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.convertToNative fun convertToNative sym=golden.sema.convertToNative
 expr e@9:59#0 name(uints) type=kotlin.UIntArray ref=golden.sema.convertToNative.$0.uints
 expr e@9:59#1 memberCall recv=e@9:59#0 callee=toCValues args=[] type=kotlinx.cinterop.CValues<kotlinx.cinterop.UIntVar> call=kotlinx.cinterop.toCValues#7
