@@ -37,7 +37,7 @@ extension ControlFlowLowerer {
             }
         }
         let endLabel = driver.ctx.makeLoopLabel()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.errorType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.errorType)
 
         var nextBranchLabels: [Int32] = []
         for _ in branches {
@@ -191,7 +191,7 @@ extension ControlFlowLowerer {
             let typeToken = arena.appendExpr(.intLiteral(typeTokenLiteral), type: intType)
             instructions.append(.constValue(result: typeToken, value: .intLiteral(typeTokenLiteral)))
 
-            let isResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+            let isResult = arena.appendTemporary(type: boolType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_op_is"),
@@ -203,7 +203,7 @@ extension ControlFlowLowerer {
             guard negated else {
                 return isResult
             }
-            let negatedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+            let negatedResult = arena.appendTemporary(type: boolType)
             instructions.append(.binary(op: .equal, lhs: isResult, rhs: falseID, result: negatedResult))
             return negatedResult
         }
@@ -219,7 +219,7 @@ extension ControlFlowLowerer {
         )
 
         if let loweredSubjectID {
-            let matchesID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+            let matchesID = arena.appendTemporary(type: boolType)
             instructions.append(.binary(
                 op: .equal,
                 lhs: loweredSubjectID,

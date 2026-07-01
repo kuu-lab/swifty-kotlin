@@ -918,9 +918,7 @@ extension CallLowerer {
                     // thrownResult to non-nil for those HOFs would silently swallow the
                     // exception instead of propagating it.
                     let stringHOFThrownResult: KIRExprID? = calleeStr == "partition"
-                        ? arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
+                        ? arena.appendTemporary(type: sema.types.nullableAnyType
                         )
                         : nil
                     instructions.append(.call(
@@ -1557,31 +1555,17 @@ extension CallLowerer {
                 func boxedFormatArgument(_ argExpr: ExprID, loweredArgID: KIRExprID) -> KIRExprID {
                     let argType = sema.bindings.exprTypes[argExpr] ?? sema.types.anyType
                     let nonNullArgType = sema.types.makeNonNullable(argType)
-                    let boxCallee: String? = switch sema.types.kind(of: nonNullArgType) {
-                    case .primitive(.int, _), .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-                        "kk_box_int"
-                    case .primitive(.boolean, _):
-                        "kk_box_bool"
-                    case .primitive(.long, _), .primitive(.ulong, _):
-                        "kk_box_long"
-                    case .primitive(.float, _):
-                        "kk_box_float"
-                    case .primitive(.double, _):
-                        "kk_box_double"
-                    case .primitive(.char, _):
-                        "kk_box_char"
-                    default:
-                        nil
-                    }
+                    let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                        for: sema.types.kind(of: nonNullArgType),
+                        requireNonNull: true
+                    )
 
-                    let boxedArg = arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.nullableAnyType
+                    let boxedArg = arena.appendTemporary(type: sema.types.nullableAnyType
                     )
                     if let boxCallee {
                         instructions.append(.call(
                             symbol: nil,
-                            callee: interner.intern(boxCallee),
+                            callee: boxCallee,
                             arguments: [loweredArgID],
                             result: boxedArg,
                             canThrow: false,

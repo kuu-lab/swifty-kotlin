@@ -46,7 +46,7 @@ extension ABILoweringPass {
         callee: InternedString?,
         types: TypeSystem,
         interner: StringInterner,
-        boxCallees: BoxingCalleeNames,
+        boxingCalleeTable: BoxingCalleeTable,
         symbols: SymbolTable? = nil
     ) -> InternedString? {
         let rawArgKind = types.kind(of: argType)
@@ -88,56 +88,21 @@ extension ABILoweringPass {
                case let .primitive(argPrimitive, .nonNull) = argKind,
                paramPrimitive == argPrimitive
             {
-                switch argPrimitive {
-                case .int:
-                    return boxCallees.int
-                case .long:
-                    return boxCallees.long
-                case .boolean:
-                    return boxCallees.bool
-                case .float:
-                    return boxCallees.float
-                case .double:
-                    return boxCallees.double
-                case .char:
-                    return boxCallees.char
-                case .uint, .ubyte, .ushort:
-                    return boxCallees.int
-                case .ulong:
-                    return boxCallees.long
-                default:
-                    return nil
-                }
+                return boxingCalleeTable.boxCallee(
+                    for: .primitive(argPrimitive, .nonNull),
+                    requireNonNull: true
+                )
             }
             return nil
         }
 
-        switch argKind {
-        case .primitive(.int, _):
-            return boxCallees.int
-        case .primitive(.long, _):
-            return boxCallees.long
-        case .primitive(.boolean, _):
-            return boxCallees.bool
-        case .primitive(.float, _):
-            return boxCallees.float
-        case .primitive(.double, _):
-            return boxCallees.double
-        case .primitive(.char, _):
-            return boxCallees.char
-        case .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-            return boxCallees.int
-        case .primitive(.ulong, _):
-            return boxCallees.long
-        default:
-            return nil
-        }
+        return boxingCalleeTable.boxCallee(for: argKind, requireNonNull: false)
     }
 
     func unboxingCallee(
         sourceKind: TypeKind,
         targetKind: TypeKind,
-        unboxCallees: UnboxingCalleeNames,
+        boxingCalleeTable: BoxingCalleeTable,
         types: TypeSystem? = nil,
         symbols: SymbolTable? = nil
     ) -> InternedString? {
@@ -150,26 +115,7 @@ extension ABILoweringPass {
             return nil
         }
 
-        switch resolvedTargetKind {
-        case .primitive(.int, _):
-            return unboxCallees.int
-        case .primitive(.long, _):
-            return unboxCallees.long
-        case .primitive(.boolean, _):
-            return unboxCallees.bool
-        case .primitive(.float, _):
-            return unboxCallees.float
-        case .primitive(.double, _):
-            return unboxCallees.double
-        case .primitive(.char, _):
-            return unboxCallees.char
-        case .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-            return unboxCallees.int
-        case .primitive(.ulong, _):
-            return unboxCallees.long
-        default:
-            return nil
-        }
+        return boxingCalleeTable.unboxCallee(for: resolvedTargetKind, requireNonNull: true)
     }
 
     func intrinsicArgType(
@@ -287,7 +233,7 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
-        unboxCallees: UnboxingCalleeNames,
+        boxingCalleeTable: BoxingCalleeTable,
         newBody: inout [KIRInstruction]
     ) -> KIRExprID {
         // Literal expressions hold raw (never-boxed) values. Inserting kk_unbox_long
@@ -311,14 +257,12 @@ extension ABILoweringPass {
         guard needsUnboxing(sourceKind: operandKind, targetKind: resultKind, symbols: symbols),
               let callee = unboxingCallee(
                   sourceKind: operandKind, targetKind: resultKind,
-                  unboxCallees: unboxCallees, types: types, symbols: symbols
+                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
               )
         else {
             return operand
         }
-        let unboxed = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: resultType
+        let unboxed = module.arena.appendTemporary(type: resultType
         )
         newBody.append(.call(
             symbol: nil,
@@ -349,7 +293,7 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
-        unboxCallees: UnboxingCalleeNames,
+        boxingCalleeTable: BoxingCalleeTable,
         newBody: inout [KIRInstruction]
     ) -> KIRExprID {
         if let expr = module.arena.expr(operand) {
@@ -385,15 +329,13 @@ extension ABILoweringPass {
         guard needsUnboxing(sourceKind: sourceKind, targetKind: targetKind, symbols: symbols),
               let callee = unboxingCallee(
                   sourceKind: sourceKind, targetKind: targetKind,
-                  unboxCallees: unboxCallees, types: types, symbols: symbols
+                  boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
               )
         else {
             return operand
         }
         let resultType = operandType ?? types.make(targetKind)
-        let unboxed = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: resultType
+        let unboxed = module.arena.appendTemporary(type: resultType
         )
         newBody.append(.call(
             symbol: nil,
@@ -408,27 +350,8 @@ extension ABILoweringPass {
 
     func boxCalleeForPrimitive(
         _ kind: TypeKind,
-        boxCallees: BoxingCalleeNames
+        boxingCalleeTable: BoxingCalleeTable
     ) -> InternedString? {
-        switch kind {
-        case .primitive(.int, .nonNull):
-            boxCallees.int
-        case .primitive(.long, .nonNull):
-            boxCallees.long
-        case .primitive(.boolean, .nonNull):
-            boxCallees.bool
-        case .primitive(.float, .nonNull):
-            boxCallees.float
-        case .primitive(.double, .nonNull):
-            boxCallees.double
-        case .primitive(.char, .nonNull):
-            boxCallees.char
-        case .primitive(.uint, .nonNull), .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
-            boxCallees.int
-        case .primitive(.ulong, .nonNull):
-            boxCallees.long
-        default:
-            nil
-        }
+        boxingCalleeTable.boxCallee(for: kind, requireNonNull: true)
     }
 }

@@ -335,7 +335,7 @@ extension CallTypeChecker {
     func getCollectionElementType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType) else {
+        guard let classType = resolveClassType(nonNullType, sema: sema) else {
             return sema.types.anyType
         }
 
@@ -409,9 +409,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return symbol.fqName == [
@@ -631,9 +629,7 @@ extension CallTypeChecker {
     func isMapLikeCollectionType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return knownNames.isMapLikeSymbol(symbol) && classType.args.count == 2
@@ -642,9 +638,7 @@ extension CallTypeChecker {
     func isConcreteListLikeType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return knownNames.isConcreteListLikeSymbol(symbol) && classType.args.count == 1

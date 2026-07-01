@@ -79,7 +79,7 @@ extension CallLowerer {
             args: [],
             nullability: .nonNull
         )))
-        let enumValuesArray = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let enumValuesArray = arena.appendTemporary(type: sema.types.anyType)
         let entriesCountExpr = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
         instructions.append(.constValue(result: entriesCountExpr, value: .intLiteral(Int64(entries.count))))
         instructions.append(.call(
@@ -99,7 +99,7 @@ extension CallLowerer {
             // than the raw ordinal integer.
             let entryNameStr = interner.resolve(entry.name)
             let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
-            let entryExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
+            let entryExpr = arena.appendTemporary(type: stringType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
             instructions.append(.call(
                 symbol: nil,
@@ -127,7 +127,7 @@ extension CallLowerer {
 
         let countExpr: KIRExprID
         if let countSymbol {
-            let countResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let countResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
                 symbol: countSymbol,
                 callee: countHelperName,
@@ -144,7 +144,7 @@ extension CallLowerer {
             countExpr = countLiteral
         }
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let result = arena.appendTemporary(type: boundType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(runtimeCalleeName),
@@ -207,7 +207,7 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let result = arena.appendTemporary(type: boundType)
         instructions.append(.call(
             symbol: valueOfSymbol,
             callee: valueOfName,

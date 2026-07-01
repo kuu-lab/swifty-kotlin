@@ -298,9 +298,7 @@ extension CallLowerer {
             return [loweredComparatorID, zeroExpr]
         }
 
-        let fnPtrExpr = arena.appendExpr(
-            .temporary(Int32(clamping: arena.expressions.count)),
-            type: sema.types.intType
+        let fnPtrExpr = arena.appendTemporary(type: sema.types.intType
         )
         instructions.append(.constValue(
             result: fnPtrExpr,

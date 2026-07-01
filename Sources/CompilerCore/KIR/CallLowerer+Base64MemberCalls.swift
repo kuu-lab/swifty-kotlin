@@ -57,9 +57,7 @@ extension CallLowerer {
                 paddingArg = arena.appendExpr(.intLiteral(Int64(rawValue)), type: sema.types.intType)
                 instructions.append(.constValue(result: paddingArg, value: .intLiteral(Int64(rawValue))))
             } else {
-                paddingArg = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.intType
+                paddingArg = arena.appendTemporary(type: sema.types.intType
                 )
                 instructions.append(.call(
                     symbol: nil,

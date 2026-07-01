@@ -19,9 +19,7 @@ extension CallLowerer {
                 let captureType = arena.exprType(captureExpr) ?? sema.types.anyType
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
                 body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
-                let loadedExpr = arena.appendExpr(
-                    .temporary(Int32(clamping: arena.expressions.count)),
-                    type: captureType
+                let loadedExpr = arena.appendTemporary(type: captureType
                 )
                 body.append(.call(
                     symbol: nil,
@@ -57,9 +55,7 @@ extension CallLowerer {
             ))
             let classIDExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
             instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
-            let closureObjExpr = arena.appendExpr(
-                .temporary(Int32(clamping: arena.expressions.count)),
-                type: sema.types.anyType
+            let closureObjExpr = arena.appendTemporary(type: sema.types.anyType
             )
             instructions.append(.call(
                 symbol: nil,
@@ -78,9 +74,7 @@ extension CallLowerer {
                     result: offsetExpr,
                     value: .intLiteral(Int64(captureIndex + 2))
                 ))
-                let unusedResult = arena.appendExpr(
-                    .temporary(Int32(clamping: arena.expressions.count)),
-                    type: sema.types.anyType
+                let unusedResult = arena.appendTemporary(type: sema.types.anyType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -280,7 +274,7 @@ extension CallLowerer {
     ) {
         let fnIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2)), type: sema.types.intType)
         instructions.append(.constValue(result: fnIndexExpr, value: .intLiteral(Int64(selectorOffset * 2))))
-        let fnSetResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let fnSetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
@@ -298,7 +292,7 @@ extension CallLowerer {
         )
         let closureIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2 + 1)), type: sema.types.intType)
         instructions.append(.constValue(result: closureIndexExpr, value: .intLiteral(Int64(selectorOffset * 2 + 1))))
-        let closureSetResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let closureSetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
@@ -423,9 +417,7 @@ extension CallLowerer {
                case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
                functionType.params.isEmpty
             {
-                let seedResult = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.makeNonNullable(functionType.returnType)
+                let seedResult = arena.appendTemporary(type: sema.types.makeNonNullable(functionType.returnType)
                 )
                 instructions.append(.call(
                     symbol: seedCallableInfo.symbol,
@@ -563,7 +555,7 @@ extension CallLowerer {
             let slotCount = loweredArguments.count * 2
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
-            let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_new"),
@@ -601,7 +593,7 @@ extension CallLowerer {
             let slotCount = selectorCount * 2
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
-            let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_new"),
@@ -727,14 +719,10 @@ extension CallLowerer {
         )
 
         let lambdaCanThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
-        let callResult = arena.appendExpr(
-            .temporary(Int32(clamping: arena.expressions.count)),
-            type: functionType.returnType
+        let callResult = arena.appendTemporary(type: functionType.returnType
         )
         let thrownResult = lambdaCanThrow
-            ? arena.appendExpr(
-                .temporary(Int32(clamping: arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            ? arena.appendTemporary(type: sema.types.nullableAnyType
             )
             : nil
         body.append(.call(

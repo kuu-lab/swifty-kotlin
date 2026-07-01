@@ -523,9 +523,7 @@ extension ExprTypeChecker {
     }
 
     private func isCoroutineContextLikeType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         let kotlinxCoroutinesPkg = [

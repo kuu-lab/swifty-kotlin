@@ -110,7 +110,7 @@ extension CallLowerer {
                 }
                 let varianceExpr = arena.appendExpr(.intLiteral(varianceOrdinal), type: intType)
                 instructions.append(.constValue(result: varianceExpr, value: .intLiteral(varianceOrdinal)))
-                let projectionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+                let projectionExpr = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_ktypeprojection_create"),
@@ -140,7 +140,7 @@ extension CallLowerer {
             } else {
                 let countExpr = arena.appendExpr(.intLiteral(Int64(typeArguments.count)), type: intType)
                 instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(typeArguments.count))))
-                let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+                let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_new"),
@@ -153,7 +153,7 @@ extension CallLowerer {
                     let projectionExpr = lowerKTypeProjectionExpr(argument)
                     let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
                     instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
-                    let setResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+                    let setResult = arena.appendTemporary(type: sema.types.anyType)
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_set"),
@@ -163,7 +163,7 @@ extension CallLowerer {
                         thrownResult: nil
                     ))
                 }
-                argsListExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+                argsListExpr = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_list_of"),
@@ -175,7 +175,7 @@ extension CallLowerer {
             }
 
             let isNullableExpr = makeNullabilityExpr(for: type)
-            let ktypeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let ktypeExpr = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_typeof"),
@@ -189,7 +189,7 @@ extension CallLowerer {
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
         let lowered = lowerKTypeExpr(for: typeArg)
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.copy(from: lowered, to: result))
         return result
     }
@@ -293,7 +293,7 @@ extension CallLowerer {
         let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
         instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
 
-        let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_kclass_register_metadata"),

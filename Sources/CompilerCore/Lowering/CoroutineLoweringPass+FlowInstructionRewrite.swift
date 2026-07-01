@@ -13,9 +13,7 @@ extension CoroutineLoweringPass {
         loweredBody.reserveCapacity(originalBody.count)
 
         func appendIntConstantInBody(_ value: Int64) -> KIRExprID {
-            let expr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: ctx.sema?.types.intType ?? TypeID.invalid
+            let expr = module.arena.appendTemporary(type: ctx.sema?.types.intType ?? TypeID.invalid
             )
             loweredBody.append(.constValue(result: expr, value: .intLiteral(value)))
             return expr
@@ -72,9 +70,7 @@ extension CoroutineLoweringPass {
             _ sourceHandle: KIRExprID
         ) -> (callArg: KIRExprID, releaseAfterCall: KIRExprID?) {
             if isSymbolBackedFlowExpr(sourceHandle) {
-                let retained = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: ctx.sema?.types.anyType ?? TypeID.invalid
+                let retained = module.arena.appendTemporary(type: ctx.sema?.types.anyType ?? TypeID.invalid
                 )
                 loweredBody.append(.call(
                     symbol: nil,

@@ -46,9 +46,7 @@ extension CallLowerer {
             return nil
         }
 
-        let predicateResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: boolType
+        let predicateResult = arena.appendTemporary(type: boolType
         )
         let callArgs: [KIRExprID]
         if info.hasClosureParam {
@@ -67,9 +65,7 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: boundType
+        let result = arena.appendTemporary(type: boundType
         )
         let useReceiverLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
@@ -137,9 +133,7 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 let callArgs: [KIRExprID]
@@ -192,9 +186,7 @@ extension CallLowerer {
 
             driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
 
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 instructions.append(.call(
@@ -227,9 +219,7 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
             guard let info = driver.ctx.callableValueInfo(for: loweredLambdaID) else {
                 return nil
@@ -238,8 +228,8 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
 
             // Exception tracking slots for try-finally.
-            let exceptionSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.nullableAnyType)
-            let exceptionTypeSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+            let exceptionTypeSlot = arena.appendTemporary(type: intType)
             let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
             let zeroTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
             instructions.append(.constValue(result: nullExceptionValue, value: .null))
@@ -300,9 +290,7 @@ extension CallLowerer {
                 instructions.append(.label(closeCallLabel))
             }
             let closeName = interner.intern("close")
-            let closeResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.unitType
+            let closeResult = arena.appendTemporary(type: sema.types.unitType
             )
             // Resolve the close() symbol from the Closeable interface and use
             // virtualCall with interface dispatch instead of a static .call.
@@ -428,9 +416,7 @@ extension CallLowerer {
                 return sema.symbols.symbol(symbol)?.name ?? interner.intern(fallback)
             }
 
-            let pinnedResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: pinnedType
+            let pinnedResult = arena.appendTemporary(type: pinnedType
             )
             instructions.append(.call(
                 symbol: pinSymbol,
@@ -441,16 +427,14 @@ extension CallLowerer {
                 thrownResult: nil
             ))
 
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
 
             let intType = sema.types.make(.primitive(.int, .nonNull))
 
             // Exception tracking slots for try-finally.
-            let exceptionSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.nullableAnyType)
-            let exceptionTypeSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+            let exceptionTypeSlot = arena.appendTemporary(type: intType)
             let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
             let zeroTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
             instructions.append(.constValue(result: nullExceptionValue, value: .null))
@@ -496,9 +480,7 @@ extension CallLowerer {
             // finally: unpin() the handle. Concrete call — Pinned is a final
             // synthetic class, so no virtual dispatch is needed.
             instructions.append(.label(finallyLabel))
-            let unpinResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.unitType
+            let unpinResult = arena.appendTemporary(type: sema.types.unitType
             )
             instructions.append(.call(
                 symbol: unpinSymbol,

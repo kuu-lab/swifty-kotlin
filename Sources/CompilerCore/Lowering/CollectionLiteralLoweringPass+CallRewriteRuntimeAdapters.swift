@@ -18,8 +18,7 @@ extension CollectionLiteralLoweringPass {
         if callee == lookup.kkPrintlnAnyName || callee == lookup.printlnName, arguments.count == 1 {
             let argID = arguments[0]
             if state.listExprIDs.contains(argID.rawValue) {
-                let strResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let strResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -40,8 +39,7 @@ extension CollectionLiteralLoweringPass {
                 return true
             }
             if state.setExprIDs.contains(argID.rawValue) {
-                let strResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let strResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -62,8 +60,7 @@ extension CollectionLiteralLoweringPass {
                 return true
             }
             if state.mapExprIDs.contains(argID.rawValue) {
-                let strResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let strResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -292,8 +289,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(
                         result: innerTrampolineExpr,
                         value: .externSymbolAddress(innerTrampolineName)))
-                    let reversedClosureResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil)
+                    let reversedClosureResult = module.arena.appendTemporary(type: nil)
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkComparatorReversedName,

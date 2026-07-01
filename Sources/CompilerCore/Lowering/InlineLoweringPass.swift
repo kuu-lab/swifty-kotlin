@@ -421,9 +421,7 @@ final class InlineLoweringPass: LoweringPass {
                 return false
             }
             if hasValueReturn {
-                inlineMergeResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: inlineTarget.returnType
+                inlineMergeResult = module.arena.appendTemporary(type: inlineTarget.returnType
                 )
             }
         } else {
@@ -857,9 +855,7 @@ final class InlineLoweringPass: LoweringPass {
                 // Uses the lambda's declared return type so later passes see
                 // a properly typed merge expression.
                 let returnType = lambdaFunction.returnType
-                let mergeID = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: returnType
+                let mergeID = module.arena.appendTemporary(type: returnType
                 )
                 mergeResult = mergeID
             }

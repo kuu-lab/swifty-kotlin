@@ -10,22 +10,10 @@ extension CollectionLiteralLoweringPass {
         types: TypeSystem,
         interner: StringInterner
     ) -> InternedString? {
-        switch types.kind(of: type) {
-        case .primitive(.int, _), .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
-            return interner.intern("kk_box_int")
-        case .primitive(.boolean, _):
-            return interner.intern("kk_box_bool")
-        case .primitive(.long, _), .primitive(.ulong, _):
-            return interner.intern("kk_box_long")
-        case .primitive(.float, _):
-            return interner.intern("kk_box_float")
-        case .primitive(.double, _):
-            return interner.intern("kk_box_double")
-        case .primitive(.char, _):
-            return interner.intern("kk_box_char")
-        default:
-            return nil
-        }
+        BoxingCalleeTable(interner: interner).boxCallee(
+            for: types.kind(of: type),
+            requireNonNull: false
+        )
     }
 
     func boxedBuildStringTextArgumentIfNeeded(
@@ -45,9 +33,7 @@ extension CollectionLiteralLoweringPass {
         else {
             return argument
         }
-        let boxedArgument = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: sema.types.anyType
+        let boxedArgument = module.arena.appendTemporary(type: sema.types.anyType
         )
         loweredBody.append(.call(
             symbol: nil,
@@ -122,9 +108,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         let nonNullType = sema.types.makeNonNullable(argumentType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
 
