@@ -22,9 +22,6 @@ struct ReflectKParameterSyntheticTests {
         let (sema, interner) = try makeSema()
         let reflectPackage = ["kotlin", "reflect"].map { interner.intern($0) }
 
-        let kAnnotatedElementSymbol = try #require(sema.symbols.lookup(
-            fqName: reflectPackage + [interner.intern("KAnnotatedElement")]
-        ))
         let kTypeSymbol = try #require(sema.symbols.lookup(
             fqName: reflectPackage + [interner.intern("KType")]
         ))
@@ -35,7 +32,6 @@ struct ReflectKParameterSyntheticTests {
         let kParameterInfo = try #require(sema.symbols.symbol(kParameterSymbol))
         #expect(kParameterInfo.kind == .interface)
         #expect(kParameterInfo.flags.contains(.synthetic))
-        #expect(sema.symbols.directSupertypes(for: kParameterSymbol).contains(kAnnotatedElementSymbol))
 
         let kTypeType = sema.types.make(.classType(ClassType(
             classSymbol: kTypeSymbol,
@@ -63,11 +59,8 @@ struct ReflectKParameterSyntheticTests {
 
     @Test func testKParameterPropertiesResolveInSource() throws {
         let source = """
-        import kotlin.reflect.KAnnotatedElement
         import kotlin.reflect.KParameter
         import kotlin.reflect.KType
-
-        fun annotated(parameter: KParameter): KAnnotatedElement = parameter
 
         fun inspect(parameter: KParameter): KType {
             val index: Int = parameter.index

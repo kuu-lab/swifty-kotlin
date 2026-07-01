@@ -1189,4 +1189,104 @@ extension DataFlowSemaPhase {
             for: functionSymbol
         )
     }
+
+    func registerSyntheticCPointerSetFunction(
+        cPointerSymbol: SymbolID,
+        cPointedType: TypeID,
+        packageFQName: [InternedString],
+        packageSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("set")
+        let functionFQName = packageFQName + [functionName]
+        let typeParameterName = interner.intern("T")
+        let typeParameterFQName = functionFQName + [interner.intern("$cPointerSet"), typeParameterName]
+        let typeParameterSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParameterFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: typeParameterName,
+                fqName: typeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
+        symbols.setTypeParameterUpperBounds([cPointedType], for: typeParameterSymbol)
+
+        let typeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(typeParameterType)],
+            nullability: .nonNull
+        )))
+
+        let existingMatch = symbols.lookupAll(fqName: functionFQName).first { symbolID in
+            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+            return sig.receiverType == receiverType
+                && sig.parameterTypes == [types.intType, typeParameterType]
+                && sig.returnType == types.unitType
+                && sig.typeParameterSymbols == [typeParameterSymbol]
+        }
+        if let existing = existingMatch {
+            symbols.insertFlags([.synthetic, .operatorFunction], for: existing)
+            symbols.setParentSymbol(existing, for: typeParameterSymbol)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .operatorFunction]
+        )
+        if let packageSymbol {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setParentSymbol(functionSymbol, for: typeParameterSymbol)
+
+        let indexName = interner.intern("index")
+        let indexSymbol = symbols.define(
+            kind: .valueParameter,
+            name: indexName,
+            fqName: functionFQName + [indexName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(functionSymbol, for: indexSymbol)
+        symbols.setPropertyType(types.intType, for: indexSymbol)
+
+        let valueName = interner.intern("value")
+        let valueSymbol = symbols.define(
+            kind: .valueParameter,
+            name: valueName,
+            fqName: functionFQName + [valueName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(functionSymbol, for: valueSymbol)
+        symbols.setPropertyType(typeParameterType, for: valueSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [types.intType, typeParameterType],
+                returnType: types.unitType,
+                typeParameterSymbols: [typeParameterSymbol],
+                typeParameterUpperBoundsList: [[cPointedType]],
+                classTypeParameterCount: 0
+            ),
+            for: functionSymbol
+        )
+    }
 }
