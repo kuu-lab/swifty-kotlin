@@ -384,6 +384,69 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] KSP-476: Uuid を完遂する（KSP-310 で残った API + `ByteArray.uuid`/`putUuid` 拡張、`LEXICAL_ORDER`）
   - 削除 kk_*: `kk_byteArray_uuid`, `kk_byteArray_putUuid`, `kk_uuid_getUuid`, `kk_uuid_lexicalOrder`, `kk_uuid_nil` / 完了: `rg '"kk_uuid_' Sources/CompilerCore` 0 件 + G
 
+#### kotlin.io [M 番号なし・新設]（棚卸し 2026-07-01: File I/O 58 / Base64 26 / HexFormat 16 の計 100 @_cdecl）
+
+- [ ] KSP-481: HexFormat を Kotlin 化する（全 16 関数が純ロジック）
+  - 下敷き: 死蔵 `Stdlib/kotlin/io/encoding/HexFormat.kt`（拡張関数のみ。HexFormat クラス本体は新規実装）→ `Sources/CompilerCore/Stdlib/kotlin/io/encoding/HexFormat.kt`
+  - 削除 kk_*: `kk_hexformat_default`, `kk_hexformat_create`, `kk_hexformat_upperCase`, `kk_hexformat_bytes`, `kk_int_toHexString`, `kk_long_toHexString`, `kk_bytearray_toHexString`, `kk_string_hexToInt`, `kk_string_hexToShort`, `kk_string_hexToLong`, `kk_string_hexToUByte`, `kk_string_hexToUShort`, `kk_string_hexToUInt`, `kk_string_hexToULong`, `kk_string_hexToByteArray`, `kk_string_hexToUByteArray`（`RuntimeHexFormat.swift`）/ `HeaderHelpers+SyntheticHexFormatStubs.swift` の該当登録
+  - 手順: T / diff: `hexformat_basic.kt`（既存）/ 完了: `rg '"kk_hexformat_|"kk_string_hexTo' Sources/CompilerCore` 0 件 + G
+- [ ] KSP-482: Base64 を Kotlin 化する（26 関数中 25 が純ロジック）
+  - 下敷き: 死蔵 `Stdlib/kotlin/io/encoding/Base64.kt`（クラス + variant 実装あり）→ `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt`
+  - 削除 kk_*: `kk_base64_padding_*` 4, `kk_base64_withPadding_*` 4, `kk_base64_encode/decode(_default/_urlsafe/_mime/_instance)` 系, `kk_base64_encodeToByteArray_*`/`kk_base64_decodeFromByteArray_*` 系, `kk_base64_decodingWith`（`RuntimeBase64.swift`。`rg -o '@_cdecl\("kk_base64[a-zA-Z_]*"\)' Sources/Runtime` で着手時に固定）。ブリッジ残留: `kk_output_stream_encodingWith`（ストリームラッパ）のみ `__kk_` 降格
+  - 削除: `HeaderHelpers+SyntheticBase64Stubs.swift` / `CallLowerer+Base64MemberCalls.swift` の該当 case
+  - 手順: T / 完了: `rg '"kk_base64_' Sources/CompilerCore` が降格 1 件のみ + G
+- [ ] KSP-483: File のパス純ロジック層を Kotlin 化する
+  - 対象（純ロジック）: `name`, `path`, `extension`, `nameWithoutExtension`, `parent`, `invariantSeparatorsPath`, `isRooted`, `startsWith`×2, `resolveSibling`×2, `toRelativeString`, `normalize`
+  - 削除 kk_*: `kk_file_name`, `kk_file_path`, `kk_file_extension`, `kk_file_nameWithoutExtension`, `kk_file_parent`, `kk_file_invariantSeparatorsPath`, `kk_file_isRooted`, `kk_file_startsWith_file`, `kk_file_startsWith_string`, `kk_file_resolveSibling_file`, `kk_file_resolveSibling_string`, `kk_file_toRelativeString`, `kk_file_normalize`（`RuntimeFileIO.swift`）
+  - 下敷き: 死蔵 `Stdlib/kotlin/io/FileIO.kt` → `Sources/CompilerCore/Stdlib/kotlin/io/Files.kt` / diff: `file_props.kt`（既存）/ 手順: T
+- [ ] KSP-484: File I/O の syscall 層を `__kk_` 降格する
+  - 対象（ブリッジ残留・改名のみ）: 構築 `kk_file_new(_parent_child)`, 読み書き `kk_file_readText/readBytes/readLines/writeText/appendText/writeBytes/appendBytes`, 存在判定 `kk_file_exists/isFile/isDirectory/canRead/canWrite/canExecute/length/lastModified`, FS 操作 `kk_file_delete/mkdirs/createNewFile/listFiles`, 走査 `kk_file_walk(TopDown/BottomUp)`, `kk_file_tree_walk_sortedBy`, ストリーム/リソース/temp 系（`rg -o '@_cdecl\("kk_(file|files|io|classloader|resource|input_stream|output_stream)[a-zA-Z_]*"\)' Sources/Runtime/RuntimeFileIO.swift` で全列挙）
+  - 公開 API 層（`forEachLine`/`useLines`/`readLines` のイテレーション・例外規約・デフォルト引数分岐）は Kotlin 化し、ブロック単位 I/O のみブリッジに残す
+  - 手順: T / diff: `file_*.kt` 21 ケース（既存）全 green 維持
+
+#### kotlin.text.Regex [M 番号なし・新設]（棚卸し 2026-07-01: 39 @_cdecl。正規表現エンジン = NSRegularExpression はブリッジ残留）
+
+- [ ] KSP-486: MatchResult/MatchGroup 層を Kotlin 化する（純ロジック約 20 関数）
+  - 削除 kk_*: `kk_match_result_value/groupValues/range/groups/component1/component2/next`, `kk_match_group_collection_get_at/get/size`, `kk_match_group_value/range`, `kk_match_result_destructured(_match)`, `kk_match_result_destructured_component1..9`, `kk_regex_pattern`, `kk_regex_options`, `kk_regex_group_names`（`RuntimeRegex.swift`）
+  - 内部のマッチ位置データ取得のみ `__kk_` 最小ブリッジに残す / 手順: T / diff: `regex_named_groups.kt` ほか既存 10 ケース
+- [ ] KSP-487: Regex 公開 API 層を Kotlin 化し、エンジンを `__kk_` 降格する
+  - Kotlin 化: `String.toRegex`×3 / `matches` / `contains` / `replace(First)` / `split` のオーバーロード分岐・入力検証（下敷き: 死蔵 `Stdlib/kotlin/text/Regex.kt` はコメントアウト状態 — 実質新規実装）
+  - `__kk_` 降格: `kk_regex_create(_with_option/_with_options)`, `kk_regex_from_literal`, `kk_regex_find(All)`, `kk_regex_matchEntire`, `kk_regex_matches`, `kk_regex_containsMatchIn`, `kk_regex_replace_lambda`, `kk_string_*_regex` 系エンジン呼び出し
+  - 削除: `HeaderHelpers+SyntheticRegexStubs.swift` の該当登録 / 手順: T
+
+#### kotlin.properties [M 番号なし・新設]（棚卸し 2026-07-01: `RuntimeDelegates.swift`。`by` 式は `StdlibDelegateLoweringPass` が call site を直接書き換える構造）
+
+- [ ] KSP-491: Lazy / Delegates を Kotlin 化する
+  - 下敷き: 死蔵 `Stdlib/kotlin/LazyDelegate.kt`, `properties/Properties.kt`, `properties/Delegates.kt`, `properties/ObservableProperty.kt` → `Sources/CompilerCore/Stdlib/kotlin/properties/` へ移設
+  - Kotlin 化: `ReadOnlyProperty`/`ReadWriteProperty` インターフェース、`ObservableProperty`（beforeChange/afterChange）、`Delegates.observable/vetoable/notNull`、`lazy(mode)` の `NONE`/`PUBLICATION` モード
+  - ブリッジ残留: `SYNCHRONIZED` モードのロックのみ `__kk_lazy_sync_*`（新設）
+  - 変更: `Sources/CompilerCore/Lowering/StdlibDelegateLoweringPass.swift` の `kk_lazy_create`/`kk_observable_create`/`kk_vetoable_create`/`kk_notNull_create` 書き換え特例を、Kotlin 宣言の通常解決（`getValue`/`setValue` operator 規約）へ置換
+  - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_*` 3, `kk_notNull_*` 3（`RuntimeDelegates.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の該当登録
+  - 注意: operator 規約による delegate 解決がコンパイラ未対応なら**ブロッカーとして報告し中断** / diff: `delegate_lazy.kt`, `delegate_observable.kt`, `delegate_vetoable.kt`, `delegates_not_null.kt`（既存）/ 手順: T
+- [ ] KSP-492: custom delegate / KProperty メタデータ経路を整理する
+  - 前提: KSP-491。対象: `kk_custom_delegate_create/get_value/set_value`, `kk_delegate_get_value/set_value`, `kk_kproperty_stub_*` 系
+  - custom delegate（ユーザー定義 getValue/setValue）が operator 規約の通常解決で動くなら特例削除、`KProperty` メタデータ生成は `__kk_` 降格 / diff: `delegate_custom_basic.kt`, `delegate_provide.kt`, `property_delegate_edge_cases.kt`（既存）
+
+#### kotlin.reflect [M 番号なし・新設]（棚卸し 2026-07-01: メタデータレジストリ依存のためブリッジ色が濃い）
+
+- [ ] KSP-496: KClass 公開 API 層を Kotlin 化し、メタデータレジストリを `__kk_` 降格する
+  - 下敷き: 死蔵 `Stdlib/kotlin/reflect/KClassBasicAPI.kt`, `KClassMemberIntrospection.kt` → `Sources/CompilerCore/Stdlib/kotlin/reflect/` へ移設
+  - Kotlin 化（薄い公開層）: `simpleName`/`qualifiedName`/`isInstance`/`isAbstract` 等フラグ 11 種/`members`/`constructors` 等の getter 分岐・null 規約
+  - `__kk_` 降格（レジストリ・(c) 色）: `kk_kclass_create`, `kk_type_token_*`, `kk_kclass_register_*`, `kk_kfunction_*`, `kk_kparameter_*`, `kk_kconstructor_*`, `kk_ktype_*`, `kk_annotation_*`, `kk_kclass_cast/safeCast`（`RuntimeStringArray.swift`/`RuntimeReflection.swift`。rg で全列挙）
+  - 変更: `CallLowerer+KClassReflectMemberCalls.swift` の特例は Kotlin 層経由へ置換（`::class` トークン生成自体は (c) 残留）
+  - diff: `kclass_basic.kt`, `kclass_members.kt`, `reflect_kclass_ktype.kt` ほか既存 8 ケース / 手順: T
+
+#### kotlin.coroutines / Flow / Channel [(c)/(b) 分類確定 + (b) 群のみ移行]（棚卸し 2026-07-01: スタブ 23 ファイル 10,849 行 / Runtime 7 ファイル 279 @_cdecl）
+
+- [ ] KSP-498: coroutines 系の (c)/(b) 分類を確定し `docs/stdlib-pipeline.md` §9 へ記載する
+  - (c) 残留（`__kk_` 降格のみ）: suspend 機構・continuation（`kk_suspend_coroutine`, `kk_coroutine_continuation_*`）、builder（`kk_kxmini_launch/async`, `kk_job_join`）、Channel（`kk_channel_send/receive`）、timing（`kk_delay`, `kk_withTimeout`, `kk_yield`）、同期プリミティブ（`kk_mutex_*`, `kk_semaphore_*`）、context（`kk_context_plus/cancel`）
+  - (b) 候補（KSP-499 以降で移行）: Flow terminal（`kk_flow_to_list/fold/first`）、Flow 合成（`kk_flow_merge/zip/combine`）、Flow per-element（map/filter/take/debounce）、`coroutineScope`/`supervisorScope`、Atomic CAS ループ（`RuntimeAtomic.swift` 91 関数。既存 `concurrent/AtomicMigration.kt` の委譲パターンを踏襲）
+  - 成果物: 対象 7 Runtime ファイル・23 スタブファイルの分類表を §9 に追記（コード変更なし）
+- [ ] KSP-499: Flow オペレータ (b) 群を Kotlin 化する
+  - 前提: KSP-498 + suspend fun を含む bundled Kotlin ソースのコンパイル対応を確認（未対応なら**ブロッカーとして報告し中断**）
+  - 対象: `kk_flow_to_list`, `kk_flow_fold`, `kk_flow_first`, `kk_flow_merge`, `kk_flow_zip`, `kk_flow_combine` + per-element オペレータ（`RuntimeCoroutineFlow.swift` の 34 関数から (b) 分を rg で列挙）。`kk_flow_create/emit/collect` は (c) ブリッジ経由
+  - diff: `flow_basic.kt`, `flow_builders.kt`, `flow_advanced_operators.kt` ほか既存 6 ケース / 手順: T
+
 ### KSP-W5: 後始末（W3/W4 の対応タスク完了後）
 
 - [ ] KSP-501: `BundledKotlinStdlib.kotlinCollectionsSource` を .kt 化する（`count`/`any`/`all`/`none`/`sumOf`/`maxByOrNull`/`minByOrNull` → `collections/ListAggregateHOF.kt` へ移設。live ツリーとの重複なしは 2026-07-01 に確認済み）
