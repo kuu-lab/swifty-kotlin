@@ -114,9 +114,9 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] CLEANUP-STUB-034: `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift`のJS/Wasm/JVM関連呼び出し削除
 #### その他JS固有stub（ファイル単位）
 - [x] CLEANUP-STUB-035: JS Console stub削除（`HeaderHelpers+SyntheticJsConsoleStubs.swift`）
-- [ ] CLEANUP-STUB-036: JS Eval stub削除（`HeaderHelpers+SyntheticJsEvalStubs.swift`）
-- [ ] CLEANUP-STUB-037: JS Json stub削除（`HeaderHelpers+SyntheticJsJsonStubs.swift`）
-- [ ] CLEANUP-STUB-040: JS ParseIntRadix stub削除（`HeaderHelpers+SyntheticJsParseIntRadixStubs.swift`）
+- [x] CLEANUP-STUB-036: JS Eval stub削除（`HeaderHelpers+SyntheticJsEvalStubs.swift`）
+- [x] CLEANUP-STUB-037: JS Json stub削除（`HeaderHelpers+SyntheticJsJsonStubs.swift`）
+- [x] CLEANUP-STUB-040: JS ParseIntRadix stub削除（`HeaderHelpers+SyntheticJsParseIntRadixStubs.swift`）
 - [x] CLEANUP-STUB-041: JS ParseFloat stub削除（`HeaderHelpers+SyntheticJsParseFloatStubs.swift`）
 - [x] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` の計 15 シンボル）。列挙済みの 15 シンボルは各 stub 削除タスクの完了に伴い段階的に削除済み。当初のリストに含まれていなかった `kk_js_readonly_set_toMutableSet`（CLEANUP-STUB-068 で `JsReadonlySet` 型を削除した際に取り残された spec-only エントリ）を追加で削除し、`RuntimeABISpec` 配下の `kk_js_*` 登録をゼロ件にした
 - JDBC / DB コネクション・トランザクション・プール
