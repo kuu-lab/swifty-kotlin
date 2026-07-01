@@ -1219,6 +1219,16 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        // operator fun <T : CPointed> CPointer<T>.set(index: Int, value: T): Unit
+        registerSyntheticCPointerSetFunction(
+            cPointerSymbol: cPointerSymbol,
+            cPointedType: cPointedType,
+            packageFQName: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         registerSyntheticNativeBitSetProperty(
             named: "rawValue",
             ownerSymbol: cPointerSymbol,
@@ -1683,6 +1693,7 @@ extension DataFlowSemaPhase {
             ],
             returnType: types.stringType,
             defaultValues: [true, true, true],
+            externalLinkName: "kk_bytearray_toKString",
             symbols: symbols,
             interner: interner
         )
@@ -1795,6 +1806,95 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // fun <T : Any, R> T.usePinned(block: (Pinned<T>) -> R): R — STDLIB-CINTEROP-FN-042
+        // Pins the receiver, invokes block with the Pinned<T> handle, and unpins it in a
+        // finally block. Special-cased as a scope function (like Closeable.use); inline-
+        // expanded by CallLowerer, no runtime call for usePinned itself.
+        let usePinnedName = interner.intern("usePinned")
+        let usePinnedFQName = cinteropPkg + [usePinnedName]
+        if symbols.lookup(fqName: usePinnedFQName) == nil {
+            let usePinnedTypeParameterName = interner.intern("T")
+            let usePinnedReturnTypeParameterName = interner.intern("R")
+            let usePinnedTypeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: usePinnedTypeParameterName,
+                fqName: usePinnedFQName + [usePinnedTypeParameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let usePinnedReturnTypeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: usePinnedReturnTypeParameterName,
+                fqName: usePinnedFQName + [usePinnedReturnTypeParameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setTypeParameterUpperBounds([types.anyType], for: usePinnedTypeParameterSymbol)
+
+            let usePinnedTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: usePinnedTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let usePinnedReturnTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: usePinnedReturnTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let usePinnedBlockParameterType = types.make(.classType(ClassType(
+                classSymbol: pinnedSymbol,
+                args: [.invariant(usePinnedTypeParameterType)],
+                nullability: .nonNull
+            )))
+            let usePinnedBlockType = types.make(.functionType(FunctionType(
+                params: [usePinnedBlockParameterType],
+                returnType: usePinnedReturnTypeParameterType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+
+            let usePinnedBlockParamName = interner.intern("block")
+            let usePinnedBlockParamSymbol = symbols.define(
+                kind: .valueParameter,
+                name: usePinnedBlockParamName,
+                fqName: usePinnedFQName + [usePinnedBlockParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+
+            let usePinnedSymbol = symbols.define(
+                kind: .function,
+                name: usePinnedName,
+                fqName: usePinnedFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            if let cinteropPkgSymbol {
+                symbols.setParentSymbol(cinteropPkgSymbol, for: usePinnedSymbol)
+            }
+            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedTypeParameterSymbol)
+            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedReturnTypeParameterSymbol)
+            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedBlockParamSymbol)
+
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: usePinnedTypeParameterType,
+                    parameterTypes: [usePinnedBlockType],
+                    returnType: usePinnedReturnTypeParameterType,
+                    isSuspend: false,
+                    valueParameterSymbols: [usePinnedBlockParamSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: [usePinnedTypeParameterSymbol, usePinnedReturnTypeParameterSymbol],
+                    typeParameterUpperBoundsList: [[types.anyType], []],
+                    classTypeParameterCount: 0
+                ),
+                for: usePinnedSymbol
+            )
+        }
 
         let stableRefFQName = cinteropPkg + [interner.intern("StableRef")]
         let stableRefTypeParameterName = interner.intern("T")
@@ -2208,6 +2308,7 @@ extension DataFlowSemaPhase {
                 receiverType: uLongArrayReceiverType,
                 parameters: [],
                 returnType: uLongArrayToCValuesReturnType,
+                externalLinkName: "kk_uLongArray_toCValues",
                 symbols: symbols,
                 interner: interner
             )
@@ -2254,6 +2355,7 @@ extension DataFlowSemaPhase {
                 receiverType: toKStringShortVarReceiverType,
                 parameters: [],
                 returnType: types.stringType,
+                externalLinkName: "kk_cpointer_toKStringFromUtf16",
                 symbols: symbols,
                 interner: interner
             )
@@ -2305,7 +2407,8 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // fun CPointer<UShortVar>.toKString(): String
+        // fun CPointer<UShortVar>.toKString(): String — STDLIB-CINTEROP-FN-032
+        // Alias for toKStringFromUtf16(): reuses the same UTF-16 runtime decoder.
         if let uShortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarTypeForToKString = types.make(.classType(ClassType(
                 classSymbol: uShortVarSymbolForToKString,
@@ -2323,6 +2426,7 @@ extension DataFlowSemaPhase {
                 receiverType: toKStringUShortVarReceiverType,
                 parameters: [],
                 returnType: types.stringType,
+                externalLinkName: "kk_cpointer_toKStringFromUtf16",
                 symbols: symbols,
                 interner: interner
             )
@@ -2352,6 +2456,7 @@ extension DataFlowSemaPhase {
                 receiverType: uByteArrayReceiverType,
                 parameters: [],
                 returnType: uByteArrayToCValuesReturnType,
+                externalLinkName: "kk_uByteArray_toCValues",
                 symbols: symbols,
                 interner: interner
             )
@@ -2680,6 +2785,64 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // STDLIB-CINTEROP-INTERNAL-TYPE-004: CGlobalAccess
+        // @Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY_SETTER)
+        // @Retention(AnnotationRetention.BINARY)
+        // annotation class CGlobalAccess(val name: String) {
+        //     @Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY_SETTER)
+        //     @Retention(AnnotationRetention.BINARY)
+        //     annotation class Pointer
+        // }
+        let cGlobalAccessSymbol = ensureAnnotationClassSymbol(
+            named: "CGlobalAccess",
+            in: internalPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let internalPkgSymbol {
+            symbols.setParentSymbol(internalPkgSymbol, for: cGlobalAccessSymbol)
+        }
+        appendStandardAnnotationMetadata(
+            to: cGlobalAccessSymbol,
+            targets: ["AnnotationTarget.PROPERTY_GETTER", "AnnotationTarget.PROPERTY_SETTER"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        let cGlobalAccessType = types.make(.classType(ClassType(
+            classSymbol: cGlobalAccessSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cGlobalAccessType, for: cGlobalAccessSymbol)
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: cGlobalAccessSymbol,
+            ownerType: cGlobalAccessType,
+            parameters: [(name: "name", type: types.stringType)],
+            defaultValues: [false],
+            symbols: symbols,
+            interner: interner
+        )
+
+        let cGlobalAccessPointerSymbol = ensureAnnotationClassSymbol(
+            named: "Pointer",
+            in: internalPkg + [interner.intern("CGlobalAccess")],
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.setParentSymbol(cGlobalAccessSymbol, for: cGlobalAccessPointerSymbol)
+        appendStandardAnnotationMetadata(
+            to: cGlobalAccessPointerSymbol,
+            targets: ["AnnotationTarget.PROPERTY_GETTER", "AnnotationTarget.PROPERTY_SETTER"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        let cGlobalAccessPointerType = types.make(.classType(ClassType(
+            classSymbol: cGlobalAccessPointerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cGlobalAccessPointerType, for: cGlobalAccessPointerSymbol)
     }
 
     private func registerSyntheticCInteropVector128Stubs(
