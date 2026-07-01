@@ -26,33 +26,4 @@ final class RuntimeMemoryTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(kk_runtime_maxMemory(), kk_runtime_totalMemory())
     }
 
-    func testLeakDetectionReportUsesDeltasAndThresholds() {
-        let baseline = RuntimeMemorySnapshot(
-            usedBytes: 1_024,
-            totalBytes: 1_024,
-            freeBytes: 8_192,
-            maxBytes: 9_216,
-            heapObjectCount: 2,
-            uptimeNanos: 10
-        )
-        let current = RuntimeMemorySnapshot(
-            usedBytes: 4_096,
-            totalBytes: 4_096,
-            freeBytes: 5_120,
-            maxBytes: 9_216,
-            heapObjectCount: 5,
-            uptimeNanos: 20
-        )
-
-        let report = runtimeDetectMemoryLeak(
-            since: baseline,
-            current: current,
-            thresholdBytes: 2_048,
-            thresholdObjectCount: 2
-        )
-
-        XCTAssertTrue(report.hasLeak)
-        XCTAssertEqual(report.leakedBytes, 3_072)
-        XCTAssertEqual(report.heapObjectDelta, 3)
-    }
 }

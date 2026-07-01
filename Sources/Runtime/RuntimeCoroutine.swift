@@ -1092,24 +1092,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return true
     }
 
-    func completeCancellationIfNeeded() -> Bool {
-        lock.lock()
-        guard state == .cancelling else {
-            lock.unlock()
-            return false
-        }
-        state = .cancelled
-        let resumers = joinResumers
-        joinResumers = []
-        let terminal = terminalValueLocked()
-        lock.unlock()
-        completionSemaphore.signal()
-        for resumer in resumers {
-            resumer(terminal)
-        }
-        return true
-    }
-
     /// Blocking wait for job completion. Suspend-aware joining (which avoids blocking
     /// a GCD thread) is handled by `kk_job_join` via `addJoinResumer` (CORO-004); this
     /// method is the synchronous fallback for non-suspend contexts.
