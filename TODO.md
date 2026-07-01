@@ -27,7 +27,7 @@
 ### Phase 5: 非スコープ/高度領域
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [x] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
-- [ ] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
+- [x] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
 - [ ] STDLIB-JVM-166: Java プレビュー機能の実装
