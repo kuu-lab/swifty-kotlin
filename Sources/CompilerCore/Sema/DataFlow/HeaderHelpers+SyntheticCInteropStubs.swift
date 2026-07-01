@@ -1219,6 +1219,16 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        // operator fun <T : CPointed> CPointer<T>.set(index: Int, value: T): Unit
+        registerSyntheticCPointerSetFunction(
+            cPointerSymbol: cPointerSymbol,
+            cPointedType: cPointedType,
+            packageFQName: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         registerSyntheticNativeBitSetProperty(
             named: "rawValue",
             ownerSymbol: cPointerSymbol,
