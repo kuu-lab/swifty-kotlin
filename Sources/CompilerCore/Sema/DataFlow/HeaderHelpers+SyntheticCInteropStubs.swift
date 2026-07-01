@@ -1026,6 +1026,65 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+
+        // inline fun <T : CStructVar, R> CValue<T>.useContents(block: T.() -> R): R
+        let useContentsName = interner.intern("useContents")
+        let useContentsFQName = cinteropPkg + [useContentsName]
+        if symbols.lookup(fqName: useContentsFQName) == nil {
+            let useContentsTypeParameterName = interner.intern("T")
+            let useContentsReturnTypeParameterName = interner.intern("R")
+            let useContentsTypeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: useContentsTypeParameterName,
+                fqName: useContentsFQName + [useContentsTypeParameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let useContentsReturnTypeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: useContentsReturnTypeParameterName,
+                fqName: useContentsFQName + [useContentsReturnTypeParameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setTypeParameterUpperBounds([cStructVarType], for: useContentsTypeParameterSymbol)
+
+            let useContentsTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: useContentsTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let useContentsReturnTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: useContentsReturnTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let useContentsReceiverType = types.make(.classType(ClassType(
+                classSymbol: cValueSymbol,
+                args: [.invariant(useContentsTypeParameterType)],
+                nullability: .nonNull
+            )))
+            let useContentsBlockType = types.make(.functionType(FunctionType(
+                receiver: useContentsTypeParameterType,
+                params: [],
+                returnType: useContentsReturnTypeParameterType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+
+            registerSyntheticNativeTopLevelFunction(
+                named: "useContents",
+                packageFQName: cinteropPkg,
+                receiverType: useContentsReceiverType,
+                parameters: [(name: "block", type: useContentsBlockType)],
+                returnType: useContentsReturnTypeParameterType,
+                typeParameterSymbols: [useContentsTypeParameterSymbol, useContentsReturnTypeParameterSymbol],
+                typeParameterUpperBoundsList: [[cStructVarType], []],
+                flags: [.synthetic, .inlineFunction],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         configureSingleTypeParameterNominal(
             ownerSymbol: cValuesSymbol,
             fqName: cinteropPkg + [interner.intern("CValues")],
