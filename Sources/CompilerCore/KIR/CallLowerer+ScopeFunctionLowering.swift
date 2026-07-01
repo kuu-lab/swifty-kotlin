@@ -376,6 +376,149 @@ extension CallLowerer {
             instructions.append(.label(endLabel))
             return result
 
+        case .scopeUsePinned:
+            // usePinned (STDLIB-CINTEROP-FN-042): pin() the receiver, invoke
+            // block(pinned) inside a try, then unpin() in a finally block.
+            // Shaped like scopeUse's try-finally, but: (a) the call that produces
+            // the value handed to the lambda is pin() itself, not the receiver, and
+            // (b) cleanup is a concrete call to Pinned<T>.unpin(), not a virtual
+            // dispatch to close() — Pinned is a final synthetic class.
+            let loweredLambdaID = driver.lowerExpr(
+                args[0].expr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            guard let info = driver.ctx.callableValueInfo(for: loweredLambdaID) else {
+                return nil
+            }
+
+            let pinFQName: [InternedString] = [
+                interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("pin"),
+            ]
+            guard let pinSymbol = sema.symbols.lookup(fqName: pinFQName),
+                  let pinSignature = sema.symbols.functionSignature(for: pinSymbol)
+            else {
+                return nil
+            }
+
+            // The lambda's inferred parameter type is the concrete Pinned<T>;
+            // fall back to pin()'s own (generic) return type if unavailable.
+            let pinnedType: TypeID = sema.bindings.exprTypes[args[0].expr].flatMap { lambdaType in
+                if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                    return fnType.params.first
+                }
+                return nil
+            } ?? pinSignature.returnType
+
+            guard case let .classType(pinnedClassType) = sema.types.kind(of: pinnedType),
+                  let pinnedClassInfo = sema.symbols.symbol(pinnedClassType.classSymbol)
+            else {
+                return nil
+            }
+            let unpinFQName = pinnedClassInfo.fqName + [interner.intern("unpin")]
+            guard let unpinSymbol = sema.symbols.lookup(fqName: unpinFQName) else {
+                return nil
+            }
+
+            func resolvedCalleeName(for symbol: SymbolID, fallback: String) -> InternedString {
+                if let extLink = sema.symbols.externalLinkName(for: symbol), !extLink.isEmpty {
+                    return interner.intern(extLink)
+                }
+                return sema.symbols.symbol(symbol)?.name ?? interner.intern(fallback)
+            }
+
+            let pinnedResult = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: pinnedType
+            )
+            instructions.append(.call(
+                symbol: pinSymbol,
+                callee: resolvedCalleeName(for: pinSymbol, fallback: "pin"),
+                arguments: [loweredReceiverID],
+                result: pinnedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: boundType
+            )
+
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+
+            // Exception tracking slots for try-finally.
+            let exceptionSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.nullableAnyType)
+            let exceptionTypeSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            let zeroTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
+            instructions.append(.constValue(result: nullExceptionValue, value: .null))
+            instructions.append(.constValue(result: zeroTypeToken, value: .intLiteral(0)))
+            instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
+            instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
+
+            let finallyLabel = driver.ctx.makeLoopLabel()
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+
+            // try: invoke the block lambda with the pinned handle.
+            var blockInstructions: [KIRInstruction] = []
+            let callArgs: [KIRExprID]
+            if info.hasClosureParam {
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                blockInstructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                callArgs = info.captureArguments + [zeroExpr, pinnedResult]
+            } else {
+                callArgs = info.captureArguments + [pinnedResult]
+            }
+            blockInstructions.append(.call(
+                symbol: info.symbol,
+                callee: info.callee,
+                arguments: callArgs,
+                result: result,
+                canThrow: true,
+                thrownResult: nil
+            ))
+
+            driver.controlFlowLowerer.appendThrowAwareInstructions(
+                blockInstructions,
+                exceptionSlot: exceptionSlot,
+                exceptionTypeSlot: exceptionTypeSlot,
+                thrownTarget: finallyLabel,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            )
+            instructions.append(.jump(finallyLabel))
+
+            // finally: unpin() the handle. Concrete call — Pinned is a final
+            // synthetic class, so no virtual dispatch is needed.
+            instructions.append(.label(finallyLabel))
+            let unpinResult = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: sema.types.unitType
+            )
+            instructions.append(.call(
+                symbol: unpinSymbol,
+                callee: resolvedCalleeName(for: unpinSymbol, fallback: "unpin"),
+                arguments: [pinnedResult],
+                result: unpinResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+
+            // After finally: rethrow if an exception was caught, otherwise continue.
+            instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
+            instructions.append(.jump(endLabel))
+
+            instructions.append(.label(rethrowLabel))
+            instructions.append(.rethrow(value: exceptionSlot))
+
+            instructions.append(.label(endLabel))
+            return result
+
         case .scopeWith:
             return nil // with is handled in lowerCallExpr
 
