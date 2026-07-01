@@ -44,7 +44,7 @@ extension BuildASTPhase {
                 tokenIndex += 1
                 continue
             }
-            guard isTypeLikeNameToken(token.kind),
+            guard TypeRefParserCore.isTypeLikeNameToken(token.kind),
                   let name = internedIdentifier(from: token, interner: interner)
             else {
                 tokenIndex += 1
@@ -167,7 +167,7 @@ extension BuildASTPhase {
             if token.kind == .symbol(.lBrace) || token.kind == .symbol(.semicolon) {
                 break
             }
-            guard isTypeLikeNameToken(token.kind),
+            guard TypeRefParserCore.isTypeLikeNameToken(token.kind),
                   let name = internedIdentifier(from: token, interner: interner)
             else {
                 index += 1
