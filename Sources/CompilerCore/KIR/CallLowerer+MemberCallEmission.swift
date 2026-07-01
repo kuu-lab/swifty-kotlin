@@ -542,6 +542,54 @@ extension CallLowerer {
             finalArguments[1] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
+        let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
+        case "kk_string_filter",
+             "kk_string_map",
+             "kk_string_count",
+             "kk_string_any",
+             "kk_string_all",
+             "kk_string_none",
+             "kk_string_mapIndexed",
+             "kk_string_mapNotNull",
+             "kk_string_firstNotNullOf",
+             "kk_string_firstNotNullOfOrNull",
+             "kk_string_reduceRightIndexed",
+             "kk_string_reduceRightIndexedOrNull",
+             "kk_string_reduceRightOrNull",
+             "kk_string_reduce",
+             "kk_string_reduceIndexedOrNull",
+             "kk_string_reduceOrNull",
+             "kk_string_sumBy",
+             "kk_string_sumByDouble",
+             "kk_string_filterIndexed",
+             "kk_string_filterNot",
+             "kk_string_indexOfFirst",
+             "kk_string_indexOfLast",
+             "kk_string_takeWhile",
+             "kk_string_takeLastWhile",
+             "kk_string_dropWhile",
+             "kk_string_onEach",
+             "kk_string_onEachIndexed",
+             "kk_string_find",
+             "kk_string_findLast",
+             "kk_string_singleOrNull_predicate",
+             "kk_string_partition":
+            true
+        default:
+            false
+        }
+        if isStringRuntimeHOFCallee,
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
+        }
         if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
