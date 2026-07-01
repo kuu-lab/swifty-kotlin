@@ -2751,6 +2751,40 @@ extension DataFlowSemaPhase {
         )
         let internalPkgSymbol = symbols.lookup(fqName: internalPkg)
 
+        // STDLIB-CINTEROP-INTERNAL-TYPE-001: CCall
+        // @Target(AnnotationTarget.FUNCTION)
+        // @Retention(AnnotationRetention.BINARY)
+        // annotation class CCall(val id: String)
+        let cCallSymbol = ensureAnnotationClassSymbol(
+            named: "CCall",
+            in: internalPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let internalPkgSymbol {
+            symbols.setParentSymbol(internalPkgSymbol, for: cCallSymbol)
+        }
+        appendStandardAnnotationMetadata(
+            to: cCallSymbol,
+            targets: ["AnnotationTarget.FUNCTION"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        let cCallType = types.make(.classType(ClassType(
+            classSymbol: cCallSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cCallType, for: cCallSymbol)
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: cCallSymbol,
+            ownerType: cCallType,
+            parameters: [(name: "id", type: types.stringType)],
+            defaultValues: [false],
+            symbols: symbols,
+            interner: interner
+        )
+
         // STDLIB-CINTEROP-INTERNAL-TYPE-002: CEnumEntryAlias
         // @Target(AnnotationTarget.CLASS)
         // @Retention(AnnotationRetention.BINARY)
