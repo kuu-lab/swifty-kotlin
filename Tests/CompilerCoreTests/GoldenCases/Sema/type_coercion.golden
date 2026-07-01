@@ -5,7 +5,7 @@ symbol fq=__local_3.f kind=local vis=private flags=_ type=Float
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f14 package=_
   decl main fun main sym=main
 expr e@2:18 int(42) type=Int
 expr e@2:5 localDecl i mutable=0 type=Int init=e@2:18 type=Unit ref=__local_0.i

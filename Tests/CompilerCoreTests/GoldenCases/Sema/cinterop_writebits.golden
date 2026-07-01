@@ -6,7 +6,7 @@ symbol fq=kotlinx.cinterop.writeBits.offset kind=valueParameter vis=private flag
 symbol fq=kotlinx.cinterop.writeBits.ptr kind=valueParameter vis=private flags=synthetic type=kotlinx.cinterop.NativePtr
 symbol fq=kotlinx.cinterop.writeBits.size kind=valueParameter vis=private flags=synthetic type=Int
 symbol fq=kotlinx.cinterop.writeBits.value kind=valueParameter vis=private flags=synthetic type=Long
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.testWriteBits fun testWriteBits sym=golden.sema.testWriteBits
 expr e@9:15 name(ptr) type=kotlinx.cinterop.NativePtr ref=golden.sema.testWriteBits.$0.ptr
 expr e@9:20 long(0) type=Long

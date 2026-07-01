@@ -14,7 +14,7 @@ symbol fq=kotlin.io.path.createTempFile.prefix kind=valueParameter vis=private f
 symbol fq=kotlin.io.path.createTempFile.suffix kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.path.pathString kind=property vis=public flags=synthetic type=String
 symbol fq=kotlin.io.path.pathString.$get kind=function vis=public flags=synthetic sig=recv=kotlin.io.path.Path params=[] ret=String
-file f13 package=_
+file f14 package=_
   decl createWithPrefixAndSuffix fun createWithPrefixAndSuffix sym=createWithPrefixAndSuffix
   decl createWithDirectoryPrefixAndSuffix fun createWithDirectoryPrefixAndSuffix sym=createWithDirectoryPrefixAndSuffix
 expr e@6:30 string(kswiftk-) type=String

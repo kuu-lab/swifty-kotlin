@@ -4,7 +4,7 @@ symbol fq=golden.sema.parseStrictOrNull kind=function vis=public flags=_ sig=rec
 symbol fq=golden.sema.parseStrictOrNull.$1.value kind=valueParameter vis=private flags=_
 symbol fq=kotlin.text.toBooleanStrict kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Boolean
 symbol fq=kotlin.text.toBooleanStrictOrNull kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Boolean?
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.parseStrict fun parseStrict sym=golden.sema.parseStrict
   decl golden.sema.parseStrictOrNull fun parseStrictOrNull sym=golden.sema.parseStrictOrNull
 expr e@3:43#0 name(value) type=String ref=golden.sema.parseStrict.$0.value

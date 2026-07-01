@@ -6,7 +6,7 @@ symbol fq=kotlin.comparisons.minOf#24 kind=function vis=public flags=inlineFunct
 symbol fq=kotlin.comparisons.minOf.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.pickSmallerString fun pickSmallerString sym=golden.sema.pickSmallerString
 expr e@4:61 name(a) type=String ref=golden.sema.pickSmallerString.$0.a
 expr e@4:64 name(b) type=String ref=golden.sema.pickSmallerString.$0.b

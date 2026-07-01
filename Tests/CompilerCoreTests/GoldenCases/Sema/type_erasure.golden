@@ -8,7 +8,7 @@ symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synt
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.isRawList fun isRawList sym=golden.sema.isRawList
   decl golden.sema.asRawList fun asRawList sym=golden.sema.asRawList
   decl golden.sema.printSizeIfList fun printSizeIfList sym=golden.sema.printSizeIfList
