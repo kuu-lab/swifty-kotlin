@@ -2306,7 +2306,8 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // fun CPointer<UShortVar>.toKString(): String
+        // fun CPointer<UShortVar>.toKString(): String — STDLIB-CINTEROP-FN-032
+        // Alias for toKStringFromUtf16(): reuses the same UTF-16 runtime decoder.
         if let uShortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarTypeForToKString = types.make(.classType(ClassType(
                 classSymbol: uShortVarSymbolForToKString,
@@ -2324,6 +2325,7 @@ extension DataFlowSemaPhase {
                 receiverType: toKStringUShortVarReceiverType,
                 parameters: [],
                 returnType: types.stringType,
+                externalLinkName: "kk_cpointer_toKStringFromUtf16",
                 symbols: symbols,
                 interner: interner
             )
