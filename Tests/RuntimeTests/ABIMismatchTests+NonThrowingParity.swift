@@ -1131,6 +1131,7 @@ extension ABIMismatchTests {
         "kk_type_register_super",
         "kk_typeof",
         "kk_uByteArray_asByteArray",
+        "kk_uByteArray_toCValues",
         "kk_uIntArray_asIntArray",
         "kk_uLongArray_asLongArray",
         "kk_uLongArray_toCValues",
