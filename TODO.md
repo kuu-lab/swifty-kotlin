@@ -20,14 +20,6 @@
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 
-#### kotlin.comparisons 関数の実装
-- [x] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
-- [x] STDLIB-COMP-FN-040: `minOf` 関数の実装（Float版、vararg）
-- [x] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
-- [x] STDLIB-COMP-FN-046: `minOf` 関数の実装（Long版、vararg）
-
-#### kotlin.random 型の実装
-
 #### kotlin.random 関数の実装
 
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
@@ -35,22 +27,9 @@
 ### Phase 5: 非スコープ/高度領域
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [x] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
-- [x] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
-- [x] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
-- [x] STDLIB-CINTEROP-FN-034: `CPointer<ShortVar>.toKStringFromUtf16()` を追加する
-- [x] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
-- [x] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
-- [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
-- [x] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
-- [x] STDLIB-CINTEROP-FN-032: `CPointer<UShortVar>.toKString()` を追加する
 - [ ] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
-- [x] STDLIB-CINTEROP-FN-044: `vectorOf(Int, Int, Int, Int)` の公式 annotation/signature を既存 stub と整合させる
-- [x] STDLIB-CINTEROP-FN-046: `writeBits(ptr, offset, size, value)` を追加する
-- [x] STDLIB-CINTEROP-FN-047: `zeroValue<T>()` を追加する
-- [x] STDLIB-CINTEROP-INTERNAL-TYPE-001: `kotlinx.cinterop.internal.CCall` annotation を追加する
-- [x] STDLIB-DOM-TYPE-001: `org.w3c.dom.ItemArrayLike<T>` external interface を追加する
 - [ ] STDLIB-JVM-166: Java プレビュー機能の実装
 - [ ] STDLIB-REFL-175: アノテーション処理高度機能実装
 
@@ -114,21 +93,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 - [ ] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
 
-### Phase M9: kotlin.io File I/O
-> 移行元: `Sources/Runtime/RuntimeFileIO.swift` (144 @_cdecl)
-> 移行先: `Stdlib/kotlin/io/`
-
-
-### Phase M10: kotlin.io.encoding
-> 移行元: `Sources/Runtime/RuntimeBase64.swift` (26), `RuntimeHexFormat.swift` (18)
-> 移行先: `Stdlib/kotlin/io/encoding/`
-
-
-### Phase M11: kotlin.text Regex
-> 移行元: `Sources/Runtime/RuntimeRegex.swift` (44 @_cdecl)
-> 移行先: `Stdlib/kotlin/text/Regex.kt`
-
-
 ### Phase M12: kotlin.uuid
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
 > 移行先: `Stdlib/kotlin/uuid/Uuid.kt`
@@ -154,32 +118,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-037: JS Json stub削除（`HeaderHelpers+SyntheticJsJsonStubs.swift`）
 - [ ] CLEANUP-STUB-040: JS ParseIntRadix stub削除（`HeaderHelpers+SyntheticJsParseIntRadixStubs.swift`）
 - [x] CLEANUP-STUB-041: JS ParseFloat stub削除（`HeaderHelpers+SyntheticJsParseFloatStubs.swift`）
-- [x] CLEANUP-STUB-050: JS RegExpMatch stub削除（`HeaderHelpers+SyntheticJsRegExpMatchStubs.swift`）
-- [x] CLEANUP-STUB-051: JS Static stub削除（`HeaderHelpers+SyntheticJsStaticStubs.swift`）
-- [x] CLEANUP-STUB-052: JS ExternalArgument stub削除（`HeaderHelpers+SyntheticJsExternalArgumentStubs.swift`）
-- [x] CLEANUP-STUB-053: JS ExternalInheritorsOnly stub削除（`HeaderHelpers+SyntheticJsExternalInheritorsOnlyStubs.swift`）
-- [x] CLEANUP-STUB-054: JS DefinedExternally stub削除（`HeaderHelpers+SyntheticJsDefinedExternallyStubs.swift`）
-- [x] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
-- [x] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
-- [x] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
-- [x] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
-- [x] CLEANUP-STUB-063: JS PrimitiveWrappers stub削除（`HeaderHelpers+SyntheticJsPrimitiveWrappers.swift`）
-- [x] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
-- [x] CLEANUP-STUB-065: JS CollectionsMap stub削除（`HeaderHelpers+SyntheticJsCollectionsMapStubs.swift`）
-- [x] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
-- [x] CLEANUP-STUB-067: JS CollectionsReadonlyArray stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayStubs.swift`）
-- [x] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToMutableSetStubs.swift`）
-- [x] CLEANUP-STUB-069: JS CollectionsReadonlyMap stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyMapToMapStubs.swift`）
-- [x] CLEANUP-STUB-072: JS Fun stub削除（`HeaderHelpers+SyntheticJsFunStubs.swift`）
-- [x] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
-- [x] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
-- [x] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
-- [x] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
-- [x] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
-- [x] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
-- [x] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
-- [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
-- [x] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [x] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` の計 15 シンボル）。列挙済みの 15 シンボルは各 stub 削除タスクの完了に伴い段階的に削除済み。当初のリストに含まれていなかった `kk_js_readonly_set_toMutableSet`（CLEANUP-STUB-068 で `JsReadonlySet` 型を削除した際に取り残された spec-only エントリ）を追加で削除し、`RuntimeABISpec` 配下の `kk_js_*` 登録をゼロ件にした
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換
