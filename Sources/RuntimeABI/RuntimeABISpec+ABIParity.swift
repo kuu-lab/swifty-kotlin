@@ -297,6 +297,13 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
+        abiParitySpec("kk_bytearray_toKString", parameters: [
+            p("arrRaw", .intptr),
+            p("startIndex", .intptr),
+            p("endIndex", .intptr),
+            p("throwOnInvalidSequence", .intptr),
+        ],
+            isThrowing: false),
         abiParitySpec("kk_files_copy", parameters: [
             p("filesRaw", .intptr),
             p("sourceRaw", .intptr),
