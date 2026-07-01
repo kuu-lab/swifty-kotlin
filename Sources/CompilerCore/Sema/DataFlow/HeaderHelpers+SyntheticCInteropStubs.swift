@@ -2190,6 +2190,7 @@ extension DataFlowSemaPhase {
                 receiverType: uIntArrayReceiverType,
                 parameters: [],
                 returnType: uIntArrayToCValuesReturnType,
+                externalLinkName: "kk_uIntArray_toCValues",
                 symbols: symbols,
                 interner: interner
             )

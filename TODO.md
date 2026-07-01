@@ -42,7 +42,6 @@
 - [x] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
-- [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-032: `CPointer<UShortVar>.toKString()` を追加する
 - [ ] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
