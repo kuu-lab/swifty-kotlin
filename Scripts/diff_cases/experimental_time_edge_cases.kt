@@ -1,4 +1,4 @@
-// SKIP-DIFF: timing-sensitive — kswiftc native executes in <5ms, JVM takes >5ms
+// SKIP-DIFF (DEBT-DIFF-005): timing-sensitive — kswiftc native executes in <5ms, JVM takes >5ms
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource

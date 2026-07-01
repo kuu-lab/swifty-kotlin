@@ -23,8 +23,7 @@ private func findAllKIRFunctionBodies(
     in module: KIRModule,
     interner: StringInterner
 ) -> [[KIRInstruction]] {
-    module.arena.declarations.compactMap { decl -> [KIRInstruction]? in
-        guard case let .function(function) = decl else { return nil }
+    findAllKIRFunctions(in: module).compactMap { function -> [KIRInstruction]? in
         return interner.resolve(function.name) == name ? function.body : nil
     }
 }

@@ -43,8 +43,7 @@ extension LoweringPassRegressionTests {
 
             // Collect all callees emitted across all functions.
             var allCallees: [String] = []
-            for decl in module.arena.declarations {
-                guard case let .function(function) = decl else { continue }
+            for function in findAllKIRFunctions(in: module) {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
