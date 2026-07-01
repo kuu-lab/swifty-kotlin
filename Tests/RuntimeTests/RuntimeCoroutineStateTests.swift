@@ -599,8 +599,8 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(parent.cancel())
         XCTAssertTrue(parent.cancellationSnapshot())
         XCTAssertTrue(child.cancellationSnapshot())
-        XCTAssertTrue(parent.completeCancellationIfNeeded())
-        XCTAssertTrue(child.completeCancellationIfNeeded())
+        XCTAssertTrue(parent.complete(with: 0))
+        XCTAssertTrue(child.complete(with: 0))
         XCTAssertTrue(parent.completedSnapshot())
         XCTAssertTrue(child.completedSnapshot())
     }
@@ -612,7 +612,7 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertTrue(job.cancel(cause: cause))
         XCTAssertTrue(job.cancellationSnapshot())
-        XCTAssertTrue(job.completeCancellationIfNeeded())
+        XCTAssertTrue(job.complete(with: 0))
         XCTAssertEqual(job.join(), cause)
     }
 
