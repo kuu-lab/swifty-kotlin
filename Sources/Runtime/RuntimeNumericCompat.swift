@@ -339,6 +339,65 @@ public func kk_math_pow_float_int(_ base: Int, _ exp: Int) -> Int {
     kk_float_to_bits(powf(kk_bits_to_float(base), Float(exp)))
 }
 
+// MARK: - minOf/maxOf Float/Double (STDLIB-COMP-FN NaN & signed-zero semantics)
+//
+// Kotlin's minOf(Float, Float) / maxOf(Float, Float) delegate to Java's
+// Math.min/Math.max on JVM, whose semantics differ from a plain `<`/`>`
+// comparison in two ways:
+//   1. NaN propagates: if `a` is NaN, the result is `a` (NaN), regardless of `b`.
+//      A plain `a < b` / `a > b` comparison is always false for NaN operands, so
+//      it silently picks the non-NaN argument instead.
+//   2. Signed zero is distinguished: minOf(-0.0, 0.0) == -0.0 and
+//      maxOf(-0.0, 0.0) == 0.0, regardless of argument order, even though
+//      -0.0 == 0.0 under IEEE 754 equality.
+// These entry points take/return Float/Double bit patterns (matching the
+// kk_math_* convention above) so they can be called directly from KIR-lowered
+// minOf/maxOf without an extra bitcast step.
+
+@_cdecl("kk_min_float")
+public func kk_min_float(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_float(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_float(bBits)
+    if a == 0.0, b == 0.0, b.sign == .minus {
+        return bBits
+    }
+    return a <= b ? aBits : bBits
+}
+
+@_cdecl("kk_max_float")
+public func kk_max_float(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_float(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_float(bBits)
+    if a == 0.0, b == 0.0, a.sign == .minus {
+        return bBits
+    }
+    return a >= b ? aBits : bBits
+}
+
+@_cdecl("kk_min_double")
+public func kk_min_double(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_double(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_double(bBits)
+    if a == 0.0, b == 0.0, b.sign == .minus {
+        return bBits
+    }
+    return a <= b ? aBits : bBits
+}
+
+@_cdecl("kk_max_double")
+public func kk_max_double(_ aBits: Int, _ bBits: Int) -> Int {
+    let a = kk_bits_to_double(aBits)
+    if a.isNaN { return aBits }
+    let b = kk_bits_to_double(bBits)
+    if a == 0.0, b == 0.0, a.sign == .minus {
+        return bBits
+    }
+    return a >= b ? aBits : bBits
+}
+
 @_cdecl("kk_math_ceil")
 public func kk_math_ceil(_ value: Int) -> Int {
     kk_double_to_bits(ceil(kk_bits_to_double(value)))
