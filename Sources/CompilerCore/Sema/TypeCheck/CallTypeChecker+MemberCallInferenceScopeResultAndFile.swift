@@ -28,6 +28,7 @@ extension CallTypeChecker {
             case "apply": .scopeApply
             case "also": .scopeAlso
             case "use" where isCloseableReceiver(receiverType, sema: sema): .scopeUse
+            case "usePinned": .scopeUsePinned
             default: nil
             }
             let hasUserDefinedMember = if scopeKind != nil {
@@ -195,6 +196,48 @@ extension CallTypeChecker {
                     // exception propagation works correctly for use{} lambdas that may throw.
                     // Without this, a non-capturing lambda (e.g. `{ error("boom") }`) goes through
                     // lowerNonCapturingLambda (isInline:true) which breaks try/catch around use{}.
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+
+                case .scopeUsePinned:
+                    // usePinned: like `use`, but the lambda receives Pinned<T> (the pinned
+                    // handle) instead of the receiver itself, and lowering calls pin()/unpin()
+                    // instead of close(). Requires the synthetic kotlinx.cinterop.Pinned class
+                    // to already be registered (always true — see registerSyntheticCInteropStubs).
+                    let pinnedFQName: [InternedString] = [
+                        interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("Pinned"),
+                    ]
+                    guard let pinnedClassSymbol = sema.symbols.lookup(fqName: pinnedFQName) else {
+                        break
+                    }
+                    let pinnedOfReceiverType = sema.types.make(.classType(ClassType(
+                        classSymbol: pinnedClassSymbol,
+                        args: [.invariant(nonNullReceiverType)],
+                        nullability: .nonNull
+                    )))
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [pinnedOfReceiverType],
+                        returnType: expectedType ?? sema.types.anyType
+                    )))
+                    let lambdaType = driver.inferExpr(
+                        args[0].expr, ctx: ctx, locals: &locals,
+                        expectedType: lambdaExpectedType
+                    )
+                    let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                        fnType.returnType
+                    } else {
+                        sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
+                            if case let .functionType(fnType) = sema.types.kind(of: typeID) {
+                                return fnType.returnType
+                            }
+                            return nil
+                        } ?? sema.types.anyType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
+                    // Force the capturing-lambda lowering path so try/finally exception
+                    // propagation around the block call works correctly (mirrors scopeUse).
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType

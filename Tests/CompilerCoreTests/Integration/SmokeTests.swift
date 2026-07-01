@@ -189,5 +189,31 @@ import Testing
         """, moduleName: "SmokeTypealiasExtension")
     }
 
+    @Test func testSmokeUsePinnedCompilesToKIR() throws {
+        // usePinned (STDLIB-CINTEROP-FN-042) is hand-lowered as a scope function:
+        // pin() the receiver, invoke the block with the Pinned<T> handle inside a
+        // try, then unpin() in a finally block. This must survive the full
+        // pipeline, including the try-finally control flow the lowering emits.
+        try assertKotlinCompilesToKIR("""
+        import kotlinx.cinterop.ExperimentalForeignApi
+        import kotlinx.cinterop.Pinned
+        import kotlinx.cinterop.usePinned
+
+        class Box(var value: Int)
+
+        @ExperimentalForeignApi
+        fun readBoxed(box: Box): Int {
+            return box.usePinned { pinned: Pinned<Box> ->
+                pinned.get().value
+            }
+        }
+
+        fun main() {
+            val box = Box(42)
+            readBoxed(box)
+        }
+        """, moduleName: "SmokeUsePinned")
+    }
+
 }
 #endif
