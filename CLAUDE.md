@@ -64,7 +64,7 @@ bash Scripts/swift_test.sh --filter Golden
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-`Scripts/loc_report.sh` が存在する HEAD では、変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、`"kk_` リテラル数、`interner.resolve == "..."` 数の悪化がないことも確認する。意図的に悪化を許容する場合は、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
+`Scripts/loc_report.sh` が存在する HEAD では、変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、KIR/Lowering TODO/FIXME 数、`"kk_` リテラル数、`interner.resolve == "..."` 数の悪化がないことも確認する。意図的に悪化を許容する場合は、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
 
 ## アーキテクチャ概要
 

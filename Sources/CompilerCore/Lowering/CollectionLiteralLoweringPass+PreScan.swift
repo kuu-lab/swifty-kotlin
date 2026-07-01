@@ -675,37 +675,18 @@ extension CollectionLiteralLoweringPass {
 
         let classSymbol = classType.classSymbol
         guard let symInfo = symbols.symbol(classSymbol) else { return }
-        guard let simpleName = symInfo.fqName.last else { return }
-
-        let resolved = interner.resolve(simpleName)
-
-        // TODO(LOWERING-001): This matches on simple name only.  A user-defined
-        // type named e.g. `foo.bar.List` would be misclassified as a stdlib
-        // collection.  Ideally we should validate the FQN prefix against
-        // `kotlin.collections.*` / `kotlin.*` before seeding the tracking sets.
-        // For now this is acceptable because the sema phase resolves stdlib
-        // symbols with canonical FQNs and user types rarely shadow them.
-        switch resolved {
-        // NOTE: We intentionally do NOT include "Collection" / "MutableCollection"
-        // here.  In Kotlin, Collection<T> is the common supertype of both
-        // List<T> and Set<T>.  Mapping it to listExprIDs would cause incorrect
-        // kk_list_* rewrites when the actual runtime value is a Set.
-        case "List", "MutableList", "ArrayList",
-             "AbstractList", "AbstractMutableList":
+        switch trackedStaticTypeKind(of: symInfo, interner: interner) {
+        case .list:
             listExprIDs.insert(rawID)
-        case "Set", "MutableSet", "HashSet", "LinkedHashSet",
-             "AbstractSet", "AbstractMutableSet":
+        case .set:
             setExprIDs.insert(rawID)
-        case "Map", "MutableMap", "HashMap", "LinkedHashMap",
-             "AbstractMap", "AbstractMutableMap":
+        case .map:
             mapExprIDs.insert(rawID)
-        case "Array", "IntArray", "LongArray", "DoubleArray",
-             "FloatArray", "BooleanArray", "CharArray",
-             "ByteArray", "ShortArray", "UByteArray", "UShortArray", "UIntArray", "ULongArray":
+        case .array:
             arrayExprIDs.insert(rawID)
-        case "Sequence":
+        case .sequence:
             sequenceExprIDs.insert(rawID)
-        case "String":
+        case .string:
             stringExprIDs.insert(rawID)
         default:
             break
