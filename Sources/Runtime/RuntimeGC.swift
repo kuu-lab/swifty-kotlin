@@ -70,6 +70,11 @@ final class RuntimeStorageBox: @unchecked Sendable {
 
     let coroutineSuspendedBox = RuntimeStringBox("COROUTINE_SUSPENDED")
     let flowStopSentinelBox = RuntimeStringBox("FLOW_STOP_SENTINEL")
+    /// Sentinel returned via callerState.resume(with:) when a lazy sequence
+    /// coroutine reaches the end of the builder lambda.  Callers compare the
+    /// resumed value against kk_sequence_completed_sentinel() to distinguish
+    /// "done" from a real element (CORO-004 infrastructure).
+    let sequenceCompletedBox = RuntimeStringBox("SEQUENCE_COMPLETED")
 
     @discardableResult
     @inline(__always)
