@@ -24,7 +24,7 @@
 - [x] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-040: `minOf` 関数の実装（Float版、vararg）
 - [ ] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
-- [ ] STDLIB-COMP-FN-046: `minOf` 関数の実装（Long版、vararg）
+- [x] STDLIB-COMP-FN-046: `minOf` 関数の実装（Long版、vararg）
 
 #### kotlin.random 型の実装
 
