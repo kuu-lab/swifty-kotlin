@@ -79,7 +79,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/ranges/`
 
 - [x] MIGRATION-RANGE-001: Range/Progression クラス API を Kotlin source に移行する（`IntRange`, `LongRange`, `CharRange`, `IntProgression`, `LongProgression`, `CharProgression` の iterator/contains/isEmpty）
-- [ ] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`, `first`, `last`, `reversed`, `step`）
+- [x] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`）— IntRange/IntProgression/LongRange/LongProgression/CharRange/CharProgression 対応。`first`/`last`/`step`/`reversed` は既存 synthetic stub で完結（純 Kotlin 化には新規ネイティブブリッジが必要で挙動変化がないため対象外）。`count(predicate)` は Range member fallback（`CallTypeChecker+RangeMemberFallback.swift`）の arity allow-list が0引数のみ許可し呼び出し不能なため対象外
 - [x] MIGRATION-RANGE-003: Range ユーティリティを Kotlin source に移行する（`coerceIn`, `coerceAtLeast`, `coerceAtMost`）— `until`/`downTo` は MIGRATION-RANGE-001 完了後に対応（IntRange/IntProgression 型移行が前提）
 
 ### Phase M7: kotlin.random

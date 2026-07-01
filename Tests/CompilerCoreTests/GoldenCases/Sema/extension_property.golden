@@ -2,7 +2,7 @@ symbol fq=golden.sema.doubled kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.doubled.$get kind=function vis=public flags=synthetic sig=recv=Int params=[] ret=Int
 symbol fq=golden.sema.isPositive kind=property vis=public flags=_ type=Boolean
 symbol fq=golden.sema.useExtProp kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f14 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.doubled property doubled var=0 sym=golden.sema.doubled
   decl golden.sema.isPositive property isPositive var=0 sym=golden.sema.isPositive
   decl golden.sema.useExtProp fun useExtProp sym=golden.sema.useExtProp
