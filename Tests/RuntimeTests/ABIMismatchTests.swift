@@ -239,6 +239,7 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.numericRuntimeBridgeFunctions,
             RuntimeABISpec.kPropertyStubFunctions,
             RuntimeABISpec.kParameterFunctions,
+            RuntimeABISpec.jsNumberFunctions,
             RuntimeABISpec.kFunctionFunctions,
             RuntimeABISpec.callableRefFunctions,
             RuntimeABISpec.delegateFunctions,

@@ -1005,6 +1005,7 @@ extension DataFlowSemaPhase {
     ) {
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
+        registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
         registerSyntheticPropertyInterfaceStubs(
             symbols: symbols, types: types, interner: interner,
@@ -1014,12 +1015,6 @@ extension DataFlowSemaPhase {
         // shuffled(random: Random) can look up the kotlin.random.Random symbol.
         registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
-        // STDLIB-REFLECT-068: Now that List is registered, update KAnnotatedElement.annotations
-        // to List<Annotation>.
-        patchKAnnotatedElementAnnotationsType(symbols: symbols, types: types, interner: interner)
-        // STDLIB-REFLECT-069: Now that Collection is registered, update
-        // KDeclarationContainer.members to Collection<KCallable<*>>.
-        patchKDeclarationContainerMembersType(symbols: symbols, types: types, interner: interner)
         // STDLIB-REFLECT-063: Now that List is registered, update KFunction.parameters type to
         // List<Any?> so that `.size` resolves correctly on the parameters property.
         patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
@@ -1063,10 +1058,12 @@ extension DataFlowSemaPhase {
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsParseIntRadixStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsJsonStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
         // Function interfaces are registered by TODO/IO stubs, so patch KProperty function supertypes here.
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
@@ -1172,6 +1169,27 @@ extension DataFlowSemaPhase {
                     valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count)),
                 for: memberSymbol)
         }
+    }
+
+    func registerSyntheticNumberStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
+    ) {
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        guard let anySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("Any")]) else { return }
+
+        let numberSymbol = ensureClassSymbol(
+            named: "Number",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.insertFlags([.synthetic, .abstractType], for: numberSymbol)
+        symbols.setDirectSupertypes([anySymbol], for: numberSymbol)
+        types.setNominalDirectSupertypes([anySymbol], for: numberSymbol)
+        types.numberClassSymbol = numberSymbol
     }
 
     func registerSyntheticContractStubs(
