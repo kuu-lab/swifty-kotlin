@@ -66,6 +66,8 @@ extension ABIMismatchTests {
             "kk_future_getState",
             "kk_int_toJsNumber",
             "kk_int_to_int",
+            "kk_js_number_toDouble",
+            "kk_js_number_toInt",
             "kk_js_readonly_set_toMutableSet",
             "kk_kclass_has_annotation",
             "kk_kclass_register_annotation",
