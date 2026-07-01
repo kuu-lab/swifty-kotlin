@@ -106,6 +106,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -119,6 +120,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -216,6 +218,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "csqRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -231,6 +234,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -242,6 +246,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -256,6 +261,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -283,6 +289,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"

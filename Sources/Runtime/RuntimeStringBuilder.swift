@@ -198,13 +198,14 @@ public func kk_string_builder_insert_obj_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
-    _ hash: Int
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
     runtimeStringBuilderInsert(
         sbRaw,
         index: index,
         value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: nil
+        outThrown: outThrown
     )
 }
 
@@ -434,7 +435,8 @@ public func kk_string_builder_insertRange_obj_flat(
     _ byteCount: Int,
     _ hash: Int,
     _ startIndex: Int,
-    _ endIndex: Int
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
     runtimeStringBuilderInsertRange(
         sbRaw,
@@ -442,7 +444,7 @@ public func kk_string_builder_insertRange_obj_flat(
         csq: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
         startIndex: startIndex,
         endIndex: endIndex,
-        outThrown: nil
+        outThrown: outThrown
     )
 }
 
@@ -492,14 +494,15 @@ public func kk_string_builder_setRange_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
-    _ hash: Int
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
     runtimeStringBuilderSetRange(
         sbRaw,
         startIndex: startIndex,
         endIndex: endIndex,
         value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: nil
+        outThrown: outThrown
     )
 }
 
@@ -537,13 +540,32 @@ public func kk_string_builder_replace_obj_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
-    _ hash: Int
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
     runtimeStringBuilderReplace(
         sbRaw,
         start: start,
         end: end,
-        replacement: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        replacement: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_builder_replace_obj")
+public func kk_string_builder_replace_obj(
+    _ sbRaw: Int,
+    _ start: Int,
+    _ end: Int,
+    _ replacementRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    runtimeStringBuilderReplace(
+        sbRaw,
+        start: start,
+        end: end,
+        replacement: runtimeElementToString(replacementRaw),
+        outThrown: outThrown
     )
 }
 
@@ -551,13 +573,16 @@ private func runtimeStringBuilderReplace(
     _ sbRaw: Int,
     start: Int,
     end: Int,
-    replacement: String
+    replacement: String,
+    outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let len = sb.value.utf8.count
     let clampedEnd = min(end, len)
     guard start >= 0, start <= len, clampedEnd >= start else {
-        fatalError("StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(len)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "start=\(start), end=\(end), length=\(len)")
+        return sbRaw
     }
     let startIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: start)
     let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: clampedEnd)

@@ -1471,7 +1471,8 @@ extension NativeEmitter {
                     flatName: "kk_string_builder_insert_obj_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
-                    stringArgumentPositions: [2]
+                    stringArgumentPositions: [2],
+                    canThrow: true
                 ),
                 "kk_string_builder_appendRange_obj_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_appendRange_obj_flat",
@@ -1483,19 +1484,22 @@ extension NativeEmitter {
                     flatName: "kk_string_builder_insertRange_obj_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 4,
-                    stringArgumentPositions: [2]
+                    stringArgumentPositions: [2],
+                    canThrow: true
                 ),
                 "kk_string_builder_setRange_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_setRange_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3,
-                    stringArgumentPositions: [3]
+                    stringArgumentPositions: [3],
+                    canThrow: true
                 ),
                 "kk_string_builder_replace_obj_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_replace_obj_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3,
-                    stringArgumentPositions: [3]
+                    stringArgumentPositions: [3],
+                    canThrow: true
                 ),
                 "kk_string_startsWith_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
@@ -2069,7 +2073,6 @@ extension NativeEmitter {
                 let requiredArgumentCount = spec.stringArgumentCount + spec.extraArgumentCount
                 guard let result,
                       argumentValues.count >= requiredArgumentCount,
-                      isStringAggregateType(module.arena.exprType(result)),
                       spec.stringArgumentPositions.count == spec.stringArgumentCount,
                       let flattenedArgs = flattenedRuntimeArguments(
                           values: argumentValues,
@@ -2143,7 +2146,7 @@ extension NativeEmitter {
                 else {
                     return false
                 }
-                let aggregate = buildStringAggregate(
+                guard let aggregate = buildStringAggregate(
                     builder: builder,
                     lowering: typeLowering,
                     data: data,
@@ -2151,8 +2154,21 @@ extension NativeEmitter {
                     byteCount: byteCount,
                     hash: hash,
                     name: "\(spec.flatName)_result_\(instructionIndex)"
-                )
-                storeResult(result, aggregate)
+                ) else {
+                    return false
+                }
+                let storedValue: LLVMCAPIBindings.LLVMValueRef
+                if isStringAggregateType(module.arena.exprType(result)) {
+                    storedValue = aggregate
+                } else if let raw = bridgeStringAggregateToRuntimeRaw(
+                    aggregate,
+                    suffix: "\(spec.flatName)_result_\(instructionIndex)"
+                ) {
+                    storedValue = raw
+                } else {
+                    return false
+                }
+                storeResult(result, storedValue)
                 if spec.canThrow {
                     if usesThrownChannel {
                         handleThrownSlot(thrownSlot, thrownResult: thrownResult, instructionIndex: instructionIndex)
@@ -3731,35 +3747,49 @@ extension NativeEmitter {
                 var copySource = resolveValue(from)
                 let fromType = module.arena.exprType(from)
                 let toType = module.arena.exprType(to)
-                if isStringAggregateType(fromType), !isStringAggregateType(toType) {
-                    copySource = bridgeStringAggregateToRuntimeRaw(
-                        copySource,
-                        suffix: "copy_\(instructionIndex)"
-                    ) ?? copySource
-                } else if !isStringAggregateType(fromType), isStringAggregateType(toType) {
-                    copySource = bridgeRuntimeRawToStringAggregate(
-                        copySource,
-                        suffix: "copy_\(instructionIndex)"
-                    ) ?? copySource
-                }
                 // If the copy target is a global symbolRef, store to the
                 // LLVM global variable so the write persists across reads.
                 if let targetExpr = module.arena.expr(to),
                    case let .symbolRef(targetSymbol) = targetExpr,
                    let globalPtr = globalVariables[targetSymbol]
                 {
+                    if isStringAggregateType(fromType) {
+                        copySource = bridgeStringAggregateToRuntimeRaw(
+                            copySource,
+                            suffix: "copy_global_\(instructionIndex)"
+                        ) ?? copySource
+                    }
                     _ = bindings.buildStore(builder, value: copySource, pointer: globalPtr)
-                } else if let alloca = copyTargetAllocas[to.rawValue] {
-                    _ = bindings.buildStore(builder, value: copySource, pointer: alloca)
                 } else {
-                    storeResult(to, copySource)
+                    if isStringAggregateType(fromType), !isStringAggregateType(toType) {
+                        copySource = bridgeStringAggregateToRuntimeRaw(
+                            copySource,
+                            suffix: "copy_\(instructionIndex)"
+                        ) ?? copySource
+                    } else if !isStringAggregateType(fromType), isStringAggregateType(toType) {
+                        copySource = bridgeRuntimeRawToStringAggregate(
+                            copySource,
+                            suffix: "copy_\(instructionIndex)"
+                        ) ?? copySource
+                    }
+                    if let alloca = copyTargetAllocas[to.rawValue] {
+                        _ = bindings.buildStore(builder, value: copySource, pointer: alloca)
+                    } else {
+                        storeResult(to, copySource)
+                    }
                 }
 
             case let .storeGlobal(value, symbol):
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
-                let resolved = resolveValue(value)
+                var resolved = resolveValue(value)
+                if isStringAggregateType(module.arena.exprType(value)) {
+                    resolved = bridgeStringAggregateToRuntimeRaw(
+                        resolved,
+                        suffix: "store_global_\(instructionIndex)"
+                    ) ?? resolved
+                }
                 if let globalPtr = globalVariables[symbol] {
                     _ = bindings.buildStore(builder, value: resolved, pointer: globalPtr)
                 }
@@ -3769,19 +3799,30 @@ extension NativeEmitter {
                     continue
                 }
                 if let globalPtr = globalVariables[symbol] {
-                    let loadType = loweredLLVMType(
-                        for: module.arena.exprType(result),
-                        lowering: typeLowering,
-                        defaultType: int64Type
-                    )
                     if let loaded = bindings.buildLoad(
-                        builder, type: loadType, pointer: globalPtr,
+                        builder, type: int64Type, pointer: globalPtr,
                         name: "load_global_\(symbol.rawValue)"
                     ) {
-                        storeResult(result, loaded)
+                        let loadedValue = if isStringAggregateType(module.arena.exprType(result)) {
+                            bridgeRuntimeRawToStringAggregate(
+                                loaded,
+                                suffix: "load_global_\(instructionIndex)"
+                            ) ?? loaded
+                        } else {
+                            loaded
+                        }
+                        storeResult(result, loadedValue)
                     }
                 } else {
-                    storeResult(result, zeroValue)
+                    let missingValue = if isStringAggregateType(module.arena.exprType(result)) {
+                        bridgeRuntimeRawToStringAggregate(
+                            zeroValue,
+                            suffix: "load_global_missing_\(instructionIndex)"
+                        ) ?? zeroValue
+                    } else {
+                        zeroValue
+                    }
+                    storeResult(result, missingValue)
                 }
 
             case let .rethrow(value):
@@ -3834,14 +3875,10 @@ extension NativeEmitter {
                 }
                 let resolvedReturnValue = resolveValue(value)
                 let returnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
-                    if isStringAggregateType(module.arena.exprType(value)) {
-                        bridgeStringAggregateToRuntimeRaw(
-                            resolvedReturnValue,
-                            suffix: "return_\(instructionIndex)"
-                        ) ?? resolvedReturnValue
-                    } else {
-                        resolvedReturnValue
-                    }
+                    bridgeStringAggregateToRuntimeRaw(
+                        resolvedReturnValue,
+                        suffix: "return_\(instructionIndex)"
+                    ) ?? resolvedReturnValue
                 } else {
                     coerceStringValueForType(
                         resolvedReturnValue,
@@ -3866,14 +3903,10 @@ extension NativeEmitter {
                 if let value {
                     let resolvedReturnValue = resolveValue(value)
                     let returnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
-                        if isStringAggregateType(module.arena.exprType(value)) {
-                            bridgeStringAggregateToRuntimeRaw(
-                                resolvedReturnValue,
-                                suffix: "nonlocal_return_\(instructionIndex)"
-                            ) ?? resolvedReturnValue
-                        } else {
-                            resolvedReturnValue
-                        }
+                        bridgeStringAggregateToRuntimeRaw(
+                            resolvedReturnValue,
+                            suffix: "nonlocal_return_\(instructionIndex)"
+                        ) ?? resolvedReturnValue
                     } else {
                         coerceStringValueForType(
                             resolvedReturnValue,

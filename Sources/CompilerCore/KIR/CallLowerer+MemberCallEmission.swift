@@ -486,7 +486,8 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if loweredCallee == interner.intern("kk_string_zipTransform_flat"),
+        if (loweredCallee == interner.intern("kk_string_zipTransform")
+            || loweredCallee == interner.intern("kk_string_zipTransform_flat")),
            finalArguments.count == 3
         {
             // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
@@ -500,6 +501,33 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments[2] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
+        if (loweredCallee == interner.intern("kk_string_zipWithNextTransform")
+            || loweredCallee == interner.intern("kk_string_zipWithNextTransform_flat")),
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[1] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
+        if loweredCallee == interner.intern("kk_string_replaceFirstChar_flat"),
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[1] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
         if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")

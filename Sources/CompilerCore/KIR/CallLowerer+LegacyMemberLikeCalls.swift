@@ -1831,7 +1831,22 @@ extension CallLowerer {
                 case "matches":
                     ("kk_string_matches_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "replaceFirstChar":
-                    ("kk_string_replaceFirstChar_flat", [loweredReceiverID] + normalizedArgIDs)
+                    {
+                        guard let loweredArgID = loweredArgIDs.first,
+                              let argExprID = args.first?.expr
+                        else {
+                            return ("kk_string_replaceFirstChar_flat", [loweredReceiverID] + normalizedArgIDs)
+                        }
+                        let transformArgs = makeCollectionHOFExpandedArguments(
+                            loweredArgID: loweredArgID,
+                            argExprID: argExprID,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        return ("kk_string_replaceFirstChar_flat", [loweredReceiverID] + transformArgs)
+                    }()
                 case "mapIndexed":
                     ("kk_string_mapIndexed_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "mapNotNull":
@@ -3433,7 +3448,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result
@@ -3472,7 +3487,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result
@@ -3562,7 +3577,22 @@ extension CallLowerer {
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let sbNames = KnownCompilerNames(interner: interner)
                 let runtimeCallee: String? = if calleeName == sbNames.insert {
-                    "kk_string_builder_insert_obj"
+                    {
+                        let semanticArgType = args.indices.contains(1)
+                            ? sema.bindings.exprTypes[args[1].expr]
+                            : nil
+                        let argType = semanticArgType ?? normalizedArgIDs.dropFirst().first.flatMap { arena.exprType($0) }
+                        let nonNull = argType.map { sema.types.makeNonNullable($0) }
+                        if nonNull == sema.types.booleanType { return "kk_string_builder_insert_bool" }
+                        if nonNull == sema.types.charType { return "kk_string_builder_insert_char" }
+                        if nonNull == sema.types.make(.primitive(.float, .nonNull)) {
+                            return "kk_string_builder_insert_float"
+                        }
+                        if nonNull == sema.types.make(.primitive(.double, .nonNull)) {
+                            return "kk_string_builder_insert_double"
+                        }
+                        return "kk_string_builder_insert_obj"
+                    }()
                 } else if calleeName == sbNames.delete {
                     "kk_string_builder_delete_obj"
                 } else if calleeName == sbNames.deleteRange {
@@ -3581,7 +3611,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result
@@ -3610,7 +3640,7 @@ extension CallLowerer {
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
+                        canThrow: isThrowingStringBuilderRuntimeFunction(runtimeCallee),
                         thrownResult: nil
                     ))
                     return result

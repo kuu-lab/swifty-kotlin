@@ -1353,6 +1353,7 @@ final class CallLowerer {
     func isThrowingStringBuilderRuntimeFunction(_ name: String) -> Bool {
         switch name {
         case "kk_string_builder_insert_obj",
+             "kk_string_builder_insert_obj_flat",
              "kk_string_builder_insert_char",
              "kk_string_builder_insert_bool",
              "kk_string_builder_insert_float",
@@ -1362,8 +1363,11 @@ final class CallLowerer {
              "kk_string_builder_deleteCharAt",
              "kk_string_builder_deleteAt",
              "kk_string_builder_insertRange_obj",
+             "kk_string_builder_insertRange_obj_flat",
              "kk_string_builder_setRange",
+             "kk_string_builder_setRange_flat",
              "kk_string_builder_replace_obj",
+             "kk_string_builder_replace_obj_flat",
              "kk_string_builder_setCharAt",
              "kk_string_builder_get":
             return true

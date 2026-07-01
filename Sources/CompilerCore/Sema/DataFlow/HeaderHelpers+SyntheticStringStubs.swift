@@ -2253,9 +2253,29 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
+            named: "count",
+            externalLinkName: "kk_string_count",
+            receiverType: charSequenceType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
             named: "any",
             externalLinkName: "kk_string_any",
             receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "any",
+            externalLinkName: "kk_string_any",
+            receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
             packageFQName: kotlinTextPkg,
@@ -2273,9 +2293,29 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
+            named: "all",
+            externalLinkName: "kk_string_all",
+            receiverType: charSequenceType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
             named: "none",
             externalLinkName: "kk_string_none",
             receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "none",
+            externalLinkName: "kk_string_none",
+            receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
             packageFQName: kotlinTextPkg,

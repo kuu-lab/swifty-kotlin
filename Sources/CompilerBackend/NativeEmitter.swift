@@ -90,15 +90,31 @@ struct NativeEmitter {
                 continue
             }
             for instruction in function.body {
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      let callbackPositions = callbackArgumentPositionsByCallee[callee]
-                else {
-                    continue
-                }
-                for position in callbackPositions where arguments.indices.contains(position) {
-                    if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
-                        symbols.insert(symbol)
+                switch instruction {
+                case let .call(_, callee, arguments, _, _, _, _, _):
+                    guard let callbackPositions = callbackArgumentPositionsByCallee[callee] else {
+                        continue
                     }
+                    for position in callbackPositions where arguments.indices.contains(position) {
+                        if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
+                            symbols.insert(symbol)
+                        }
+                    }
+
+                case let .virtualCall(symbol, _, _, _, result, _, _, _):
+                    guard let symbol,
+                          symbol != .invalid,
+                          let result,
+                          let resultType = module.arena.exprType(result),
+                          let typeSystem,
+                          case .stringStruct = typeSystem.kind(of: resultType)
+                    else {
+                        continue
+                    }
+                    symbols.insert(symbol)
+
+                default:
+                    continue
                 }
             }
         }
@@ -109,7 +125,8 @@ struct NativeEmitter {
         var positionsByCallee: [InternedString: [Int]] = [:]
         for spec in RuntimeABISpec.allFunctions {
             let positions = spec.parameters.enumerated().compactMap { index, parameter -> Int? in
-                parameter.name.lowercased().contains("fnptr") ? index : nil
+                let name = parameter.name.lowercased()
+                return (name.contains("fnptr") || name == "functionraw") ? index : nil
             }
             if !positions.isEmpty {
                 positionsByCallee[interner.intern(spec.name)] = positions
@@ -331,6 +348,9 @@ struct NativeEmitter {
             for (function, _) in emittableFunctions {
                 guard let llvmFunction = internalFunctions[function.symbol] else { continue }
                 do {
+                    let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
+                    let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
+                        && isStringAggregateType(function.returnType)
                     try emitFunctionBody(
                         function: function,
                         llvmFunction: llvmFunction,
@@ -341,6 +361,9 @@ struct NativeEmitter {
                         outThrownPointerType: outThrownPointerType,
                         internalFunctions: internalFunctions,
                         globalVariables: llvmGlobalVariables,
+                        runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
+                        usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
+                        returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback,
                         diContext: diContext
                     )
                 } catch {
