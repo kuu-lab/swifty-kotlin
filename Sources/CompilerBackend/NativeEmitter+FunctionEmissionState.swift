@@ -26,6 +26,7 @@ extension NativeEmitter {
 
         var currentBlock: LLVMCAPIBindings.LLVMBasicBlockRef
         var values: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
+        var rawResultValues: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
         var externalFunctions: [String: LLVMFunction] = [:]
         var labelBlocks: [Int32: LLVMCAPIBindings.LLVMBasicBlockRef]
         var generatedStringLiteralCount: Int32 = 0
@@ -198,6 +199,30 @@ extension NativeEmitter.FunctionEmissionState {
             return constant
         }
         return zeroValue
+    }
+
+    func rawComparableValues(
+        lhs: KIRExprID,
+        rhs: KIRExprID
+    ) -> (LLVMCAPIBindings.LLVMValueRef, LLVMCAPIBindings.LLVMValueRef) {
+        let lhsValue = resolveValue(lhs)
+        let rhsValue = resolveValue(rhs)
+        let lhsIsAggregate = bindings.isAggregateStructValue(lhsValue)
+        let rhsIsAggregate = bindings.isAggregateStructValue(rhsValue)
+
+        if lhsIsAggregate, !rhsIsAggregate,
+           let raw = rawResultValues[lhs.rawValue],
+           !bindings.isAggregateStructValue(raw)
+        {
+            return (raw, rhsValue)
+        }
+        if rhsIsAggregate, !lhsIsAggregate,
+           let raw = rawResultValues[rhs.rawValue],
+           !bindings.isAggregateStructValue(raw)
+        {
+            return (lhsValue, raw)
+        }
+        return (lhsValue, rhsValue)
     }
 
     func storeResult(_ result: KIRExprID?, _ value: LLVMCAPIBindings.LLVMValueRef?) {

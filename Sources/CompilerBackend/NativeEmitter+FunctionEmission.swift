@@ -158,6 +158,7 @@ extension NativeEmitter {
         bindings.positionBuilder(builder, at: entryBlock)
         var currentBlock = entryBlock
         var values: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
+        var rawResultValues: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
         var externalFunctions: [String: LLVMFunction] = [:]
         let maxKIRArgumentCountByExternalCallee = Self.maxKIRArgumentCountByExternalCallee(
             body: function.body,
@@ -2413,6 +2414,30 @@ extension NativeEmitter {
             return zeroValue
         }
 
+        func rawComparableValues(
+            lhs: KIRExprID,
+            rhs: KIRExprID
+        ) -> (LLVMCAPIBindings.LLVMValueRef, LLVMCAPIBindings.LLVMValueRef) {
+            let lhsValue = resolveValue(lhs)
+            let rhsValue = resolveValue(rhs)
+            let lhsIsAggregate = bindings.isAggregateStructValue(lhsValue)
+            let rhsIsAggregate = bindings.isAggregateStructValue(rhsValue)
+
+            if lhsIsAggregate, !rhsIsAggregate,
+               let raw = rawResultValues[lhs.rawValue],
+               !bindings.isAggregateStructValue(raw)
+            {
+                return (raw, rhsValue)
+            }
+            if rhsIsAggregate, !lhsIsAggregate,
+               let raw = rawResultValues[rhs.rawValue],
+               !bindings.isAggregateStructValue(raw)
+            {
+                return (lhsValue, raw)
+            }
+            return (lhsValue, rhsValue)
+        }
+
         func storeResult(_ result: KIRExprID?, _ value: LLVMCAPIBindings.LLVMValueRef?) {
             guard let result else {
                 return
@@ -2650,10 +2675,11 @@ extension NativeEmitter {
                 else {
                     continue
                 }
+                let (lhsValue, rhsValue) = rawComparableValues(lhs: lhs, rhs: rhs)
                 let condition = bindings.buildICmpEqual(
                     builder,
-                    lhs: resolveValue(lhs),
-                    rhs: resolveValue(rhs),
+                    lhs: lhsValue,
+                    rhs: rhsValue,
                     name: "if_cmp_\(instructionIndex)"
                 )
                 _ = bindings.buildCondBr(
@@ -3256,6 +3282,9 @@ extension NativeEmitter {
                     arguments: callArguments,
                     name: "call_\(instructionIndex)"
                 )
+                if let result, let callValue {
+                    rawResultValues[result.rawValue] = callValue
+                }
                 let storedCallValue: LLVMCAPIBindings.LLVMValueRef?
                 if isInternalCall,
                    let effectiveSymbol,
@@ -3585,6 +3614,9 @@ extension NativeEmitter {
                     arguments: callArguments,
                     name: "vcall_\(instructionIndex)"
                 )
+                if let result, let vCallValue {
+                    rawResultValues[result.rawValue] = vCallValue
+                }
                 _ = bindings.buildBr(builder, destination: mergeBlock)
 
                 // Fallback path: trap on dispatch failure (GEN-002).
@@ -3850,8 +3882,7 @@ extension NativeEmitter {
                     continue
                 }
 
-                let lhsValue = resolveValue(lhs)
-                let rhsValue = resolveValue(rhs)
+                let (lhsValue, rhsValue) = rawComparableValues(lhs: lhs, rhs: rhs)
                 let condition = bindings.buildICmpEqual(builder, lhs: lhsValue, rhs: rhsValue, name: "ret_if_cmp_\(instructionIndex)")
                 _ = bindings.buildCondBr(builder, condition: condition, thenBlock: trueBlock, elseBlock: falseBlock)
 

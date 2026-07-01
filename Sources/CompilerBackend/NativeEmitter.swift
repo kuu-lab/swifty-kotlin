@@ -101,18 +101,6 @@ struct NativeEmitter {
                         }
                     }
 
-                case let .virtualCall(symbol, _, _, _, result, _, _, _):
-                    guard let symbol,
-                          symbol != .invalid,
-                          let result,
-                          let resultType = module.arena.exprType(result),
-                          let typeSystem,
-                          case .stringStruct = typeSystem.kind(of: resultType)
-                    else {
-                        continue
-                    }
-                    symbols.insert(symbol)
-
                 default:
                     continue
                 }
