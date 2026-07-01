@@ -1807,6 +1807,95 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // fun <T : Any, R> T.usePinned(block: (Pinned<T>) -> R): R — STDLIB-CINTEROP-FN-042
+        // Pins the receiver, invokes block with the Pinned<T> handle, and unpins it in a
+        // finally block. Special-cased as a scope function (like Closeable.use); inline-
+        // expanded by CallLowerer, no runtime call for usePinned itself.
+        let usePinnedName = interner.intern("usePinned")
+        let usePinnedFQName = cinteropPkg + [usePinnedName]
+        if symbols.lookup(fqName: usePinnedFQName) == nil {
+            let usePinnedTypeParameterName = interner.intern("T")
+            let usePinnedReturnTypeParameterName = interner.intern("R")
+            let usePinnedTypeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: usePinnedTypeParameterName,
+                fqName: usePinnedFQName + [usePinnedTypeParameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let usePinnedReturnTypeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: usePinnedReturnTypeParameterName,
+                fqName: usePinnedFQName + [usePinnedReturnTypeParameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setTypeParameterUpperBounds([types.anyType], for: usePinnedTypeParameterSymbol)
+
+            let usePinnedTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: usePinnedTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let usePinnedReturnTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: usePinnedReturnTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let usePinnedBlockParameterType = types.make(.classType(ClassType(
+                classSymbol: pinnedSymbol,
+                args: [.invariant(usePinnedTypeParameterType)],
+                nullability: .nonNull
+            )))
+            let usePinnedBlockType = types.make(.functionType(FunctionType(
+                params: [usePinnedBlockParameterType],
+                returnType: usePinnedReturnTypeParameterType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+
+            let usePinnedBlockParamName = interner.intern("block")
+            let usePinnedBlockParamSymbol = symbols.define(
+                kind: .valueParameter,
+                name: usePinnedBlockParamName,
+                fqName: usePinnedFQName + [usePinnedBlockParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+
+            let usePinnedSymbol = symbols.define(
+                kind: .function,
+                name: usePinnedName,
+                fqName: usePinnedFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            if let cinteropPkgSymbol {
+                symbols.setParentSymbol(cinteropPkgSymbol, for: usePinnedSymbol)
+            }
+            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedTypeParameterSymbol)
+            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedReturnTypeParameterSymbol)
+            symbols.setParentSymbol(usePinnedSymbol, for: usePinnedBlockParamSymbol)
+
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: usePinnedTypeParameterType,
+                    parameterTypes: [usePinnedBlockType],
+                    returnType: usePinnedReturnTypeParameterType,
+                    isSuspend: false,
+                    valueParameterSymbols: [usePinnedBlockParamSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: [usePinnedTypeParameterSymbol, usePinnedReturnTypeParameterSymbol],
+                    typeParameterUpperBoundsList: [[types.anyType], []],
+                    classTypeParameterCount: 0
+                ),
+                for: usePinnedSymbol
+            )
+        }
+
         let stableRefFQName = cinteropPkg + [interner.intern("StableRef")]
         let stableRefTypeParameterName = interner.intern("T")
         let stableRefTypeParameterFQName = stableRefFQName + [stableRefTypeParameterName]
