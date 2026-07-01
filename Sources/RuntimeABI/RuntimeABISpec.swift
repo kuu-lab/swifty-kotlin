@@ -2271,6 +2271,7 @@ public enum RuntimeABISpec {
         gcFunctions,
         hexFormatFunctions,
         ioFunctions,
+        jsNumberFunctions,
         kFunctionFunctions,
         kParameterFunctions,
         kPropertyStubFunctions,

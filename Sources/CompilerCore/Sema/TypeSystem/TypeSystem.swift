@@ -29,15 +29,10 @@ public final class TypeSystem {
     /// The symbol ID of the synthetic `kotlin.reflect.KClass` interface.
     public internal(set) var kClassInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.reflect.KAnnotatedElement` interface.
-    public internal(set) var kAnnotatedElementInterfaceSymbol: SymbolID?
-
-    /// The symbol ID of the synthetic `kotlin.reflect.KDeclarationContainer` interface.
-    public internal(set) var kDeclarationContainerInterfaceSymbol: SymbolID?
-
     /// The symbol ID of the synthetic `kotlin.Number` abstract class, set during header registration.
     /// Used in subtyping to allow numeric primitives (Int, Long, …) to satisfy `Number` upper bounds.
     public internal(set) var numberClassSymbol: SymbolID?
+
 
     /// Symbol table reference for SAM (fun interface) subtyping. Set during DataFlowSemaPhase.
     public weak var symbolTable: SymbolTable?
