@@ -165,6 +165,76 @@ public func kk_iterator_builder_next(_ iterRaw: Int) -> Int {
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_next received invalid iterator handle")
 }
 
+// MARK: - CORO-004 Phase 2: suspension-aware iterator builder consumer API
+//
+// These entry points are for future compiler use when the for-loop lowering is
+// updated to handle COROUTINE_SUSPENDED returns from hasNext/next.  They must
+// NOT replace kk_iterator_builder_hasNext / kk_iterator_builder_next because
+// existing callers do not check for the COROUTINE_SUSPENDED sentinel.
+//
+// Calling convention for kk_iterator_builder_hasNext_coro:
+//   - Returns 1  → hasNext == true  (element ready; call kk_iterator_builder_next)
+//   - Returns 0  → hasNext == false (iterator exhausted)
+//   - Returns kk_coroutine_suspended() → caller must propagate COROUTINE_SUSPENDED
+//     and re-enter after the coroutine is resumed; the resumed value carries the
+//     1 / 0 boolean result.
+
+/// Suspend-capable hasNext for coroutine callers.
+///
+/// `continuationRaw` must be the raw handle of the CURRENT caller continuation
+/// (i.e. the value of the `continuation` parameter passed into the enclosing
+/// suspend entry point).  When 0, falls back to the blocking path.
+@_cdecl("kk_iterator_builder_hasNext_coro")
+public func kk_iterator_builder_hasNext_coro(_ iterRaw: Int, _ continuationRaw: Int) -> Int {
+    guard let iter = runtimeIteratorBuilderBox(from: iterRaw) else {
+        if let iter = runtimeListIteratorBox(from: iterRaw) {
+            return iter.index < iter.elements.count ? 1 : 0
+        }
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_hasNext_coro received invalid iterator handle")
+    }
+    if continuationRaw != 0,
+       let callerState = runtimeContinuationState(from: continuationRaw)
+    {
+        return iter.probeHasNextAsync(callerState: callerState)
+    }
+    return iter.probeHasNext() ? 1 : 0
+}
+
+/// Consume the current element after a successful hasNext.
+///
+/// This variant mirrors `kk_iterator_builder_next` but is named separately so
+/// the compiler can emit it alongside `kk_iterator_builder_hasNext_coro`
+/// without confusion.  The consumer-side read is always synchronous (state is
+/// already `.hasValue` when hasNext returned 1), so no continuation is needed.
+@_cdecl("kk_iterator_builder_next_coro")
+public func kk_iterator_builder_next_coro(_ iterRaw: Int) -> Int {
+    if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
+        return iter.consumeNext()
+    }
+    if let iter = runtimeListIteratorBox(from: iterRaw) {
+        guard iter.index < iter.elements.count else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
+        }
+        let value = iter.elements[iter.index]
+        iter.index += 1
+        return value
+    }
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_next_coro received invalid iterator handle")
+}
+
+/// Sentinel value used by kk_sequence_builder (lazy coroutine) to signal
+/// end-of-sequence via `callerState.resume(with:)` (CORO-004 Phase 2).
+/// The caller compares the resume value against this sentinel to distinguish
+/// a real element from the done signal.
+@_cdecl("kk_sequence_completed_sentinel")
+public func kk_sequence_completed_sentinel() -> Int {
+    Int(bitPattern:
+        UnsafeMutableRawPointer(
+            Unmanaged.passUnretained(runtimeStorage.sequenceCompletedBox).toOpaque()
+        )
+    )
+}
+
 // MARK: - Sequence destination-collection filter operations (STDLIB-SEQ-021)
 
 @_cdecl("kk_sequence_filterTo")
