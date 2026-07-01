@@ -146,6 +146,20 @@ extension TypeSystem {
             return true
         }
 
+        // primitive <: Number  (Int, Long, Float, Double, Byte, Short are subclasses of kotlin.Number)
+        if case let .primitive(leftPrimitive, leftNullability) = lhs,
+           case let .classType(rightClass) = rhs,
+           let numberSym = numberClassSymbol,
+           rightClass.classSymbol == numberSym
+        {
+            switch leftPrimitive {
+            case .int, .long, .float, .double, .ubyte, .ushort:
+                return nullabilitySubtype(leftNullability, rightClass.nullability)
+            default:
+                break
+            }
+        }
+
         switch (lhs, rhs) {
         case (.any(.nonNull), .any(.nullable)):
             return true
