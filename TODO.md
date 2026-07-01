@@ -91,7 +91,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeDuration.swift` (61 @_cdecl)
 > 移行先: `Stdlib/kotlin/time/Duration.kt`
 
-- [ ] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
+- [x] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
 
 ### Phase M12: kotlin.uuid
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
