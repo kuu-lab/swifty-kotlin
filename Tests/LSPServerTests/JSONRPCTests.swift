@@ -6,6 +6,19 @@ import Testing
 @Suite("LSP.JSONRPC")
 struct JSONRPCTests {
     @Test
+    func acceptsFrameAtOrBelowMaxBodyBytes() {
+        let connection = JSONRPCConnection(
+            input: MemoryInputStream(LSPTestSupport.frame(["x": 1])),
+            output: MemoryOutputStream(),
+            maxBodyBytes: 16
+        )
+
+        let received = connection.receive()
+        #expect((received?["x"] as? Int) == 1)
+        #expect(connection.receive() == nil)
+    }
+
+    @Test
     func roundTripSingleMessage() {
         let message: [String: Any] = [
             "jsonrpc": "2.0",
@@ -50,6 +63,63 @@ struct JSONRPCTests {
         let messages = LSPTestSupport.decodeMessages(from: output)
         #expect(messages.count == 1)
         #expect((messages.first?["id"] as? Int) == 7)
+    }
+
+    @Test
+    func dropsNegativeContentLengthAndRecovers() {
+        let invalid = Data("Content-Length: -1\r\n\r\n".utf8)
+        let valid = LSPTestSupport.frame(["x": 1])
+        let connection = JSONRPCConnection(
+            input: MemoryInputStream(chunks: [invalid + valid]),
+            output: MemoryOutputStream()
+        )
+
+        #expect((connection.receive()?["x"] as? Int) == 1)
+        #expect(connection.receive() == nil)
+    }
+
+    @Test
+    func dropsOversizedContentLengthAndRecovers() {
+        let oversized = Data("Content-Length: 32\r\n\r\n".utf8) + Data(repeating: 0x20, count: 32)
+        let valid = LSPTestSupport.frame(["x": 1])
+        let connection = JSONRPCConnection(
+            input: MemoryInputStream(chunks: [oversized + valid]),
+            output: MemoryOutputStream(),
+            maxBodyBytes: 16
+        )
+
+        #expect((connection.receive()?["x"] as? Int) == 1)
+        #expect(connection.receive() == nil)
+    }
+
+    @Test
+    func dropsMalformedContentLengthAndRecovers() {
+        let malformed = Data("Content-Length: not-a-number\r\n\r\n".utf8)
+        let huge = Data("Content-Length: 9223372036854775807\r\n\r\n".utf8)
+        let valid = LSPTestSupport.frame(["x": 1])
+        let connection = JSONRPCConnection(
+            input: MemoryInputStream(chunks: [malformed + huge + valid]),
+            output: MemoryOutputStream()
+        )
+
+        #expect((connection.receive()?["x"] as? Int) == 1)
+        #expect(connection.receive() == nil)
+    }
+
+    @Test
+    func returnsNilWhenHeaderTerminatorMissingPastMaxHeaderBytes() {
+        let chunks: [Data] = [
+            Data("Content-Length: 1".utf8),
+            Data("Content-Length: 2".utf8),
+            Data("Content-Length: 3".utf8),
+        ]
+        let connection = JSONRPCConnection(
+            input: MemoryInputStream(chunks: chunks),
+            output: MemoryOutputStream(),
+            maxHeaderBytes: 16
+        )
+
+        #expect(connection.receive() == nil)
     }
 }
 #endif

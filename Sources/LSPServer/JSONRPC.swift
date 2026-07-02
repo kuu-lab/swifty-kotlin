@@ -47,13 +47,31 @@ public final class StandardOutputStream: ByteOutputStream {
 /// Messages are exchanged as loosely-typed JSON objects (`[String: Any]`).
 /// Typed payloads are bridged via `JSONCoding`.
 public final class JSONRPCConnection {
+    /// Default upper bound on a single message body (32 MiB). Frames declaring a
+    /// larger `Content-Length` are rejected to prevent memory-exhaustion DoS.
+    public static let defaultMaxBodyBytes = 32 * 1024 * 1024
+
+    /// Default upper bound on the header block scanned for the `\r\n\r\n`
+    /// terminator (64 KiB). Prevents unbounded buffering when a peer never
+    /// sends the terminator.
+    public static let defaultMaxHeaderBytes = 64 * 1024
+
     private let input: ByteInputStream
     private let output: ByteOutputStream
     private var buffer = Data()
+    private let maxBodyBytes: Int
+    private let maxHeaderBytes: Int
 
-    public init(input: ByteInputStream, output: ByteOutputStream) {
+    public init(
+        input: ByteInputStream,
+        output: ByteOutputStream,
+        maxBodyBytes: Int = JSONRPCConnection.defaultMaxBodyBytes,
+        maxHeaderBytes: Int = JSONRPCConnection.defaultMaxHeaderBytes
+    ) {
         self.input = input
         self.output = output
+        self.maxBodyBytes = maxBodyBytes
+        self.maxHeaderBytes = maxHeaderBytes
     }
 
     /// Reads and decodes the next framed message. Returns `nil` at end of
@@ -61,19 +79,33 @@ public final class JSONRPCConnection {
     public func receive() -> [String: Any]? {
         while true {
             guard let headerOffset = indexOfHeaderTerminator() else {
+                // No terminator yet. Guard against a peer that never sends
+                // `\r\n\r\n` by refusing to buffer an unbounded header block.
+                if buffer.count > maxHeaderBytes {
+                    buffer.removeAll(keepingCapacity: false)
+                    return nil
+                }
                 if !readMore() { return nil }
                 continue
             }
 
             let headerData = Data(buffer.prefix(headerOffset))
-            guard let contentLength = parseContentLength(headerData) else {
-                // Unrecognized header block: drop it and resynchronize.
+            guard let contentLength = parseContentLength(headerData),
+                  contentLength >= 0,
+                  contentLength <= maxBodyBytes
+            else {
+                // Missing, malformed, negative, or oversized Content-Length:
+                // drop the header block and resynchronize.
                 buffer = Data(buffer.dropFirst(headerOffset + 4))
                 continue
             }
 
             let bodyStart = headerOffset + 4
-            let totalNeeded = bodyStart + contentLength
+            let (totalNeeded, overflowed) = bodyStart.addingReportingOverflow(contentLength)
+            if overflowed {
+                buffer = Data(buffer.dropFirst(bodyStart))
+                continue
+            }
             while buffer.count < totalNeeded {
                 if !readMore() { return nil }
             }
