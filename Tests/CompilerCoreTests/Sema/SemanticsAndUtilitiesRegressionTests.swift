@@ -3686,7 +3686,7 @@ struct SemanticsAndUtilitiesRegressionTests {
     }
 }
 
-@Suite
+@Suite @MainActor
 struct CommandRunnerErrorPathTests {
     @Test
     func testRunReturnsStdoutOnSuccess() throws {

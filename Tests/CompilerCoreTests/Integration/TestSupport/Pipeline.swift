@@ -1,6 +1,42 @@
 @testable import CompilerCore
 import Foundation
 
+private let compilerTestStackThreadKey = "CompilerCoreTests.compilerTestStackThread"
+
+private final class CompilerTestStackJob<T>: @unchecked Sendable {
+    private let body: () throws -> T
+    var result: Result<T, Error>?
+
+    init(body: @escaping () throws -> T) {
+        self.body = body
+    }
+
+    func run() {
+        result = Result { try body() }
+    }
+}
+
+func runOnCompilerTestStack<T>(_ body: @escaping () throws -> T) throws -> T {
+    if Thread.isMainThread
+        || Thread.current.threadDictionary[compilerTestStackThreadKey] as? Bool == true
+    {
+        return try body()
+    }
+
+    let completion = DispatchSemaphore(value: 0)
+    let job = CompilerTestStackJob(body: body)
+    let thread = Thread {
+        Thread.current.threadDictionary[compilerTestStackThreadKey] = true
+        job.run()
+        completion.signal()
+    }
+    thread.stackSize = 8 * 1024 * 1024
+    thread.start()
+    completion.wait()
+
+    return try job.result!.get()
+}
+
 func makeSemaModule(
     symbols: SymbolTable = SymbolTable(),
     types: TypeSystem = TypeSystem(),
@@ -57,25 +93,33 @@ func makeCompilationContext(
 }
 
 func runFrontend(_ ctx: CompilationContext) throws {
-    try LoadSourcesPhase().run(ctx)
-    try LexPhase().run(ctx)
-    try ParsePhase().run(ctx)
-    try BuildASTPhase().run(ctx)
+    try runOnCompilerTestStack {
+        try LoadSourcesPhase().run(ctx)
+        try LexPhase().run(ctx)
+        try ParsePhase().run(ctx)
+        try BuildASTPhase().run(ctx)
+    }
 }
 
 func runSema(_ ctx: CompilationContext) throws {
-    try runFrontend(ctx)
-    try SemaPhase().run(ctx)
+    try runOnCompilerTestStack {
+        try runFrontend(ctx)
+        try SemaPhase().run(ctx)
+    }
 }
 
 func runToKIR(_ ctx: CompilationContext) throws {
-    try runSema(ctx)
-    try BuildKIRPhase().run(ctx)
+    try runOnCompilerTestStack {
+        try runSema(ctx)
+        try BuildKIRPhase().run(ctx)
+    }
 }
 
 func runToLowering(_ ctx: CompilationContext) throws {
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
+    try runOnCompilerTestStack {
+        try runToKIR(ctx)
+        try LoweringPhase().run(ctx)
+    }
 }
 
 func makeContextFromSource(

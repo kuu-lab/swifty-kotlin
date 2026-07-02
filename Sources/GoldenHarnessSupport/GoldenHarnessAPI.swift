@@ -69,6 +69,8 @@ public enum GoldenHarness {
         let stderrAccumulator = DataAccumulator()
         let stdoutHandle = stdout.fileHandleForReading
         let stderrHandle = stderr.fileHandleForReading
+        let stdoutWriteHandle = stdout.fileHandleForWriting
+        let stderrWriteHandle = stderr.fileHandleForWriting
 
         process.executableURL = try workerExecutableURL()
         process.arguments = [suiteName, sourcePath]
@@ -76,26 +78,39 @@ public enum GoldenHarness {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        // Drain stdout and stderr on dedicated background threads so the subprocess
-        // is never stalled by a full pipe buffer (~64 KB on Linux). A single
+        // Drain stdout and stderr on dedicated threads so the subprocess is never
+        // stalled by a full pipe buffer (~64 KB on Linux). A single
         // readDataToEndOfFile() per pipe reads all bytes in arrival order without
         // the data-interleaving race that occurs when readabilityHandler callbacks
         // run concurrently with a subsequent readDataToEndOfFile() call.
         let ioGroup = DispatchGroup()
-        ioGroup.enter()
-        DispatchQueue.global(qos: .utility).async {
-            stdoutAccumulator.append(stdoutHandle.readDataToEndOfFile())
-            ioGroup.leave()
-        }
-        ioGroup.enter()
-        DispatchQueue.global(qos: .utility).async {
-            stderrAccumulator.append(stderrHandle.readDataToEndOfFile())
-            ioGroup.leave()
-        }
+        let stdoutDrain = PipeDrain(
+            handle: stdoutHandle,
+            accumulator: stdoutAccumulator,
+            group: ioGroup,
+            name: "GoldenHarness.stdout"
+        )
+        let stderrDrain = PipeDrain(
+            handle: stderrHandle,
+            accumulator: stderrAccumulator,
+            group: ioGroup,
+            name: "GoldenHarness.stderr"
+        )
+        stdoutDrain.start()
+        stderrDrain.start()
 
         let terminatedSemaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in terminatedSemaphore.signal() }
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            stdoutWriteHandle.closeFile()
+            stderrWriteHandle.closeFile()
+            ioGroup.wait()
+            throw error
+        }
+        stdoutWriteHandle.closeFile()
+        stderrWriteHandle.closeFile()
         if terminatedSemaphore.wait(timeout: .now() + subprocessTimeout) == .timedOut {
             process.terminate()
             // Wait for process to exit after terminate to avoid zombie processes
@@ -479,5 +494,29 @@ private final class DataAccumulator: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return buffer
+    }
+}
+
+private final class PipeDrain: @unchecked Sendable {
+    private let handle: FileHandle
+    private let accumulator: DataAccumulator
+    private let group: DispatchGroup
+    private let name: String
+
+    init(handle: FileHandle, accumulator: DataAccumulator, group: DispatchGroup, name: String) {
+        self.handle = handle
+        self.accumulator = accumulator
+        self.group = group
+        self.name = name
+    }
+
+    func start() {
+        group.enter()
+        let thread = Thread { [self] in
+            accumulator.append(handle.readDataToEndOfFile())
+            group.leave()
+        }
+        thread.name = name
+        thread.start()
     }
 }

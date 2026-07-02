@@ -51,6 +51,32 @@ private final class LockedCommandOutput: @unchecked Sendable {
     }
 }
 
+private final class CommandPipeDrain: @unchecked Sendable {
+    private let handle: FileHandle
+    private let output: LockedCommandOutput
+    private let stream: CommandOutputStream
+    private let group: DispatchGroup
+    private let name: String
+
+    init(handle: FileHandle, output: LockedCommandOutput, stream: CommandOutputStream, group: DispatchGroup, name: String) {
+        self.handle = handle
+        self.output = output
+        self.stream = stream
+        self.group = group
+        self.name = name
+    }
+
+    func start() {
+        group.enter()
+        let thread = Thread { [self] in
+            defer { group.leave() }
+            output.store(handle.readDataToEndOfFile(), for: stream)
+        }
+        thread.name = name
+        thread.start()
+    }
+}
+
 package enum CommandRunner {
     private static let drainTimeoutSeconds: TimeInterval = 20
     private static let terminationGracePeriodSeconds: TimeInterval = 1
@@ -89,50 +115,55 @@ package enum CommandRunner {
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
+        let stdoutReadHandle = stdoutPipe.fileHandleForReading
+        let stderrReadHandle = stderrPipe.fileHandleForReading
+        let stdoutWriteHandle = stdoutPipe.fileHandleForWriting
+        let stderrWriteHandle = stderrPipe.fileHandleForWriting
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        do {
-            try process.run()
-        } catch {
-            throw CommandRunnerError.launchFailed("Failed to launch \(executable): \(error)")
-        }
         // Drain both pipes before waiting for process termination to avoid
         // deadlocks when child output exceeds the kernel pipe buffer.
         let output = LockedCommandOutput()
         let drainGroup = DispatchGroup()
-        let exitGroup = DispatchGroup()
+        let stdoutDrain = CommandPipeDrain(
+            handle: stdoutReadHandle,
+            output: output,
+            stream: .stdout,
+            group: drainGroup,
+            name: "CommandRunner.stdout"
+        )
+        let stderrDrain = CommandPipeDrain(
+            handle: stderrReadHandle,
+            output: output,
+            stream: .stderr,
+            group: drainGroup,
+            name: "CommandRunner.stderr"
+        )
+        stdoutDrain.start()
+        stderrDrain.start()
 
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            output.store(data, for: .stdout)
-        }
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            output.store(data, for: .stderr)
+        let terminatedSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            terminatedSemaphore.signal()
         }
 
-        exitGroup.enter()
-        DispatchQueue.global().async {
-            defer { exitGroup.leave() }
-            process.waitUntilExit()
+        do {
+            try process.run()
+        } catch {
+            stdoutWriteHandle.closeFile()
+            stderrWriteHandle.closeFile()
+            _ = wait(for: drainGroup, timeout: drainTimeoutSeconds)
+            throw CommandRunnerError.launchFailed("Failed to launch \(executable): \(error)")
         }
+        stdoutWriteHandle.closeFile()
+        stderrWriteHandle.closeFile()
 
-        var didExit = wait(for: exitGroup, timeout: timeout)
+        var didExit = wait(for: terminatedSemaphore, timeout: timeout)
         let didTimeOut = !didExit
         if !didExit {
             process.terminate()
-            // Re-enter group to wait for process exit after terminate
-            exitGroup.enter()
-            DispatchQueue.global().async {
-                defer { exitGroup.leave() }
-                process.waitUntilExit()
-            }
-            didExit = wait(for: exitGroup, timeout: terminationGracePeriodSeconds)
+            didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
             if !didExit {
                 // Check if process is still running before sending SIGKILL to avoid killing wrong process
                 // Note: There's a race condition between this check and the kill() call where the process
@@ -145,13 +176,7 @@ package enum CommandRunner {
                         // Other errors are unusual but we continue anyway
                     }
                 }
-                // Re-enter group to wait for process exit after SIGKILL
-                exitGroup.enter()
-                DispatchQueue.global().async {
-                    defer { exitGroup.leave() }
-                    process.waitUntilExit()
-                }
-                didExit = wait(for: exitGroup, timeout: terminationGracePeriodSeconds)
+                didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
                 // Verify process exited after SIGKILL
                 if !didExit && process.isRunning {
                     // Process is still running despite SIGKILL - this is unusual but possible
@@ -217,6 +242,11 @@ package enum CommandRunner {
     private static func wait(for group: DispatchGroup, timeout: TimeInterval) -> Bool {
         let milliseconds = max(1, Int((timeout * 1000).rounded()))
         return group.wait(timeout: .now() + .milliseconds(milliseconds)) == .success
+    }
+
+    private static func wait(for semaphore: DispatchSemaphore, timeout: TimeInterval) -> Bool {
+        let milliseconds = max(1, Int((timeout * 1000).rounded()))
+        return semaphore.wait(timeout: .now() + .milliseconds(milliseconds)) == .success
     }
 
     private static func timeoutMessage(
