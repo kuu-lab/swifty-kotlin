@@ -9,18 +9,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        if symbols.lookup(fqName: kotlinPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("kotlin"),
-                fqName: kotlinPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
         let kotlinRandomPkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin"), interner.intern("random")],
             symbols: symbols
