@@ -63,7 +63,7 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/sequences/`
 
 - [ ] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
-- [ ] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
+- [x] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
 
 ### Phase M5: kotlin.comparisons
 > 移行元: `Sources/Runtime/RuntimeComparator.swift` (47 @_cdecl)

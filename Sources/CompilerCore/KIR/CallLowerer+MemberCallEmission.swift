@@ -483,8 +483,8 @@ extension CallLowerer {
                 finalArguments.insert(zeroExpr, at: 3)
             }
         }
-        if loweredCallee == interner.intern("kk_sequence_chunked"),
-           hasHOFLambdaArg,
+        if (loweredCallee == interner.intern("kk_sequence_chunked_transform")
+            || (loweredCallee == interner.intern("kk_sequence_chunked") && hasHOFLambdaArg)),
            finalArguments.count == 3
         {
             loweredCallee = interner.intern("kk_sequence_chunked_transform")
@@ -514,11 +514,28 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
+        if loweredCallee == interner.intern("kk_sequence_zip_transform"),
+           finalArguments.count == 3
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[2] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
         if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
             || loweredCallee == interner.intern("kk_sequence_takeLastWhile")
-            || loweredCallee == interner.intern("kk_sequence_indexOfLast"),
+            || loweredCallee == interner.intern("kk_sequence_indexOfLast")
+            || loweredCallee == interner.intern("kk_sequence_takeWhile")
+            || loweredCallee == interner.intern("kk_sequence_dropWhile")
+            || loweredCallee == interner.intern("kk_sequence_distinctBy")
+            || loweredCallee == interner.intern("kk_sequence_zipWithNextTransform"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(

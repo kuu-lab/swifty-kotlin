@@ -38,7 +38,7 @@ extension CallTypeChecker {
             "maxOf", "minOf",
             "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
-            "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zipWithNext",
+            "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
             "flatten",
             "sort", "sortBy", "sortByDescending", "sortWith",
         ]
@@ -829,6 +829,64 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = destinationType
+                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+            if calleeStr == "zip", !args.isEmpty {
+                let otherType = sema.bindings.exprTypes[args[0].expr]
+                    ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                let otherElementType: TypeID
+                if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
+                   let firstArg = otherClassType.args.first
+                {
+                    otherElementType = switch firstArg {
+                    case let .invariant(t), let .out(t), let .in(t): t
+                    case .star: sema.types.anyType
+                    }
+                } else {
+                    otherElementType = sema.types.anyType
+                }
+
+                let resultElementType: TypeID
+                if args.count >= 2 {
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [collectionElementType, otherElementType],
+                        returnType: sema.types.anyType,
+                        isSuspend: false,
+                        nullability: .nonNull
+                    )))
+                    if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                    }
+                    _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    resultElementType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
+                } else if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first {
+                    resultElementType = sema.types.make(.classType(ClassType(
+                        classSymbol: pairSymbol,
+                        args: [.invariant(collectionElementType), .invariant(otherElementType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    resultElementType = sema.types.anyType
+                }
+
+                if isSequenceReceiver {
+                    resultType = makeSyntheticSequenceType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: resultElementType
+                    )
+                } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                    resultType = sema.types.make(.classType(ClassType(
+                        classSymbol: listSymbol,
+                        args: [.invariant(resultElementType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    resultType = sema.types.anyType
+                }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
@@ -2154,20 +2212,28 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: sema.types.anyType)
                         return sema.types.anyType
                     }
-                    // zipWithNext(): List<Pair<T, T>>
-                    if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first,
-                       let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
-                    {
+                    if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first {
                         let pairType = sema.types.make(.classType(ClassType(
                             classSymbol: pairSymbol,
                             args: [.invariant(collectionElementType), .invariant(collectionElementType)],
                             nullability: .nonNull
                         )))
-                        resultType = sema.types.make(.classType(ClassType(
-                            classSymbol: listSymbol,
-                            args: [.invariant(pairType)],
-                            nullability: .nonNull
-                        )))
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: pairType
+                            )
+                        } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
+                            resultType = sema.types.make(.classType(ClassType(
+                                classSymbol: listSymbol,
+                                args: [.invariant(pairType)],
+                                nullability: .nonNull
+                            )))
+                        } else {
+                            resultType = sema.types.anyType
+                        }
                     } else {
                         resultType = sema.types.anyType
                     }
@@ -2192,7 +2258,14 @@ extension CallTypeChecker {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     let bodyType = explicitTypeArgs.first
                         ?? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
-                    if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
+                    if isSequenceReceiver {
+                        resultType = makeSyntheticSequenceType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: bodyType
+                        )
+                    } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                         resultType = sema.types.make(.classType(ClassType(
                             classSymbol: listSymbol,
                             args: [.invariant(bodyType)],

@@ -820,6 +820,13 @@ public extension RuntimeABISpec {
             p("closureRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        abiParitySpec("kk_sequence_zip_transform", parameters: [
+            p("seqRaw", .intptr),
+            p("otherRaw", .intptr),
+            p("fnPtr", .intptr),
+            p("closureRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_set_maxOrNull", parameters: [
             p("setRaw", .intptr),
         ]),
