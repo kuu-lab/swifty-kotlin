@@ -201,7 +201,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
 - [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` は producer を専用 `Thread` へ逃がし、consumer 側 continuation API（`nextElementAsync` / `probeHasNextAsync`）まで実装済み。残りは `yield()` 自体を suspend point として CPS lowering へ接続し、専用 producer thread を撤去する
 - [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
-      
+
 ### KIR / Lowering
 - [ ] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift:1085-1094` で vtable dispatch が無効化され常に static dispatch へフォールバックしている（「TODO: Re-enable once kk_alloc-based object allocation is in place」）。ブロッカーとされた `kk_alloc` は `Sources/Runtime/RuntimeGC.swift:151` に実装済みのため、前提充足を監査して再有効化を検討する。再有効化時は `VirtualDispatchTests` へ該当経路のケースを追加する
 - [x] DEBT-KIR-003: `Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift` の手書き約 1,300 行 Set リテラルを `RuntimeABISpec` 由来の導出へ置換する。`RuntimeABIFunctionSpec` に throwing 属性が無いため throwing 情報が二重管理になっている — spec へ `isThrowing` フィールドを追加し、既存手書きリストとの全件突き合わせ検証を経て自動導出へ移行する（non-throwing callee cleanup と runtime/compiler ABI validation とも整合）
@@ -282,7 +282,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] KSP-001: bundled 宣言インデックスを構築する
   - 前提: なし
   - 変更: 新規 `Sources/CompilerCore/Sema/DataFlow/BundledDeclarationIndex.swift` / `Sources/CompilerCore/Sema/DataFlow/Phase.swift` / `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers.swift` の `registerSyntheticDelegateStubs(symbols:types:interner:)`
-  - 手順: (0) `Phase.swift` の `run()` で bundled ソース宣言の SymbolTable 登録が `registerSyntheticDelegateStubs` 呼び出しより先であることを確認（先でなければ中断して報告） (1) パスが `__bundled_` で始まる fileID 集合を `ctx.sourceManager` から取り、`declSite` がそこに属す関数/プロパティの `(所有型FQName, メンバ名, パラメータ数)` Set を持つ struct `BundledDeclarationIndex` を実装（member lookup の型は `SymbolTable.lookupAll(fqName:)` / `Helpers+TypeArgsAndMemberLookup.swift` の `lookupMemberProperty` を参照） (2) `registerSyntheticDelegateStubs` に引数 `bundledIndex`（既定 `.empty`）を追加し `Phase.swift` から渡す
+  - 手順: (0) `Phase.swift` の `run()` では synthetic 型基盤が先に必要なため、bundled ソース宣言の SymbolTable 登録は `registerSyntheticDelegateStubs` より後に残す (1) パスが `__bundled_` で始まる fileID 集合を `ctx.sourceManager` から取り、AST から bundled 関数/プロパティ/nominal member の `(所有型FQName, メンバ名, パラメータ数)` Set を持つ struct `BundledDeclarationIndex` を実装する。post-header 利用向けの SymbolTable builder は同じ key 規則で保持する (2) `registerSyntheticDelegateStubs` に引数 `bundledIndex`（既定 `.empty`）を追加し `Phase.swift` から渡す
   - 検証: `swift build` + G（このタスクでは挙動不変）
 - [ ] KSP-002: 優先規則（Kotlin ソース > 合成スタブ）を実装する
   - 前提: KSP-001
