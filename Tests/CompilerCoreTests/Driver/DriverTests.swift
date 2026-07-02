@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite @MainActor
 struct DriverTests {
     // MARK: - fallbackDiagnostic
 

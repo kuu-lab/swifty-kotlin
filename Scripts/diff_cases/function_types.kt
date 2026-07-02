@@ -93,7 +93,7 @@ fun testComplexFunctionTypes() {
     }
     
     val validator = functionFactory(2)
-    println(validator("hello")) // true
+    println(validator("hello")) // false
     println(validator("hi")) // false
     
     // 関数を引数に取る関数

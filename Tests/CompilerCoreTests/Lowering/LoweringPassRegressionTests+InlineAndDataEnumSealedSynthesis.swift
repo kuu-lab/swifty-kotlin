@@ -328,8 +328,8 @@ extension LoweringPassRegressionTests {
 
         // Verify valueOf body contains string comparison calls
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
-        #expect(valueOfCallees.contains("kk_string_equals"), "valueOf should call kk_string_equals")
-        #expect(valueOfCallees.contains("kk_string_concat"), "valueOf should call kk_string_concat to build 'ClassName.value' for error message")
+        #expect(valueOfCallees.contains("kk_string_equals_flat"), "valueOf should call kk_string_equals_flat")
+        #expect(valueOfCallees.contains("kk_string_concat_flat"), "valueOf should call kk_string_concat_flat to build 'ClassName.value' for error message")
         #expect(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
         // Verify valueOf body contains the class name prefix string "Color."
@@ -751,7 +751,7 @@ extension LoweringPassRegressionTests {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let nullableAnyType = types.nullableAnyType
         symbols.setFunctionSignature(
@@ -857,7 +857,7 @@ extension LoweringPassRegressionTests {
         // Verify toString body uses StringBuilder + kk_any_to_string
         let toStringFn = try findKIRFunction(named: "toString", in: module, interner: interner)
         let toStringCallees = extractCallees(from: toStringFn.body, interner: interner)
-        #expect(toStringCallees.contains("kk_string_builder_new_from_string"), "toString should create a StringBuilder from the class prefix")
+        #expect(toStringCallees.contains("kk_string_builder_new_from_string_flat"), "toString should create a StringBuilder from the class prefix")
         #expect(toStringCallees.contains("kk_string_builder_append_obj"), "toString should append labels and values via StringBuilder")
         #expect(toStringCallees.contains("kk_string_builder_toString"), "toString should convert the StringBuilder back to String")
         #expect(toStringCallees.contains("kk_any_to_string"), "toString should use kk_any_to_string")
@@ -1107,7 +1107,7 @@ extension LoweringPassRegressionTests {
         )
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let nameParamName = interner.intern("name")
         let nameParamSymbol = symbols.define(
             kind: .valueParameter,

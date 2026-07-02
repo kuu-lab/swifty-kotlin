@@ -377,7 +377,15 @@ final class LambdaClosureConversionPass: LoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-            loadedCaptureExprs.append(loadedExpr)
+            let normalizedLoadedExpr = normalizePrimitiveClosureCapture(
+                loadedExpr,
+                type: captureType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &invokeBody
+            )
+            loadedCaptureExprs.append(normalizedLoadedExpr)
         }
 
         var valueParamExprs: [KIRExprID] = []
@@ -542,6 +550,29 @@ final class LambdaClosureConversionPass: LoweringPass {
         let expr = arena.appendExpr(.temporary(nextTempID), type: type)
         nextTempID += 1
         return expr
+    }
+
+    private func normalizePrimitiveClosureCapture(
+        _ exprID: KIRExprID,
+        type: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        body: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let typeKind = sema.types.kind(of: type)
+        guard case .primitive(_, .nonNull) = typeKind,
+              let unboxCallee = ABILoweringPass.primitiveUnboxingCallee(for: typeKind, interner: interner)
+        else {
+            return exprID
+        }
+        return emitNonThrowingCall(
+            callee: unboxCallee,
+            arg: exprID,
+            resultType: type,
+            arena: arena,
+            into: &body
+        )
     }
 
     /// Compute the maximum temporary expression ID used within a function's body,

@@ -131,7 +131,13 @@ extension DataFlowSemaPhase {
             return existingSignature.parameterTypes == parameters.map(\.type)
                 && existingSignature.returnType == returnType
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
+            let existingFlags = symbols.symbol(existing)?.flags ?? []
+            if existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
+            return
+        }
+        if hasSourceOrImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 

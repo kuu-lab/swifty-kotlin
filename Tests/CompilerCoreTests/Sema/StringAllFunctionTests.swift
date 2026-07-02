@@ -4,7 +4,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-001: Validates that `CharSequence.all(predicate)` resolves
 /// through Sema for String receivers and lowers to the runtime helper
-/// `kk_string_all`. The synthetic surface signature is
+/// `kk_string_all_flat`. The synthetic surface signature is
 /// `String.all(predicate: (Char) -> Boolean): Boolean`.
 @Suite
 struct StringAllFunctionTests {
@@ -63,7 +63,7 @@ struct StringAllFunctionTests {
     }
 
     /// Sema should expose `String.all` as a synthetic extension function whose
-    /// external link name is `kk_string_all`.
+    /// external link name is `kk_string_all_flat`.
     @Test func testStringAllLinksToRuntimeHelper() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -109,10 +109,10 @@ struct StringAllFunctionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let allFlags = try #require(
-                throwFlags["kk_string_all"],
-                "Expected kk_string_all call sites to appear in main()"
+                throwFlags["kk_string_all_flat"],
+                "Expected kk_string_all_flat call sites to appear in main()"
             )
-            #expect(allFlags.count == 2, "Expected two kk_string_all invocations")
+            #expect(allFlags.count == 2, "Expected two kk_string_all_flat invocations")
         }
     }
 }

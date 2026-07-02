@@ -418,7 +418,7 @@ extension OverloadResolverTests {
 
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let fn = defineSymbol(kind: .function, name: "triple", suffix: "namedTriple", symbols: symbols, interner: interner)
         let paramA = defineSymbol(kind: .valueParameter, name: "a", suffix: "namedTriple_a", symbols: symbols, interner: interner)
         let paramB = defineSymbol(kind: .valueParameter, name: "b", suffix: "namedTriple_b", symbols: symbols, interner: interner)

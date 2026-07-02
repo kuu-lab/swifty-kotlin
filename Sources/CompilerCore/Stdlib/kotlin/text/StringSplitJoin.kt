@@ -1,5 +1,7 @@
 package kotlin.text
 
+import kswiftk.internal.*
+
 // String split, join, chunked, windowed, zip functions migrated from Swift Runtime
 // MIGRATION-TEXT-004
 
@@ -18,7 +20,7 @@ public inline fun CharSequence.split(
     limit: Int = 0
 ): List<String> {
     // Delegate to the existing bridge implementation
-    if (delimiters.isEmpty()) {
+    if (delimiters.size == 0) {
         return listOf(this.toString())
     }
     // For single delimiter, use the bridge
@@ -49,7 +51,7 @@ private fun CharSequence.splitByDelimiters(delimiters: List<String>, ignoreCase:
     val source = this.toString()
     var count = 0
 
-    while (current <= source.length) {
+    while (current <= __string_struct_get_length(source)) {
         if (limit > 0 && count >= limit - 1) {
             result.add(source.substring(current))
             return result
@@ -59,7 +61,7 @@ private fun CharSequence.splitByDelimiters(delimiters: List<String>, ignoreCase:
         var bestIndex = -1
         var bestDelimiter = ""
         for (delimiter in delimiters) {
-            if (delimiter.isEmpty()) continue
+            if (__string_struct_get_length(delimiter) == 0) continue
             val idx = source.indexOf(delimiter, current, ignoreCase = ignoreCase)
             if (idx != -1 && (bestIndex == -1 || idx < bestIndex)) {
                 bestIndex = idx
@@ -73,7 +75,7 @@ private fun CharSequence.splitByDelimiters(delimiters: List<String>, ignoreCase:
         }
 
         result.add(source.substring(current, bestIndex))
-        current = bestIndex + bestDelimiter.length
+        current = bestIndex + __string_struct_get_length(bestDelimiter)
         count++
     }
 
@@ -263,7 +265,7 @@ public fun CharSequence.withIndex(): Iterable<IndexedValue<Char>> {
  * @return A list of pairs of characters with the same index.
  */
 public fun CharSequence.zip(other: CharSequence): List<Pair<Char, Char>> {
-    val size = minOf(length, other.length)
+    val size = minOf(__string_struct_get_length(this), __string_struct_get_length(other))
     val result = mutableListOf<Pair<Char, Char>>()
     for (i in 0 until size) {
         result.add(Pair(this[i], other[i]))
@@ -281,7 +283,7 @@ public fun CharSequence.zip(other: CharSequence): List<Pair<Char, Char>> {
  * @return A list of results of applying the transform to each pair.
  */
 public fun <V> CharSequence.zip(other: CharSequence, transform: (Char, Char) -> V): List<V> {
-    val size = minOf(length, other.length)
+    val size = minOf(__string_struct_get_length(this), __string_struct_get_length(other))
     val result = mutableListOf<V>()
     for (i in 0 until size) {
         result.add(transform(this[i], other[i]))

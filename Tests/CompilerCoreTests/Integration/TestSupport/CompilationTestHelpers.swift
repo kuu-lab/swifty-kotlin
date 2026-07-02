@@ -66,7 +66,9 @@ private func assertKotlinInputsToKIR(
         outputPath: outputBase,
         emit: .kirDump
     )
-    let result = makeTestDriver().runForTesting(options: options)
+    let result = try runOnCompilerTestStack {
+        makeTestDriver().runForTesting(options: options)
+    }
 
     #expect(result.exitCode == 0,
             "KIR compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })")
@@ -96,7 +98,9 @@ func assertKotlinCompilesToObject(
             outputPath: outputBase,
             emit: .object
         )
-        let result = makeTestDriver().runForTesting(options: options)
+        let result = try runOnCompilerTestStack {
+            makeTestDriver().runForTesting(options: options)
+        }
 
         #expect(result.exitCode == 0,
                        "Object compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })")

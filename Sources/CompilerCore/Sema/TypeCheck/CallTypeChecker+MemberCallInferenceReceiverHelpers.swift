@@ -591,7 +591,7 @@ extension CallTypeChecker {
 
         // STDLIB-NUM-130: Numeric companion static functions — Double.fromBits(Long), Float.fromBits(Int).
         if args.count == 1,
-           let (returnType, externalName) = numericCompanionFunction(
+           let companionFunction = numericCompanionFunction(
                typeName: receiverStr, memberName: memberStr, sema: sema
            )
         {
@@ -601,14 +601,33 @@ extension CallTypeChecker {
             let funcFQName = kotlinPkgName + [fromBitsName]
             let allCandidates = sema.symbols.lookupAll(fqName: funcFQName)
             if let funcSymbol = allCandidates.first(where: { sid in
-                sema.symbols.symbol(sid)?.kind == .function
-                    && sema.symbols.externalLinkName(for: sid) == externalName
+                guard sema.symbols.symbol(sid)?.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: sid),
+                      signature.receiverType == nil,
+                      signature.parameterTypes == [companionFunction.parameterType],
+                      signature.returnType == companionFunction.returnType
+                else {
+                    return false
+                }
+                if sema.symbols.symbol(sid)?.flags.contains(.importedLibrary) == true {
+                    return true
+                }
+                return sema.symbols.externalLinkName(for: sid) == companionFunction.externalLinkName
             }) {
                 sema.bindings.bindIdentifier(id, symbol: funcSymbol)
-                sema.bindings.bindExprType(id, type: returnType)
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: funcSymbol,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(funcSymbol))
+                sema.bindings.bindExprType(id, type: companionFunction.returnType)
                 // Bind receiver as Unit so lowering does not pass the class name as argument.
                 sema.bindings.bindExprType(receiverID, type: sema.types.unitType)
-                return returnType
+                return companionFunction.returnType
             }
         }
 

@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 import CompilerCore
 
@@ -36,6 +37,8 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let module: KIRModule
     let interner: StringInterner
+    let typeSystem: TypeSystem?
+    let symbols: SymbolTable?
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
@@ -52,6 +55,8 @@ struct NativeEmitter {
         bindings: LLVMCAPIBindings,
         module: KIRModule,
         interner: StringInterner,
+        typeSystem: TypeSystem? = nil,
+        symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
@@ -64,11 +69,95 @@ struct NativeEmitter {
         self.bindings = bindings
         self.module = module
         self.interner = interner
+        self.typeSystem = typeSystem
+        self.symbols = symbols
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
         self.linkOnceODRSymbols = linkOnceODRSymbols
+    }
+
+    private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
+        let callbackArgumentPositionsByCallee = runtimeCallbackArgumentPositionsByCallee()
+        guard !callbackArgumentPositionsByCallee.isEmpty else {
+            return []
+        }
+
+        var symbols: Set<SymbolID> = []
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else {
+                continue
+            }
+            for instruction in function.body {
+                switch instruction {
+                case let .call(_, callee, arguments, _, _, _, _, _):
+                    guard let callbackPositions = callbackArgumentPositionsByCallee[callee] else {
+                        continue
+                    }
+                    for position in callbackPositions where arguments.indices.contains(position) {
+                        if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
+                            symbols.insert(symbol)
+                        }
+                    }
+
+                default:
+                    continue
+                }
+            }
+        }
+        guard !symbols.isEmpty else {
+            return []
+        }
+
+        // Dispatch declarations and concrete overrides must share the callback ABI
+        // when a same-shaped implementation is registered for reflection.
+        struct FunctionABIKey: Hashable {
+            let name: InternedString
+            let parameterCount: Int
+        }
+
+        var rawCallbackKeys: Set<FunctionABIKey> = []
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration,
+                  symbols.contains(function.symbol)
+            else {
+                continue
+            }
+            rawCallbackKeys.insert(FunctionABIKey(
+                name: function.name,
+                parameterCount: function.params.count
+            ))
+        }
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else {
+                continue
+            }
+            let key = FunctionABIKey(name: function.name, parameterCount: function.params.count)
+            if rawCallbackKeys.contains(key) {
+                symbols.insert(function.symbol)
+            }
+        }
+        return symbols
+    }
+
+    private func runtimeCallbackArgumentPositionsByCallee() -> [InternedString: [Int]] {
+        var positionsByCallee: [InternedString: [Int]] = [:]
+        for spec in RuntimeABISpec.allFunctions {
+            if spec.name == "kk_object_register_itable_method" {
+                continue
+            }
+            let positions = spec.parameters.enumerated().compactMap { index, parameter -> Int? in
+                let name = parameter.name.lowercased()
+                // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
+                // kk_function_invoke, which uses the flat intptr callback ABI.
+                return (name.contains("fnptr") || name == "functionraw" || name == "bodyraw") ? index : nil
+            }
+            if !positions.isEmpty {
+                positionsByCallee[interner.intern(spec.name)] = positions
+            }
+        }
+        return positionsByCallee
     }
 
     func emitLLVMIR(outputPath: String) throws {
@@ -148,6 +237,18 @@ struct NativeEmitter {
             bindings.disposeContext(context)
             throw LLVMBackendError.nativeEmissionFailed("LLVMPointerType returned null")
         }
+        let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
+        let runtimeCallbackRawABISymbols = collectRuntimeCallbackRawABISymbols()
+
+        func isStringAggregateType(_ type: TypeID?) -> Bool {
+            guard let type,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: type)
+            else {
+                return false
+            }
+            return typeLowering != nil
+        }
 
         do {
             try defineWeakFrameRuntimeStubs(
@@ -192,10 +293,30 @@ struct NativeEmitter {
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            var parameterTypes = Array(repeating: int64Type, count: function.params.count)
+            let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
+            var parameterTypes = function.params.map {
+                if usesRuntimeCallbackRawABI {
+                    return int64Type
+                }
+                return loweredLLVMType(
+                    for: $0.type,
+                    lowering: typeLowering,
+                    defaultType: int64Type
+                )
+            }
             parameterTypes.append(outThrownPointerType)
+            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI && isStringAggregateType(function.returnType)
+            let returnType = if returnsRawStringRuntimeCallback {
+                int64Type
+            } else {
+                loweredLLVMType(
+                    for: function.returnType,
+                    lowering: typeLowering,
+                    defaultType: int64Type
+                )
+            }
 
-            guard let functionType = bindings.functionType(returnType: int64Type, parameters: parameterTypes, isVarArg: false),
+            guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
             else {
                 bindings.disposeModule(llvmModule)
@@ -210,37 +331,10 @@ struct NativeEmitter {
             functionDeclInfo.append((function.symbol, functionName, function.params.count))
         }
 
-        let globalSlotNames: [(SymbolID, String)] = llvmGlobalVariables.map { symbol, _ in
-            (symbol, "kk_global_root_slot_\(max(0, Int(symbol.rawValue)))")
-        }
-
         // Parallel codegen is disabled: LLVMLinkModules2 requires source and
         // destination modules to share the same LLVMContext.  Per-function
         // contexts produce cross-context type references that segfault on link.
-        let canParallelize = false
-
-        if canParallelize {
-            for (_, llvmGlobal) in llvmGlobalVariables {
-                bindings.setExternalLinkage(llvmGlobal)
-            }
-            do {
-                try emitFunctionBodiesParallel(
-                    emittableFunctions: emittableFunctions,
-                    mainModule: llvmModule,
-                    mainContext: context,
-                    functionDeclInfo: functionDeclInfo,
-                    globalSlotNames: globalSlotNames,
-                    triple: triple
-                )
-            } catch {
-                bindings.disposeModule(llvmModule)
-                bindings.disposeContext(context)
-                throw error
-            }
-            for (_, llvmGlobal) in llvmGlobalVariables {
-                bindings.setInternalLinkage(llvmGlobal)
-            }
-        } else {
+        do {
             let diContext: DebugInfoContext? = (debugInfo && bindings.debugLocationAvailable)
                 ? createDebugInfoContext(
                     llvmModule: llvmModule,
@@ -252,15 +346,22 @@ struct NativeEmitter {
             for (function, _) in emittableFunctions {
                 guard let llvmFunction = internalFunctions[function.symbol] else { continue }
                 do {
+                    let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
+                    let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
+                        && isStringAggregateType(function.returnType)
                     try emitFunctionBody(
                         function: function,
                         llvmFunction: llvmFunction,
                         llvmModule: llvmModule,
                         context: context,
                         int64Type: int64Type,
+                        typeLowering: typeLowering,
                         outThrownPointerType: outThrownPointerType,
                         internalFunctions: internalFunctions,
                         globalVariables: llvmGlobalVariables,
+                        runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
+                        usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI,
+                        returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback,
                         diContext: diContext
                     )
                 } catch {
@@ -366,6 +467,7 @@ struct NativeEmitter {
                         bindings.disposeContext(funcContext)
                         throw LLVMBackendError.nativeEmissionFailed("parallel: pointer type failed")
                     }
+                    let localTypeLowering = emitter.makeLLVMTypeLowering(context: funcContext, int64Type: localInt64)
 
                     var localFunctions: [SymbolID: NativeEmitter.LLVMFunction] = [:]
                     for (symbol, name, paramCount) in functionDeclInfo {
@@ -399,6 +501,7 @@ struct NativeEmitter {
                         llvmModule: funcModule,
                         context: funcContext,
                         int64Type: localInt64,
+                        typeLowering: localTypeLowering,
                         outThrownPointerType: localPtrType,
                         internalFunctions: localFunctions,
                         globalVariables: localGlobals,

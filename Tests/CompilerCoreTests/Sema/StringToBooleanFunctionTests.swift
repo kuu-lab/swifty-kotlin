@@ -4,7 +4,7 @@ import Testing
 
 /// Verifies `String?.toBoolean()` (STDLIB-TEXT-FN-087) resolves cleanly in Sema
 /// for both nullable and non-null receivers and lowers through to the runtime
-/// helper `kk_string_toBoolean`, which is classified as non-throwing per
+/// helper `kk_string_toBoolean_flat`, which is classified as non-throwing per
 /// Kotlin's specification (`null.toBoolean()` returns `false`, never throws).
 @Suite
 struct StringToBooleanFunctionTests {
@@ -79,7 +79,7 @@ struct StringToBooleanFunctionTests {
         }
     }
 
-    /// `toBoolean()` should lower to `kk_string_toBoolean` and be classified as
+    /// `toBoolean()` should lower to `kk_string_toBoolean_flat` and be classified as
     /// non-throwing — `null.toBoolean()` is defined to return `false`, so there
     /// is no NumberFormatException equivalent that propagates out.
     @Test func testToBooleanLowersToRuntimeHelperNonThrowing() throws {
@@ -144,7 +144,7 @@ struct StringToBooleanFunctionTests {
         }
     }
 
-    /// `toBooleanStrictOrNull()` should lower to `kk_string_toBooleanStrictOrNull`
+    /// `toBooleanStrictOrNull()` should lower to `kk_string_toBooleanStrictOrNull_flat`
     /// and be classified as non-throwing: unlike `toBooleanStrict`, the OrNull
     /// variant signals failure with a `null` sentinel rather than an exception, so
     /// no thrown-pointer plumbing is emitted at the call site.
@@ -168,13 +168,13 @@ struct StringToBooleanFunctionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let orNullFlags = try #require(
-                throwFlags["kk_string_toBooleanStrictOrNull"],
-                "Expected kk_string_toBooleanStrictOrNull calls to appear in main()"
+                throwFlags["kk_string_toBooleanStrictOrNull_flat"],
+                "Expected kk_string_toBooleanStrictOrNull_flat calls to appear in main()"
             )
             #expect(orNullFlags.count == 3)
             #expect(
                 orNullFlags.allSatisfy { $0 == false },
-                "kk_string_toBooleanStrictOrNull must be lowered as non-throwing"
+                "kk_string_toBooleanStrictOrNull_flat must be lowered as non-throwing"
             )
         }
     }

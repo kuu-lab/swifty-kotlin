@@ -1,6 +1,8 @@
 #if canImport(Testing)
+import Foundation
 @testable import CompilerCore
 import Testing
+import XCTest
 
 @Suite
 struct CompilerTypesTests {
@@ -24,6 +26,9 @@ struct CompilerTypesTests {
         #expect(options.moduleName == "DefaultModule")
         #expect(options.inputs == ["input.kt"])
         #expect(options.outputPath == "out.o")
+        XCTAssertEqual(options.stdlibSearchPaths, [])
+        XCTAssertTrue(options.includeStdlib)
+        XCTAssertEqual(options.effectiveSearchPaths, [])
         #expect(options.emit == .object)
         #expect(options.searchPaths == [])
         #expect(options.libraryPaths == [])
@@ -60,6 +65,7 @@ struct CompilerTypesTests {
             outputPath: "bin/custom",
             emit: .library,
             searchPaths: ["/opt/include"],
+            stdlibSearchPaths: ["/opt/stdlib"],
             libraryPaths: ["/opt/lib"],
             linkLibraries: ["m", "pthread"],
             target: target,
@@ -74,6 +80,8 @@ struct CompilerTypesTests {
         #expect(options.optLevel == .O3)
         #expect(options.debugInfo)
         #expect(options.searchPaths == ["/opt/include"])
+        XCTAssertEqual(options.stdlibSearchPaths, ["/opt/stdlib"])
+        XCTAssertEqual(options.effectiveSearchPaths, ["/opt/stdlib", "/opt/include"])
         #expect(options.libraryPaths == ["/opt/lib"])
         #expect(options.linkLibraries == ["m", "pthread"])
         #expect(options.frontendFlags == ["-XfrontendA"])
@@ -149,6 +157,8 @@ struct CompilerTypesTests {
         #expect(options.emit == .llvmIR)
         #expect(!(options.debugInfo))
         #expect(options.searchPaths == [])
+        XCTAssertEqual(options.stdlibSearchPaths, [])
+        XCTAssertEqual(options.effectiveSearchPaths, [])
         #expect(options.libraryPaths == [])
         #expect(options.linkLibraries == [])
         #expect(options.optLevel == .O0)
@@ -185,6 +195,36 @@ struct CompilerTypesTests {
         )
         #expect(o1 == o2)
         #expect(o1 != o3)
+    }
+
+    func testCompilerOptionsCanDisableStdlibSearchPaths() {
+        let target = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
+        let options = CompilerOptions(
+            moduleName: "NoStdlib",
+            inputs: ["input.kt"],
+            outputPath: "out",
+            emit: .kirDump,
+            searchPaths: ["/user/lib"],
+            stdlibSearchPaths: ["/stdlib/lib"],
+            includeStdlib: false,
+            target: target
+        )
+
+        XCTAssertFalse(options.includeStdlib)
+        XCTAssertEqual(options.effectiveSearchPaths, ["/user/lib"])
+    }
+
+    func testDefaultStdlibSearchPathsUsesEnvironmentOverride() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let paths = CompilerOptions.defaultStdlibSearchPaths(
+            executablePath: nil,
+            environment: ["KSWIFTK_STDLIB_PATH": dir.path]
+        )
+
+        XCTAssertEqual(paths, [dir.standardizedFileURL.path])
     }
 
     @Test func testHostDefaultTargetTripleMatchesCompileArchitecture() {

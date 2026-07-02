@@ -45,7 +45,7 @@ struct StringToCollectionFunctionTests {
         )
 
         #expect(
-            links.contains("kk_string_toCollection"),
+            links.contains("kk_string_toCollection_flat"),
             "CharSequence.toCollection should link to kk_string_toCollection"
         )
     }

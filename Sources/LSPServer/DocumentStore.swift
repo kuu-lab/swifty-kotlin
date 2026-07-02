@@ -1,10 +1,10 @@
 import Foundation
 
 /// Conversion helpers between LSP document URIs and filesystem paths.
-public enum DocumentURI {
+enum DocumentURI {
     /// Returns the filesystem path for a `file://` URI, or `nil` for other
     /// schemes.
-    public static func path(fromURI uri: String) -> String? {
+    static func path(fromURI uri: String) -> String? {
         if let url = URL(string: uri), url.isFileURL {
             return url.path
         }
@@ -16,29 +16,29 @@ public enum DocumentURI {
     }
 
     /// Returns a `file://` URI for a filesystem path.
-    public static func uri(fromPath path: String) -> String {
+    static func uri(fromPath path: String) -> String {
         URL(fileURLWithPath: path).absoluteString
     }
 }
 
 /// In-memory store of the documents currently open in the editor.
-public final class DocumentStore {
-    public struct Document {
-        public var uri: String
-        public var languageId: String?
-        public var version: Int?
-        public var text: String
+final class DocumentStore {
+    struct Document {
+        var uri: String
+        var languageId: String?
+        var version: Int?
+        var text: String
     }
 
     private var documents: [String: Document] = [:]
 
-    public init() {}
+    init() {}
 
-    public func open(uri: String, languageId: String?, version: Int?, text: String) {
+    func open(uri: String, languageId: String?, version: Int?, text: String) {
         documents[uri] = Document(uri: uri, languageId: languageId, version: version, text: text)
     }
 
-    public func update(uri: String, version: Int?, text: String) {
+    func update(uri: String, version: Int?, text: String) {
         if var existing = documents[uri] {
             existing.version = version
             existing.text = text
@@ -48,20 +48,15 @@ public final class DocumentStore {
         }
     }
 
-    public func close(uri: String) {
+    func close(uri: String) {
         documents.removeValue(forKey: uri)
     }
 
-    public func document(for uri: String) -> Document? {
-        documents[uri]
-    }
-
-    public func text(for uri: String) -> String? {
+    func text(for uri: String) -> String? {
         documents[uri]?.text
     }
 
-    public func version(for uri: String) -> Int? {
+    func version(for uri: String) -> Int? {
         documents[uri]?.version
     }
-
 }

@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-054: Validates that `String.repeat(n)` resolves through
 /// Sema for plain String receivers as well as literal / expression contexts.
-/// The runtime link involved is `kk_string_repeat`
+/// The runtime link involved is `kk_string_repeat_flat`
 /// (see `Sources/Runtime/RuntimeStringStdlib.swift`).
 @Suite
 struct StringRepeatFunctionTests {

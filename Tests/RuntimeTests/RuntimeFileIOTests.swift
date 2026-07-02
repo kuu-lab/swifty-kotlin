@@ -101,6 +101,26 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(try Data(contentsOf: fileURL), Data([0, 127, 128, 255]))
     }
 
+    func testStringByteInputStreamFlatDefaultCharsetYieldsUtf8Bytes() {
+        withFlatString("A\u{00E9}") { data, length, byteCount, hash in
+            let streamRaw = kk_string_byteInputStream_flat(data, length, byteCount, hash)
+            XCTAssertEqual(readInputStreamBytes(streamRaw), [65, 195, 169])
+        }
+    }
+
+    func testStringByteInputStreamFlatExplicitCharsetYieldsEncodedBytes() {
+        withFlatString("AB") { data, length, byteCount, hash in
+            let streamRaw = kk_string_byteInputStream_charset_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                kk_charset_utf_16be()
+            )
+            XCTAssertEqual(readInputStreamBytes(streamRaw), [0, 65, 0, 66])
+        }
+    }
+
     // STDLIB-IO-FN-016: File.forEachBlock — default blockSize accumulates all bytes
     func testForEachBlockDefaultBlockSizeAccumulatesAllBytes() throws {
         let bytes: [UInt8] = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -354,6 +374,35 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         return bytes.withUnsafeBufferPointer { buffer -> Int in
             let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
             return Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(bytes.count)))
+        }
+    }
+
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        return body(data.map { UnsafePointer($0) }, length, byteCount, hash)
+    }
+
+    private func readInputStreamBytes(_ streamRaw: Int) -> [Int] {
+        var result: [Int] = []
+        var thrown = 0
+        while true {
+            let byte = kk_input_stream_read(streamRaw, &thrown)
+            XCTAssertEqual(thrown, 0)
+            if byte < 0 {
+                return result
+            }
+            result.append(byte)
         }
     }
 

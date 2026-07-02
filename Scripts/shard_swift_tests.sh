@@ -17,26 +17,23 @@ and runs Scripts/swift_test.sh with a --filter that selects only this
 shard's share, so multiple CI jobs can split one slow test target.
 
 Modes:
-  dynamic   Lists concrete test identifiers via `swift test list --skip-build
-            --filter <list-filter>` (requires the target to already be
-            built) and shards at the individual-test level. Safe for pure
+  dynamic   Lists concrete test identifiers via `swift test list --skip-build`
+            (requires the target to already be built), filters the list with
+            <list-filter>, and shards at the individual-test level. Safe for pure
             XCTest targets, where `swift test list` prints the documented
             "Module.Class/method" specifier for every test. Do NOT use this
             mode for targets that mix in Swift Testing (@Suite/@Test), since
             this script does not depend on knowing that framework's list
             output format.
 
-  static    Extracts candidate suite/class type names by grepping test
-            sources under --tests-dir for `struct Name` / `class Name`
-            declarations (this also matches Swift Testing @Suite types,
-            which are plain `struct`/`class` declarations) and shards at
-            the suite level: each shard's --filter selects
-            `^<prefix>\.(Type1|Type2|...)(/|$)`. Because static source
-            grepping can miss an unusual declaration style, the LAST shard
-            (index shard-count - 1) additionally gets a catch-all --filter
-            of `^<prefix>\.(?!(AllKnownType1|...)(/|$))` so any type this
-            script failed to recognize still runs somewhere instead of
-            silently vanishing.
+  static    Extracts test suite type names by scanning test sources under
+            --tests-dir for XCTestCase classes and Swift Testing @Suite
+            declarations, then shards at the suite level: each shard's
+            --filter selects
+            `^<prefix>\.(Type1|Type2|...)(/|$)`. If extraction finds no
+            candidates at all, the last shard falls back to running the full
+            target prefix so a misconfigured path does not silently skip the
+            entire target.
 
 Options:
   --mode <dynamic|static>   Sharding mode (required)
@@ -88,7 +85,32 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_swift_test() {
-    exec bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
+    bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
+}
+
+run_filter_chunks() {
+    local total=$(( $# / 2 ))
+    local chunk=1
+    local status=0
+    local flag pattern
+
+    if (( total == 0 )); then
+        return 0
+    fi
+
+    while (( $# > 0 )); do
+        flag="$1"
+        pattern="$2"
+        shift 2
+
+        # SwiftPM 6.2 does not reliably combine repeated --filter flags,
+        # so each chunk must run as its own swift test invocation.
+        echo "shard_swift_tests.sh: running filter chunk ${chunk}/${total}." >&2
+        run_swift_test "$flag" "$pattern" || status=$?
+        chunk=$(( chunk + 1 ))
+    done
+
+    return "$status"
 }
 
 case "$mode" in
@@ -110,6 +132,7 @@ if (( shard_count <= 1 )); then
     else
         run_swift_test --filter "^${target_prefix}\\."
     fi
+    exit $?
 fi
 
 # ---------------------------------------------------------------------------
@@ -117,7 +140,13 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "$mode" == "dynamic" ]]; then
     echo "shard_swift_tests.sh: listing tests matching '$list_filter'..." >&2
-    mapfile -t all_tests < <(swift test list --skip-build --filter "$list_filter" | sort)
+    # `swift test list` does not honor --filter on every SwiftPM version.
+    # List everything and apply the requested shard prefix locally.
+    mapfile -t all_tests < <(
+        swift test list --skip-build \
+            | awk -v filter="$list_filter" '$0 ~ filter { print }' \
+            | sort
+    )
 
     total="${#all_tests[@]}"
     if (( total == 0 )); then
@@ -175,17 +204,56 @@ if [[ "$mode" == "dynamic" ]]; then
 
     echo "shard_swift_tests.sh: split into $(( ${#filter_args[@]} / 2 )) --filter chunks of up to $chunk_size tests each." >&2
 
-    run_swift_test "${filter_args[@]}"
+    run_filter_chunks "${filter_args[@]}"
+    exit $?
 fi
 
 # ---------------------------------------------------------------------------
-# Mode: static — shard at the suite/class level via source grepping, with a
-# catch-all safety net on the last shard for anything this script missed.
+# Mode: static — shard at the suite/class level via source grepping.
 # ---------------------------------------------------------------------------
 echo "shard_swift_tests.sh: extracting suite/class names from '$tests_dir'..." >&2
 mapfile -t all_types < <(
-    grep -rhoE '\b(struct|class) [A-Za-z_][A-Za-z0-9_]*' --include='*.swift' "$tests_dir" \
-        | awk '{print $2}' | sort -u
+    find "$tests_dir" -name '*.swift' -print0 \
+        | xargs -0 awk '
+            function emit_decl(line, decl, parts, count) {
+                if (match(line, /(^|[[:space:]])((final|private|fileprivate|internal|public|open)[[:space:]]+)*(struct|class)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)) {
+                    decl = substr(line, RSTART, RLENGTH)
+                    count = split(decl, parts, /[[:space:]]+/)
+                    print parts[count]
+                    return 1
+                }
+                return 0
+            }
+
+            FNR == 1 {
+                pending_suite = 0
+            }
+
+            /@Suite/ {
+                if (emit_decl($0)) {
+                    pending_suite = 0
+                    next
+                }
+                pending_suite = 1
+                next
+            }
+
+            $0 ~ /(^|[[:space:]])((final|private|fileprivate|internal|public|open)[[:space:]]+)*class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[^{:]*:[^{]*XCTestCase/ {
+                emit_decl($0)
+                pending_suite = 0
+                next
+            }
+
+            pending_suite && emit_decl($0) {
+                pending_suite = 0
+                next
+            }
+
+            pending_suite && $0 !~ /^[[:space:]]*(@|\/\/|$)/ {
+                pending_suite = 0
+            }
+        ' \
+        | sort -u
 )
 
 total="${#all_types[@]}"
@@ -202,32 +270,45 @@ echo "shard_swift_tests.sh: shard $shard_index/$shard_count owns ${#own_types[@]
 
 declare -a filters=()
 
-if (( ${#own_types[@]} > 0 )); then
-    own_alt="$(printf '%s|' "${own_types[@]}")"
-    own_alt="${own_alt%|}"
-    filters+=("^${target_prefix}\\.(${own_alt})(/|\$)")
+if (( shard_index == shard_count - 1 && total == 0 )); then
+    # Extraction found nothing at all; fall back to running everything under
+    # this prefix on the last shard so no test target is silently lost.
+    filters+=("^${target_prefix}\\.")
 fi
 
-if (( shard_index == shard_count - 1 )); then
-    if (( total > 0 )); then
-        all_alt="$(printf '%s|' "${all_types[@]}")"
-        all_alt="${all_alt%|}"
-        filters+=("^${target_prefix}\\.(?!(${all_alt})(/|\$))")
-    else
-        # Extraction found nothing at all; fall back to running everything
-        # under this prefix on the last shard so no test is silently lost.
-        filters+=("^${target_prefix}\\.")
-    fi
-fi
-
-if (( ${#filters[@]} == 0 )); then
+if (( ${#own_types[@]} == 0 && ${#filters[@]} == 0 )); then
     echo "shard_swift_tests.sh: shard $shard_index has no assigned suites and is not the catch-all shard; skipping." >&2
     exit 0
 fi
 
 declare -a filter_args=()
+if (( ${#own_types[@]} > 0 )); then
+    chunk_size=50
+    chunk_regex=""
+    chunk_len=0
+    for t in "${own_types[@]}"; do
+        if (( chunk_len == 0 )); then
+            chunk_regex="$t"
+        else
+            chunk_regex+="|$t"
+        fi
+        chunk_len=$(( chunk_len + 1 ))
+        if (( chunk_len >= chunk_size )); then
+            filter_args+=(--filter "^${target_prefix}\\.(${chunk_regex})(/|\$)")
+            chunk_regex=""
+            chunk_len=0
+        fi
+    done
+    if (( chunk_len > 0 )); then
+        filter_args+=(--filter "^${target_prefix}\\.(${chunk_regex})(/|\$)")
+    fi
+
+    echo "shard_swift_tests.sh: split suite/class filter into $(( ${#filter_args[@]} / 2 )) chunks of up to $chunk_size names each." >&2
+fi
+
 for f in "${filters[@]}"; do
     filter_args+=(--filter "$f")
 done
 
-run_swift_test "${filter_args[@]}"
+run_filter_chunks "${filter_args[@]}"
+exit $?

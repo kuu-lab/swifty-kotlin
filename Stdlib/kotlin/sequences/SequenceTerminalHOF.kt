@@ -63,12 +63,12 @@ public fun <T> Sequence<T>.single(): T = toList().single()
 
 public fun <T> Sequence<T>.count(): Int = toList().size
 
-public fun <T> Sequence<T>.any(): Boolean = !toList().isEmpty()
+public fun <T> Sequence<T>.any(): Boolean = toList().size != 0
 
 public fun <T> Sequence<T>.any(predicate: (T) -> Boolean): Boolean = toList().any(predicate)
 
 public fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean = toList().all(predicate)
 
-public fun <T> Sequence<T>.none(): Boolean = toList().isEmpty()
+public fun <T> Sequence<T>.none(): Boolean = toList().size == 0
 
 public fun <T> Sequence<T>.none(predicate: (T) -> Boolean): Boolean = toList().none(predicate)

@@ -1,5 +1,4 @@
 #if canImport(Testing)
-@testable import CompilerCore
 import Testing
 
 @Suite struct KotlinCompilationBigIntegerTests {

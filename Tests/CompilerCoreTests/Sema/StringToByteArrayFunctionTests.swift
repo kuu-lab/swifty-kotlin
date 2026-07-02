@@ -5,8 +5,8 @@ import Testing
 /// resolve through Sema and link to the correct runtime entries.
 ///
 /// Overloads covered:
-///  - `toByteArray()` → `kk_string_toByteArray` (returns List<Int>)
-///  - `toByteArray(charset: Charset)` → `kk_string_toByteArray_charset` (returns List<Int>)
+///  - `toByteArray()` → `kk_string_toByteArray` (returns ByteArray)
+///  - `toByteArray(charset: Charset)` → `kk_string_toByteArray_charset` (returns ByteArray)
 ///
 /// The synthetic extension functions are registered in
 /// `HeaderHelpers+SyntheticStringStubs.swift` (STDLIB-145/STDLIB-581), and the
@@ -15,9 +15,9 @@ import Testing
 struct StringToByteArrayFunctionTests {
     @Test func testToByteArrayNoArgResolvesInSource() throws {
         let ctx = makeContextFromSource("""
-        fun getBytes(s: String) = s.toByteArray()
+        fun getBytes(s: String): ByteArray = s.toByteArray()
 
-        fun getLiteralBytes() = "hello".toByteArray()
+        fun getLiteralBytes(): ByteArray = "hello".toByteArray()
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
@@ -29,11 +29,11 @@ struct StringToByteArrayFunctionTests {
 
     @Test func testToByteArrayWithCharsetResolvesInSource() throws {
         let ctx = makeContextFromSource("""
-        fun getUtf8Bytes(s: String) = s.toByteArray(Charsets.UTF_8)
+        fun getUtf8Bytes(s: String): ByteArray = s.toByteArray(Charsets.UTF_8)
 
-        fun getAsciiBytes(s: String) = s.toByteArray(Charsets.US_ASCII)
+        fun getAsciiBytes(s: String): ByteArray = s.toByteArray(Charsets.US_ASCII)
 
-        fun getLatin1Bytes(s: String) = s.toByteArray(Charsets.ISO_8859_1)
+        fun getLatin1Bytes(s: String): ByteArray = s.toByteArray(Charsets.ISO_8859_1)
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }

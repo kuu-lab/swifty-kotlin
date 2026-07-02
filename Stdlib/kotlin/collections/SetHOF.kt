@@ -129,7 +129,7 @@ public fun <T> Set<T>.count(predicate: (T) -> Boolean): Int {
 
 // ─── any ─────────────────────────────────────────────────────────────────────
 
-public fun <T> Set<T>.any(): Boolean = !isEmpty()
+public fun <T> Set<T>.any(): Boolean = size != 0
 
 public fun <T> Set<T>.any(predicate: (T) -> Boolean): Boolean {
     for (element in this) {
@@ -149,7 +149,7 @@ public fun <T> Set<T>.all(predicate: (T) -> Boolean): Boolean {
 
 // ─── none ────────────────────────────────────────────────────────────────────
 
-public fun <T> Set<T>.none(): Boolean = isEmpty()
+public fun <T> Set<T>.none(): Boolean = size == 0
 
 public fun <T> Set<T>.none(predicate: (T) -> Boolean): Boolean {
     for (element in this) {

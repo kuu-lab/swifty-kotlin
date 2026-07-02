@@ -1016,13 +1016,12 @@ final class CallTypeChecker {
         // --- Stdlib measureTimeMillis { ... } (STDLIB-131) ---
         if let calleeName,
            args.count == 1,
-           topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureTimeMillis"],
                locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: true
-           ) == .measureTimeMillis
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — the block's return type is
@@ -1043,13 +1042,12 @@ final class CallTypeChecker {
         // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-FN-006) ---
         if let calleeName,
            args.count == 1,
-           topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureTimeMicros"],
                locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: true
-           ) == .measureTimeMicros
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as
@@ -1070,7 +1068,12 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureNanoTime",
            args.count == 1,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureNanoTime"],
+               locals: locals,
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as
