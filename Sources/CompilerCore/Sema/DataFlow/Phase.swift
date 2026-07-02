@@ -25,6 +25,19 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
+        let bundledIndex = BundledDeclarationIndex.build(
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            sourceManager: ctx.sourceManager,
+            interner: ctx.interner
+        )
+        registerSyntheticDelegateStubs(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
+        )
         assignCompilationModuleFQNames(
             symbols: symbols,
             moduleName: ctx.options.moduleName,
@@ -59,7 +72,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics, interner: ctx.interner,
             importedInlineFunctions: &importedInlineFunctions
         )
-        registerSyntheticDelegateStubs(symbols: symbols, types: types, interner: ctx.interner)
         return importedInlineFunctions
     }
 

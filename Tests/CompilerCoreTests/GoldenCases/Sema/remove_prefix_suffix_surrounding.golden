@@ -10,68 +10,68 @@ symbol fq=kotlin.text.removeSurrounding.delimiter kind=valueParameter vis=privat
 symbol fq=kotlin.text.removeSurrounding.prefix kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.removeSurrounding.suffix kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl main fun main sym=main
-expr e@3:13#0 string(HelloWorld) type=String
+expr e@3:13 string(HelloWorld) type=String
 expr e@3:39 string(Hello) type=String
-expr e@3:13#1 memberCall recv=e@3:13#0 callee=removePrefix args=[_:e@3:39] type=String call=kotlin.text.removePrefix#0
-expr e@3:5#1 call callee=e@3:5#0 args=[_:e@3:13#1] type=Unit call=kotlin.io.println#1
-expr e@4:13#2 string(HelloWorld) type=String
+expr e@3:13#1 memberCall recv=e@3:13 callee=removePrefix args=[_:e@3:39] type=String call=kotlin.text.removePrefix#0
+expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13#1] type=Unit call=kotlin.io.println#1
+expr e@4:13 string(HelloWorld) type=String
 expr e@4:39 string(Goodbye) type=String
-expr e@4:13#3 memberCall recv=e@4:13#2 callee=removePrefix args=[_:e@4:39] type=String call=kotlin.text.removePrefix#0
-expr e@4:5#3 call callee=e@4:5#2 args=[_:e@4:13#3] type=Unit call=kotlin.io.println#1
-expr e@5:13#1 string() type=String
+expr e@4:13#1 memberCall recv=e@4:13 callee=removePrefix args=[_:e@4:39] type=String call=kotlin.text.removePrefix#0
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println#1
+expr e@5:13 string() type=String
 expr e@5:29 string(prefix) type=String
-expr e@5:13#2 memberCall recv=e@5:13#1 callee=removePrefix args=[_:e@5:29] type=String call=kotlin.text.removePrefix#0
-expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:13#2] type=Unit call=kotlin.io.println#1
-expr e@6:13#1 string(prefix) type=String
+expr e@5:13#1 memberCall recv=e@5:13 callee=removePrefix args=[_:e@5:29] type=String call=kotlin.text.removePrefix#0
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1
+expr e@6:13 string(prefix) type=String
 expr e@6:35 string(prefix) type=String
-expr e@6:13#2 memberCall recv=e@6:13#1 callee=removePrefix args=[_:e@6:35] type=String call=kotlin.text.removePrefix#0
-expr e@6:5#4 call callee=e@6:5#3 args=[_:e@6:13#2] type=Unit call=kotlin.io.println#1
-expr e@9:13#0 string(HelloWorld) type=String
+expr e@6:13#1 memberCall recv=e@6:13 callee=removePrefix args=[_:e@6:35] type=String call=kotlin.text.removePrefix#0
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println#1
+expr e@9:13 string(HelloWorld) type=String
 expr e@9:39 string(World) type=String
-expr e@9:13#1 memberCall recv=e@9:13#0 callee=removeSuffix args=[_:e@9:39] type=String call=kotlin.text.removeSuffix#0
-expr e@9:5#1 call callee=e@9:5#0 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
-expr e@10:13#0 string(HelloWorld) type=String
+expr e@9:13#1 memberCall recv=e@9:13 callee=removeSuffix args=[_:e@9:39] type=String call=kotlin.text.removeSuffix#0
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
+expr e@10:13 string(HelloWorld) type=String
 expr e@10:39 string(Earth) type=String
-expr e@10:13#1 memberCall recv=e@10:13#0 callee=removeSuffix args=[_:e@10:39] type=String call=kotlin.text.removeSuffix#0
-expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
-expr e@11:13#1 string() type=String
+expr e@10:13#1 memberCall recv=e@10:13 callee=removeSuffix args=[_:e@10:39] type=String call=kotlin.text.removeSuffix#0
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
+expr e@11:13 string() type=String
 expr e@11:29 string(suffix) type=String
-expr e@11:13#2 memberCall recv=e@11:13#1 callee=removeSuffix args=[_:e@11:29] type=String call=kotlin.text.removeSuffix#0
-expr e@11:5#3 call callee=e@11:5#2 args=[_:e@11:13#2] type=Unit call=kotlin.io.println#1
-expr e@12:13#2 string(suffix) type=String
+expr e@11:13#1 memberCall recv=e@11:13 callee=removeSuffix args=[_:e@11:29] type=String call=kotlin.text.removeSuffix#0
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println#1
+expr e@12:13 string(suffix) type=String
 expr e@12:35 string(suffix) type=String
-expr e@12:13#3 memberCall recv=e@12:13#2 callee=removeSuffix args=[_:e@12:35] type=String call=kotlin.text.removeSuffix#0
-expr e@12:5#5 call callee=e@12:5#4 args=[_:e@12:13#3] type=Unit call=kotlin.io.println#1
-expr e@15:13#2 string([bracketed]) type=String
+expr e@12:13#1 memberCall recv=e@12:13 callee=removeSuffix args=[_:e@12:35] type=String call=kotlin.text.removeSuffix#0
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println#1
+expr e@15:13 string([bracketed]) type=String
 expr e@15:45 string([) type=String
-expr e@15:13#3 memberCall recv=e@15:13#2 callee=removeSurrounding args=[_:e@15:45] type=String call=kotlin.text.removeSurrounding#0
-expr e@15:5#7 call callee=e@15:5#6 args=[_:e@15:13#3] type=Unit call=kotlin.io.println#1
-expr e@16:13#1 string(***star***) type=String
+expr e@15:13#1 memberCall recv=e@15:13 callee=removeSurrounding args=[_:e@15:45] type=String call=kotlin.text.removeSurrounding#0
+expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13#1] type=Unit call=kotlin.io.println#1
+expr e@16:13 string(***star***) type=String
 expr e@16:44 string(***) type=String
-expr e@16:13#2 memberCall recv=e@16:13#1 callee=removeSurrounding args=[_:e@16:44] type=String call=kotlin.text.removeSurrounding#0
-expr e@16:5#7 call callee=e@16:5#6 args=[_:e@16:13#2] type=Unit call=kotlin.io.println#1
-expr e@17:13#3 string(ab) type=String
+expr e@16:13#1 memberCall recv=e@16:13 callee=removeSurrounding args=[_:e@16:44] type=String call=kotlin.text.removeSurrounding#0
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#1] type=Unit call=kotlin.io.println#1
+expr e@17:13 string(ab) type=String
 expr e@17:36 string(ab) type=String
-expr e@17:13#4 memberCall recv=e@17:13#3 callee=removeSurrounding args=[_:e@17:36] type=String call=kotlin.text.removeSurrounding#0
-expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#4] type=Unit call=kotlin.io.println#1
-expr e@18:13#1 string(abc) type=String
+expr e@17:13#1 memberCall recv=e@17:13 callee=removeSurrounding args=[_:e@17:36] type=String call=kotlin.text.removeSurrounding#0
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println#1
+expr e@18:13 string(abc) type=String
 expr e@18:37 string(ab) type=String
-expr e@18:13#2 memberCall recv=e@18:13#1 callee=removeSurrounding args=[_:e@18:37] type=String call=kotlin.text.removeSurrounding#0
-expr e@18:5#5 call callee=e@18:5#4 args=[_:e@18:13#2] type=Unit call=kotlin.io.println#1
-expr e@21:13#0 string(<div>content</div>) type=String
+expr e@18:13#1 memberCall recv=e@18:13 callee=removeSurrounding args=[_:e@18:37] type=String call=kotlin.text.removeSurrounding#0
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println#1
+expr e@21:13 string(<div>content</div>) type=String
 expr e@21:52 string(<div>) type=String
 expr e@21:61 string(</div>) type=String
-expr e@21:13#1 memberCall recv=e@21:13#0 callee=removeSurrounding args=[_:e@21:52,_:e@21:61] type=String call=kotlin.text.removeSurrounding#1
-expr e@21:5#4 call callee=e@21:5#3 args=[_:e@21:13#1] type=Unit call=kotlin.io.println#1
-expr e@22:13#2 string([item]) type=String
-expr e@22:40#1 string([) type=String
+expr e@21:13#1 memberCall recv=e@21:13 callee=removeSurrounding args=[_:e@21:52,_:e@21:61] type=String call=kotlin.text.removeSurrounding#1
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println#1
+expr e@22:13 string([item]) type=String
+expr e@22:40 string([) type=String
 expr e@22:45 string(]) type=String
-expr e@22:13#3 memberCall recv=e@22:13#2 callee=removeSurrounding args=[_:e@22:40#1,_:e@22:45] type=String call=kotlin.text.removeSurrounding#1
-expr e@22:5#5 call callee=e@22:5#4 args=[_:e@22:13#3] type=Unit call=kotlin.io.println#1
-expr e@23:13#2 string(no-match) type=String
+expr e@22:13#1 memberCall recv=e@22:13 callee=removeSurrounding args=[_:e@22:40,_:e@22:45] type=String call=kotlin.text.removeSurrounding#1
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println#1
+expr e@23:13 string(no-match) type=String
 expr e@23:42 string(<) type=String
-expr e@23:47#2 string(>) type=String
-expr e@23:13#3 memberCall recv=e@23:13#2 callee=removeSurrounding args=[_:e@23:42,_:e@23:47#2] type=String call=kotlin.text.removeSurrounding#1
-expr e@23:5#5 call callee=e@23:5#4 args=[_:e@23:13#3] type=Unit call=kotlin.io.println#1
+expr e@23:47 string(>) type=String
+expr e@23:13#1 memberCall recv=e@23:13 callee=removeSurrounding args=[_:e@23:42,_:e@23:47] type=String call=kotlin.text.removeSurrounding#1
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println#1

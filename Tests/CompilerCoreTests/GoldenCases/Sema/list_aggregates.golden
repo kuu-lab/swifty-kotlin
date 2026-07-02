@@ -1,15 +1,14 @@
-symbol fq=aggregate kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<Int>] ret=Unit
+symbol fq=aggregate kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=Unit
 symbol fq=aggregate.$0.values kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-file f15 package=_
+file f0 package=_
   decl aggregate fun aggregate sym=aggregate
-expr e@2:5#0 name(values) type=kotlin.collections.List<Int> ref=aggregate.$0.values
-expr e@2:20#2 name(it) type=Int ref=s-0
-expr e@2:25#1 int(2) type=Int
-expr e@2:20#3 binary(multiply) lhs=e@2:20#2 rhs=e@2:25#1 type=Int
-expr e@2:18 lambda params=[] body=e@2:20#3 label=sumOf type=(Int) -> Int
-expr e@2:5#1 memberCall recv=e@2:5#0 callee=sumOf args=[_:e@2:18] type=Int
-expr e@3:5#0 name(values) type=kotlin.collections.List<Int> ref=aggregate.$0.values
-expr e@3:5#1 memberCall recv=e@3:5#0 callee=maxOrNull args=[] type=Int?
-expr e@4:5#2 name(values) type=kotlin.collections.List<Int> ref=aggregate.$0.values
-expr e@4:5#3 memberCall recv=e@4:5#2 callee=minOrNull args=[] type=Int?
+expr e@2:5 name(values) type=<error> ref=aggregate.$0.values
+expr e@2:20 name(it) type=<error>
+expr e@2:25 int(2) type=Int
+expr e@2:20#1 binary(multiply) lhs=e@2:20 rhs=e@2:25 type=Int
+expr e@2:18 lambda params=[] body=e@2:20#1 label=sumOf type=() -> Int
+expr e@2:5#1 memberCall recv=e@2:5 callee=sumOf args=[_:e@2:18] type=<error>
+expr e@3:5 name(values) type=<error> ref=aggregate.$0.values
+expr e@3:5#1 memberCall recv=e@3:5 callee=maxOrNull args=[] type=<error>
+expr e@4:5 name(values) type=<error> ref=aggregate.$0.values
+expr e@4:5#1 memberCall recv=e@4:5 callee=minOrNull args=[] type=<error>

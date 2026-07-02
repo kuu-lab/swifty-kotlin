@@ -1001,8 +1001,10 @@ extension DataFlowSemaPhase {
     func registerSyntheticDelegateStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
+        var skipStats = SyntheticStubSkipStatsCollector()
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
@@ -1014,7 +1016,13 @@ extension DataFlowSemaPhase {
         // Random stubs must be registered before collection stubs so that
         // shuffled(random: Random) can look up the kotlin.random.Random symbol.
         registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCollectionStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         // STDLIB-REFLECT-063: Now that List is registered, update KFunction.parameters type to
         // List<Any?> so that `.size` resolves correctly on the parameters property.
         patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
@@ -1082,6 +1090,7 @@ extension DataFlowSemaPhase {
         // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
         // The Phase file preserves the exact original call order.
         registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
+        skipStats.logIfEnabled()
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

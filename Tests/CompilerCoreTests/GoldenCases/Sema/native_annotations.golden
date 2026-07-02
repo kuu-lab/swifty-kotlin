@@ -8,17 +8,11 @@ symbol fq=golden.sema.SwiftRefined kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.nativeSum kind=function vis=public flags=_ sig=recv=_ params=[Int,Int] ret=Int
 symbol fq=golden.sema.nativeSum.$1.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.nativeSum.$1.b kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.takesPointer kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>?,kotlinx.cinterop.CPointer<out kotlinx.cinterop.CPointed>?,kotlinx.cinterop.CValuesRef<kotlinx.cinterop.IntVar>?] ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>?
+symbol fq=golden.sema.takesPointer kind=function vis=public flags=_ sig=recv=_ params=[<error>,<error>,<error>] ret=<error>
 symbol fq=golden.sema.takesPointer.$2.ints kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.takesPointer.$2.opaque kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.takesPointer.$2.ptr kind=valueParameter vis=private flags=_
-symbol fq=kotlinx.cinterop.CPointed kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CPointed
-symbol fq=kotlinx.cinterop.CPointer kind=class vis=public flags=synthetic type=kotlinx.cinterop.CPointer<kotlinx.cinterop.CPointer.T>
-symbol fq=kotlinx.cinterop.CPointer.T kind=typeParameter vis=private flags=_
-symbol fq=kotlinx.cinterop.CValuesRef kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CValuesRef<kotlinx.cinterop.CValuesRef.T>
-symbol fq=kotlinx.cinterop.CValuesRef.T kind=typeParameter vis=private flags=_
-symbol fq=kotlinx.cinterop.IntVar kind=class vis=public flags=synthetic type=kotlinx.cinterop.IntVar
-file f15 package=golden.sema annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class,kotlin.experimental.ExperimentalObjCEnum::class,kotlin.experimental.ExperimentalObjCName::class,kotlin.experimental.ExperimentalObjCRefinement::class)]
+file f0 package=golden.sema annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class,kotlin.experimental.ExperimentalObjCEnum::class,kotlin.experimental.ExperimentalObjCName::class,kotlin.experimental.ExperimentalObjCRefinement::class)]
   decl golden.sema.SwiftRefined class SwiftRefined sym=golden.sema.SwiftRefined
   decl golden.sema.NativeEnumBridge class NativeEnumBridge sym=golden.sema.NativeEnumBridge
   decl golden.sema.ExportEnumToObjC class ExportEnumToObjC sym=golden.sema.ExportEnumToObjC
@@ -28,7 +22,7 @@ file f15 package=golden.sema annotations=[@file:OptIn(kotlin.experimental.Experi
   decl golden.sema.nativeSum fun nativeSum sym=golden.sema.nativeSum
   decl golden.sema.takesPointer fun takesPointer sym=golden.sema.takesPointer
 expr e@40:90 name(person) type=String ref=golden.sema.NativeGreeter.greet.$0.person
-expr e@54:38#1 name(a) type=Int ref=golden.sema.nativeSum.$1.a
+expr e@54:38 name(a) type=Int ref=golden.sema.nativeSum.$1.a
 expr e@54:42 name(b) type=Int ref=golden.sema.nativeSum.$1.b
-expr e@54:38#2 binary(add) lhs=e@54:38#1 rhs=e@54:42 type=Int
-expr e@61:24#1 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.IntVar>? ref=golden.sema.takesPointer.$2.ptr
+expr e@54:38#1 binary(add) lhs=e@54:38 rhs=e@54:42 type=Int
+expr e@61:24 name(ptr) type=<error> ref=golden.sema.takesPointer.$2.ptr

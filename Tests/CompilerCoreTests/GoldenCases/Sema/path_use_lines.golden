@@ -1,24 +1,19 @@
-symbol fq=collectLines kind=function vis=public flags=_ sig=recv=_ params=[kotlin.io.path.Path] ret=kotlin.collections.List<String>
+symbol fq=collectLines kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
 symbol fq=collectLines.$0.path kind=valueParameter vis=private flags=_
-symbol fq=countLines kind=function vis=public flags=_ sig=recv=_ params=[kotlin.io.path.Path] ret=Int
+symbol fq=countLines kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=Int
 symbol fq=countLines.$1.path kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.io.path.Path#0 kind=class vis=public flags=synthetic type=kotlin.io.path.Path
-symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
-symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
-file f15 package=_
+file f0 package=_
   decl collectLines fun collectLines sym=collectLines
   decl countLines fun countLines sym=countLines
-expr e@5:12#0 name(path) type=kotlin.io.path.Path ref=collectLines.$0.path
-expr e@6:9#2 name(lines) type=kotlin.sequences.Sequence<out String> ref=s-0
-expr e@6:9#3 memberCall recv=e@6:9#2 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.sequences.Sequence.toList
-expr e@5:26 lambda params=[lines] body=e@6:9#3 label=useLines type=(kotlin.sequences.Sequence<out String>) -> kotlin.collections.List<String>
-expr e@5:12#1 memberCall recv=e@5:12#0 callee=useLines args=[_:e@5:26] type=kotlin.collections.List<String>
-expr e@5:5#2 return value=e@5:12#1 type=Nothing
-expr e@11:12#0 name(path) type=kotlin.io.path.Path ref=countLines.$1.path
-expr e@12:9#3 name(lines) type=kotlin.sequences.Sequence<out String> ref=s-1
-expr e@12:9#4 memberCall recv=e@12:9#3 callee=count args=[] type=Int
-expr e@11:26 lambda params=[lines] body=e@12:9#4 label=useLines type=(kotlin.sequences.Sequence<out String>) -> Int
-expr e@11:12#1 memberCall recv=e@11:12#0 callee=useLines args=[_:e@11:26] type=Int
-expr e@11:5#2 return value=e@11:12#1 type=Nothing
+expr e@5:12 name(path) type=<error> ref=collectLines.$0.path
+expr e@6:9 name(lines) type=Any ref=s-0
+expr e@6:9#1 memberCall recv=e@6:9 callee=toList args=[] type=<error>
+expr e@5:26 lambda params=[lines] body=e@6:9#1 label=useLines type=(Any) -> <error>
+expr e@5:12#1 memberCall recv=e@5:12 callee=useLines args=[_:e@5:26] type=<error>
+expr e@5:5 return value=e@5:12#1 type=Nothing
+expr e@11:12 name(path) type=<error> ref=countLines.$1.path
+expr e@12:9 name(lines) type=Any ref=s-1
+expr e@12:9#1 memberCall recv=e@12:9 callee=count args=[] type=<error>
+expr e@11:26 lambda params=[lines] body=e@12:9#1 label=useLines type=(Any) -> <error>
+expr e@11:12#1 memberCall recv=e@11:12 callee=useLines args=[_:e@11:26] type=<error>
+expr e@11:5 return value=e@11:12#1 type=Nothing

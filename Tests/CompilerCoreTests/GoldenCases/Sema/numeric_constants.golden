@@ -3,13 +3,13 @@ symbol fq=__local_1.b kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.c kind=local vis=private flags=_ type=Long
 symbol fq=__local_3.d kind=local vis=private flags=_ type=Double
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl main fun main sym=main
-expr e@2:13#1 memberCall recv=e@2:13#0 callee=MAX_VALUE args=[] type=Int
-expr e@2:5 localDecl a mutable=0 type=_ init=e@2:13#1 type=Unit ref=__local_0.a
-expr e@3:13#1 memberCall recv=e@3:13#0 callee=MIN_VALUE args=[] type=Int
-expr e@3:5 localDecl b mutable=0 type=_ init=e@3:13#1 type=Unit ref=__local_1.b
-expr e@4:13#3 memberCall recv=e@4:13#2 callee=MAX_VALUE args=[] type=Long
-expr e@4:5#2 localDecl c mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_2.c
-expr e@5:13#2 memberCall recv=e@5:13#1 callee=NaN args=[] type=Double
-expr e@5:5#2 localDecl d mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_3.d
+expr e@2:13 memberCall recv=e@2:13#1 callee=MAX_VALUE args=[] type=Int
+expr e@2:5 localDecl a mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.a
+expr e@3:13 memberCall recv=e@3:13#1 callee=MIN_VALUE args=[] type=Int
+expr e@3:5 localDecl b mutable=0 type=_ init=e@3:13 type=Unit ref=__local_1.b
+expr e@4:13 memberCall recv=e@4:13#1 callee=MAX_VALUE args=[] type=Long
+expr e@4:5 localDecl c mutable=0 type=_ init=e@4:13 type=Unit ref=__local_2.c
+expr e@5:13 memberCall recv=e@5:13#1 callee=NaN args=[] type=Double
+expr e@5:5 localDecl d mutable=0 type=_ init=e@5:13 type=Unit ref=__local_3.d

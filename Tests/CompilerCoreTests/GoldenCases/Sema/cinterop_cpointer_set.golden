@@ -1,17 +1,10 @@
-symbol fq=kotlinx.cinterop.ByteVarOf kind=class vis=public flags=synthetic type=kotlinx.cinterop.ByteVarOf<kotlinx.cinterop.ByteVarOf.T>
-symbol fq=kotlinx.cinterop.ByteVarOf.T kind=typeParameter vis=private flags=_
-symbol fq=kotlinx.cinterop.CPointed kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CPointed
-symbol fq=kotlinx.cinterop.CPointer kind=class vis=public flags=synthetic type=kotlinx.cinterop.CPointer<kotlinx.cinterop.CPointer.T>
-symbol fq=kotlinx.cinterop.CPointer.T kind=typeParameter vis=private flags=_
-symbol fq=kotlinx.cinterop.set kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.set.$cPointerSet.T> params=[Int,kotlinx.cinterop.set.$cPointerSet.T] ret=Unit bounds=[kotlinx.cinterop.CPointed]
-symbol fq=kotlinx.cinterop.set.$cPointerSet.T kind=typeParameter vis=private flags=synthetic
-symbol fq=storeAt kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>,Int,kotlinx.cinterop.ByteVarOf<Int>] ret=Unit
+symbol fq=storeAt kind=function vis=public flags=_ sig=recv=_ params=[<error>,Int,<error>] ret=Unit
 symbol fq=storeAt.$0.index kind=valueParameter vis=private flags=_
 symbol fq=storeAt.$0.ptr kind=valueParameter vis=private flags=_
 symbol fq=storeAt.$0.value kind=valueParameter vis=private flags=_
-file f15 package=_
+file f0 package=_
   decl storeAt fun storeAt sym=storeAt
-expr e@6:5#3 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>> ref=storeAt.$0.ptr
+expr e@6:5 name(ptr) type=<error> ref=storeAt.$0.ptr
 expr e@6:9 name(index) type=Int ref=storeAt.$0.index
-expr e@6:18#2 name(value) type=kotlinx.cinterop.ByteVarOf<Int> ref=storeAt.$0.value
-expr e@6:5#5 indexedAssign receiver=e@6:5#3 indices=[e@6:9] value=e@6:18#2 type=Unit call=kotlinx.cinterop.set targs=[kotlinx.cinterop.ByteVarOf<Int>]
+expr e@6:18 name(value) type=<error> ref=storeAt.$0.value
+expr e@6:5#1 indexedAssign receiver=e@6:5 indices=[e@6:9] value=e@6:18 type=Unit

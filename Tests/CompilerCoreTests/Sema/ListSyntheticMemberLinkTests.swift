@@ -440,6 +440,105 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testBundledListAggregateHOFsSuppressSyntheticStubs() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let listOwnerFQName = packageFQName + [ctx.interner.intern("List")]
+            let iterableOwnerFQName = packageFQName + [ctx.interner.intern("Iterable")]
+
+            func bundledListExtensionSymbols(named name: String, arity: Int) -> [SymbolID] {
+                let fqName = packageFQName + [ctx.interner.intern(name)]
+                return sema.symbols.lookupAll(fqName: fqName).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          signature.parameterTypes.count == arity,
+                          signature.receiverType != nil
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+                }
+            }
+
+            func syntheticMemberSymbols(
+                ownerFQName: [InternedString],
+                name: String,
+                arity: Int,
+                externalLinkPrefix: String? = nil
+            ) -> [SymbolID] {
+                let memberFQName = ownerFQName + [ctx.interner.intern(name)]
+                return sema.symbols.lookupAll(fqName: memberFQName).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          symbol.flags.contains(.synthetic),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          signature.parameterTypes.count == arity
+                    else {
+                        return false
+                    }
+                    if let externalLinkPrefix,
+                       let link = sema.symbols.externalLinkName(for: symbolID)
+                    {
+                        return link.hasPrefix(externalLinkPrefix)
+                    }
+                    return externalLinkPrefix == nil
+                }
+            }
+
+            for name in ["count", "any", "all"] {
+                let bundled = bundledListExtensionSymbols(named: name, arity: 1)
+                #expect(!bundled.isEmpty, "Expected bundled Kotlin source for List.\(name)(predicate)")
+                for symbolID in bundled {
+                    #expect(
+                        sema.symbols.externalLinkName(for: symbolID) == nil,
+                        "Bundled List.\(name) should not have an external link name"
+                    )
+                }
+            }
+
+            for name in ["sumOf", "maxByOrNull", "minByOrNull"] {
+                let synthetic = syntheticMemberSymbols(
+                    ownerFQName: listOwnerFQName,
+                    name: name,
+                    arity: 1,
+                    externalLinkPrefix: "kk_list_"
+                )
+                #expect(
+                    synthetic.isEmpty,
+                    "Expected no synthetic List.\(name) stub when bundled Kotlin source exists, found \(synthetic.count)"
+                )
+            }
+
+            for (name, link) in [("any", "kk_iterable_any"), ("all", "kk_iterable_all")] {
+                let synthetic = syntheticMemberSymbols(
+                    ownerFQName: iterableOwnerFQName,
+                    name: name,
+                    arity: 1,
+                    externalLinkPrefix: link
+                )
+                #expect(
+                    synthetic.isEmpty,
+                    "Expected no synthetic Iterable.\(name)(predicate) stub when bundled List.\(name) exists"
+                )
+            }
+
+            #expect(
+                syntheticMemberSymbols(ownerFQName: listOwnerFQName, name: "count", arity: 1).isEmpty
+            )
+            #expect(
+                syntheticMemberSymbols(ownerFQName: iterableOwnerFQName, name: "count", arity: 1).isEmpty
+            )
+        }
+    }
+
+    @Test
     func testListSearchHOFsHaveBundledSourceDefinitions() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

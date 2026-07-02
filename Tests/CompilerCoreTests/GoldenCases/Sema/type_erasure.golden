@@ -1,4 +1,4 @@
-symbol fq=golden.sema.asRawList kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=kotlin.collections.List<*>?
+symbol fq=golden.sema.asRawList kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=<error>
 symbol fq=golden.sema.asRawList.$0.v kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.isRawList kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
 symbol fq=golden.sema.isRawList.$1.v kind=valueParameter vis=private flags=_
@@ -8,18 +8,18 @@ symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synt
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.isRawList fun isRawList sym=golden.sema.isRawList
   decl golden.sema.asRawList fun asRawList sym=golden.sema.asRawList
   decl golden.sema.printSizeIfList fun printSizeIfList sym=golden.sema.printSizeIfList
-expr e@4:34#0 name(v) type=Any ref=golden.sema.isRawList.$1.v
-expr e@4:34#1 isCheck expr=e@4:34#0 type=kotlin.collections.List<*> type=Boolean
-expr e@7:35#1 name(v) type=Any ref=golden.sema.asRawList.$0.v
-expr e@7:35#2 asCast? expr=e@7:35#1 type=kotlin.collections.List<*> type=kotlin.collections.List<*>?
-expr e@10:9#0 name(v) type=Any ref=golden.sema.printSizeIfList.$2.v
-expr e@10:9#1 isCheck expr=e@10:9#0 type=kotlin.collections.List<*> type=Boolean
-expr e@11:17#0 name(v) type=kotlin.collections.List<*> ref=golden.sema.printSizeIfList.$2.v
-expr e@11:17#1 memberCall recv=e@11:17#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@11:9#1 call callee=e@11:9#0 args=[_:e@11:17#1] type=Unit call=kotlin.io.println#1
-expr e@10:23 blockExpr stmts=[] trailing=e@11:9#1 type=Unit
-expr e@10:5#1 if cond=e@10:9#1 then=e@10:23 else=_ type=Unit
+expr e@4:34 name(v) type=Any ref=golden.sema.isRawList.$1.v
+expr e@4:34#1 isCheck expr=e@4:34 type=kotlin.collections.List<*> type=Boolean
+expr e@7:35 name(v) type=Any ref=golden.sema.asRawList.$0.v
+expr e@7:35#1 asCast? expr=e@7:35 type=kotlin.collections.List<*> type=kotlin.collections.List<*>?
+expr e@10:9 name(v) type=Any ref=golden.sema.printSizeIfList.$2.v
+expr e@10:9#1 isCheck expr=e@10:9 type=kotlin.collections.List<*> type=Boolean
+expr e@11:17 name(v) type=kotlin.collections.List<*> ref=golden.sema.printSizeIfList.$2.v
+expr e@11:17#1 memberCall recv=e@11:17 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@11:9 call callee=e@11:9#1 args=[_:e@11:17#1] type=Unit call=kotlin.io.println#1
+expr e@10:23 blockExpr stmts=[] trailing=e@11:9 type=Unit
+expr e@10:5 if cond=e@10:9#1 then=e@10:23 else=_ type=Unit

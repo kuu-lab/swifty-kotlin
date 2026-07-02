@@ -4,8 +4,8 @@ symbol fq=golden.sema.twoArgMinUInt.$0.b kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.minOf#14 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[UInt,UInt] ret=UInt
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.twoArgMinUInt fun twoArgMinUInt sym=golden.sema.twoArgMinUInt
 expr e@3:51 name(a) type=UInt ref=golden.sema.twoArgMinUInt.$0.a
 expr e@3:54 name(b) type=UInt ref=golden.sema.twoArgMinUInt.$0.b
-expr e@3:45#1 call callee=e@3:45#0 args=[_:e@3:51,_:e@3:54] type=UInt call=kotlin.comparisons.minOf#14
+expr e@3:45 call callee=e@3:45#1 args=[_:e@3:51,_:e@3:54] type=UInt call=kotlin.comparisons.minOf#14

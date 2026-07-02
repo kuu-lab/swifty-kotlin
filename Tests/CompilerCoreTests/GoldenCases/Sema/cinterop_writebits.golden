@@ -1,4 +1,4 @@
-symbol fq=golden.sema.testWriteBits kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.NativePtr] ret=Unit
+symbol fq=golden.sema.testWriteBits kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=Unit
 symbol fq=golden.sema.testWriteBits.$0.ptr kind=valueParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.NativePtr kind=class vis=public flags=synthetic type=kotlinx.cinterop.NativePtr
 symbol fq=kotlinx.cinterop.writeBits kind=function vis=public flags=synthetic sig=recv=_ params=[kotlinx.cinterop.NativePtr,Long,Int,Long] ret=Unit
@@ -6,10 +6,10 @@ symbol fq=kotlinx.cinterop.writeBits.offset kind=valueParameter vis=private flag
 symbol fq=kotlinx.cinterop.writeBits.ptr kind=valueParameter vis=private flags=synthetic type=kotlinx.cinterop.NativePtr
 symbol fq=kotlinx.cinterop.writeBits.size kind=valueParameter vis=private flags=synthetic type=Int
 symbol fq=kotlinx.cinterop.writeBits.value kind=valueParameter vis=private flags=synthetic type=Long
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.testWriteBits fun testWriteBits sym=golden.sema.testWriteBits
-expr e@9:15 name(ptr) type=kotlinx.cinterop.NativePtr ref=golden.sema.testWriteBits.$0.ptr
+expr e@9:15 name(ptr) type=<error> ref=golden.sema.testWriteBits.$0.ptr
 expr e@9:20 long(0) type=Long
 expr e@9:24 int(8) type=Int
 expr e@9:27 long(42) type=Long
-expr e@9:5#1 call callee=e@9:5#0 args=[_:e@9:15,_:e@9:20,_:e@9:24,_:e@9:27] type=Unit call=kotlinx.cinterop.writeBits
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:15,_:e@9:20,_:e@9:24,_:e@9:27] type=Unit call=kotlinx.cinterop.writeBits

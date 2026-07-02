@@ -17,12 +17,28 @@ func registerSyntheticFunctionStub(
     updateExistingSignature: Bool = false,
     requireSyntheticOrNoDeclSiteForExisting: Bool = false,
     existingFlagsToInsert: SymbolFlags = [],
+    bundledIndex: BundledDeclarationIndex = .empty,
+    skipStats: SyntheticStubSkipStatsCollector? = nil,
+    types: TypeSystem? = nil,
     symbols: SymbolTable,
     interner: StringInterner
 ) -> SymbolID {
     let functionName = interner.intern(name)
     let functionFQName = ownerFQName + [functionName]
     let parameterTypes = parameters.map(\.type)
+    let skipOwnerFQName: [InternedString] = if let receiverType,
+                                                 let types,
+                                                 let receiverOwner = bundledNominalOwnerFQName(
+                                                     of: receiverType,
+                                                     symbols: symbols,
+                                                     types: types
+                                                 )
+    {
+        receiverOwner
+    } else {
+        ownerFQName
+    }
+
     if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
         guard let existingSignature = symbols.functionSignature(for: symbolID) else {
             return false
@@ -74,6 +90,21 @@ func registerSyntheticFunctionStub(
         return existing
     }
 
+    if shouldSkipSyntheticStub(
+        bundledIndex: bundledIndex,
+        ownerFQName: skipOwnerFQName,
+        name: functionName,
+        arity: parameterTypes.count
+    ) {
+        skipStats?.recordSkip(
+            ownerFQName: skipOwnerFQName,
+            name: functionName,
+            arity: parameterTypes.count,
+            interner: interner
+        )
+        return .invalid
+    }
+
     let functionSymbol = symbols.define(
         kind: .function,
         name: functionName,
@@ -122,6 +153,126 @@ func registerSyntheticFunctionStub(
         for: functionSymbol
     )
     return functionSymbol
+}
+
+@discardableResult
+func registerSyntheticMemberFunctionStub(
+    name: InternedString,
+    memberFQName: [InternedString],
+    ownerSymbol: SymbolID,
+    ownerFQName: [InternedString],
+    receiverType: TypeID,
+    parameterTypes: [TypeID],
+    parameterNames: [String],
+    returnType: TypeID,
+    externalLinkName: String,
+    flags: SymbolFlags = [.synthetic],
+    canThrow: Bool = false,
+    typeParameterSymbols: [SymbolID] = [],
+    typeParameterUpperBoundsList: [[TypeID]] = [],
+    classTypeParameterCount: Int = 0,
+    bundledIndex: BundledDeclarationIndex = .empty,
+    skipStats: SyntheticStubSkipStatsCollector? = nil,
+    symbols: SymbolTable,
+    interner: StringInterner
+) -> SymbolID? {
+    let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
+        guard let signature = symbols.functionSignature(for: symbolID) else { return false }
+        return signature.receiverType == receiverType
+            && signature.parameterTypes == parameterTypes
+            && signature.returnType == returnType
+    }
+    if alreadyRegistered {
+        return nil
+    }
+
+    if shouldSkipSyntheticStub(
+        bundledIndex: bundledIndex,
+        ownerFQName: ownerFQName,
+        name: name,
+        arity: parameterTypes.count
+    ) {
+        skipStats?.recordSkip(
+            ownerFQName: ownerFQName,
+            name: name,
+            arity: parameterTypes.count,
+            interner: interner
+        )
+        return nil
+    }
+
+    let memberSymbol = symbols.define(
+        kind: .function,
+        name: name,
+        fqName: memberFQName,
+        declSite: nil,
+        visibility: .public,
+        flags: flags
+    )
+    symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
+    symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+
+    var valueParameterSymbols: [SymbolID] = []
+    valueParameterSymbols.reserveCapacity(parameterNames.count)
+    for parameterNameString in parameterNames {
+        let parameterName = interner.intern(parameterNameString)
+        let parameterSymbol = symbols.define(
+            kind: .valueParameter,
+            name: parameterName,
+            fqName: memberFQName + [parameterName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
+        valueParameterSymbols.append(parameterSymbol)
+    }
+
+    symbols.setFunctionSignature(
+        FunctionSignature(
+            receiverType: receiverType,
+            parameterTypes: parameterTypes,
+            returnType: returnType,
+            canThrow: canThrow,
+            valueParameterSymbols: valueParameterSymbols,
+            valueParameterHasDefaultValues: Array(repeating: false, count: parameterNames.count),
+            valueParameterIsVararg: Array(repeating: false, count: parameterNames.count),
+            typeParameterSymbols: typeParameterSymbols,
+            typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+            classTypeParameterCount: classTypeParameterCount
+        ),
+        for: memberSymbol
+    )
+    return memberSymbol
+}
+
+func bundledNominalOwnerFQName(
+    of receiverType: TypeID,
+    symbols: SymbolTable,
+    types: TypeSystem
+) -> [InternedString]? {
+    guard let receiverSymbol = bundledNominalSymbolID(of: receiverType, types: types),
+          let receiverInfo = symbols.symbol(receiverSymbol)
+    else {
+        return nil
+    }
+    return receiverInfo.fqName
+}
+
+private func bundledNominalSymbolID(of type: TypeID, types: TypeSystem) -> SymbolID? {
+    switch types.kind(of: type) {
+    case let .classType(classType):
+        return classType.classSymbol
+    case let .intersection(parts):
+        for part in parts {
+            if let symbol = bundledNominalSymbolID(of: part, types: types) {
+                return symbol
+            }
+        }
+        return nil
+    default:
+        return nil
+    }
 }
 
 func syntheticFunctionParameters(
