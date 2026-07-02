@@ -10,7 +10,7 @@ symbol fq=kotlin.text.replace.newChar kind=valueParameter vis=private flags=synt
 symbol fq=kotlin.text.replace.newValue kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replace.oldChar kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replace.oldValue kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.useReplaceChar fun useReplaceChar sym=golden.sema.useReplaceChar
   decl golden.sema.useReplaceStringIgnoreCase fun useReplaceStringIgnoreCase sym=golden.sema.useReplaceStringIgnoreCase
   decl golden.sema.useReplaceCharIgnoreCase fun useReplaceCharIgnoreCase sym=golden.sema.useReplaceCharIgnoreCase

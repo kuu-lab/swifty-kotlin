@@ -1,11 +1,12 @@
 @testable import CompilerCore
 import Foundation
 
-func makeSemaModule() -> (ctx: SemaModule, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
-    let symbols = SymbolTable()
-    let types = TypeSystem()
-    let bindings = BindingTable()
-    let diagnostics = DiagnosticEngine()
+func makeSemaModule(
+    symbols: SymbolTable = SymbolTable(),
+    types: TypeSystem = TypeSystem(),
+    bindings: BindingTable = BindingTable(),
+    diagnostics: DiagnosticEngine = DiagnosticEngine()
+) -> (ctx: SemaModule, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
     let ctx = SemaModule(
         symbols: symbols,
         types: types,

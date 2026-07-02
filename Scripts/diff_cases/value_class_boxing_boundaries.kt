@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-004): value class boxing/generics/interface parity tracking
 @JvmInline
 value class Wrapper(val value: Int)
 

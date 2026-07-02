@@ -56,7 +56,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "ABIBoxInt",
@@ -129,7 +129,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "ABIBoxBool",
@@ -202,7 +202,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "ABIBoxNullableInt",
@@ -275,7 +275,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ABIUnboxAny", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
@@ -333,7 +333,7 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ABIUnboxNullableInt", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
@@ -368,7 +368,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(function))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ABIBoxReturn", sema: sema)
 
         let lowered = try findKIRFunction(named: "returnBoxed", in: module, interner: interner)
@@ -405,7 +405,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(function))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ABICopyBox", sema: sema)
 
         let lowered = try findKIRFunction(named: "copyBoxed", in: module, interner: interner)
@@ -448,7 +448,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(function))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ABICopyUnbox", sema: sema)
 
         let lowered = try findKIRFunction(named: "copyUnboxed", in: module, interner: interner)

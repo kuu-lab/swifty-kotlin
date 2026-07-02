@@ -33,16 +33,13 @@ extension CollectionLiteralLoweringPass {
         else {
             return argument
         }
-        let boxedArgument = module.arena.appendTemporary(type: sema.types.anyType
-        )
-        loweredBody.append(.call(
-            symbol: nil,
+        let boxedArgument = emitNonThrowingCall(
             callee: boxCallee,
-            arguments: [argument],
-            result: boxedArgument,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: argument,
+            resultType: sema.types.anyType,
+            arena: module.arena,
+            into: &loweredBody
+        )
         return boxedArgument
     }
 

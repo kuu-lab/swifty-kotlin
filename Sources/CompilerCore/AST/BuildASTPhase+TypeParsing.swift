@@ -1,9 +1,5 @@
 
 extension BuildASTPhase {
-    func isTypeLikeNameToken(_ kind: TokenKind) -> Bool {
-        TypeRefParserCore.isTypeLikeNameToken(kind)
-    }
-
     func splitDefaultValue(_ tokens: [Token]) -> (withoutDefault: [Token], defaultTokens: [Token]?) {
         var depth = BracketDepth()
         for (index, token) in tokens.enumerated() {
@@ -32,7 +28,7 @@ extension BuildASTPhase {
 
         for index in stride(from: paramsOpenIndex - 1, through: funIndex + 1, by: -1) {
             let token = tokens[index]
-            if !isTypeLikeNameToken(token.kind) {
+            if !TypeRefParserCore.isTypeLikeNameToken(token.kind) {
                 continue
             }
             if let name = internedIdentifier(from: token, interner: interner) {
@@ -56,7 +52,8 @@ extension BuildASTPhase {
         }
 
         var nameIndex: Int?
-        for index in stride(from: paramsOpenIndex - 1, through: 0, by: -1) where isTypeLikeNameToken(tokens[index].kind) {
+        for index in stride(from: paramsOpenIndex - 1, through: 0, by: -1)
+            where TypeRefParserCore.isTypeLikeNameToken(tokens[index].kind) {
             nameIndex = index
             break
         }
@@ -304,7 +301,7 @@ extension BuildASTPhase {
                 case .keyword(.val), .keyword(.var):
                     continue
                 default:
-                    if isTypeLikeNameToken(token.kind) {
+                    if TypeRefParserCore.isTypeLikeNameToken(token.kind) {
                         sawName = true
                     }
                     continue

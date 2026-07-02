@@ -1560,20 +1560,21 @@ extension CallLowerer {
                         requireNonNull: true
                     )
 
-                    let boxedArg = arena.appendTemporary(type: sema.types.nullableAnyType
-                    )
                     if let boxCallee {
-                        instructions.append(.call(
-                            symbol: nil,
+                        return emitNonThrowingCall(
                             callee: boxCallee,
-                            arguments: [loweredArgID],
-                            result: boxedArg,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                    } else {
-                        instructions.append(.copy(from: loweredArgID, to: boxedArg))
+                            arg: loweredArgID,
+                            resultType: sema.types.nullableAnyType,
+                            arena: arena,
+                            into: &instructions
+                        )
                     }
+
+                    let boxedArg = arena.appendExpr(
+                        .temporary(Int32(arena.expressions.count)),
+                        type: sema.types.nullableAnyType
+                    )
+                    instructions.append(.copy(from: loweredArgID, to: boxedArg))
                     return boxedArg
                 }
 

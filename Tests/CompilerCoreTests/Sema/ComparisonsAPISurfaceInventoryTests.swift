@@ -367,23 +367,29 @@ struct ComparisonsAPISurfaceInventoryTests {
     }
 
     @Test func testCoerceInDoubleOverloadIsRegistered() throws {
+        // MIGRATION-RANGE-003: Double.coerceIn(min,max) migrated to bundled Kotlin source
+        // (RangeCoercion.kt). The synthetic stub with kk_double_coerceIn no longer exists;
+        // verify no stale stub was left behind.
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        #expect(links.contains("kk_double_coerceIn"), "kotlin.ranges.coerceIn (Double) must link to kk_double_coerceIn; found: \(links)")
+        #expect(!links.contains("kk_double_coerceIn"), "Double.coerceIn(min,max) should not have a synthetic stub; migrated to Kotlin source")
     }
 
     @Test func testCoerceInFloatOverloadIsRegistered() throws {
+        // MIGRATION-RANGE-003: Float.coerceIn(min,max) migrated to bundled Kotlin source
+        // (RangeCoercion.kt). The synthetic stub with kk_float_coerceIn no longer exists;
+        // verify no stale stub was left behind.
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "ranges", "coerceIn"],
             sema: sema,
             interner: interner
         )
-        #expect(links.contains("kk_float_coerceIn"), "kotlin.ranges.coerceIn (Float) must link to kk_float_coerceIn; found: \(links)")
+        #expect(!links.contains("kk_float_coerceIn"), "Float.coerceIn(min,max) should not have a synthetic stub; migrated to Kotlin source")
     }
 
     // MARK: - 22. Mandatory API completeness assertion

@@ -37,16 +37,13 @@ extension ABILoweringPass {
                 boxingCalleeTable: boxingCalleeTable,
                 symbols: symbols
             ) {
-                let boxedResult = module.arena.appendTemporary(type: paramType
-                )
-                newBody.append(.call(
-                    symbol: nil,
+                let boxedResult = emitNonThrowingCall(
                     callee: boxCallee,
-                    arguments: [arguments[argIndex]],
-                    result: boxedResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    arg: arguments[argIndex],
+                    resultType: paramType,
+                    arena: module.arena,
+                    into: &newBody
+                )
                 boxedArguments[argIndex] = boxedResult
             }
         }

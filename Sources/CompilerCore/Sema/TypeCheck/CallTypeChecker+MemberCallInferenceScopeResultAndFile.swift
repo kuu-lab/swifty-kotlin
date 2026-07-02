@@ -29,6 +29,8 @@ extension CallTypeChecker {
             case "also": .scopeAlso
             case "use" where isCloseableReceiver(receiverType, sema: sema): .scopeUse
             case "usePinned": .scopeUsePinned
+            case "useContents" where extractCValueCStructContentType(receiverType, sema: sema, interner: interner) != nil:
+                .scopeUseContents
             default: nil
             }
             let hasUserDefinedMember = if scopeKind != nil {
@@ -239,6 +241,41 @@ extension CallTypeChecker {
                     // Force the capturing-lambda lowering path so try/finally exception
                     // propagation around the block call works correctly (mirrors scopeUse).
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+
+                case .scopeUseContents:
+                    // useContents: the lambda has T as its receiver, where the call
+                    // receiver is CValue<T>. The block result becomes the call result.
+                    guard let contentType = extractCValueCStructContentType(
+                        nonNullReceiverType,
+                        sema: sema,
+                        interner: interner
+                    ) else {
+                        break
+                    }
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        receiver: contentType,
+                        params: [],
+                        returnType: expectedType ?? sema.types.anyType
+                    )))
+                    let receiverCtx = ctx.with(implicitReceiverType: contentType)
+                    let lambdaType = driver.inferExpr(
+                        args[0].expr, ctx: receiverCtx, locals: &locals,
+                        expectedType: lambdaExpectedType
+                    )
+                    let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                        fnType.returnType
+                    } else {
+                        sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
+                            if case let .functionType(fnType) = sema.types.kind(of: typeID) {
+                                return fnType.returnType
+                            }
+                            return nil
+                        } ?? sema.types.anyType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 

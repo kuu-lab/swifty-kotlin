@@ -20,7 +20,7 @@ symbol fq=kotlin.text.split#4 kind=function vis=public flags=synthetic sig=recv=
 symbol fq=kotlin.text.split.regex kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.toRegex#0 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=kotlin.text.Regex
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f14 package=_
   decl main fun main sym=main
 expr e@2:23 string([a-z]+) type=String
 expr e@2:17#1 call callee=e@2:17#0 args=[_:e@2:23] type=kotlin.text.Regex

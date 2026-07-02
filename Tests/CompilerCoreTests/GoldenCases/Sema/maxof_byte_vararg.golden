@@ -6,7 +6,7 @@ symbol fq=golden.sema.varargMaxByte.$0.d kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.maxOf#5 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int vararg=[0,1]
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.other kind=valueParameter vis=private flags=synthetic
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.varargMaxByte fun varargMaxByte sym=golden.sema.varargMaxByte
 expr e@3:69 name(a) type=Int ref=golden.sema.varargMaxByte.$0.a
 expr e@3:72 name(b) type=Int ref=golden.sema.varargMaxByte.$0.b

@@ -16,7 +16,7 @@ symbol fq=kotlin.random.Random.nextULong#2 kind=function vis=public flags=synthe
 symbol fq=kotlin.random.Random.nextULong.from kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.random.Random.nextULong.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandomUnsigned kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f13 package=_
+file f14 package=_
   decl useRandomUnsigned fun useRandomUnsigned sym=useRandomUnsigned
 expr e@4:13#2 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e@4:13#3 memberCall recv=e@4:13#2 callee=nextUInt args=[] type=UInt call=kotlin.random.Random.nextUInt#0

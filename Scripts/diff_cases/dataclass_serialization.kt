@@ -1,4 +1,4 @@
-// SKIP-DIFF: requires kotlinx-serialization jar not available in the kotlinc diff harness
+// SKIP-DIFF (DEBT-DIFF-001): requires kotlinx-serialization jar not available in the kotlinc diff harness
 annotation class Serializable
 
 @Serializable

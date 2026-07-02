@@ -29,16 +29,13 @@ final class LambdaLowerer {
         guard let unboxCallee else {
             return exprID
         }
-        let normalizedExpr = arena.appendTemporary(type: type
-        )
-        instructions.append(.call(
-            symbol: nil,
+        let normalizedExpr = emitNonThrowingCall(
             callee: unboxCallee,
-            arguments: [exprID],
-            result: normalizedExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: exprID,
+            resultType: type,
+            arena: arena,
+            into: &instructions
+        )
         return normalizedExpr
     }
 

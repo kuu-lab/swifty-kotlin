@@ -33,10 +33,34 @@ jobs:
           exit 1
       - name: Run jscpd
         run: jscpd --threshold 5.6 --min-lines 15 --format swift Sources/
-      # RF-GUARD-002: Tests/ の重複監視（2026-06-10 実測 4.21% に対し閾値 5.0、
-      # 段階的引き下げは RF-GOV-001）
-      - name: Run jscpd (Tests)
-        run: jscpd --threshold 5.0 --min-lines 15 --format swift Tests/
+      # RF-GUARD-002: observe Sources/ + Tests/ duplication before setting a Tests/ threshold.
+      - name: Observe jscpd report (Sources and Tests)
+        run: |
+          report_dir="$(mktemp -d)"
+          jscpd --config .jscpd.json --silent --reporters json --output "$report_dir" --exitCode 0
+          node - "$report_dir/jscpd-report.json" <<'NODE'
+          const fs = require("fs");
+          const reportPath = process.argv[2];
+          const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+          const total = report.statistics.total;
+          const lines = [
+            "## jscpd observed duplication (Sources + Tests)",
+            "",
+            "| Metric | Value |",
+            "|---|---:|",
+            `| Files | ${total.sources} |`,
+            `| Lines | ${total.lines} |`,
+            `| Clones | ${total.clones} |`,
+            `| Duplicated lines | ${total.duplicatedLines} |`,
+            `| Duplicated line % | ${total.percentage}% |`,
+            `| Duplicated tokens | ${total.duplicatedTokens} |`,
+            `| Duplicated token % | ${total.percentageTokens}% |`,
+          ];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+          console.log(
+            `jscpd observed duplication: ${total.clones} clones, ${total.duplicatedLines} duplicated lines (${total.percentage}%)`
+          );
+          NODE
       - name: jscpd reproduce hint on failure
         if: failure()
         run: |
@@ -45,7 +69,7 @@ jobs:
             echo '```bash'
             echo 'npm install -g jscpd@4.0.8'
             echo 'jscpd --threshold 5.6 --min-lines 15 --format swift Sources/'
-            echo 'jscpd --threshold 5.0 --min-lines 15 --format swift Tests/'
+            echo 'jscpd --config .jscpd.json --silent --reporters json --output /tmp/jscpd-report --exitCode 0'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

@@ -57,16 +57,16 @@ extension CallLowerer {
                 paddingArg = arena.appendExpr(.intLiteral(Int64(rawValue)), type: sema.types.intType)
                 instructions.append(.constValue(result: paddingArg, value: .intLiteral(Int64(rawValue))))
             } else {
-                paddingArg = arena.appendTemporary(type: sema.types.intType
+                paddingArg = emitNonThrowingCall(
+                    callee: BoxingCalleeTable(interner: interner).unboxCallee(
+                        for: .primitive(.int, .nonNull),
+                        requireNonNull: true
+                    )!,
+                    arg: loweredArgIDs[0],
+                    resultType: sema.types.intType,
+                    arena: arena,
+                    into: &instructions
                 )
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_unbox_int"),
-                    arguments: [loweredArgIDs[0]],
-                    result: paddingArg,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
             }
             switch receiverKind {
             case .variant(let suffix):

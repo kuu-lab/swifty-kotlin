@@ -54,6 +54,18 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases            # 全ケース
 
 CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifacts**（TSV・失敗ケースディレクトリ）を優先。`gh run view RUN_ID --log-failed` だけだと、kotlinc diff ステップは `continue-on-error` のため **本体ログが含まれない**ことがある。全文ログでは `FAIL ` を grep。
 
+### リファクタ PR 必須ゲート
+
+RF 系リファクタ PR は、原則として以下をすべて green にしてから完了扱いにする。
+
+```bash
+bash Scripts/swift_test.sh
+bash Scripts/swift_test.sh --filter Golden
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
+`Scripts/loc_report.sh` が存在する HEAD では、変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、`"kk_` リテラル数、`interner.resolve == "..."` 数の悪化がないことも確認する。意図的に悪化を許容する場合は、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
+
 ## アーキテクチャ概要
 
 ```
@@ -66,7 +78,7 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 
 ## コーディング規約
 
-- Swift 5.9, macOS 12+, 4スペースインデント
+- Swift 6.2（Swift language mode 6）, macOS 12+, 4スペースインデント
 - 型/enum/プロトコル: `UpperCamelCase`、関数/変数: `lowerCamelCase`
 - フォーマッタ未設定 — 既存ファイルのスタイルに従う
 - コミットメッセージ: 短く命令形（例: "Add ...", "Fix ..."）
@@ -80,4 +92,5 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | ディレクトリマップ・データフロー・タスク別ナビゲーション |
 | [`docs/spec.md`](docs/spec.md) | フェーズ別実装仕様（Swift 型・API レベル） |
 | [`docs/debugging.md`](docs/debugging.md) | DWARF / lldb デバッグガイド |
+| [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md) | CompilerCore emit `kk_*` 名と `RuntimeABISpec` 照合の検証ギャップ |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |

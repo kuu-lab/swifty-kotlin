@@ -2,6 +2,75 @@
 final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
 
+    static let primitiveBoxingCalleeNamesByPrimitive: [PrimitiveType: String] = [
+        .int: "kk_box_int",
+        .uint: "kk_box_int",
+        .ubyte: "kk_box_int",
+        .ushort: "kk_box_int",
+        .boolean: "kk_box_bool",
+        .long: "kk_box_long",
+        .ulong: "kk_box_long",
+        .float: "kk_box_float",
+        .double: "kk_box_double",
+        .char: "kk_box_char",
+    ]
+
+    static let primitiveUnboxingCalleeNamesByPrimitive: [PrimitiveType: String] = [
+        .int: "kk_unbox_int",
+        .uint: "kk_unbox_int",
+        .ubyte: "kk_unbox_int",
+        .ushort: "kk_unbox_int",
+        .boolean: "kk_unbox_bool",
+        .long: "kk_unbox_long",
+        .ulong: "kk_unbox_long",
+        .float: "kk_unbox_float",
+        .double: "kk_unbox_double",
+        .char: "kk_unbox_char",
+    ]
+
+    static let primitiveBoxingCalleeNames: Set<String> = Set(primitiveBoxingCalleeNamesByPrimitive.values)
+    static let primitiveUnboxingCalleeNames: Set<String> = Set(primitiveUnboxingCalleeNamesByPrimitive.values)
+
+    static func primitiveBoxingCalleeName(for primitive: PrimitiveType) -> String? {
+        primitiveBoxingCalleeNamesByPrimitive[primitive]
+    }
+
+    static func primitiveUnboxingCalleeName(for primitive: PrimitiveType) -> String? {
+        primitiveUnboxingCalleeNamesByPrimitive[primitive]
+    }
+
+    static func primitiveBoxingCalleeName(for kind: TypeKind) -> String? {
+        guard case let .primitive(primitive, _) = kind else { return nil }
+        return primitiveBoxingCalleeName(for: primitive)
+    }
+
+    static func primitiveUnboxingCalleeName(for kind: TypeKind) -> String? {
+        guard case let .primitive(primitive, _) = kind else { return nil }
+        return primitiveUnboxingCalleeName(for: primitive)
+    }
+
+    static func primitiveBoxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
+        guard let name = primitiveBoxingCalleeName(for: primitive) else {
+            preconditionFailure("No boxing callee registered for \(primitive)")
+        }
+        return interner.intern(name)
+    }
+
+    static func primitiveUnboxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
+        guard let name = primitiveUnboxingCalleeName(for: primitive) else {
+            preconditionFailure("No unboxing callee registered for \(primitive)")
+        }
+        return interner.intern(name)
+    }
+
+    static func primitiveBoxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {
+        primitiveBoxingCalleeName(for: kind).map(interner.intern)
+    }
+
+    static func primitiveUnboxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {
+        primitiveUnboxingCalleeName(for: kind).map(interner.intern)
+    }
+
     func run(module: KIRModule, ctx: KIRContext) throws {
         let nonThrowingCalleeSet = nonThrowingCallees(interner: ctx.interner)
         let boxingCalleeTable = BoxingCalleeTable(interner: ctx.interner)

@@ -793,6 +793,46 @@ extension CallTypeChecker {
         return directSupertypes.contains(closeableSymbol)
     }
 
+    /// Extracts the native struct type T from a `CValue<T>` receiver.
+    func extractCValueCStructContentType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let nonNull = sema.types.makeNonNullable(receiverType)
+        guard case let .classType(classType) = sema.types.kind(of: nonNull),
+              let cValueSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlinx"),
+                  interner.intern("cinterop"),
+                  interner.intern("CValue"),
+              ]),
+              let cStructVarSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlinx"),
+                  interner.intern("cinterop"),
+                  interner.intern("CStructVar"),
+              ]),
+              classType.classSymbol == cValueSymbol,
+              let firstArg = classType.args.first
+        else {
+            return nil
+        }
+        let contentType: TypeID = switch firstArg {
+        case let .invariant(type), let .out(type), let .in(type):
+            sema.types.makeNonNullable(type)
+        case .star:
+            sema.types.anyType
+        }
+        let cStructVarType = sema.types.make(.classType(ClassType(
+            classSymbol: cStructVarSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        guard sema.types.isSubtype(contentType, cStructVarType) else {
+            return nil
+        }
+        return contentType
+    }
+
     /// Extract the element type T from a Result<out T> receiver type.
     func extractResultElementType(
         _ receiverType: TypeID,

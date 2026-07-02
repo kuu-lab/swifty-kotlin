@@ -2,7 +2,7 @@ symbol fq=golden.sema.add kind=function vis=public flags=_ sig=recv=_ params=[In
 symbol fq=golden.sema.add.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.add.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f13 package=golden.sema
+file f14 package=golden.sema
   decl golden.sema.add fun add sym=golden.sema.add
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@3:27#0 name(a) type=Int ref=golden.sema.add.$0.a
