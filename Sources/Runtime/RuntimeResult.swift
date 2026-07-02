@@ -283,26 +283,27 @@ public func kk_result_recoverCatching(
     return registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: recovered, exception: 0))
 }
 
+private func resultComponent(_ resultRaw: Int, exception: Bool) -> Int {
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        return runtimeNullSentinelInt
+    }
+    if exception {
+        return box.isSuccess ? runtimeNullSentinelInt : box.exception
+    }
+    return box.isSuccess ? box.value : runtimeNullSentinelInt
+}
+
 /// kk_result_component1(resultRaw) -> Int
 /// Destructuring component1(): returns the success value or null-sentinel for failure.
 /// Kotlin destructuring: val (value, exception) = result
 @_cdecl("kk_result_component1")
 public func kk_result_component1(_ resultRaw: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw), box.isSuccess else {
-        return runtimeNullSentinelInt
-    }
-    return box.value
+    resultComponent(resultRaw, exception: false)
 }
 
 /// kk_result_component2(resultRaw) -> Int
 /// Destructuring component2(): returns the exception or null-sentinel for success.
 @_cdecl("kk_result_component2")
 public func kk_result_component2(_ resultRaw: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return runtimeNullSentinelInt
-    }
-    if box.isSuccess {
-        return runtimeNullSentinelInt
-    }
-    return box.exception
+    resultComponent(resultRaw, exception: true)
 }

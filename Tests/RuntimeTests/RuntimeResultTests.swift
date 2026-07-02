@@ -76,4 +76,23 @@ final class RuntimeResultTests: XCTestCase {
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(fallbackValue, 1)
     }
+
+    func testResultComponentsExposeValueAndExceptionSlots() {
+        var thrown = 0
+        let successFn = unsafeBitCast(runtime_result_success_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+        let failureFn = unsafeBitCast(runtime_result_failure_lambda as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int, to: Int.self)
+
+        let successRaw = kk_runCatching(successFn, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_result_component1(successRaw), 42)
+        XCTAssertEqual(kk_result_component2(successRaw), runtimeNullSentinelInt)
+
+        let failureRaw = kk_runCatching(failureFn, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_result_component1(failureRaw), runtimeNullSentinelInt)
+        XCTAssertNotEqual(kk_result_component2(failureRaw), runtimeNullSentinelInt)
+
+        XCTAssertEqual(kk_result_component1(runtimeNullSentinelInt), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_result_component2(runtimeNullSentinelInt), runtimeNullSentinelInt)
+    }
 }

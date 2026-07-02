@@ -895,7 +895,7 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
 
 /// Applies a map transformation to elements using the given function pointer.
 /// Lambda signature: (closureRaw, elem, outThrown) -> Int (same as list HOFs).
-private func applyMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
+func applyMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     var mapped: [Int] = []
     mapped.reserveCapacity(elements.count)
     for elem in elements {
@@ -914,7 +914,7 @@ private func applyMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThr
 
 /// Applies a filter transformation to elements using the given function pointer.
 /// Lambda signature: (closureRaw, elem, outThrown) -> Int (same as list HOFs).
-private func applyFilterStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
+func applyFilterStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     var filtered: [Int] = []
     for elem in elements {
         var thrown = 0
@@ -925,7 +925,7 @@ private func applyFilterStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, out
             }
             return []
         }
-        if maybeUnbox(result) != 0 {
+        if runtimeCollectionBool(result) {
             filtered.append(elem)
         }
     }
@@ -934,7 +934,7 @@ private func applyFilterStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, out
 
 /// Applies a filterNot transformation: keeps elements where predicate returns false.
 /// Lambda signature: (closureRaw, elem, outThrown) -> Int (same as list HOFs).
-private func applyFilterNotStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
+func applyFilterNotStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     var filtered: [Int] = []
     for elem in elements {
         var thrown = 0
@@ -945,7 +945,7 @@ private func applyFilterNotStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, 
             }
             return []
         }
-        if maybeUnbox(result) == 0 {
+        if !runtimeCollectionBool(result) {
             filtered.append(elem)
         }
     }
@@ -1000,7 +1000,7 @@ private func applyDropWhileStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, 
 }
 
 /// Applies a mapNotNull transformation: maps elements and filters out null values.
-private func applyMapNotNullStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
+func applyMapNotNullStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     var mapped: [Int] = []
     mapped.reserveCapacity(elements.count)
     for elem in elements {
