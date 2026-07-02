@@ -143,20 +143,39 @@ if [[ "$mode" == "dynamic" ]]; then
     # only alphanumerics, '_', '.', and '/'. Escape '.' so it is matched
     # literally rather than as the regex wildcard; no other characters in
     # this charset are regex metacharacters.
-    filter_regex="^("
-    first=true
+    #
+    # A single --filter regex alternating every selected test can exceed
+    # Linux's per-argument exec() limit (MAX_ARG_STRLEN, ~128KB) once a
+    # shard selects a few thousand tests, which fails with "Argument list
+    # too long" (observed with CompilerBackendTests: 9000+ tests total).
+    # `swift test --filter` may be repeated any number of times (patterns
+    # are OR'd), so chunk the alternation into many small arguments instead
+    # of one huge one.
+    chunk_size=100
+    declare -a filter_args=()
+    chunk_regex=""
+    chunk_len=0
     for t in "${shard_tests[@]}"; do
         esc="$(printf '%s' "$t" | sed -e 's/\./\\./g')"
-        if [[ "$first" == true ]]; then
-            filter_regex+="$esc"
-            first=false
+        if (( chunk_len == 0 )); then
+            chunk_regex="$esc"
         else
-            filter_regex+="|$esc"
+            chunk_regex+="|$esc"
+        fi
+        chunk_len=$(( chunk_len + 1 ))
+        if (( chunk_len >= chunk_size )); then
+            filter_args+=(--filter "^(${chunk_regex})\$")
+            chunk_regex=""
+            chunk_len=0
         fi
     done
-    filter_regex+=")\$"
+    if (( chunk_len > 0 )); then
+        filter_args+=(--filter "^(${chunk_regex})\$")
+    fi
 
-    run_swift_test --filter "$filter_regex"
+    echo "shard_swift_tests.sh: split into $(( ${#filter_args[@]} / 2 )) --filter chunks of up to $chunk_size tests each." >&2
+
+    run_swift_test "${filter_args[@]}"
 fi
 
 # ---------------------------------------------------------------------------
