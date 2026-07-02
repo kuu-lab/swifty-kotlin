@@ -170,8 +170,10 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
 /// runtime safety measure.
 ///
 /// - `KSWIFTK_REGEX_TIMEOUT_MS`: per-operation wall-clock timeout in
-///   milliseconds. The default is 2000ms. A value `<= 0` disables the timeout
-///   entirely and restores unbounded behavior.
+///   milliseconds. The default is 30000ms (30s) — generous enough that
+///   legitimate matches over large inputs complete well within it, while still
+///   bounding catastrophic backtracking that would otherwise never return. A
+///   value `<= 0` disables the timeout entirely and restores unbounded behavior.
 /// - `KSWIFTK_REGEX_MAX_INPUT_LENGTH`: optional maximum input length in UTF-16
 ///   units. The default is `0`, which disables the cap. Any positive value
 ///   enables a fail-closed precheck that treats oversized inputs as no match.
@@ -184,7 +186,7 @@ private enum RegexEvaluationLimits {
     static let matchTimeout: TimeInterval = {
         let environment = ProcessInfo.processInfo.environment
         guard let rawValue = environment["KSWIFTK_REGEX_TIMEOUT_MS"] else {
-            return 2.0
+            return 30.0
         }
         guard let timeoutMs = Double(rawValue), timeoutMs > 0 else { return 0.0 }
         return timeoutMs / 1000.0
@@ -446,7 +448,7 @@ public func kk_string_split_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
     let range = NSRange(str.startIndex..., in: str)
     let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
     guard let matches else {
-        return regexMakeStringListRaw([str])
+        return regexMakeStringListRaw([rawStr])
     }
     if matches.isEmpty {
         return regexMakeStringListRaw([str])
