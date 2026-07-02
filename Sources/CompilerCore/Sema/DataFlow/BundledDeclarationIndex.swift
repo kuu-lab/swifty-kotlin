@@ -129,6 +129,9 @@ struct BundledDeclarationIndex: Sendable {
                 interner: interner
             )
             else { continue }
+            guard !Self.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) else {
+                continue
+            }
             guard contains(key), reported.insert(key).inserted else { continue }
 
             let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
@@ -138,6 +141,38 @@ struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    static func isRuntimeBackedSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        let ownerFQName = key.ownerFQName.map { interner.resolve($0) }
+        guard ownerFQName == ["kotlin", "collections", "List"] else {
+            return false
+        }
+
+        // These List HOF/search/sort sources are bundled as migration targets, but
+        // call sites still route through kk_list_* ABI stubs until RF-STDLIB wiring
+        // removes the compatibility bridge.
+        switch interner.resolve(key.name) {
+        case "map", "mapIndexed", "mapNotNull", "flatMap":
+            return key.arity == 1
+        case "flatten":
+            return key.arity == 0
+        case "first", "firstOrNull", "last", "lastOrNull", "single", "singleOrNull":
+            return key.arity == 0 || key.arity == 1
+        case "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast":
+            return key.arity == 1
+        case "reversed", "sorted":
+            return key.arity == 0
+        case "shuffled":
+            return key.arity == 0 || key.arity == 1
+        case "sortedBy", "sortedByDescending", "sortedWith":
+            return key.arity == 1
+        default:
+            return false
         }
     }
 
@@ -694,6 +729,9 @@ enum BundledSyntheticStubRegistration {
             interner: interner
         )
         let key = BundledMemberKey(ownerFQName: ownerFQName, name: name, arity: arity)
+        if BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) {
+            return false
+        }
         guard bundledIndex.contains(key) else {
             return false
         }

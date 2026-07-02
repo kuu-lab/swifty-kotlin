@@ -109,6 +109,9 @@ struct BundledSyntheticOverlapDiagnosticTests {
         fun main() {
             val xs = listOf(1, 2, 3)
             println(xs.count())
+            println(xs.reversed())
+            println(xs.sorted())
+            println(xs.shuffled())
         }
         """
         let ctx = makeContextFromSource(source)

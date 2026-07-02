@@ -262,6 +262,36 @@ extension DataFlowSemaPhase {
 
         let memberName = interner.intern("all")
         let memberFQName = iterableFQName + [memberName]
+        let collectionsFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let listFQName = collectionsFQName + [
+            interner.intern("List"),
+        ]
+        if bundledIndex.contains(ownerFQName: listFQName, name: memberName, arity: 1) ||
+            bundledIndex.contains(ownerFQName: collectionsFQName, name: memberName, arity: 1) ||
+            BundledSyntheticStubRegistration.bundledIndex.contains(
+                ownerFQName: listFQName,
+                name: memberName,
+                arity: 1
+            ) ||
+            BundledSyntheticStubRegistration.bundledIndex.contains(
+                ownerFQName: collectionsFQName,
+                name: memberName,
+                arity: 1
+            ) ||
+            hasBundledListExtension(
+                named: memberName,
+                arity: 1,
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                collectionsFQName: collectionsFQName
+            ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
 
         let elementType = types.make(.typeParam(TypeParamType(
             symbol: iterableTypeParamSymbol,
@@ -314,6 +344,13 @@ extension DataFlowSemaPhase {
 
         let memberName = interner.intern("any")
         let memberFQName = iterableFQName + [memberName]
+        let collectionsFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let listFQName = collectionsFQName + [
+            interner.intern("List"),
+        ]
         let elementType = types.make(.typeParam(TypeParamType(
             symbol: iterableTypeParamSymbol,
             nullability: .nonNull
@@ -331,6 +368,31 @@ extension DataFlowSemaPhase {
         )))
 
         func registerAnyOverload(parameterTypes: [TypeID], parameterNames: [String]) {
+            if parameterTypes.count == 1,
+               bundledIndex.contains(ownerFQName: listFQName, name: memberName, arity: 1) ||
+                bundledIndex.contains(ownerFQName: collectionsFQName, name: memberName, arity: 1) ||
+                BundledSyntheticStubRegistration.bundledIndex.contains(
+                    ownerFQName: listFQName,
+                    name: memberName,
+                    arity: 1
+                ) ||
+               BundledSyntheticStubRegistration.bundledIndex.contains(
+                   ownerFQName: collectionsFQName,
+                   name: memberName,
+                   arity: 1
+                ) ||
+                hasBundledListExtension(
+                    named: memberName,
+                    arity: 1,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    collectionsFQName: collectionsFQName
+                )
+            {
+                skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+                return
+            }
             _ = registerSyntheticMemberFunctionStub(
                 name: memberName,
                 memberFQName: memberFQName,
@@ -353,6 +415,34 @@ extension DataFlowSemaPhase {
 
         registerAnyOverload(parameterTypes: [], parameterNames: [])
         registerAnyOverload(parameterTypes: [predicateType], parameterNames: ["predicate"])
+    }
+
+    private func hasBundledListExtension(
+        named name: InternedString,
+        arity: Int,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        collectionsFQName: [InternedString]
+    ) -> Bool {
+        let functionFQName = collectionsFQName + [name]
+        return symbols.lookupAll(fqName: functionFQName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID),
+                  !symbol.flags.contains(.synthetic),
+                  let signature = symbols.functionSignature(for: symbolID),
+                  signature.parameterTypes.count == arity,
+                  let receiverType = signature.receiverType,
+                  let receiverOwner = BundledDeclarationIndex.receiverOwnerFQName(
+                    for: receiverType,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverOwner == collectionsFQName + [interner.intern("List")]
+        }
     }
 
     /// Register `Iterable<E>.last()` (STDLIB-COL-FN-104).

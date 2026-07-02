@@ -206,6 +206,29 @@ func registerSyntheticMemberFunctionStub(
     symbols: SymbolTable,
     interner: StringInterner
 ) -> SymbolID? {
+    if BundledSyntheticStubRegistration.preBundledPass {
+        return nil
+    }
+    if let contextTypes = BundledSyntheticStubRegistration.types,
+       BundledSyntheticStubRegistration.shouldSkipRegistration(
+           declaredOwnerFQName: ownerFQName,
+           receiverType: receiverType,
+           name: name,
+           arity: parameterTypes.count,
+           symbols: symbols,
+           types: contextTypes,
+           interner: interner
+       )
+    {
+        skipStats?.recordSkip(
+            ownerFQName: ownerFQName,
+            name: name,
+            arity: parameterTypes.count,
+            interner: interner
+        )
+        return nil
+    }
+
     let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
         guard let signature = symbols.functionSignature(for: symbolID) else { return false }
         return signature.receiverType == receiverType
