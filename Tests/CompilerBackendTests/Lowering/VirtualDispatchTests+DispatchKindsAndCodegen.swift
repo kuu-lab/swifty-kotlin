@@ -314,7 +314,7 @@ final class VirtualDispatchCodegenTests: XCTestCase {
         let callerID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "ABIUnboxVirtual",
@@ -348,12 +348,7 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
     func testVirtualCallSurvivesLoweringPhase() throws {
         let fixture = makeVtableFixture()
-        let sema = SemaModule(
-            symbols: fixture.symbols,
-            types: fixture.types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "VCallSurvival",
@@ -383,12 +378,7 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
     func testVirtualCallPreservesVtableDispatchKind() throws {
         let fixture = makeVtableFixture()
-        let sema = SemaModule(
-            symbols: fixture.symbols,
-            types: fixture.types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "VtableKind",
@@ -420,12 +410,7 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
     func testVirtualCallPreservesItableDispatchKind() throws {
         let fixture = makeItableFixture()
-        let sema = SemaModule(
-            symbols: fixture.symbols,
-            types: fixture.types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "ItableKind",
@@ -459,12 +444,7 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
     func testVirtualCallReceiverNotInArgumentsAfterLowering() throws {
         let fixture = makeVtableFixture()
-        let sema = SemaModule(
-            symbols: fixture.symbols,
-            types: fixture.types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "ReceiverDedup",
@@ -582,12 +562,7 @@ final class VirtualDispatchCodegenTests: XCTestCase {
 
     func testLLVMBackendCompilesVirtualCallWithoutError() throws {
         let fixture = makeVtableFixture()
-        let sema = SemaModule(
-            symbols: fixture.symbols,
-            types: fixture.types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: "LLVMBackendVtable",

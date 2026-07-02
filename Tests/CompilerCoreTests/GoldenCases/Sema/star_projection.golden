@@ -21,7 +21,7 @@ symbol fq=golden.sema.readWrapper kind=function vis=public flags=_ sig=recv=_ pa
 symbol fq=golden.sema.readWrapper.$4.w kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Container class Container sym=golden.sema.Container
   decl golden.sema.readContainer fun readContainer sym=golden.sema.readContainer
   decl golden.sema.eraseType fun eraseType sym=golden.sema.eraseType
@@ -30,15 +30,15 @@ file f14 package=golden.sema
   decl golden.sema.readOutBox fun readOutBox sym=golden.sema.readOutBox
   decl golden.sema.Wrapper class Wrapper sym=golden.sema.Wrapper
   decl golden.sema.readWrapper fun readWrapper sym=golden.sema.readWrapper
-expr e@6:44#0 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c
-expr e@6:44#1 memberCall recv=e@6:44#0 callee=item args=[] type=Any? ref=golden.sema.Container.item
-expr e@9:37#0 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list
-expr e@9:37#1 memberCall recv=e@9:37#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@13:13#1 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c
-expr e@13:13#2 memberCall recv=e@13:13#1 callee=item args=[] type=Any? ref=golden.sema.Container.item
-expr e@13:5#6 localDecl v mutable=0 type=_ init=e@13:13#2 type=Unit ref=__local_0.v
-expr e@19:38#0 name(b) type=golden.sema.OutBox<*> ref=golden.sema.readOutBox.$3.b
-expr e@19:38#1 memberCall recv=e@19:38#0 callee=value args=[] type=Any? ref=golden.sema.OutBox.value
-expr e@25:13#0 name(w) type=golden.sema.Wrapper<*> ref=golden.sema.readWrapper.$4.w
-expr e@25:13#1 memberCall recv=e@25:13#0 callee=items args=[] type=kotlin.collections.List<out Any?> ref=golden.sema.Wrapper.items
-expr e@25:5#6 localDecl x mutable=0 type=_ init=e@25:13#1 type=Unit ref=__local_1.x
+expr e@6:44 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c
+expr e@6:44#1 memberCall recv=e@6:44 callee=item args=[] type=Any? ref=golden.sema.Container.item
+expr e@9:37 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list
+expr e@9:37#1 memberCall recv=e@9:37 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@13:13 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c
+expr e@13:13#1 memberCall recv=e@13:13 callee=item args=[] type=Any? ref=golden.sema.Container.item
+expr e@13:5 localDecl v mutable=0 type=_ init=e@13:13#1 type=Unit ref=__local_0.v
+expr e@19:38 name(b) type=golden.sema.OutBox<*> ref=golden.sema.readOutBox.$3.b
+expr e@19:38#1 memberCall recv=e@19:38 callee=value args=[] type=Any? ref=golden.sema.OutBox.value
+expr e@25:13 name(w) type=golden.sema.Wrapper<*> ref=golden.sema.readWrapper.$4.w
+expr e@25:13#1 memberCall recv=e@25:13 callee=items args=[] type=kotlin.collections.List<out Any?> ref=golden.sema.Wrapper.items
+expr e@25:5 localDecl x mutable=0 type=_ init=e@25:13#1 type=Unit ref=__local_1.x

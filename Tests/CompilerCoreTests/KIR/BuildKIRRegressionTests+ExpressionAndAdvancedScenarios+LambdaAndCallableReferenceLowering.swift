@@ -80,13 +80,8 @@ extension BuildKIRRegressionTests {
             #expect(callNames.contains("kk_array_set"))
             #expect(callNames.contains("kk_function_create_1"))
 
-            let generatedLambdaFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl,
-                      ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
-                else {
-                    return nil
-                }
-                return function
+            let generatedLambdaFunctions = findAllKIRFunctions(in: module).filter { function in
+                ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
             }
             #expect(!(generatedLambdaFunctions.isEmpty))
             if let generatedSymbol = callSymbol,
@@ -110,13 +105,8 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let generatedLambdaFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl,
-                      ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
-                else {
-                    return nil
-                }
-                return function
+            let generatedLambdaFunctions = findAllKIRFunctions(in: module).filter { function in
+                ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
             }
             // Find the user's HOF lambda (2 params: closure + elem), not the bundled stdlib's require lambda
             let generatedFunction = try #require(generatedLambdaFunctions.last)

@@ -73,8 +73,7 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let thunkFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(fn) = decl else { return nil }
+        let thunkFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
         }
         #expect(thunkFunctions.count == 1)
@@ -822,8 +821,7 @@ extension LoweringPassRegressionTests {
         try LoweringPhase().run(ctx)
 
         // Should generate a thunk for the lambda (1 capture param)
-        let thunkFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(fn) = decl else { return nil }
+        let thunkFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
         }
         #expect(thunkFunctions.count == 1)
@@ -1008,8 +1006,7 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let thunkFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(fn) = decl else { return nil }
+        let thunkFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
         }
         #expect(thunkFunctions.count == 1)

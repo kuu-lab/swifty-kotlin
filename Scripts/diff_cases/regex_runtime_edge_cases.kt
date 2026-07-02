@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-005): common stdlib surface gap tracking
 fun main() {
     val named = Regex("(?<year>\\d{4})-(?<month>\\d{2})")
     val match = named.find("2025-04")

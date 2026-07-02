@@ -137,9 +137,7 @@ extension CallLowerer {
         if isFlowReceiver {
             if callee == "transform", args.count == 1 {
                 let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-                let result = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boundType
+                let result = arena.appendTemporary(type: boundType
                 )
                 let loweredReceiver = driver.lowerExpr(
                     receiverExpr,
@@ -167,9 +165,7 @@ extension CallLowerer {
             }
             if callee == "single", args.isEmpty {
                 let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-                let result = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boundType
+                let result = arena.appendTemporary(type: boundType
                 )
                 let loweredReceiver = driver.lowerExpr(
                     receiverExpr,
@@ -202,9 +198,7 @@ extension CallLowerer {
                 emit: &instructions
             )
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.unitType
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: resultType
+            let result = arena.appendTemporary(type: resultType
             )
             let loweredArgs: [KIRExprID]
             switch args.count {
@@ -370,7 +364,7 @@ extension CallLowerer {
                 let loweredArgIDs = args.map { argument in
                     driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
                 }
-                let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+                let result = arena.appendTemporary(type: boundType)
                 if let localExprID = driver.ctx.localValue(for: localSym),
                    let info = driver.ctx.callableValueInfo(for: localExprID)
                 {

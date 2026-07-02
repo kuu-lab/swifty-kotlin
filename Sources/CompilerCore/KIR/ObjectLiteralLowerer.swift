@@ -71,7 +71,7 @@ final class ObjectLiteralLowerer {
             let nameExpr = arena.appendExpr(.stringLiteral(propertyName), type: intType)
             instructions.append(.constValue(result: nameExpr, value: .stringLiteral(propertyName)))
 
-            let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_json_register_data_class_field_name"),
@@ -124,7 +124,7 @@ final class ObjectLiteralLowerer {
             interner: interner
         )
 
-        let objectValue = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: objectValueType)
+        let objectValue = arena.appendTemporary(type: objectValueType)
         instructions.append(.call(
             symbol: symbols.constructorSymbol,
             callee: symbols.constructorName,
@@ -164,7 +164,7 @@ final class ObjectLiteralLowerer {
         let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
 
-        let objectValue = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: objectValueType)
+        let objectValue = arena.appendTemporary(type: objectValueType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_object_new"),
@@ -210,7 +210,7 @@ final class ObjectLiteralLowerer {
             )
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-            let unusedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
@@ -249,7 +249,7 @@ final class ObjectLiteralLowerer {
             )
             let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
             instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-            let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let registerResult = arena.appendTemporary(type: intType)
             let superKind = sema.symbols.symbol(superSymbol)?.kind
             let registerCallee: InternedString = if superKind == .interface {
                 interner.intern("kk_type_register_iface")
@@ -384,7 +384,7 @@ final class ObjectLiteralLowerer {
         instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
 
         // Call kk_kclass_register_metadata.
-        let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_kclass_register_metadata"),
@@ -465,7 +465,7 @@ final class ObjectLiteralLowerer {
         let storageSlotCount = max(1, superTypeCount)
         let slotCountExpr = arena.appendExpr(.intLiteral(Int64(storageSlotCount)), type: intType)
         let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
-        let objectEntityExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: objectValueType)
+        let objectEntityExpr = arena.appendTemporary(type: objectValueType)
         var body: [KIRInstruction] = [.beginBlock]
         body.append(.constValue(result: slotCountExpr, value: .intLiteral(Int64(storageSlotCount))))
         body.append(.constValue(result: classIDExpr, value: .intLiteral(0)))

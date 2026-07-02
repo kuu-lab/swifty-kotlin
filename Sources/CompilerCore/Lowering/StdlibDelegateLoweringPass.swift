@@ -127,9 +127,7 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                                 // Original factory call (lazy(...)) is intentionally
                                 // NOT emitted — it references a synthetic stub with
                                 // no runtime implementation.
-                                let createResult = module.arena.appendExpr(
-                                    .temporary(Int32(module.arena.expressions.count)),
-                                    type: nil
+                                let createResult = module.arena.appendTemporary(type: nil
                                 )
                                 finalBody.append(
                                     .call(
@@ -153,9 +151,7 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                                     // member call lowering inserts the receiver when the
                                     // callee has a receiverType.
                                     let createArgs = callArgs.count > 1 ? Array(callArgs.dropFirst()) : callArgs
-                                    let createResult = module.arena.appendExpr(
-                                        .temporary(Int32(module.arena.expressions.count)),
-                                        type: nil
+                                    let createResult = module.arena.appendTemporary(type: nil
                                     )
                                     finalBody.append(
                                         .call(
@@ -178,9 +174,7 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                                     // kk_vetoable_create(initialValue, callbackFnPtr)
                                     // Strip the Delegates receiver (arg0) if present.
                                     let createArgs = callArgs.count > 1 ? Array(callArgs.dropFirst()) : callArgs
-                                    let createResult = module.arena.appendExpr(
-                                        .temporary(Int32(module.arena.expressions.count)),
-                                        type: nil
+                                    let createResult = module.arena.appendTemporary(type: nil
                                     )
                                     finalBody.append(
                                         .call(
@@ -198,9 +192,7 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                                 }
                             case .notNull:
                                 if callResult != nil {
-                                    let createResult = module.arena.appendExpr(
-                                        .temporary(Int32(module.arena.expressions.count)),
-                                        type: nil
+                                    let createResult = module.arena.appendTemporary(type: nil
                                     )
                                     finalBody.append(
                                         .call(

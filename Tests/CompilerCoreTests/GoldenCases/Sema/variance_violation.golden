@@ -8,15 +8,15 @@ symbol fq=golden.sema.Producer.$class0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.Producer.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Producer<golden.sema.Producer.$class0.T> params=[golden.sema.Producer.$class0.T] ret=golden.sema.Producer<golden.sema.Producer.$class0.T>
 symbol fq=golden.sema.Producer.<init>.$0.item kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.validVariance kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Producer class Producer sym=golden.sema.Producer
   decl golden.sema.Consumer class Consumer sym=golden.sema.Consumer
   decl golden.sema.validVariance fun validVariance sym=golden.sema.validVariance
   decl golden.sema.BadProducer class BadProducer sym=golden.sema.BadProducer
   decl golden.sema.BadConsumer class BadConsumer sym=golden.sema.BadConsumer
 expr e@11:37 int(42) type=Int
-expr e@11:28#1 call callee=e@11:28#0 args=[_:e@11:37] type=golden.sema.Producer<Any> call=golden.sema.Producer.<init> targs=[Any]
-expr e@11:5#2 localDecl p mutable=0 type=Producer<Any> init=e@11:28#1 type=Unit ref=__local_0.p
-expr e@12:28#3 call callee=e@12:28#2 args=[] type=<error>
-expr e@12:5#4 localDecl c mutable=0 type=Consumer<Int> init=e@12:28#3 type=Unit ref=__local_1.c
+expr e@11:28 call callee=e@11:28#1 args=[_:e@11:37] type=golden.sema.Producer<Any> call=golden.sema.Producer.<init> targs=[Any]
+expr e@11:5 localDecl p mutable=0 type=Producer<Any> init=e@11:28 type=Unit ref=__local_0.p
+expr e@12:28 call callee=e@12:28#1 args=[] type=<error>
+expr e@12:5 localDecl c mutable=0 type=Consumer<Int> init=e@12:28 type=Unit ref=__local_1.c
 expr e@22:25 name(null) type=Nothing?

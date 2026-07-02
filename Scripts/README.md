@@ -21,6 +21,14 @@ Validate compiler runtime link names against `RuntimeABISpec`:
 bash Scripts/validate_runtime_abi_links.sh
 ```
 
+## TODO hygiene
+
+Detect duplicate task IDs in `TODO.md`:
+
+```bash
+bash Scripts/check_todo_ids.sh
+```
+
 ## Golden update workflow
 
 1. Run golden tests without updating fixtures:

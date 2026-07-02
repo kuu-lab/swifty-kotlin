@@ -7,25 +7,25 @@ symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic typ
 symbol fq=kotlin.properties.Delegates.observable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
 symbol fq=kotlin.properties.Delegates.vetoable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[Any] ret=kotlin.properties.ReadWriteProperty
 symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=synthetic
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.name property name var=1 sym=golden.sema.name
   decl golden.sema.age property age var=1 sym=golden.sema.age
   decl golden.sema.main fun main sym=golden.sema.main
-expr e@5:21#0 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
+expr e@5:21 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
 expr e@5:42 string(initial) type=String
-expr e@5:21#1 memberCall recv=e@5:21#0 callee=observable args=[_:e@5:42] type=kotlin.properties.ReadWriteProperty call=kotlin.properties.Delegates.observable
-expr e@9:17#0 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
+expr e@5:21#1 memberCall recv=e@5:21 callee=observable args=[_:e@5:42] type=kotlin.properties.ReadWriteProperty call=kotlin.properties.Delegates.observable
+expr e@9:17 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
 expr e@9:36 int(0) type=Int
-expr e@9:17#1 memberCall recv=e@9:17#0 callee=vetoable args=[_:e@9:36] type=kotlin.properties.ReadWriteProperty call=kotlin.properties.Delegates.vetoable
-expr e@14:13#2 name(name) type=String ref=golden.sema.name
-expr e@14:5#8 call callee=e@14:5#7 args=[_:e@14:13#2] type=Unit call=kotlin.io.println#1
-expr e@15:12#3 string(updated) type=String
-expr e@15:5#7 localAssign name value=e@15:12#3 type=Unit ref=golden.sema.name
-expr e@16:13#1 name(name) type=String ref=golden.sema.name
-expr e@16:5#7 call callee=e@16:5#6 args=[_:e@16:13#1] type=Unit call=kotlin.io.println#1
-expr e@17:13#3 name(age) type=Int ref=golden.sema.age
-expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#3] type=Unit call=kotlin.io.println#1
+expr e@9:17#1 memberCall recv=e@9:17 callee=vetoable args=[_:e@9:36] type=kotlin.properties.ReadWriteProperty call=kotlin.properties.Delegates.vetoable
+expr e@14:13 name(name) type=String ref=golden.sema.name
+expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13] type=Unit call=kotlin.io.println#1
+expr e@15:12 string(updated) type=String
+expr e@15:5 localAssign name value=e@15:12 type=Unit ref=golden.sema.name
+expr e@16:13 name(name) type=String ref=golden.sema.name
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println#1
+expr e@17:13 name(age) type=Int ref=golden.sema.age
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println#1
 expr e@18:11 int(10) type=Int
-expr e@18:5#5 localAssign age value=e@18:11 type=Unit ref=golden.sema.age
+expr e@18:5 localAssign age value=e@18:11 type=Unit ref=golden.sema.age
 expr e@19:13 name(age) type=Int ref=golden.sema.age
-expr e@19:5#7 call callee=e@19:5#6 args=[_:e@19:13] type=Unit call=kotlin.io.println#1
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println#1

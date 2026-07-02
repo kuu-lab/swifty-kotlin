@@ -138,7 +138,7 @@ extension KIRLoweringDriver {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-            let unusedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
                 symbol: nil,
                 callee: shared.interner.intern("kk_array_set"),
@@ -208,7 +208,7 @@ extension KIRLoweringDriver {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: shared.sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-            let unusedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: shared.sema.types.anyType)
+            let unusedResult = arena.appendTemporary(type: shared.sema.types.anyType)
             body.append(.call(
                 symbol: nil,
                 callee: compilationCtx.interner.intern("kk_array_set"),
@@ -336,7 +336,7 @@ extension KIRLoweringDriver {
                 {
                     let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                     body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-                    let unusedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+                    let unusedResult = arena.appendTemporary(type: sema.types.anyType)
                     body.append(.call(
                         symbol: nil,
                         callee: compilationCtx.interner.intern("kk_array_set"),
@@ -466,9 +466,7 @@ extension KIRLoweringDriver {
             shared: shared, emit: &body
         )
         let provideDelegateName = compilationCtx.interner.intern("provideDelegate")
-        let provideDelegateResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(
             symbol: storageSym, callee: provideDelegateName,
@@ -520,9 +518,7 @@ extension KIRLoweringDriver {
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleNameInterned), type: intType)
         body.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleNameInterned)))
 
-        let kclassExpr = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.makeKClassType(argument: sema.types.anyType)
+        let kclassExpr = arena.appendTemporary(type: sema.types.makeKClassType(argument: sema.types.anyType)
         )
         body.append(.call(
             symbol: nil,
@@ -557,7 +553,7 @@ extension KIRLoweringDriver {
             let isPrimaryExpr = arena.appendExpr(.intLiteral(Int64(isPrimary)), type: intType)
             body.append(.constValue(result: isPrimaryExpr, value: .intLiteral(Int64(isPrimary))))
 
-            let registrationResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let registrationResult = arena.appendTemporary(type: intType)
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_kconstructor_create"),
@@ -640,7 +636,7 @@ extension KIRLoweringDriver {
                 body.append(.constValue(result: fnPtrExpr, value: .symbolRef(childID)))
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
                 body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                let kfunctionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let kfunctionResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_kfunction_create"),
@@ -649,7 +645,7 @@ extension KIRLoweringDriver {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                let fnRegisterResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let fnRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_kclass_register_member"),
@@ -672,7 +668,7 @@ extension KIRLoweringDriver {
                 let propTypeInterned = interner.intern(propTypeName)
                 let propTypeExpr = arena.appendExpr(.stringLiteral(propTypeInterned), type: intType)
                 body.append(.constValue(result: propTypeExpr, value: .stringLiteral(propTypeInterned)))
-                let kpropResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let kpropResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_kproperty_stub_create"),
@@ -681,7 +677,7 @@ extension KIRLoweringDriver {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                let propRegisterResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let propRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_kclass_register_member"),

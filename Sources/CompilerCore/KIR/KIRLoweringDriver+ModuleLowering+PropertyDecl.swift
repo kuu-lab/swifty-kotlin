@@ -349,7 +349,7 @@ extension KIRLoweringDriver {
         let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
         let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: shared.sema.types.anyType)
         initInstructions.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
-        let createResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: delegateType)
+        let createResult = arena.appendTemporary(type: delegateType)
         initInstructions.append(.call(
             symbol: nil, callee: interner.intern("kk_lazy_create"),
             arguments: [lambdaFnPtr, modeExpr],
@@ -376,7 +376,7 @@ extension KIRLoweringDriver {
             delegateBody: propertyDecl.delegateBody, propertySymbol: symbol,
             paramCount: 3, shared: shared, emit: &initInstructions
         )
-        let createResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: delegateType)
+        let createResult = arena.appendTemporary(type: delegateType)
         initInstructions.append(.call(
             symbol: nil, callee: interner.intern(runtimeFnName),
             arguments: [initialValueExpr, callbackFnPtr],
@@ -395,7 +395,7 @@ extension KIRLoweringDriver {
     ) {
         let arena = shared.arena
         let interner = shared.interner
-        let createResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: delegateType)
+        let createResult = arena.appendTemporary(type: delegateType)
         initInstructions.append(.call(
             symbol: nil, callee: interner.intern("kk_notNull_create"),
             arguments: [],

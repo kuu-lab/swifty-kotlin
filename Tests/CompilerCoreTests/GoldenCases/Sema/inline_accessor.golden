@@ -2,12 +2,12 @@ symbol fq=test.Rect kind=class vis=public flags=_
 symbol fq=test.Rect.$backing_label kind=backingField vis=private flags=mutable type=String
 symbol fq=test.Rect.height kind=property vis=public flags=_ type=Int
 symbol fq=test.Rect.width kind=property vis=public flags=_ type=Int
-file f14 package=test
+file f0 package=test
   decl test.Rect class Rect sym=test.Rect
-expr e@5:17#0 name(width) type=Int ref=test.Rect.width
+expr e@5:17 name(width) type=Int ref=test.Rect.width
 expr e@5:25 name(height) type=Int ref=test.Rect.height
-expr e@5:17#1 binary(multiply) lhs=e@5:17#0 rhs=e@5:25 type=Int
+expr e@5:17#1 binary(multiply) lhs=e@5:17 rhs=e@5:25 type=Int
 expr e@9:30 name(value) type=String ref=s-0
-expr e@9:22#1 localAssign field value=e@9:30 type=Unit ref=test.Rect.$backing_label
+expr e@9:22 localAssign field value=e@9:30 type=Unit ref=test.Rect.$backing_label
 expr e@8:17 name(field) type=String ref=test.Rect.$backing_label
-expr e@7:25#2 string() type=String
+expr e@7:25 string() type=String

@@ -6,9 +6,9 @@ symbol fq=kotlin.comparisons.maxOf#2 kind=function vis=public flags=inlineFuncti
 symbol fq=kotlin.comparisons.maxOf.$1.a kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.maxOf.$1.b kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.maxOf.$1.c kind=valueParameter vis=private flags=_
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.threeArgMaxDouble fun threeArgMaxDouble sym=golden.sema.threeArgMaxDouble
 expr e@3:72 name(a) type=Double ref=golden.sema.threeArgMaxDouble.$0.a
 expr e@3:75 name(b) type=Double ref=golden.sema.threeArgMaxDouble.$0.b
 expr e@3:78 name(c) type=Double ref=golden.sema.threeArgMaxDouble.$0.c
-expr e@3:66#1 call callee=e@3:66#0 args=[_:e@3:72,_:e@3:75,_:e@3:78] type=Double call=kotlin.comparisons.maxOf#2
+expr e@3:66 call callee=e@3:66#1 args=[_:e@3:72,_:e@3:75,_:e@3:78] type=Double call=kotlin.comparisons.maxOf#2

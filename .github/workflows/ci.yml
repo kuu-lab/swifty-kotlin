@@ -147,6 +147,164 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # CompilerCoreTests mixes Swift Testing (@Suite/@Test) and XCTest, so it is
+  # split at the suite level via shard_swift_tests.sh's "static" mode (safe
+  # regardless of listing-format differences between the two frameworks;
+  # see the script for details). shard values MUST be a contiguous 0..N-1
+  # range matching strategy.job-total below.
+  full-swift-tests-core:
+    name: Full Swift Tests (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+      - name: Setup Swift and LLVM
+        uses: ./.github/actions/setup-swift-llvm
+        with:
+          swift-version: "6.2"
+      - name: Cache SPM build artifacts
+        id: spm-cache
+        uses: actions/cache@v5
+        with:
+          path: .build
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Build (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        env:
+          SWIFT_TEST_BUILD_JOBS: "8"
+        run: swift build --build-tests -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run CompilerCoreTests shard ${{ matrix.shard }} with strict concurrency warnings
+        env:
+          SWIFT_TEST_WORKERS: "8"
+          SWIFT_TEST_BUILD_JOBS: "8"
+        run: |
+          bash Scripts/shard_swift_tests.sh \
+            --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests \
+            --shard-index "${{ matrix.shard }}" --shard-count "${{ strategy.job-total }}" \
+            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Full test reproduce hint
+        if: always()
+        run: |
+          {
+            echo '## Full Swift test reproduce (CompilerCoreTests shard ${{ matrix.shard }}/${{ strategy.job-total }})'
+            echo '```bash'
+            echo "SWIFT_TEST_WORKERS=8 SWIFT_TEST_BUILD_JOBS=8 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Stable aggregate gate (see diff-regression below for the same pattern):
+  # keeps a single "Full Swift Tests (CompilerCoreTests)" status check
+  # regardless of how many shards run, so branch protection rules don't need
+  # to list each shard.
+  full-swift-tests-core-gate:
+    name: Full Swift Tests (CompilerCoreTests)
+    runs-on: ubuntu-latest
+    needs: full-swift-tests-core
+    if: always()
+    steps:
+      - name: Verify all CompilerCoreTests shards passed
+        run: |
+          result="${{ needs.full-swift-tests-core.result }}"
+          echo "Aggregate shard result: $result"
+          if [[ "$result" != "success" ]]; then
+            echo "One or more CompilerCoreTests shards did not pass." >&2
+            exit 1
+          fi
+
+  # CompilerBackendTests is plain XCTest, so it is split at the
+  # individual-test level via shard_swift_tests.sh's "dynamic" mode (backed
+  # by `swift test list`). shard values MUST be a contiguous 0..N-1 range
+  # matching strategy.job-total below.
+  full-swift-tests-backend:
+    name: Full Swift Tests (CompilerBackendTests shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+      - name: Setup Swift and LLVM
+        uses: ./.github/actions/setup-swift-llvm
+        with:
+          swift-version: "6.2"
+      - name: Cache SPM build artifacts
+        id: spm-cache
+        uses: actions/cache@v5
+        with:
+          path: .build
+          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-swift-6.2-
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Build (on cache miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true'
+        env:
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: swift build --build-tests -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Run CompilerBackendTests shard ${{ matrix.shard }} with strict concurrency warnings
+        env:
+          SWIFT_TEST_WORKERS: "4"
+          SWIFT_TEST_BUILD_JOBS: "4"
+        run: |
+          bash Scripts/shard_swift_tests.sh \
+            --mode dynamic --list-filter '^CompilerBackendTests\.' \
+            --shard-index "${{ matrix.shard }}" --shard-count "${{ strategy.job-total }}" \
+            -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Full test reproduce hint
+        if: always()
+        run: |
+          {
+            echo '## Full Swift test reproduce (CompilerBackendTests shard ${{ matrix.shard }}/${{ strategy.job-total }})'
+            echo '```bash'
+            echo "SWIFT_TEST_WORKERS=4 SWIFT_TEST_BUILD_JOBS=4 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\\.' --shard-index ${{ matrix.shard }} --shard-count ${{ strategy.job-total }} -- -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Stable aggregate gate, same rationale as full-swift-tests-core-gate above.
+  full-swift-tests-backend-gate:
+    name: Full Swift Tests (CompilerBackendTests)
+    runs-on: ubuntu-latest
+    needs: full-swift-tests-backend
+    if: always()
+    steps:
+      - name: Verify all CompilerBackendTests shards passed
+        run: |
+          result="${{ needs.full-swift-tests-backend.result }}"
+          echo "Aggregate shard result: $result"
+          if [[ "$result" != "success" ]]; then
+            echo "One or more CompilerBackendTests shards did not pass." >&2
+            exit 1
+          fi
+
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
     needs: [build]
@@ -156,16 +314,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - test-target: CompilerCoreTests
-            test-filter: '^CompilerCoreTests\\.'
-            workers: "8"
-            build-jobs: "8"
-            needs-llvm: true
-          - test-target: CompilerBackendTests
-            test-filter: '^CompilerBackendTests\\.'
-            workers: "4"
-            build-jobs: "4"
-            needs-llvm: true
           - test-target: RuntimeTests
             test-filter: '^RuntimeTests\\.'
             workers: "4"

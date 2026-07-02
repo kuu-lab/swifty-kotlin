@@ -14,8 +14,9 @@ Emit refactoring guard metrics as TSV:
 Metrics:
   loc_by_directory                         Physical lines in tracked files, grouped by top-level directory
   header_helpers_synthetic_total_lines     Physical lines in HeaderHelpers+Synthetic*.swift files
+  kir_lowering_todo_fixme_count            TODO/FIXME markers remaining in KIR and Lowering Swift sources
   kk_literal_count                         Occurrences of string literals beginning with "kk_ in Swift/Kotlin sources
-  interner_resolve_literal_comparison_count Occurrences of interner.resolve == "..." in Swift sources
+  interner_resolve_literal_comparison_count Occurrences of interner.resolve(...) == "..." in Swift sources
 USAGE
 }
 
@@ -94,11 +95,18 @@ while IFS= read -r file; do
   SWIFT_FILES+=("$file")
 done < <(git ls-files '*.swift' | LC_ALL=C sort)
 
+KIR_LOWERING_FILES=()
+while IFS= read -r file; do
+  KIR_LOWERING_FILES+=("$file")
+done < <(git ls-files 'Sources/CompilerCore/KIR/*.swift' 'Sources/CompilerCore/Lowering/*.swift' | LC_ALL=C sort)
+
 printf 'metric\tscope\tvalue\n'
 emit_directory_loc
 printf 'header_helpers_synthetic_total_lines\tSources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift\t%s\n' \
   "$(count_lines "${SYNTHETIC_HEADER_FILES[@]}")"
+printf 'kir_lowering_todo_fixme_count\tSources/CompilerCore/{KIR,Lowering}/*.swift\t%s\n' \
+  "$(count_regex_occurrences 'TODO|FIXME' "${KIR_LOWERING_FILES[@]}")"
 printf 'kk_literal_count\tSwift/Kotlin sources\t%s\n' \
   "$(count_regex_occurrences '"kk_[^"]*"' "${SWIFT_AND_KOTLIN_FILES[@]}")"
 printf 'interner_resolve_literal_comparison_count\tSwift sources\t%s\n' \
-  "$(count_regex_occurrences 'interner\.resolve[[:space:]]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"
+  "$(count_regex_occurrences 'interner\.resolve[^=]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"

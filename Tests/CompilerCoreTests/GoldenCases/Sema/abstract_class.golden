@@ -9,7 +9,7 @@ symbol fq=golden.sema.Shape kind=class vis=public flags=abstractType|openType
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.emptyList kind=function vis=public flags=synthetic sig=recv=_ params=[] ret=kotlin.collections.List<out Nothing>
 symbol fq=kotlin.collections.emptyList.T kind=typeParameter vis=private flags=synthetic
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Shape class Shape sym=golden.sema.Shape
   decl golden.sema.Circle class Circle sym=golden.sema.Circle
   decl golden.sema.Animal class Animal sym=golden.sema.Animal
@@ -18,9 +18,9 @@ file f14 package=golden.sema
   decl golden.sema.Container class Container sym=golden.sema.Container
   decl golden.sema.Box class Box sym=golden.sema.Box
 expr e@6:33 string(shape) type=String
-expr e@10:35#0 double(3.14) type=Double
+expr e@10:35 double(3.14) type=Double
 expr e@10:42 name(radius) type=Double ref=golden.sema.Circle.radius
-expr e@10:35#1 binary(multiply) lhs=e@10:35#0 rhs=e@10:42 type=Double
+expr e@10:35#1 binary(multiply) lhs=e@10:35 rhs=e@10:42 type=Double
 expr e@10:51 name(radius) type=Double ref=golden.sema.Circle.radius
 expr e@10:35#2 binary(multiply) lhs=e@10:35#1 rhs=e@10:51 type=Double
 expr e@11:33 string(circle) type=String
@@ -28,4 +28,4 @@ expr e@25:36 string(woof) type=String
 expr e@26:38 string(dog) type=String
 expr e@27:36 string(canine) type=String
 expr e@28:34 string(human) type=String
-expr e@36:40#1 call callee=e@36:40#0 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList
+expr e@36:40 call callee=e@36:40#1 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList

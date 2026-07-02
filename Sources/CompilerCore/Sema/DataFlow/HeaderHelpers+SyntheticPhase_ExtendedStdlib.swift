@@ -20,9 +20,8 @@ import Foundation
 /// When adding a new entry, insert it in the position dictated by any documented
 /// dependency; otherwise prefer alphabetical order within the surrounding peer group.
 ///
-/// Companion file: `HeaderHelpers+SyntheticPhase_PlatformAndJS.swift` covers
-/// the trailing 28-call Wasm/Js batch. Both Phase files preserve the original
-/// dispatch order exactly.
+/// The former PlatformAndJS companion was removed by CLEANUP-STUB-033; this
+/// file now only carries the remaining extended stdlib batch.
 extension DataFlowSemaPhase {
     func registerSyntheticPhase_ExtendedStdlib(
         symbols: SymbolTable,

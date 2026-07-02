@@ -53,7 +53,7 @@ extension CallLowerer {
         let runtimeFuncName = propertyName == "qualifiedName"
             ? "kk_type_token_qualified_name"
             : "kk_type_token_simple_name"
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableStringType)
+        let result = arena.appendTemporary(type: nullableStringType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(runtimeFuncName),
@@ -128,7 +128,7 @@ extension CallLowerer {
         }
 
         let kClassFallback = sema.types.makeKClassType(argument: classRefTargetType)
-        let kclassExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: kClassFallback)
+        let kclassExpr = arena.appendTemporary(type: kClassFallback)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_kclass_create"),
@@ -215,7 +215,7 @@ extension CallLowerer {
             canThrow: Bool = false
         ) -> KIRExprID {
             let resultType = sema.bindings.exprTypes[exprID] ?? fallbackType
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern(callee),
@@ -504,7 +504,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        guard case let .classType(classType) = sema.types.kind(of: classRefTargetType) else {
+        guard let classType = resolveClassType(classRefTargetType, sema: sema) else {
             return
         }
         let classSymbol = classType.classSymbol
@@ -569,7 +569,7 @@ extension CallLowerer {
         let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
         instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
 
-        let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_kclass_register_metadata"),
@@ -618,9 +618,7 @@ extension CallLowerer {
         if case .kClassType = sema.types.kind(of: nonNull) {
             return true
         }
-        guard case let .classType(classType) = sema.types.kind(of: nonNull),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(nonNull, sema: sema) else {
             return false
         }
         if let kClassSymbol = sema.types.kClassInterfaceSymbol, classType.classSymbol == kClassSymbol {

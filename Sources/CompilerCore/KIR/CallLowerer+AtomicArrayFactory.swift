@@ -80,7 +80,7 @@ extension CallLowerer {
         let storeAtCallee = interner.intern(storeAtCalleeName)
         let lessThanCallee = interner.intern("kk_op_lt")
         let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = interner.intern("kk_unbox_int")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         let sizeExpr = driver.lowerExpr(
             args[0].expr,
@@ -92,7 +92,7 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let arrayExpr = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: createCallee,
@@ -102,7 +102,7 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        let indexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: indexExpr, value: .intLiteral(0)))
@@ -113,7 +113,7 @@ extension CallLowerer {
         let exitLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(conditionLabel))
 
-        let conditionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
             callee: lessThanCallee,
@@ -159,7 +159,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: valueType)
+                let actionResult = arena.appendTemporary(type: valueType)
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
@@ -173,7 +173,7 @@ extension CallLowerer {
         }
 
         if let lambdaResult = lambdaResultExpr {
-            let storeResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: unitType)
+            let storeResult = arena.appendTemporary(type: unitType)
             instructions.append(.call(
                 symbol: nil,
                 callee: storeAtCallee,
@@ -184,7 +184,7 @@ extension CallLowerer {
             ))
         }
 
-        let nextIndexBoxedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: addCallee,
@@ -193,7 +193,7 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
-        let nextIndexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let nextIndexExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: unboxIntCallee,

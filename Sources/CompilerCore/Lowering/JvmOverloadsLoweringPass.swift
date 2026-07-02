@@ -182,9 +182,7 @@ final class JvmOverloadsLoweringPass: LoweringPass {
             ))
             body.append(.returnUnit)
         } else {
-            let callResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: originalFunction.returnType
+            let callResult = arena.appendTemporary(type: originalFunction.returnType
             )
             body.append(.call(
                 symbol: originalFunction.symbol,

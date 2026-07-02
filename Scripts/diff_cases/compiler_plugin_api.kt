@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-001): reference target/classpath/runtime-only case tracking
 // STDLIB-REFL-173: compiler plugin API baseline
 // Exercises CommandProcessor, ExtensionRegistrar, IrGenerationExtension,
 // ClassBuilderInterceptor, and plugin metadata storage in a self-contained

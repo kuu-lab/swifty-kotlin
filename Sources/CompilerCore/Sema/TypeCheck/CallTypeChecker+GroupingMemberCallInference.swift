@@ -46,7 +46,7 @@ extension CallTypeChecker {
         }
 
         func memberTypeArgument(_ type: TypeID, index: Int) -> TypeID? {
-            guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+            guard let classType = resolveClassType(type, sema: sema),
                   classType.args.indices.contains(index)
             else {
                 return nil
@@ -292,9 +292,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         switch KnownCompilerNames(interner: interner).collectionKind(of: symbol) {

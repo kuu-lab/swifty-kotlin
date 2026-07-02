@@ -191,7 +191,7 @@ extension KIRLoweringDriver {
                 }
                 if callee == names.getValueName {
                     emitGetValue(
-                        result: callResult ?? arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType),
+                        result: callResult ?? arena.appendTemporary(type: sema.types.anyType),
                         storageSym: storageSymbol,
                         propSym: propertySymbol,
                         originalArguments: arguments,
@@ -324,8 +324,7 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
     ) {
-        let handle = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)), type: sema.types.anyType
+        let handle = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.loadGlobal(result: handle, symbol: storageSym))
         let name: InternedString = switch kindMap[propSym] {
@@ -362,8 +361,7 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
     ) {
-        let handle = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)), type: sema.types.anyType
+        let handle = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.loadGlobal(result: handle, symbol: storageSym))
         let name: InternedString = switch kind {
@@ -373,8 +371,7 @@ extension KIRLoweringDriver {
         case .custom, nil: names.customSetValue
         case .lazy: preconditionFailure("lazy delegate setValue is not supported")
         }
-        let setResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)), type: sema.types.anyType
+        let setResult = arena.appendTemporary(type: sema.types.anyType
         )
         let arguments: [KIRExprID] = if kind == .custom || kind == nil {
             customDelegateSetterArguments(
@@ -466,7 +463,7 @@ extension KIRLoweringDriver {
             type: sema.types.make(.primitive(.string, .nonNull))
         )
         body.append(.constValue(result: typeExpr, value: .stringLiteral(typeName)))
-        let stubExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let stubExpr = arena.appendTemporary(type: sema.types.anyType)
         body.append(.call(
             symbol: nil,
             callee: interner.intern("kk_kproperty_stub_create"),
