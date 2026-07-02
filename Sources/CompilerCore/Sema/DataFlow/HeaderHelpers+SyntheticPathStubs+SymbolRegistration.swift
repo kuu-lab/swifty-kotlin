@@ -78,15 +78,16 @@ extension DataFlowSemaPhase {
             return
         }
         let varargs = valueParameterIsVararg ?? Array(repeating: false, count: parameters.count)
-        let functionParameters = parameters.enumerated().map { index, parameter in
-            (name: parameter.name, type: parameter.type, hasDefault: false, isVararg: varargs[index])
-        }
         registerSyntheticFunctionStub(
             named: name,
             ownerFQName: ownerInfo.fqName,
             parentSymbol: ownerSymbol,
             receiverType: ownerType,
-            parameters: functionParameters,
+            parameters: syntheticFunctionParameters(
+                parameters,
+                hasDefaultValues: Array(repeating: false, count: parameters.count),
+                isVararg: varargs
+            ),
             returnType: returnType,
             externalLinkName: externalLinkName,
             updateExistingSignature: true,
@@ -219,15 +220,16 @@ extension DataFlowSemaPhase {
             ?? Array(repeating: false, count: parameters.count)
         let varargs = valueParameterIsVararg
             ?? Array(repeating: false, count: parameters.count)
-        let functionParameters = parameters.enumerated().map { index, parameter in
-            (name: parameter.name, type: parameter.type, hasDefault: defaults[index], isVararg: varargs[index])
-        }
         registerSyntheticFunctionStub(
             named: name,
             ownerFQName: packageFQName,
             parentSymbol: symbols.lookup(fqName: packageFQName),
             receiverType: receiverType,
-            parameters: functionParameters,
+            parameters: syntheticFunctionParameters(
+                parameters,
+                hasDefaultValues: defaults,
+                isVararg: varargs
+            ),
             returnType: returnType,
             externalLinkName: externalLinkName,
             flags: isOperator ? [.synthetic, .operatorFunction] : [.synthetic],
@@ -293,14 +295,15 @@ extension DataFlowSemaPhase {
             ?? Array(repeating: false, count: parameters.count)
         let varargs = valueParameterIsVararg
             ?? Array(repeating: false, count: parameters.count)
-        let functionParameters = parameters.enumerated().map { index, parameter in
-            (name: parameter.name, type: parameter.type, hasDefault: defaults[index], isVararg: varargs[index])
-        }
         registerSyntheticFunctionStub(
             named: name,
             ownerFQName: packageFQName,
             parentSymbol: symbols.lookup(fqName: packageFQName),
-            parameters: functionParameters,
+            parameters: syntheticFunctionParameters(
+                parameters,
+                hasDefaultValues: defaults,
+                isVararg: varargs
+            ),
             returnType: returnType,
             externalLinkName: externalLinkName,
             matchReturnType: true,
