@@ -2394,6 +2394,19 @@ extension DataFlowSemaPhase {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: ownerInfo.fqName,
+               receiverType: ownerType,
+               name: memberName,
+               arity: parameters.count,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return
+        }
         guard symbols.lookupAll(fqName: memberFQName).first(where: { id in
             guard let sig = symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes == parameters.map(\.type) &&

@@ -363,6 +363,12 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+        if BundledSyntheticStubRegistration.postBundledPass {
+            return
+        }
+        if symbols.lookup(fqName: functionFQName) != nil {
+            return
+        }
         let functionSymbol = symbols.define(
             kind: .function,
             name: functionName,
