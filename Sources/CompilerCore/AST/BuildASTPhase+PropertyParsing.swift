@@ -440,7 +440,7 @@ extension BuildASTPhase {
                 break
             }
             if let name = internedIdentifier(from: token, interner: interner),
-               isTypeLikeNameToken(token.kind)
+               TypeRefParserCore.isTypeLikeNameToken(token.kind)
             {
                 return name
             }

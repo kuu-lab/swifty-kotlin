@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-06-28
+最終更新: 2026-07-02
 
 ---
 
@@ -81,7 +81,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/ranges/`
 
 - [x] MIGRATION-RANGE-001: Range/Progression クラス API を Kotlin source に移行する（`IntRange`, `LongRange`, `CharRange`, `IntProgression`, `LongProgression`, `CharProgression` の iterator/contains/isEmpty）
-- [ ] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`, `first`, `last`, `reversed`, `step`）
+- [x] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`）— IntRange/IntProgression/LongRange/LongProgression/CharRange/CharProgression 対応。`first`/`last`/`step`/`reversed` は既存 synthetic stub で完結（純 Kotlin 化には新規ネイティブブリッジが必要で挙動変化がないため対象外）。`count(predicate)` は Range member fallback（`CallTypeChecker+RangeMemberFallback.swift`）の arity allow-list が0引数のみ許可し呼び出し不能なため対象外
 - [x] MIGRATION-RANGE-003: Range ユーティリティを Kotlin source に移行する（`coerceIn`, `coerceAtLeast`, `coerceAtMost`）— `until`/`downTo` は MIGRATION-RANGE-001 完了後に対応（IntRange/IntProgression 型移行が前提）
 
 ### Phase M7: kotlin.random
@@ -93,7 +93,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeDuration.swift` (61 @_cdecl)
 > 移行先: `Stdlib/kotlin/time/Duration.kt`
 
-- [ ] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
+- [x] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
 
 ### Phase M12: kotlin.uuid
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
@@ -504,13 +504,13 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-HYG-003: MIGRATION-TEXT-004 / MIGRATION-TEXT-009 の完了状態を監査する（`Stdlib/*.kt` は現状コンパイラから一切読み込まれておらず、実態は Runtime ブリッジ整理 + 死蔵 .kt 併置。完了の定義を RF-STDLIB 系の新基準で再判定し注記する）
 - [x] RF-HYG-004: Stdlib ソース配置を一本化する（ルート `Stdlib/kotlin/text/StringComparison.kt` と `Sources/CompilerCore/Stdlib/kotlin/text/StringSplitJoin.kt` の 2 系統を統合。推奨: `Bundle.module` で読める `Sources/CompilerCore/Stdlib/`。Swift ソース 0 件の `Stdlib` ターゲットと未使用 `resources: [.process("Stdlib")]` の Package.swift 設定もここで整理）
 - [x] RF-HYG-005: `docs/ARCHITECTURE.md` を実態に同期する（モジュール構成に LSPServer / KSwiftLSPCLI / GoldenHarnessSupport / GoldenHarnessWorker / Stdlib / RuntimeTestsParallel を追加、「テストFW: XCTest」を「XCTest 主体 + Golden は Swift Testing」に修正、CI ジョブ表へ full-swift-tests / diff-regression-shards を反映）
-- [ ] RF-HYG-006: `docs/spec.md` / `docs/debugging.md` の stale 記述を監査する（参照ファイルの実在チェックを含む）
-- [ ] RF-HYG-007: `.vscode/launch.json` の git 追跡可否を決定する（不要なら gitignore へ）
+- [x] RF-HYG-006: `docs/spec.md` / `docs/debugging.md` の stale 記述を監査する（参照ファイルの実在チェックを含む）
+- [x] RF-HYG-007: `.vscode/launch.json` の git 追跡可否を決定する（不要なら gitignore へ）
 
 ### Phase RF2: Stdlib ソースパイプライン基盤（本計画のクリティカルパス）
-> 背景: M1–M17 の前提となる「bundled .kt をコンパイルに含める機構」が未実装。`LoadSourcesPhase` は `ctx.options.inputs` のみ読み込む。
-- [ ] RF-STDLIB-001: 設計メモ `docs/stdlib-pipeline.md` を作成する（読み込みフェーズ・合成スタブとの優先順位・インクリメンタルキャッシュ / golden への影響・コンパイル時間戦略。実装前に 1 PR でレビュー）→ 文書作成済み・レビュー待ち（2026-07-01）
-- [x] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録、`-no-default-stdlib-sources` での opt-out、ユーザー入力との診断パス区別）
+> 背景: M1–M17 の前提となる「bundled .kt をコンパイルに含める機構」は基本配線済みだが、opt-out、source origin、合成スタブとの優先順位、incremental/golden 安定化を設計として固定する必要がある。
+- [x] RF-STDLIB-001: 設計メモ `docs/stdlib-pipeline.md` を作成する（読み込みフェーズ・合成スタブとの優先順位・インクリメンタルキャッシュ / golden への影響・コンパイル時間戦略。実装前に 1 PR でレビュー）
+- [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `-no-default-stdlib-sources` での opt-out、source origin、ユーザー入力との診断パス区別）
 - [ ] RF-STDLIB-003: 宣言の優先規則を実装する（Stdlib ソース由来宣言が存在する場合、同シグネチャの合成スタブ登録をスキップ。二重定義は warning 診断で検知）→ KSP-001〜003 に細分化
 - [ ] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）→ KSP-201
 - [ ] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt`（MIGRATION-TEXT-004 対象）を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する → KSP-202
@@ -520,7 +520,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### Phase RF3: 合成スタブ削減（RF2 完了後に本格化。(a) 群のみ即着手可）
 > 背景: `HeaderHelpers+Synthetic*` 約100ファイル/~9万行。ボイラープレート率 60–70%。登録呼び出しは `registerSyntheticDelegateStubs` に 85+ 連鎖。
-- [ ] RF-STUB-001: 全スタブファイルを「(a) JS/Wasm/JVM 系 → CLEANUP-STUB-001〜084 で削除」「(b) M1–M17 でソース移行」「(c) 真のコンパイラ組込（Any・プリミティブ等）として残留」に 3 分類した棚卸し表を `docs/stdlib-pipeline.md` に追加する
+- [x] RF-STUB-001: 全スタブファイルを「(a) JS/Wasm/JVM 系 → CLEANUP-STUB-001〜084 で削除」「(b) M1–M17 でソース移行」「(c) 真のコンパイラ組込（Any・プリミティブ等）として残留」に 3 分類した棚卸し表を `docs/stdlib-pipeline.md` に追加する
 - [x] RF-STUB-002: (a) 群削除のリファレンス PR を 1 件実施する（CLEANUP-STUB-033/034 の登録呼び出し削除を起点に、スタブ → runtime 実装 → テスト → golden の削除手順を確立し、残りの CLEANUP-STUB を量産可能にする）
 - [ ] RF-STUB-003: (c) 残留スタブ向けの宣言的登録 API を導入する（RuntimeABI の `StdlibSurfaceSpec` パターンを Sema 登録へ拡張し、~340 個の `registerXxxMember` 手書き関数をデータテーブル化）
 - [ ] RF-STUB-004: `SyntheticNativeConcurrent*` 16 ファイル（1–2 シンボル/ファイル）を宣言テーブル 1–2 ファイルへ統合する
@@ -583,8 +583,8 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [x] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
 
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
-- [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift:490,708` — `RuntimeSequenceCoroutine` / `RuntimeMapCoroutine` の producer/consumer セマフォ ping-pong が GCD スレッド 2 本をイテレーション中ずっとブロック（コード内 TODO(CORO-004)）。yield() を suspend ポイントとしてモデル化する移行をこの 2 型から着手する
-- [ ] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift:691` — `withContext` が continuation 移行途中でセマフォ fallback のまま。continuation ベースへ完了させる
+- [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` は producer を専用 `Thread` へ逃がし、consumer 側 continuation API（`nextElementAsync` / `probeHasNextAsync`）まで実装済み。残りは `yield()` 自体を suspend point として CPS lowering へ接続し、専用 producer thread を撤去する
+- [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
 
 ### Sema 近似実装・既知クラッシュ
 - [x] DEBT-SEMA-001: `Sources/CompilerCore/Sema/TypeCheck/Helpers+TypeArgsAndMemberLookup.swift:113-135` の型エイリアス use-site variance 検証が no-op（計算結果を `_ = (declaredVariance, argVariance)` で破棄、`declaredVariance` は三項演算子の両分岐とも `.invariant`）。宣言側 variance を参照した実検証を実装するか、no-op で正しい仕様根拠をコメントへ明記する
@@ -606,8 +606,16 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### テスト衛生
 - [x] DEBT-TEST-002: `Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests.swift:548` と `LoweringABIAndPropertyRegressionTests.swift:6` に同一実装の `private func makeContext(...)` がコピー存在する。`Integration/TestSupport/Pipeline.swift` の `makeCompilationContext()` へ統一する
 - [x] DEBT-TEST-003: `Tests/CompilerCoreTests/Sema/SemaCacheContextTests.swift:8` の `makeContextFromSourceWithCache()` を、`Pipeline.swift` の `makeContextFromSource()` へ `frontendFlags` 引数を追加して統合する
-- [ ] DEBT-TEST-004: KIR / Lowering テスト群に散在する `SemaModule(...)` 直接構築（計 90 箇所超: `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios` / `VirtualDispatchTests+InliningCoroutineAndDispatchResolution` / `RuntimeTypeCheckTokenTests` 等）を `makeSemaModule()` ヘルパー利用へ移行する（ファイル単位で分割実施可）
-- [ ] DEBT-TEST-005: `Scripts/diff_cases` の `// SKIP-DIFF` / `// KSWIFTK_DIFF_IGNORE` 65 ケースを棚卸しし、各ケースへ対応タスク ID（SPEC-* / PARITY-* / DEBT-*）をコメント付与する。対応タスクが無い skip は新規起票する（skip 放置の防止。SPEC 方法論「修正後にマーカーを外せば回帰テストになる」の運用徹底）
+- [x] DEBT-TEST-004: KIR / Lowering テスト群に散在する `SemaModule(...)` 直接構築（計 90 箇所超: `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios` / `VirtualDispatchTests+InliningCoroutineAndDispatchResolution` / `RuntimeTypeCheckTokenTests` 等）を `makeSemaModule()` ヘルパー利用へ移行する（ファイル単位で分割実施可）
+- [x] DEBT-TEST-005: `Scripts/diff_cases` の `// SKIP-DIFF` / `// KSWIFTK_DIFF_IGNORE` 66 ケースを棚卸しし、各ケースへ対応タスク ID（SPEC-* / PARITY-* / DEBT-*）をコメント付与する。対応タスクが無い skip は新規起票する（skip 放置の防止。SPEC 方法論「修正後にマーカーを外せば回帰テストになる」の運用徹底）
+
+#### Diff skip 追跡（DEBT-TEST-005）
+- [ ] DEBT-DIFF-001: `Scripts/diff_cases` のうち JVM kotlinc reference では実行不能な target / classpath / runtime-only ケースを、diff harness の除外理由として維持するか、個別 runner / dependency injection で実行可能化するか棚卸しする。対象: Kotlin/Native・Kotlin/JS・KMP・`kotlin.io.path`・JDBC/SQLite・serialization・SLF4J/logging・system time/process API・assert JVM `-ea` 差分・compiler plugin API。
+- [ ] DEBT-DIFF-002: script-style diff cases の kotlinc JVM 起動 timeout / top-level execution parity を整理し、script runner 側で安定比較できるケースから `SKIP-DIFF` を外す。
+- [ ] DEBT-DIFF-003: advanced coroutine / channel / Flow / structured concurrency diff cases を `STDLIB-CORO-001` と `DEBT-CORO-002/003` の残課題へ分解し、実装済み API から順に skip を解除する。
+- [ ] DEBT-DIFF-004: value class の boxing / generics / collection / interface / interop parity を、Sema・KIR・Lowering・runtime ABI の責務別に分解して修正する。
+- [ ] DEBT-DIFF-005: common stdlib surface gap による skip（BigInteger、Sequence flatten/takeLast/subtract、scope functions、property delegates、Regex edge cases、ByteArray helpers、file.use、Duration/time、math/comparator APIs）を API 領域別タスクへ分割し、実装済みケースから skip を解除する。
+- [ ] DEBT-DIFF-006: type inference / variance / boxed numeric lowering 由来の diff skip を、診断期待ケースまたは parity regression として実行可能な形へ分解する。
 
 ### ドキュメント乖離
 - [ ] DEBT-DOC-001: `CLAUDE.md` コーディング規約の「Swift 5.9, macOS 12+」が実態（`Package.swift` は `swift-tools-version: 6.2` / `swiftLanguageModes: [.v6]`）と乖離している。修正する
@@ -624,7 +632,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### CompilerCore / LSPServer / RuntimeABI: 参照ゼロの Swift シンボル
 
 ### テストのみ参照（fiction 棚卸し — 配線するか、テストごと削除するか）
-- [ ] DEADCODE-013: テストのみ参照の Swift シンボル約 20 件を棚卸しする — `PhaseTimer.exportTSV` / `exportJSON`、`KotlinParser.canStartTypeArguments`、`KotlinLanguageVersion` / `CompilerVersion`（`CompilerTypes.swift`、製品コードから未使用）、`BlockScope` / `validateExpectActualLinks` / `setTypeParameterUpperBound` / `hasContractReturnsNotNull`（`SemanticsModels.swift`）、`smartCastTypeForWhenSubjectCase`、DataFlow の `invalidateVariable` / `narrowToNonNull`、`IncrementalCompilationCache.clearCache`、`SemaCacheContext.invalidateScope`、`FileFingerprint.mtimeUnchanged`、`DependencyGraph.clearFile`、`RuntimeMetadataCodec` / `compilerPluginMetadata`（`RuntimeMetadata.swift`）、`RuntimeReflectionMetadataDecoder`、`completeCancellationIfNeeded`（`RuntimeCoroutine.swift:962`）、`runtimeDetectMemoryLeak`、`RuntimeABIExterns.externDecl`。意図的シーム（`Driver.runForTesting` / `RuntimeABISpec.generateCHeader` / `GoldenHarnessAPI.loadCasesOrCrash` / `renderInSubprocess`）は対象外
+- [x] DEADCODE-013: テストのみ参照の Swift シンボル約 20 件を棚卸しする（2026-07-02 実施）— 削除: `KotlinParser.canStartTypeArguments(after:)` overloads、`setTypeParameterUpperBound`、`RuntimeMetadataCodec`、`runtimeDetectMemoryLeak`、`completeCancellationIfNeeded`、`RuntimeABIExterns.externDecl`。Tests へ移動: `RuntimeReflectionMetadataDecoder`。現 HEAD で既に存在しない候補: `PhaseTimer.exportTSV` / `exportJSON`、`KotlinLanguageVersion` / `CompilerVersion`、`BlockScope` / `validateExpectActualLinks` / `hasContractReturnsNotNull`、`smartCastTypeForWhenSubjectCase`、DataFlow の `invalidateVariable` / `narrowToNonNull`、`IncrementalCompilationCache.clearCache`、`SemaCacheContext.invalidateScope`、`FileFingerprint.mtimeUnchanged`、`DependencyGraph.clearFile`、`compilerPluginMetadata`。詳細は `docs/dead-code-audit.md` Section D
 
 ### 未監査領域（フォローアップ）
 - [ ] DEADCODE-014: 今回未監査の領域を同手法で監査する — Runtime の C コード（GC 等の .c/.h）、診断コード `KSWIFTK-*` の未発行コード、stored property / global 定数、Tests 内ヘルパ、`Scripts/diff_cases` の SKIP-DIFF ケースの実行可否。以降は RF-GOV-004 の四半期運用に乗せる
@@ -662,4 +670,4 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### LOW: 軽微な冗長
 
-- [ ] REFACT-010: `BuildASTPhase+TypeParsing.swift` の `isTypeLikeNameToken` 転送ラッパーを削除する — 本体が `TypeRefParserCore.isTypeLikeNameToken(kind)` 1 行の転送のみで、`TypeRefParserCore` の静的メソッドを直接呼ぶよう呼び出し元を書き換えて本ファイルのラッパーを削除する
+- [x] REFACT-010: `BuildASTPhase+TypeParsing.swift` の `isTypeLikeNameToken` 転送ラッパーを削除する — 本体が `TypeRefParserCore.isTypeLikeNameToken(kind)` 1 行の転送のみで、`TypeRefParserCore` の静的メソッドを直接呼ぶよう呼び出し元を書き換えて本ファイルのラッパーを削除する

@@ -8,7 +8,7 @@ symbol fq=kotlin.time.TimedValue.duration kind=property vis=public flags=synthet
 symbol fq=kotlin.time.TimedValue.value kind=property vis=public flags=synthetic type=Any?
 symbol fq=kotlin.time.inWholeMilliseconds.$get kind=function vis=public flags=synthetic sig=recv=kotlin.time.Duration params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f14 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@6:9#1 string(hello) type=String
 expr e@5:36 lambda params=[] body=e@6:9#1 label=measureTimedValue type=() -> Any

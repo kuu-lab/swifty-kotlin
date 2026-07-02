@@ -1,4 +1,4 @@
-// SKIP-DIFF: Duration.toString() formats differ — kotlinc uses "1m 30s" but KSwiftK uses "90s"
+// SKIP-DIFF (DEBT-DIFF-005): Duration.toString() formats differ — kotlinc uses "1m 30s" but KSwiftK uses "90s"
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes

@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-002): script-style diff runner parity / timeout tracking
 fun greet(name: String): String = "Hello, $name!"
 
 fun add(a: Int, b: Int): Int = a + b

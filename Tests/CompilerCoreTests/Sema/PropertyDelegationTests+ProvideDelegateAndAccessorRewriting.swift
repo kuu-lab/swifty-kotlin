@@ -23,8 +23,7 @@ extension DelegateStorageSymbolTableTests {
             let interner = ctx.interner
 
             // KIR constructors are named by the class name ("Foo"), not "<init>".
-            let constructors = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 return interner.resolve(fn.name) == "Foo" ? fn : nil
             }
             #expect(!constructors.isEmpty, "Expected constructor to be emitted")
@@ -56,8 +55,7 @@ extension DelegateStorageSymbolTableTests {
             let module = try #require(ctx.kir)
             let interner = ctx.interner
 
-            let constructors = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 return interner.resolve(fn.name) == "Foo" ? fn : nil
             }
 
@@ -91,8 +89,7 @@ extension DelegateStorageSymbolTableTests {
             let module = try #require(ctx.kir)
             let interner = ctx.interner
 
-            let constructors = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 return interner.resolve(fn.name) == "Foo" ? fn : nil
             }
             #expect(!constructors.isEmpty, "Expected Foo constructor")
@@ -150,8 +147,7 @@ extension DelegateStorageSymbolTableTests {
             let module = try #require(ctx.kir)
             let interner = ctx.interner
 
-            let constructors = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 return interner.resolve(fn.name) == "Foo" ? fn : nil
             }
             #expect(!constructors.isEmpty, "Expected Foo constructor")
@@ -199,8 +195,7 @@ struct PropertyLoweringDelegateTests {
             // After lowering, the synthesized getter's body should still
             // contain a getValue call (not rewritten to a self-call via
             // "get") to avoid infinite recursion.
-            let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let allFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 return fn
             }
 
@@ -238,8 +233,7 @@ struct PropertyLoweringDelegateTests {
 
             // Before lowering, verify provideDelegate exists in a constructor.
             let moduleBeforeLowering = try #require(ctx.kir)
-            let constructors = moduleBeforeLowering.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let constructors = findAllKIRFunctions(in: moduleBeforeLowering).compactMap { fn -> KIRFunction? in
                 return ctx.interner.resolve(fn.name) == "Foo" ? fn : nil
             }
             let hasProvideDelegateBeforeLowering = constructors.contains { ctor in
@@ -254,8 +248,7 @@ struct PropertyLoweringDelegateTests {
             // After lowering, provideDelegate should still be provideDelegate
             // (not rewritten to kk_property_access).
             if hasProvideDelegateBeforeLowering {
-                let constructorsAfter = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                    guard case let .function(fn) = decl else { return nil }
+                let constructorsAfter = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                     return interner.resolve(fn.name) == "Foo" ? fn : nil
                 }
                 let hasProvideDelegate = constructorsAfter.contains { ctor in
@@ -285,8 +278,7 @@ struct PropertyLoweringDelegateTests {
             let module = try #require(ctx.kir)
             let interner = ctx.interner
 
-            let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(fn) = decl else { return nil }
+            let allFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
                 return fn
             }
 

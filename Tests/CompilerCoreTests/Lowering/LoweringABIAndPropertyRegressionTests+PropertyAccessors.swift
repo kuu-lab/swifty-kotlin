@@ -49,7 +49,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "PropGetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -113,7 +113,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "PropSetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -223,7 +223,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "BFSetter", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -303,7 +303,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ComputedProp", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(fnID) else {
@@ -376,7 +376,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let funcID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [funcID])], arena: arena)
 
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "BackedProp", sema: sema)
 
         guard case let .function(lowered)? = module.arena.decl(funcID) else {
@@ -450,12 +450,8 @@ extension LoweringABIAndPropertyRegressionTests {
         )
 
         let expectedGetterSymbol = SymbolID(rawValue: -12000 - computedPropertySymbol.id.rawValue)
-        let getterSymbols = module.arena.declarations.compactMap { decl -> SymbolID? in
-            guard case let .function(kirFunc) = decl,
-                  interner.resolve(kirFunc.name) == "get"
-            else {
-                return nil
-            }
+        let getterSymbols = findAllKIRFunctions(in: module).compactMap { kirFunc -> SymbolID? in
+            guard interner.resolve(kirFunc.name) == "get" else { return nil }
             return kirFunc.symbol
         }
         #expect(getterSymbols.contains(expectedGetterSymbol),
@@ -486,13 +482,8 @@ extension LoweringABIAndPropertyRegressionTests {
         let interner = ctx.interner
 
         let getName = interner.intern("get")
-        let getterFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(kirFunc) = decl,
-                  kirFunc.name == getName
-            else {
-                return nil
-            }
-            return kirFunc
+        let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
+            kirFunc.name == getName
         }
 
         #expect(
@@ -559,13 +550,8 @@ extension LoweringABIAndPropertyRegressionTests {
                       "Getter-only computed property should NOT have a KIRGlobal, found: \(labelGlobals)")
 
         let getName = interner.intern("get")
-        let getterFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(kirFunc) = decl,
-                  kirFunc.name == getName
-            else {
-                return nil
-            }
-            return kirFunc
+        let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
+            kirFunc.name == getName
         }
         #expect(
             getterFunctions.count >= 1,
@@ -634,11 +620,9 @@ extension LoweringABIAndPropertyRegressionTests {
 
         // Find readComputed and check its body for a getter call.
         let readName = interner.intern("readComputed")
-        let readerFn = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(kirFunc) = decl,
-                  kirFunc.name == readName else { return nil }
-            return kirFunc
-        }.first
+        let readerFn = findAllKIRFunctions(in: module).first { kirFunc in
+            kirFunc.name == readName
+        }
         let reader = try #require(readerFn, "readComputed not found")
 
         let hasGetterCall = reader.body.contains { inst in

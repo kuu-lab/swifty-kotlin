@@ -8,7 +8,7 @@ symbol fq=java.io.File.appendBytes.array kind=valueParameter vis=private flags=s
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
 symbol fq=kotlin.byteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=kotlin.ByteArray vararg=[1]
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f14 package=_
+file f15 package=_
   decl main fun main sym=main
 expr e@4:18 string(test.bin) type=String
 expr e@4:13#3 call callee=e@4:13#2 args=[_:e@4:18] type=java.io.File call=java.io.File.<init>#0

@@ -1,7 +1,7 @@
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=test.Foo kind=class vis=public flags=_
-file f14 package=test
+file f15 package=test
   decl test.Foo class Foo sym=test.Foo
 expr e@4:18 int(1) type=Int
 expr e@6:18#2 int(2) type=Int

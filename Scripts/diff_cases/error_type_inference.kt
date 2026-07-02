@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-006): type inference / variance / boxed numeric lowering parity tracking
 // Error cases for type inference failures (KSWIFTK-TYPE-*)
 
 // ERROR: Cannot infer type for lambda with ambiguous overloads

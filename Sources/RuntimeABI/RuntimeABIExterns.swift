@@ -40,12 +40,4 @@ public enum RuntimeABIExterns {
     /// All runtime extern declarations, ordered by section.
     public static let allExterns = RuntimeABISpec.allFunctions.map(ExternDecl.init(spec:))
 
-    private static let externsByName: [String: ExternDecl] = Dictionary(
-        uniqueKeysWithValues: allExterns.map { ($0.name, $0) }
-    )
-
-    /// Look up an extern declaration by symbol name.
-    static func externDecl(named name: String) -> ExternDecl? {
-        externsByName[name]
-    }
 }

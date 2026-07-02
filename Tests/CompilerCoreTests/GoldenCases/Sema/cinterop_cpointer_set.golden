@@ -9,7 +9,7 @@ symbol fq=storeAt kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.ci
 symbol fq=storeAt.$0.index kind=valueParameter vis=private flags=_
 symbol fq=storeAt.$0.ptr kind=valueParameter vis=private flags=_
 symbol fq=storeAt.$0.value kind=valueParameter vis=private flags=_
-file f14 package=_
+file f15 package=_
   decl storeAt fun storeAt sym=storeAt
 expr e@6:5#3 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>> ref=storeAt.$0.ptr
 expr e@6:9 name(index) type=Int ref=storeAt.$0.index

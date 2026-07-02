@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-002): script-style diff runner parity / timeout tracking
 import kotlin.math.*
 import kotlin.collections.*
 

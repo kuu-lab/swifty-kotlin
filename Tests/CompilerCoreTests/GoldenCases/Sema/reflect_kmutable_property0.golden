@@ -15,7 +15,7 @@ symbol fq=kotlin.reflect.KMutableProperty0.set.value kind=valueParameter vis=pri
 symbol fq=kotlin.reflect.KProperty0 kind=interface vis=public flags=synthetic
 symbol fq=kotlin.reflect.KProperty0.V kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.reflect.KProperty0.get kind=function vis=public flags=synthetic sig=recv=kotlin.reflect.KProperty0<out kotlin.reflect.KProperty0.V> params=[] ret=kotlin.reflect.KProperty0.V
-file f14 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.assignTo fun assignTo sym=golden.sema.assignTo
   decl golden.sema.readFrom fun readFrom sym=golden.sema.readFrom
   decl golden.sema.swap fun swap sym=golden.sema.swap

@@ -1,7 +1,7 @@
 symbol fq=nullGuard kind=function vis=public flags=_ sig=recv=_ params=[Int?,Int?] ret=Int
 symbol fq=nullGuard.$0.x kind=valueParameter vis=private flags=_
 symbol fq=nullGuard.$0.y kind=valueParameter vis=private flags=_
-file f14 package=_
+file f15 package=_
   decl nullGuard fun nullGuard sym=nullGuard
 expr e@3:9#0 name(x) type=Int? ref=nullGuard.$0.x
 expr e@3:14 name(null) type=Nothing?
