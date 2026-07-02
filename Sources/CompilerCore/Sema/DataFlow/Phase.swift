@@ -19,25 +19,28 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
-        sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
 
-        // Build bundled declaration index from AST before synthetic registration so
-        // KSP-002 skip logic can run while type stubs are still registered ahead of
-        // header collection (bundled .kt sources reference List, Iterable, etc.).
+        collectBundledHeaders(
+            ast: ast, fileScopes: fileScopes,
+            symbols: symbols, types: types, bindings: bindings, ctx: ctx
+        )
         let bundledIndex = BundledDeclarationIndex.build(
-            ast: ast,
             symbols: symbols,
             types: types,
             sourceManager: ctx.sourceManager,
             interner: ctx.interner
         )
-        registerSyntheticDelegateStubs(
+        sema.importedInlineFunctions = loadImports(
+            ctx: ctx, symbols: symbols, types: types, bundledIndex: bundledIndex
+        )
+        bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
             types: types,
-            interner: ctx.interner,
-            bundledIndex: bundledIndex
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
         )
-        collectAllHeaders(
+
+        collectUserHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
@@ -67,7 +70,8 @@ final class DataFlowSemaPhase: CompilerPhase {
     }
 
     private func loadImports(
-        ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
+        ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem,
+        bundledIndex: BundledDeclarationIndex
     ) -> [SymbolID: KIRFunction] {
         var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
         loadImportedLibrarySymbols(
@@ -75,7 +79,70 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics, interner: ctx.interner,
             importedInlineFunctions: &importedInlineFunctions
         )
+        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
+        BundledSyntheticStubRegistration.types = types
+        BundledSyntheticStubRegistration.skippedCount = 0
+        registerSyntheticDelegateStubs(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
+        )
+        BundledSyntheticStubRegistration.types = nil
         return importedInlineFunctions
+    }
+
+    private func isBundledFile(_ file: ASTFile, sourceManager: SourceManager) -> Bool {
+        sourceManager.path(of: file.fileID).hasPrefix("__bundled_")
+    }
+
+    func collectBundledHeaders(
+        ast: ASTModule, fileScopes: [Int32: FileScope],
+        symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
+        ctx: CompilationContext
+    ) {
+        for file in ast.sortedFiles where isBundledFile(file, sourceManager: ctx.sourceManager) {
+            collectHeadersForFile(
+                file: file, ast: ast, fileScopes: fileScopes,
+                symbols: symbols, types: types, bindings: bindings, ctx: ctx
+            )
+        }
+    }
+
+    func collectUserHeaders(
+        ast: ASTModule, fileScopes: [Int32: FileScope],
+        symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
+        ctx: CompilationContext
+    ) {
+        for file in ast.sortedFiles where !isBundledFile(file, sourceManager: ctx.sourceManager) {
+            collectHeadersForFile(
+                file: file, ast: ast, fileScopes: fileScopes,
+                symbols: symbols, types: types, bindings: bindings, ctx: ctx
+            )
+        }
+    }
+
+    private func collectHeadersForFile(
+        file: ASTFile,
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
+        ctx: CompilationContext
+    ) {
+        guard let fileScope = fileScopes[file.fileID.rawValue] else { return }
+        registerFileAnnotations(
+            file: file,
+            symbols: symbols,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
+        for declID in file.topLevelDecls {
+            collectHeader(
+                declID: declID, file: file, ast: ast,
+                symbols: symbols, types: types, bindings: bindings,
+                scope: fileScope, diagnostics: ctx.diagnostics, interner: ctx.interner
+            )
+        }
     }
 
     func collectAllHeaders(

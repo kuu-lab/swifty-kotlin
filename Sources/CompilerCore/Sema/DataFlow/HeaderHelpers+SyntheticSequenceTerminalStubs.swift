@@ -137,6 +137,19 @@ extension DataFlowSemaPhase {
                     && sig.returnType == returnType
             }
             guard !hasMatchingSignature else { return }
+            if let types = BundledSyntheticStubRegistration.types,
+               BundledSyntheticStubRegistration.shouldSkipRegistration(
+                   declaredOwnerFQName: sequenceFQName,
+                   receiverType: receiverType,
+                   name: memberName,
+                   arity: parameterTypes.count,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner
+               )
+            {
+                return
+            }
 
             let memberSymbol = symbols.define(
                 kind: .function,

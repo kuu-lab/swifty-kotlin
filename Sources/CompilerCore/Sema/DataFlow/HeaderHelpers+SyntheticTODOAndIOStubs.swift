@@ -1249,6 +1249,19 @@ extension DataFlowSemaPhase {
         let memberName = interner.intern(name)
         let memberFQName = sequenceFQName + [memberName]
         guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: sequenceFQName,
+               receiverType: receiverType,
+               name: memberName,
+               arity: parameters.count,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return
+        }
 
         let memberSymbol = symbols.define(
             kind: .function,

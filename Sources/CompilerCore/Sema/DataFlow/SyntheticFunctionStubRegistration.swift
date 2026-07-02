@@ -26,6 +26,30 @@ func registerSyntheticFunctionStub(
     let functionName = interner.intern(name)
     let functionFQName = ownerFQName + [functionName]
     let parameterTypes = parameters.map(\.type)
+    if let contextTypes = BundledSyntheticStubRegistration.types,
+       BundledSyntheticStubRegistration.shouldSkipRegistration(
+           declaredOwnerFQName: ownerFQName,
+           receiverType: receiverType,
+           name: functionName,
+           arity: parameterTypes.count,
+           symbols: symbols,
+           types: contextTypes,
+           interner: interner
+       )
+    {
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return existingSignature.receiverType == receiverType
+                && existingSignature.parameterTypes == parameterTypes
+                && (!matchReturnType || existingSignature.returnType == returnType)
+        }) {
+            return existing
+        }
+        return .invalid
+    }
+
     let skipOwnerFQName: [InternedString] = if let receiverType,
                                                  let types,
                                                  let receiverOwner = bundledNominalOwnerFQName(

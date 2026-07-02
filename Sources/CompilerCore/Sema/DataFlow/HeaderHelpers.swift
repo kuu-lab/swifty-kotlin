@@ -1005,6 +1005,11 @@ extension DataFlowSemaPhase {
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
         var skipStats = SyntheticStubSkipStatsCollector()
+        defer {
+            BundledSyntheticStubRegistration.types = nil
+        }
+        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
+        BundledSyntheticStubRegistration.types = types
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
