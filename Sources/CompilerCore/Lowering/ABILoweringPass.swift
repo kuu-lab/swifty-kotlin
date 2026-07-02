@@ -217,14 +217,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                                 idx += 1
                             }
                         }
-                        newBody.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: vcUnboxCallee,
-                            arguments: [tempResult],
+                            arg: tempResult,
                             result: vcResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &newBody
+                        )
                     } else {
                         newBody.append(.virtualCall(
                             symbol: vcSymbol,
@@ -470,14 +468,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             idx += 1
                         }
                     }
-                    newBody.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: resolvedUnboxCallee,
-                        arguments: [tempResult],
+                        arg: tempResult,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &newBody
+                    )
                 } else {
                     newBody.append(.call(
                         symbol: effectiveCallSymbol,
@@ -523,13 +519,16 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         ) else {
             return nil
         }
-        let boxedResult = module.arena.appendTemporary(type: returnType
+        var instructions: [KIRInstruction] = []
+        let boxedResult = emitNonThrowingCall(
+            callee: boxCallee,
+            arg: value,
+            resultType: returnType,
+            arena: module.arena,
+            into: &instructions
         )
-        return [
-            .call(symbol: nil, callee: boxCallee, arguments: [value],
-                  result: boxedResult, canThrow: false, thrownResult: nil),
-            .returnValue(boxedResult),
-        ]
+        instructions.append(.returnValue(boxedResult))
+        return instructions
     }
 
     private func rewriteCopyBoxingOrUnboxing(

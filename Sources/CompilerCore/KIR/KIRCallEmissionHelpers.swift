@@ -6,10 +6,22 @@ func emitNonThrowingCall(
     arena: KIRArena,
     into instructions: inout [KIRInstruction]
 ) -> KIRExprID {
-    let result = arena.appendExpr(
-        .temporary(Int32(arena.expressions.count)),
-        type: resultType
+    let result = arena.appendTemporary(type: resultType)
+    emitNonThrowingCall(
+        callee: callee,
+        arg: arg,
+        result: result,
+        into: &instructions
     )
+    return result
+}
+
+func emitNonThrowingCall(
+    callee: InternedString,
+    arg: KIRExprID,
+    result: KIRExprID,
+    into instructions: inout [KIRInstruction]
+) {
     instructions.append(.call(
         symbol: nil,
         callee: callee,
@@ -18,5 +30,4 @@ func emitNonThrowingCall(
         canThrow: false,
         thrownResult: nil
     ))
-    return result
 }
