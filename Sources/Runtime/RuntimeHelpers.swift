@@ -5,7 +5,35 @@ func runtimeContinuationState(from continuation: Int) -> RuntimeContinuationStat
     guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
         return nil
     }
-    return Unmanaged<RuntimeContinuationState>.fromOpaque(continuationPtr).takeUnretainedValue()
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: continuationPtr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    return tryCast(continuationPtr, to: RuntimeContinuationState.self)
+}
+
+func runtimeCoroutineScope(from scopeHandle: Int) -> RuntimeCoroutineScope? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: scopeHandle) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    return tryCast(ptr, to: RuntimeCoroutineScope.self)
+}
+
+// RuntimeAsyncTask handles are not tracked in objectPointers, so validate via
+// checked cast only (mirrors the `as? RuntimeAsyncTask` job handlers).
+func runtimeAsyncTask(from handle: Int) -> RuntimeAsyncTask? {
+    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return nil
+    }
+    return tryCast(handlePtr, to: RuntimeAsyncTask.self)
 }
 
 func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {

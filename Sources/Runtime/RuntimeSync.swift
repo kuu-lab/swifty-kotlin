@@ -263,11 +263,10 @@ private func runtimeInvokeReadWriteLockAction(_ actionFnPtr: Int, _ actionEnvPtr
 
 private func runtimeSyncResume(_ continuation: Int) {
     guard continuation != 0,
-          let contPtr = UnsafeMutableRawPointer(bitPattern: continuation)
+          let state = runtimeContinuationState(from: continuation)
     else {
         return
     }
-    let state = Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).takeUnretainedValue()
     state.signalResume()
 }
 
