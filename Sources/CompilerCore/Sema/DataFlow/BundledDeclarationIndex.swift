@@ -1,3 +1,5 @@
+import Foundation
+
 /// Index of function and property declarations originating from bundled stdlib
 /// Kotlin sources (`__bundled_*.kt`). Used by KSP-002 skip guards and KSP-003
 /// duplicate-definition warnings when a synthetic stub slips past the guard.
@@ -172,24 +174,60 @@ struct BundledDeclarationIndex: Sendable {
         return Array(symbol.fqName.dropLast())
     }
 
-    private static func classSymbol(for type: TypeID, types: TypeSystem) -> SymbolID? {
-        let nonNullType = types.makeNonNullable(type)
-        guard case let .classType(classType) = types.kind(of: nonNullType) else {
-            return nil
-        }
-        return classType.classSymbol
-    }
 }
 
 /// Active bundled-index context while `registerSyntheticDelegateStubs` runs.
 enum BundledSyntheticStubRegistration {
-    nonisolated(unsafe) static var bundledIndex: BundledDeclarationIndex = .empty
-    nonisolated(unsafe) static var types: TypeSystem?
-    nonisolated(unsafe) static var skippedCount: Int = 0
+    private static let bundledIndexKey = "KSwiftK.BundledSyntheticStubRegistration.bundledIndex"
+    private static let typesKey = "KSwiftK.BundledSyntheticStubRegistration.types"
+    private static let skippedCountKey = "KSwiftK.BundledSyntheticStubRegistration.skippedCount"
+    private static let preBundledPassKey = "KSwiftK.BundledSyntheticStubRegistration.preBundledPass"
+    private static let postBundledPassKey = "KSwiftK.BundledSyntheticStubRegistration.postBundledPass"
+
+    private static var storage: NSMutableDictionary {
+        Thread.current.threadDictionary
+    }
+
+    static var bundledIndex: BundledDeclarationIndex {
+        get { storage[bundledIndexKey] as? BundledDeclarationIndex ?? .empty }
+        set { storage[bundledIndexKey] = newValue }
+    }
+
+    static var types: TypeSystem? {
+        get { storage[typesKey] as? TypeSystem }
+        set {
+            if let newValue {
+                storage[typesKey] = newValue
+            } else {
+                storage.removeObject(forKey: typesKey)
+            }
+        }
+    }
+
+    static var skippedCount: Int {
+        get { storage[skippedCountKey] as? Int ?? 0 }
+        set { storage[skippedCountKey] = newValue }
+    }
+
     /// When true, extension-member stub registration is deferred to the post-bundled pass.
-    nonisolated(unsafe) static var preBundledPass: Bool = false
+    static var preBundledPass: Bool {
+        get { storage[preBundledPassKey] as? Bool ?? false }
+        set { storage[preBundledPassKey] = newValue }
+    }
+
     /// When true, only extension-member stubs are registered (post-bundled pass).
-    nonisolated(unsafe) static var postBundledPass: Bool = false
+    static var postBundledPass: Bool {
+        get { storage[postBundledPassKey] as? Bool ?? false }
+        set { storage[postBundledPassKey] = newValue }
+    }
+
+    static func clear() {
+        storage.removeObject(forKey: bundledIndexKey)
+        storage.removeObject(forKey: typesKey)
+        storage.removeObject(forKey: skippedCountKey)
+        storage.removeObject(forKey: preBundledPassKey)
+        storage.removeObject(forKey: postBundledPassKey)
+    }
 
     static func shouldSkipRegistration(
         declaredOwnerFQName: [InternedString],

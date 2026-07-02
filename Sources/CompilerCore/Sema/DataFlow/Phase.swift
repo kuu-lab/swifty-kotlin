@@ -102,8 +102,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         BundledSyntheticStubRegistration.postBundledPass = false
         BundledSyntheticStubRegistration.preBundledPass = true
         defer {
-            BundledSyntheticStubRegistration.preBundledPass = false
-            BundledSyntheticStubRegistration.types = nil
+            BundledSyntheticStubRegistration.clear()
         }
         registerSyntheticDelegateStubs(
             symbols: symbols,
@@ -124,8 +123,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         BundledSyntheticStubRegistration.preBundledPass = false
         BundledSyntheticStubRegistration.postBundledPass = true
         defer {
-            BundledSyntheticStubRegistration.postBundledPass = false
-            BundledSyntheticStubRegistration.types = nil
+            BundledSyntheticStubRegistration.clear()
         }
         registerSyntheticDelegateStubs(
             symbols: symbols,

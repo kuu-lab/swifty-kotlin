@@ -229,24 +229,8 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("MutableSet"),
         ], elementType: typeParamType, invariant: true)
-        let comparableElementBounds: [TypeID] = {
-            guard let comparableSymbol = types.comparableInterfaceSymbol else {
-                return []
-            }
-            return [types.make(.classType(ClassType(
-                classSymbol: comparableSymbol,
-                args: [.in(typeParamType)],
-                nullability: .nonNull
-            )))]
-        }()
 
         // sortedWith(comparator: (T, T) -> Int): Sequence<T>
-        let comparatorType = types.make(.functionType(FunctionType(
-            params: [typeParamType, typeParamType],
-            returnType: types.intType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         registerSequenceOverloadedMemberStub(
             named: "sortedWith",
             externalLinkName: "kk_sequence_sortedWith",

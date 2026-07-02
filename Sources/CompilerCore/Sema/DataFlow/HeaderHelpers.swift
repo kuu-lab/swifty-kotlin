@@ -1004,9 +1004,14 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
-        var skipStats = SyntheticStubSkipStatsCollector()
+        let skipStats = SyntheticStubSkipStatsCollector()
+        let shouldClearContextOnReturn =
+            !BundledSyntheticStubRegistration.preBundledPass
+            && !BundledSyntheticStubRegistration.postBundledPass
         defer {
-            BundledSyntheticStubRegistration.types = nil
+            if shouldClearContextOnReturn {
+                BundledSyntheticStubRegistration.clear()
+            }
         }
         BundledSyntheticStubRegistration.bundledIndex = bundledIndex
         BundledSyntheticStubRegistration.types = types
@@ -1112,9 +1117,20 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        let skipStats = SyntheticStubSkipStatsCollector()
+        defer {
+            skipStats.logIfEnabled()
+        }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCollectionStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
         patchKTypeArgumentsType(symbols: symbols, types: types, interner: interner)
         patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
