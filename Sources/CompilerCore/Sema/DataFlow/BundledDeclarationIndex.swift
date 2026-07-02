@@ -1,14 +1,14 @@
 import Foundation
 
-/// Index of function and property declarations originating from bundled stdlib
-/// Kotlin sources (`__bundled_*.kt`). Used by KSP-002 skip guards and KSP-003
-/// duplicate-definition warnings when a synthetic stub slips past the guard.
+/// Key for a bundled stdlib member declaration. The same shape is used by
+/// KSP-002 skip guards and KSP-003 duplicate-definition warnings.
 struct BundledMemberKey: Hashable, Sendable {
     let ownerFQName: [InternedString]
     let name: InternedString
     let arity: Int
 }
 
+/// Index of member declarations originating from bundled stdlib virtual sources (`__bundled_*.kt`).
 struct BundledDeclarationIndex: Sendable {
     static let empty = BundledDeclarationIndex(keys: [])
 
@@ -22,46 +22,61 @@ struct BundledDeclarationIndex: Sendable {
         keys.contains(key)
     }
 
+    func contains(owner: [InternedString], name: InternedString, arity: Int) -> Bool {
+        contains(BundledMemberKey(ownerFQName: owner, name: name, arity: arity))
+    }
+
     func contains(ownerFQName: [InternedString], name: InternedString, arity: Int) -> Bool {
-        contains(BundledMemberKey(ownerFQName: ownerFQName, name: name, arity: arity))
+        contains(owner: ownerFQName, name: name, arity: arity)
     }
 
     mutating func insert(_ key: BundledMemberKey) {
         self = BundledDeclarationIndex(keys: keys.union([key]))
     }
 
+    /// Build from AST bundled sources before SymbolTable header collection.
+    /// Step (0) requires bundled SymbolTable registration before stubs; that reorder
+    /// breaks sema until synthetic type foundations are split (KSP-002). AST scanning
+    /// preserves compilation behavior while supplying `(owner, name, arity)` keys.
+    static func build(ast: ASTModule, sourceManager: SourceManager) -> BundledDeclarationIndex {
+        BundledDeclarationIndex(keys: buildKeys(ast: ast, sourceManager: sourceManager))
+    }
+
+    static func build(
+        ast: ASTModule,
+        symbols _: SymbolTable,
+        types _: TypeSystem,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> BundledDeclarationIndex {
+        var keys = buildKeys(ast: ast, sourceManager: sourceManager)
+        addListIterableAliases(to: &keys, interner: interner)
+        return BundledDeclarationIndex(keys: keys)
+    }
+
+    /// Build from SymbolTable symbols whose `declSite` is in bundled virtual files.
+    static func build(sourceManager: SourceManager, symbols: SymbolTable, types: TypeSystem) -> BundledDeclarationIndex {
+        buildFromSymbols(
+            symbols: symbols,
+            types: types,
+            sourceManager: sourceManager,
+            interner: nil
+        )
+    }
+
+    /// Build from bundled SymbolTable declarations after bundled header collection.
     static func build(
         symbols: SymbolTable,
         types: TypeSystem,
         sourceManager: SourceManager,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
-        let bundledFileIDs = Set(
-            sourceManager.fileIDs().filter { sourceManager.path(of: $0).hasPrefix("__bundled_") }
-                .map(\.rawValue)
+        buildFromSymbols(
+            symbols: symbols,
+            types: types,
+            sourceManager: sourceManager,
+            interner: interner
         )
-        guard !bundledFileIDs.isEmpty else {
-            return .empty
-        }
-
-        var keys: Set<BundledMemberKey> = []
-        for symbol in symbols.allSymbols() {
-            guard !symbol.flags.contains(.synthetic) else { continue }
-            guard symbol.kind == .function || symbol.kind == .property else { continue }
-            guard let declSite = symbol.declSite,
-                  bundledFileIDs.contains(declSite.start.file.rawValue)
-            else { continue }
-            guard let key = memberKey(
-                for: symbol,
-                symbolID: symbol.id,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-            else { continue }
-            keys.insert(key)
-        }
-        return BundledDeclarationIndex(keys: keys)
     }
 
     static func memberKey(
@@ -71,27 +86,13 @@ struct BundledDeclarationIndex: Sendable {
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledMemberKey? {
-        guard symbol.kind == .function || symbol.kind == .property else { return nil }
-
-        let arity: Int
-        let receiverType: TypeID?
-        if symbol.kind == .function {
-            let signature = symbols.functionSignature(for: symbolID)
-            arity = signature?.parameterTypes.count ?? 0
-            receiverType = signature?.receiverType
-        } else {
-            arity = 0
-            receiverType = symbols.extensionPropertyReceiverType(for: symbolID)
-        }
-
-        let ownerFQName = ownerFQName(
-            declaredOwnerFQName: ownerFQName(for: symbol, symbolID: symbolID, symbols: symbols),
-            receiverType: receiverType,
+        makeMemberKey(
+            for: symbol,
+            symbolID: symbolID,
             symbols: symbols,
             types: types,
             interner: interner
         )
-        return BundledMemberKey(ownerFQName: ownerFQName, name: symbol.name, arity: arity)
     }
 
     static func ownerFQName(
@@ -101,34 +102,13 @@ struct BundledDeclarationIndex: Sendable {
         types: TypeSystem,
         interner: StringInterner
     ) -> [InternedString] {
-        if let receiverType,
-           let receiverOwner = receiverOwnerFQName(
-               for: receiverType,
-               symbols: symbols,
-               types: types,
-               interner: interner
-           )
-        {
-            return receiverOwner
-        }
-        return declaredOwnerFQName
-    }
-
-    static func receiverOwnerFQName(
-        for receiverType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> [InternedString]? {
-        let nonNullType = types.makeNonNullable(receiverType)
-        switch types.kind(of: nonNullType) {
-        case let .classType(classType):
-            return symbols.symbol(classType.classSymbol)?.fqName
-        case let .primitive(primitive, _):
-            return [interner.intern("kotlin"), interner.intern(primitive.kotlinName)]
-        default:
-            return nil
-        }
+        ownerFQName(
+            declaredOwnerFQName: declaredOwnerFQName,
+            receiverType: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: Optional(interner)
+        ) ?? declaredOwnerFQName
     }
 
     func warnSyntheticOverlaps(
@@ -161,6 +141,170 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
+    private static func buildKeys(ast: ASTModule, sourceManager: SourceManager) -> Set<BundledMemberKey> {
+        let bundledFiles = ast.sortedFiles.filter {
+            sourceManager.path(of: $0.fileID).hasPrefix("__bundled_")
+        }
+        let topLevelNominalNamesByPackage = collectTopLevelNominalNamesByPackage(
+            files: bundledFiles,
+            ast: ast
+        )
+
+        var keys: Set<BundledMemberKey> = []
+        for file in bundledFiles {
+            let topLevelNominalNames = topLevelNominalNamesByPackage[file.packageFQName] ?? []
+            for declID in file.topLevelDecls {
+                collectBundledTopLevelDecl(
+                    declID: declID,
+                    packageFQName: file.packageFQName,
+                    topLevelNominalNames: topLevelNominalNames,
+                    ast: ast,
+                    keys: &keys
+                )
+            }
+        }
+        return keys
+    }
+
+    private static func buildFromSymbols(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        sourceManager: SourceManager,
+        interner: StringInterner?
+    ) -> BundledDeclarationIndex {
+        let bundledFileIDs = Set(
+            sourceManager.fileIDs()
+                .filter { sourceManager.path(of: $0).hasPrefix("__bundled_") }
+                .map(\.rawValue)
+        )
+        guard !bundledFileIDs.isEmpty else {
+            return .empty
+        }
+
+        var keys: Set<BundledMemberKey> = []
+        for symbol in symbols.allSymbols() {
+            guard !symbol.flags.contains(.synthetic) else { continue }
+            guard let declSite = symbol.declSite,
+                  bundledFileIDs.contains(declSite.start.file.rawValue)
+            else {
+                continue
+            }
+            guard let key = makeMemberKey(
+                for: symbol,
+                symbolID: symbol.id,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            else {
+                continue
+            }
+            keys.insert(key)
+        }
+
+        return BundledDeclarationIndex(keys: keys)
+    }
+
+    private static func makeMemberKey(
+        for symbol: SemanticSymbol,
+        symbolID: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner?
+    ) -> BundledMemberKey? {
+        let arity: Int
+        let receiverType: TypeID?
+        switch symbol.kind {
+        case .function:
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return nil
+            }
+            arity = signature.parameterTypes.count
+            receiverType = signature.receiverType
+        case .property, .field:
+            arity = 0
+            receiverType = symbols.extensionPropertyReceiverType(for: symbolID)
+        default:
+            return nil
+        }
+
+        let declaredOwnerFQName = ownerFQName(for: symbol, symbolID: symbolID, symbols: symbols)
+        let owner = ownerFQName(
+            declaredOwnerFQName: declaredOwnerFQName,
+            receiverType: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) ?? declaredOwnerFQName
+        return BundledMemberKey(ownerFQName: owner, name: symbol.name, arity: arity)
+    }
+
+    private static func ownerFQName(
+        declaredOwnerFQName: [InternedString],
+        receiverType: TypeID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner?
+    ) -> [InternedString]? {
+        if let receiverType,
+           let receiverOwner = receiverOwnerFQName(
+               for: receiverType,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return receiverOwner
+        }
+        return declaredOwnerFQName
+    }
+
+    static func receiverOwnerFQName(
+        for receiverType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> [InternedString]? {
+        receiverOwnerFQName(
+            for: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: Optional(interner)
+        )
+    }
+
+    private static func receiverOwnerFQName(
+        for receiverType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner?
+    ) -> [InternedString]? {
+        let nonNullType = types.makeNonNullable(receiverType)
+        switch types.kind(of: nonNullType) {
+        case let .classType(classType):
+            return symbols.symbol(classType.classSymbol)?.fqName
+        case let .primitive(primitive, _):
+            guard let interner else {
+                return nil
+            }
+            return [interner.intern("kotlin"), interner.intern(primitive.kotlinName)]
+        case let .intersection(parts):
+            for part in parts {
+                if let owner = receiverOwnerFQName(
+                    for: part,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) {
+                    return owner
+                }
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
     private static func ownerFQName(
         for symbol: SemanticSymbol,
         symbolID: SymbolID,
@@ -174,6 +318,302 @@ struct BundledDeclarationIndex: Sendable {
         return Array(symbol.fqName.dropLast())
     }
 
+    private static func addListIterableAliases(to keys: inout Set<BundledMemberKey>, interner: StringInterner) {
+        let kotlin = interner.intern("kotlin")
+        let collections = interner.intern("collections")
+        let listOwnerFQName = [kotlin, collections, interner.intern("List")]
+        let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
+
+        let listKeys = keys.filter { $0.ownerFQName == listOwnerFQName }
+        for key in listKeys {
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: iterableOwnerFQName,
+                    name: key.name,
+                    arity: key.arity
+                )
+            )
+        }
+    }
+
+    private static func collectBundledTopLevelDecl(
+        declID: DeclID,
+        packageFQName: [InternedString],
+        topLevelNominalNames: Set<InternedString>,
+        ast: ASTModule,
+        keys: inout Set<BundledMemberKey>
+    ) {
+        guard let decl = ast.arena.decl(declID) else {
+            return
+        }
+
+        switch decl {
+        case let .funDecl(funDecl):
+            guard let receiverTypeID = funDecl.receiverType,
+                  let receiverType = ast.arena.typeRef(receiverTypeID),
+                  let ownerFQName = fqName(
+                    for: receiverType,
+                    relativeTo: packageFQName,
+                    topLevelNominalNames: topLevelNominalNames,
+                    ast: ast
+                  )
+            else {
+                return
+            }
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: ownerFQName,
+                    name: funDecl.name,
+                    arity: funDecl.valueParams.count
+                )
+            )
+
+        case let .propertyDecl(propertyDecl):
+            guard let receiverTypeID = propertyDecl.receiverType,
+                  let receiverType = ast.arena.typeRef(receiverTypeID),
+                  let ownerFQName = fqName(
+                    for: receiverType,
+                    relativeTo: packageFQName,
+                    topLevelNominalNames: topLevelNominalNames,
+                    ast: ast
+                  )
+            else {
+                return
+            }
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: ownerFQName,
+                    name: propertyDecl.name,
+                    arity: 0
+                )
+            )
+
+        case let .classDecl(classDecl):
+            let ownerFQName = packageFQName + [classDecl.name]
+            collectBundledNominalMembers(
+                memberFunctions: classDecl.memberFunctions,
+                memberProperties: classDecl.memberProperties,
+                nestedClasses: classDecl.nestedClasses,
+                nestedObjects: classDecl.nestedObjects,
+                companionObject: classDecl.companionObject,
+                ownerFQName: ownerFQName,
+                ast: ast,
+                keys: &keys
+            )
+
+        case let .interfaceDecl(interfaceDecl):
+            let ownerFQName = packageFQName + [interfaceDecl.name]
+            collectBundledNominalMembers(
+                memberFunctions: interfaceDecl.memberFunctions,
+                memberProperties: interfaceDecl.memberProperties,
+                nestedClasses: interfaceDecl.nestedClasses,
+                nestedObjects: interfaceDecl.nestedObjects,
+                companionObject: interfaceDecl.companionObject,
+                ownerFQName: ownerFQName,
+                ast: ast,
+                keys: &keys
+            )
+
+        case let .objectDecl(objectDecl):
+            let ownerFQName = packageFQName + [objectDecl.name]
+            collectBundledNominalMembers(
+                memberFunctions: objectDecl.memberFunctions,
+                memberProperties: objectDecl.memberProperties,
+                nestedClasses: objectDecl.nestedClasses,
+                nestedObjects: objectDecl.nestedObjects,
+                companionObject: nil,
+                ownerFQName: ownerFQName,
+                ast: ast,
+                keys: &keys
+            )
+
+        default:
+            break
+        }
+    }
+
+    private static func collectBundledNominalMembers(
+        memberFunctions: [DeclID],
+        memberProperties: [DeclID],
+        nestedClasses: [DeclID],
+        nestedObjects: [DeclID],
+        companionObject: DeclID?,
+        ownerFQName: [InternedString],
+        ast: ASTModule,
+        keys: inout Set<BundledMemberKey>
+    ) {
+        for declID in memberFunctions {
+            guard let decl = ast.arena.decl(declID),
+                  case let .funDecl(funDecl) = decl
+            else {
+                continue
+            }
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: ownerFQName,
+                    name: funDecl.name,
+                    arity: funDecl.valueParams.count
+                )
+            )
+        }
+
+        for declID in memberProperties {
+            guard let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: ownerFQName,
+                    name: propertyDecl.name,
+                    arity: 0
+                )
+            )
+        }
+
+        for declID in nestedClasses + nestedObjects {
+            collectBundledNestedDecl(
+                declID: declID,
+                ownerFQName: ownerFQName,
+                ast: ast,
+                keys: &keys
+            )
+        }
+
+        if let companionObject {
+            collectBundledNestedDecl(
+                declID: companionObject,
+                ownerFQName: ownerFQName,
+                ast: ast,
+                keys: &keys
+            )
+        }
+    }
+
+    private static func collectBundledNestedDecl(
+        declID: DeclID,
+        ownerFQName: [InternedString],
+        ast: ASTModule,
+        keys: inout Set<BundledMemberKey>
+    ) {
+        guard let decl = ast.arena.decl(declID) else {
+            return
+        }
+
+        switch decl {
+        case let .classDecl(classDecl):
+            collectBundledNominalMembers(
+                memberFunctions: classDecl.memberFunctions,
+                memberProperties: classDecl.memberProperties,
+                nestedClasses: classDecl.nestedClasses,
+                nestedObjects: classDecl.nestedObjects,
+                companionObject: classDecl.companionObject,
+                ownerFQName: ownerFQName + [classDecl.name],
+                ast: ast,
+                keys: &keys
+            )
+        case let .interfaceDecl(interfaceDecl):
+            collectBundledNominalMembers(
+                memberFunctions: interfaceDecl.memberFunctions,
+                memberProperties: interfaceDecl.memberProperties,
+                nestedClasses: interfaceDecl.nestedClasses,
+                nestedObjects: interfaceDecl.nestedObjects,
+                companionObject: interfaceDecl.companionObject,
+                ownerFQName: ownerFQName + [interfaceDecl.name],
+                ast: ast,
+                keys: &keys
+            )
+        case let .objectDecl(objectDecl):
+            collectBundledNominalMembers(
+                memberFunctions: objectDecl.memberFunctions,
+                memberProperties: objectDecl.memberProperties,
+                nestedClasses: objectDecl.nestedClasses,
+                nestedObjects: objectDecl.nestedObjects,
+                companionObject: nil,
+                ownerFQName: ownerFQName + [objectDecl.name],
+                ast: ast,
+                keys: &keys
+            )
+        default:
+            break
+        }
+    }
+
+    private static func fqName(
+        for typeRef: TypeRef,
+        relativeTo packageFQName: [InternedString],
+        topLevelNominalNames: Set<InternedString>,
+        ast: ASTModule
+    ) -> [InternedString]? {
+        switch typeRef {
+        case let .named(path, _, _):
+            guard let first = path.first else {
+                return nil
+            }
+            if pathStarts(with: path, prefix: packageFQName) {
+                return path
+            }
+            if path.count == 1 || topLevelNominalNames.contains(first) {
+                return packageFQName + path
+            }
+            return path
+        case let .annotated(base, _):
+            guard let baseRef = ast.arena.typeRef(base) else {
+                return nil
+            }
+            return fqName(
+                for: baseRef,
+                relativeTo: packageFQName,
+                topLevelNominalNames: topLevelNominalNames,
+                ast: ast
+            )
+        case .functionType, .intersection:
+            return nil
+        }
+    }
+
+    private static func collectTopLevelNominalNamesByPackage(
+        files: [ASTFile],
+        ast: ASTModule
+    ) -> [[InternedString]: Set<InternedString>] {
+        var namesByPackage: [[InternedString]: Set<InternedString>] = [:]
+        for file in files {
+            for declID in file.topLevelDecls {
+                guard let name = topLevelNominalName(declID: declID, ast: ast) else {
+                    continue
+                }
+                namesByPackage[file.packageFQName, default: Set<InternedString>()].insert(name)
+            }
+        }
+        return namesByPackage
+    }
+
+    private static func topLevelNominalName(declID: DeclID, ast: ASTModule) -> InternedString? {
+        guard let decl = ast.arena.decl(declID) else {
+            return nil
+        }
+        switch decl {
+        case let .classDecl(classDecl):
+            return classDecl.name
+        case let .interfaceDecl(interfaceDecl):
+            return interfaceDecl.name
+        case let .objectDecl(objectDecl):
+            return objectDecl.name
+        default:
+            return nil
+        }
+    }
+
+    private static func pathStarts(with path: [InternedString], prefix: [InternedString]) -> Bool {
+        guard path.count >= prefix.count else {
+            return false
+        }
+        for (index, element) in prefix.enumerated() where path[index] != element {
+            return false
+        }
+        return true
+    }
 }
 
 /// Active bundled-index context while `registerSyntheticDelegateStubs` runs.
