@@ -11,7 +11,8 @@ extension CollectionLiteralLoweringPass {
         interner: StringInterner
     ) -> InternedString? {
         BoxingCalleeTable(interner: interner).boxCallee(
-            for: types.kind(of: type),
+            for: type,
+            types: types,
             requireNonNull: false
         )
     }
