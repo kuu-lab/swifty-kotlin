@@ -62,19 +62,29 @@ package enum CommandRunner {
     /// privileges. Empty, relative, group/other-writable, or foreign-owned PATH
     /// entries are skipped; if no trusted match is found, `fallback` is returned.
     package static func resolveExecutable(_ name: String, fallback: String) -> String {
+        resolveExecutable(
+            name,
+            fallback: fallback,
+            pathEnvironment: ProcessInfo.processInfo.environment["PATH"] ?? ""
+        )
+    }
+
+    package static func resolveExecutable(
+        _ name: String,
+        fallback: String,
+        pathEnvironment: String
+    ) -> String {
         let fileManager = FileManager.default
-        if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
-            for directory in pathEnv.split(separator: ":", omittingEmptySubsequences: false) {
-                let directoryPath = String(directory)
-                // An empty entry resolves to the current working directory and a
-                // relative entry can be influenced by the process's CWD; neither
-                // is trustworthy, so require an absolute path.
-                guard directoryPath.hasPrefix("/") else { continue }
-                guard isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
-                let candidate = directoryPath + "/" + name
-                if fileManager.isExecutableFile(atPath: candidate) {
-                    return candidate
-                }
+        for directory in pathEnvironment.split(separator: ":", omittingEmptySubsequences: false) {
+            let directoryPath = String(directory)
+            // An empty entry resolves to the current working directory and a
+            // relative entry can be influenced by the process's CWD; neither
+            // is trustworthy, so require an absolute path.
+            guard directoryPath.hasPrefix("/") else { continue }
+            guard isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
+            let candidate = directoryPath + "/" + name
+            if fileManager.isExecutableFile(atPath: candidate) {
+                return candidate
             }
         }
         return fallback

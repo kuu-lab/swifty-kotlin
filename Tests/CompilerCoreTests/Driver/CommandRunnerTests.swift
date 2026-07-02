@@ -3,42 +3,40 @@
 import Foundation
 import Testing
 
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#endif
-
 @Suite
 struct CommandRunnerTests {
-    private static let pathEnvironmentLock = NSLock()
-
     // MARK: - resolveExecutable
 
     @Test
     func testResolveExecutableFindsExistingCommand() {
-        Self.withPathEnvironmentLock {
-            let resolved = CommandRunner.resolveExecutable("ls", fallback: "/nonexistent/ls")
-            #expect(resolved.hasSuffix("/ls"), "Expected resolved path to end with /ls, got: \(resolved)")
-            #expect(resolved != "/nonexistent/ls", "Should have found ls in PATH")
-        }
+        let resolved = CommandRunner.resolveExecutable(
+            "ls",
+            fallback: "/nonexistent/ls",
+            pathEnvironment: Self.systemPath
+        )
+        #expect(resolved.hasSuffix("/ls"), "Expected resolved path to end with /ls, got: \(resolved)")
+        #expect(resolved != "/nonexistent/ls", "Should have found ls in PATH")
     }
 
     @Test
     func testResolveExecutableFallsBackForMissingCommand() {
-        Self.withPathEnvironmentLock {
-            let fallback = "/this/path/does/not/exist/in/PATH"
-            let resolved = CommandRunner.resolveExecutable("__command_that_definitely_does_not_exist__", fallback: fallback)
-            #expect(resolved == fallback)
-        }
+        let fallback = "/this/path/does/not/exist/in/PATH"
+        let resolved = CommandRunner.resolveExecutable(
+            "__command_that_definitely_does_not_exist__",
+            fallback: fallback,
+            pathEnvironment: Self.systemPath
+        )
+        #expect(resolved == fallback)
     }
 
     @Test
     func testResolveExecutableReturnsFullPath() {
-        Self.withPathEnvironmentLock {
-            let resolved = CommandRunner.resolveExecutable("echo", fallback: "/bin/echo")
-            #expect(resolved.hasPrefix("/"), "Resolved path should be absolute, got: \(resolved)")
-        }
+        let resolved = CommandRunner.resolveExecutable(
+            "echo",
+            fallback: "/bin/echo",
+            pathEnvironment: Self.systemPath
+        )
+        #expect(resolved.hasPrefix("/"), "Resolved path should be absolute, got: \(resolved)")
     }
 
     @Test
@@ -48,10 +46,12 @@ struct CommandRunnerTests {
         let directory = try makeTemporaryToolDirectory(permissions: 0o777, toolName: toolName)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        try Self.withTemporaryPath([directory.path]) {
-            let resolved = CommandRunner.resolveExecutable(toolName, fallback: fallback)
-            #expect(resolved == fallback)
-        }
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: directory.path
+        )
+        #expect(resolved == fallback)
     }
 
     @Test
@@ -60,11 +60,13 @@ struct CommandRunnerTests {
         let directory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        try Self.withTemporaryPath([directory.path]) {
-            let fallback = "/this/path/does/not/exist/\(toolName)"
-            let resolved = CommandRunner.resolveExecutable(toolName, fallback: fallback)
-            #expect(resolved == directory.appendingPathComponent(toolName).path)
-        }
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: directory.path
+        )
+        #expect(resolved == directory.appendingPathComponent(toolName).path)
     }
 
     @Test
@@ -78,11 +80,13 @@ struct CommandRunnerTests {
             try? FileManager.default.removeItem(at: trustedDirectory)
         }
 
-        try Self.withTemporaryPath([symlinkDirectory.path]) {
-            let fallback = "/this/path/does/not/exist/\(toolName)"
-            let resolved = CommandRunner.resolveExecutable(toolName, fallback: fallback)
-            #expect(resolved == symlinkDirectory.appendingPathComponent(toolName).path)
-        }
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: symlinkDirectory.path
+        )
+        #expect(resolved == symlinkDirectory.appendingPathComponent(toolName).path)
     }
 
     // MARK: - run: stdout / exit code
@@ -221,27 +225,6 @@ struct CommandRunnerTests {
         )
     }
 
-    private static func withPathEnvironmentLock<T>(_ body: () throws -> T) rethrows -> T {
-        pathEnvironmentLock.lock()
-        defer { pathEnvironmentLock.unlock() }
-        return try body()
-    }
-
-    private static func withTemporaryPath<T>(_ directories: [String], body: () throws -> T) throws -> T {
-        try withPathEnvironmentLock {
-            let previousPath = getenv("PATH").map { String(cString: $0) }
-            setenv("PATH", directories.joined(separator: ":"), 1)
-            defer {
-                if let previousPath {
-                    setenv("PATH", previousPath, 1)
-                } else {
-                    unsetenv("PATH")
-                }
-            }
-            return try body()
-        }
-    }
-
     private func makeTemporaryToolDirectory(permissions: Int16, toolName: String) throws -> URL {
         let fileManager = FileManager.default
         let directory = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -266,5 +249,7 @@ struct CommandRunnerTests {
     private func makeSymbolicLink(at linkURL: URL, pointingTo destinationURL: URL) throws {
         try FileManager.default.createSymbolicLink(atPath: linkURL.path, withDestinationPath: destinationURL.path)
     }
+
+    private static let systemPath = "/usr/bin:/bin"
 }
 #endif
