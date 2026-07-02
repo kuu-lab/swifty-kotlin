@@ -649,8 +649,11 @@ final class CallTypeChecker {
            calleeName == knownNames.runCatching,
            locals[calleeName] == nil,
            isLambdaOrCallableRefArg(args[0].expr, ast: ast),
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
-           isSyntheticStdlibSymbol(calleeName, fqComponents: ["kotlin", "runCatching"], ctx: ctx)
+           let runCatchingSymbol = sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "runCatching"],
+               ctx: ctx
+           )
         {
             let lambdaType = driver.inferExpr(
                 args[0].expr, ctx: ctx, locals: &locals, expectedType: nil
@@ -669,7 +672,7 @@ final class CallTypeChecker {
             let resultType: TypeID = if let resultClassSymbol = sema.symbols.lookup(fqName: knownNames.kotlinResultFQName) {
                 sema.types.make(.classType(ClassType(
                     classSymbol: resultClassSymbol,
-                    args: [.out(innerType)],
+                    args: [.invariant(innerType)],
                     nullability: .nonNull
                 )))
             } else {
@@ -677,14 +680,12 @@ final class CallTypeChecker {
             }
             // Mark the lambda for closure ABI expansion in KIR
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-            // Bind the call to the synthetic runCatching function symbol
-            if let runCatchingSymbol = sema.symbols.lookup(fqName: knownNames.kotlinRunCatchingFQName) {
-                sema.bindings.bindCall(id, binding: CallBinding(
-                    chosenCallee: runCatchingSymbol,
-                    substitutedTypeArguments: [innerType],
-                    parameterMapping: [0: 0]
-                ))
-            }
+            // Bind the call to the stdlib runCatching function symbol.
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: runCatchingSymbol,
+                substitutedTypeArguments: [innerType],
+                parameterMapping: [0: 0]
+            ))
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
         }

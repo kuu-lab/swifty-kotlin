@@ -1069,6 +1069,20 @@ extension CallLowerer {
             return result
         }
 
+        if let accessorRead = tryLowerMemberPropertyAccessorRead(
+            exprID,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            args: args,
+            ast: ast,
+            sema: sema,
+            interner: interner,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.label(endLabel))
+            return accessorRead
+        }
+
         // Lower arguments only on the non-null path.
         let loweredArgIDs = args.map { argument in
             driver.lowerExpr(

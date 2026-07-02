@@ -294,7 +294,7 @@ extension CallTypeChecker {
         // --- Result member functions (STDLIB-590) ---
         // Result<T>.onSuccess/onFailure/getOrElse/getOrDefault/map/fold/recover
         // These require special handling because the generic type parameter T
-        // needs to be extracted from the receiver's Result<out T> type and used
+        // needs to be extracted from the receiver's Result<T> type and used
         // to construct the expected lambda parameter types.
         if args.count >= 1, args.count <= 2 {
             let calleeStr = interner.resolve(calleeName)
@@ -409,21 +409,33 @@ extension CallTypeChecker {
                     return finalType
 
                 case "recover" where args.count == 1:
-                    // recover(transform: (Throwable) -> T): Result<T>
+                    // recover(transform: (Throwable) -> R): Result<R>
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
-                        returnType: resultElementType
+                        returnType: expectedType.flatMap {
+                            extractResultElementType($0, sema: sema, interner: interner)
+                        } ?? sema.types.anyType
                     )))
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    let lambdaType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    let recoveredType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                        fnType.returnType
+                    } else {
+                        sema.types.anyType
+                    }
                     if let recoverSymbol = lookupResultMember("recover", sema: sema, interner: interner) {
                         sema.bindings.bindCall(id, binding: CallBinding(
                             chosenCallee: recoverSymbol,
-                            substitutedTypeArguments: [resultElementType],
+                            substitutedTypeArguments: [resultElementType, recoveredType],
                             parameterMapping: [0: 0]
                         ))
                     }
-                    let finalType = safeCall ? sema.types.makeNullable(nonNullReceiverType) : nonNullReceiverType
+                    let recoverResultType = makeResultType(
+                        elementType: recoveredType,
+                        sema: sema,
+                        interner: interner
+                    ) ?? sema.types.anyType
+                    let finalType = safeCall ? sema.types.makeNullable(recoverResultType) : recoverResultType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 

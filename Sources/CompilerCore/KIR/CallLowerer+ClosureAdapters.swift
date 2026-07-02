@@ -370,6 +370,52 @@ extension CallLowerer {
             return [loweredArguments[0], loweredArguments[1]] + producerArgs + jobArgs
         }
 
+        let resultSingleLambdaRuntimeNames: Set<String> = [
+            "kk_result_getOrElse",
+            "kk_result_map",
+            "kk_result_onSuccess",
+            "kk_result_onFailure",
+            "kk_result_recover",
+            "kk_result_recoverCatching",
+        ]
+        if resultSingleLambdaRuntimeNames.contains(externalLinkName),
+           loweredArguments.count == originalArgs.count + 1,
+           originalArgs.count == 1
+        {
+            let lambdaArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: loweredArguments[1],
+                argExprID: originalArgs[0].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return [loweredArguments[0]] + lambdaArgs
+        }
+
+        if externalLinkName == "kk_result_fold",
+           loweredArguments.count == originalArgs.count + 1,
+           originalArgs.count == 2
+        {
+            let successArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: loweredArguments[1],
+                argExprID: originalArgs[0].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            let failureArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: loweredArguments[2],
+                argExprID: originalArgs[1].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return [loweredArguments[0]] + successArgs + failureArgs
+        }
+
         guard loweredArguments.count == originalArgs.count else {
             return loweredArguments
         }

@@ -1,16 +1,10 @@
-
-/// Synthetic stubs for Result<T>, runCatching, and related member functions (STDLIB-280/281/282/283).
+/// Early synthetic anchor for `kotlin.Result`.
 ///
-/// NOTE: Kotlin source exists at Stdlib/kotlin/Result.kt (MIGRATION-RESULT-001).
-/// These stubs remain active:
-///   - The Result class and all member functions are registered synthetically here because
-///     class definitions cannot coexist with synthetic stubs in the bundled pipeline
-///     (stubs run before header collection, which would cause duplicate-declaration errors).
-///   - isSuccess / isFailure properties use idempotent registration and will have their
-///     externalLinkName updated to kk_result_isSuccess / kk_result_isFailure.
-///   - runCatching is also bundled as a Kotlin-source top-level function; the synthetic
-///     symbol registered here carries externalLinkName = "kk_runCatching" and, because it
-///     is registered first, symbols.lookup returns it so dispatch still goes to the runtime.
+/// Coroutine stubs are registered before bundled source headers, and
+/// `Continuation.resumeWith(Result<T>)` needs the `Result` nominal symbol during
+/// that pass. The actual Result API surface is now collected from
+/// `Stdlib/kotlin/Result.kt`. This helper registers only the private ABI bridge
+/// functions that the Kotlin source wrappers call.
 extension DataFlowSemaPhase {
     func registerSyntheticResultStubs(
         symbols: SymbolTable,
@@ -18,11 +12,8 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-
-        // --- Result<T> class symbol ---
         let resultSymbol = ensureClassSymbol(named: "Result", in: kotlinPkg, symbols: symbols, interner: interner)
 
-        // Type parameter T
         let tName = interner.intern("T")
         let resultFQName = kotlinPkg + [interner.intern("Result")]
         let tFQName = resultFQName + [tName]
@@ -42,543 +33,298 @@ extension DataFlowSemaPhase {
         }
 
         let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
-        let nullableTType = types.makeNullable(tType)
-
         let resultType = types.make(.classType(ClassType(
-            classSymbol: resultSymbol, args: [.out(tType)], nullability: .nonNull
+            classSymbol: resultSymbol,
+            args: [.invariant(tType)],
+            nullability: .nonNull
         )))
+        types.setNominalTypeParameterSymbols([tSymbol], for: resultSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: resultSymbol)
+        symbols.setPropertyType(resultType, for: resultSymbol)
 
-        // Throwable type
-        let throwableFQName = kotlinPkg + [interner.intern("Throwable")]
-        let throwableSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: throwableFQName) {
-            throwableSymbol = existing
-        } else {
-            throwableSymbol = symbols.define(
-                kind: .class,
-                name: interner.intern("Throwable"),
-                fqName: throwableFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
+        let nullableTType = types.makeNullable(tType)
+        let throwableSymbol = ensureClassSymbol(named: "Throwable", in: kotlinPkg, symbols: symbols, interner: interner)
         let throwableType = types.make(.classType(ClassType(
-            classSymbol: throwableSymbol, args: [], nullability: .nonNull
+            classSymbol: throwableSymbol,
+            args: [],
+            nullability: .nonNull
         )))
         let nullableThrowableType = types.makeNullable(throwableType)
-
+        let unitType = types.unitType
         let boolType = types.booleanType
 
-        // --- STDLIB-280: runCatching top-level function ---
-        // fun <T> runCatching(block: () -> T): Result<T>
-        let blockType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [],
-            returnType: tType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerResultTopLevelFunction(
-            named: "runCatching",
-            packageFQName: kotlinPkg,
-            parameters: [("block", blockType)],
-            returnType: resultType,
+        func functionType(params: [TypeID], returnType: TypeID) -> TypeID {
+            types.make(.functionType(FunctionType(
+                params: params,
+                returnType: returnType,
+                nullability: .nonNull
+            )))
+        }
+
+        func makeResultType(for elementType: TypeID) -> TypeID {
+            types.make(.classType(ClassType(
+                classSymbol: resultSymbol,
+                args: [.invariant(elementType)],
+                nullability: .nonNull
+            )))
+        }
+
+        func defineTypeParameter(named name: String, under ownerFQName: [InternedString]) -> (SymbolID, TypeID) {
+            let internedName = interner.intern(name)
+            let fqName = ownerFQName + [internedName]
+            let symbol: SymbolID = if let existing = symbols.lookup(fqName: fqName) {
+                existing
+            } else {
+                symbols.define(
+                    kind: .typeParameter,
+                    name: internedName,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+            }
+            let type = types.make(.typeParam(TypeParamType(symbol: symbol, nullability: .nonNull)))
+            return (symbol, type)
+        }
+
+        func defineValueParameters(
+            for functionSymbol: SymbolID,
+            functionFQName: [InternedString],
+            parameterTypes: [TypeID]
+        ) -> [SymbolID] {
+            parameterTypes.enumerated().map { index, type in
+                let name = interner.intern("p\(index)")
+                let fqName = functionFQName + [name]
+                let parameterSymbol = symbols.define(
+                    kind: .valueParameter,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
+                symbols.setPropertyType(type, for: parameterSymbol)
+                return parameterSymbol
+            }
+        }
+
+        func registerTopLevelBridge(
+            named name: String,
+            externalLinkName: String,
+            parameterTypes: [TypeID],
+            returnType: TypeID,
+            typeParameterSymbols: [SymbolID] = []
+        ) {
+            let functionName = interner.intern(name)
+            let functionFQName = kotlinPkg + [functionName]
+            let functionSymbol: SymbolID
+            if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                symbols.symbol(symbolID)?.kind == .function
+            }) {
+                functionSymbol = existing
+            } else {
+                functionSymbol = symbols.define(
+                    kind: .function,
+                    name: functionName,
+                    fqName: functionFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
+            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+            let parameterSymbols = defineValueParameters(
+                for: functionSymbol,
+                functionFQName: functionFQName,
+                parameterTypes: parameterTypes
+            )
+            for typeParameterSymbol in typeParameterSymbols {
+                symbols.setParentSymbol(functionSymbol, for: typeParameterSymbol)
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: parameterTypes,
+                    returnType: returnType,
+                    valueParameterSymbols: parameterSymbols,
+                    valueParameterHasDefaultValues: Array(repeating: false, count: parameterTypes.count),
+                    valueParameterIsVararg: Array(repeating: false, count: parameterTypes.count),
+                    typeParameterSymbols: typeParameterSymbols
+                ),
+                for: functionSymbol
+            )
+        }
+
+        func registerMemberBridge(
+            named name: String,
+            externalLinkName: String,
+            parameterTypes: [TypeID],
+            returnType: TypeID,
+            ownTypeParameterSymbols: [SymbolID] = []
+        ) {
+            let functionName = interner.intern(name)
+            let functionFQName = resultFQName + [functionName]
+            let functionSymbol: SymbolID
+            if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                symbols.symbol(symbolID)?.kind == .function
+            }) {
+                functionSymbol = existing
+            } else {
+                functionSymbol = symbols.define(
+                    kind: .function,
+                    name: functionName,
+                    fqName: functionFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(resultSymbol, for: functionSymbol)
+            }
+            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+            let parameterSymbols = defineValueParameters(
+                for: functionSymbol,
+                functionFQName: functionFQName,
+                parameterTypes: parameterTypes
+            )
+            for typeParameterSymbol in ownTypeParameterSymbols {
+                symbols.setParentSymbol(functionSymbol, for: typeParameterSymbol)
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: resultType,
+                    parameterTypes: parameterTypes,
+                    returnType: returnType,
+                    valueParameterSymbols: parameterSymbols,
+                    valueParameterHasDefaultValues: Array(repeating: false, count: parameterTypes.count),
+                    valueParameterIsVararg: Array(repeating: false, count: parameterTypes.count),
+                    typeParameterSymbols: [tSymbol] + ownTypeParameterSymbols,
+                    classTypeParameterCount: 1
+                ),
+                for: functionSymbol
+            )
+        }
+
+        let runCatchingFQName = kotlinPkg + [interner.intern("__kk_runCatching")]
+        let (runTParam, runTType) = defineTypeParameter(named: "T", under: runCatchingFQName)
+        registerTopLevelBridge(
+            named: "__kk_runCatching",
             externalLinkName: "kk_runCatching",
-            typeParameterSymbols: [tSymbol],
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [functionType(params: [], returnType: runTType)],
+            returnType: makeResultType(for: runTType),
+            typeParameterSymbols: [runTParam]
         )
 
-        // --- STDLIB-281: Result properties ---
-        registerResultMemberProperty(
-            named: "isSuccess",
+        registerMemberBridge(
+            named: "__kk_result_isSuccess",
             externalLinkName: "kk_result_isSuccess",
-            ownerSymbol: resultSymbol,
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [],
+            returnType: boolType
         )
-
-        registerResultMemberProperty(
-            named: "isFailure",
+        registerMemberBridge(
+            named: "__kk_result_isFailure",
             externalLinkName: "kk_result_isFailure",
-            ownerSymbol: resultSymbol,
-            returnType: boolType,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [],
+            returnType: boolType
         )
-
-        // --- STDLIB-282: Result member functions ---
-
-        // getOrNull(): T?
-        registerResultMemberFunction(
-            named: "getOrNull",
+        registerMemberBridge(
+            named: "__kk_result_getOrNull",
             externalLinkName: "kk_result_getOrNull",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [],
-            returnType: nullableTType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [],
+            returnType: nullableTType
         )
-
-        // getOrDefault(defaultValue: T): T
-        registerResultMemberFunction(
-            named: "getOrDefault",
+        registerMemberBridge(
+            named: "__kk_result_getOrDefault",
             externalLinkName: "kk_result_getOrDefault",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [("defaultValue", tType, false, false)],
-            returnType: tType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [tType],
+            returnType: tType
         )
-
-        // getOrElse(onFailure: (Throwable) -> T): T
-        let onFailureLambdaType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [throwableType],
-            returnType: tType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerResultMemberFunction(
-            named: "getOrElse",
+        registerMemberBridge(
+            named: "__kk_result_getOrElse",
             externalLinkName: "kk_result_getOrElse",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [("onFailure", onFailureLambdaType, false, false)],
-            returnType: tType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [functionType(params: [throwableType], returnType: tType)],
+            returnType: tType
         )
-
-        // getOrThrow(): T
-        registerResultMemberFunction(
-            named: "getOrThrow",
+        registerMemberBridge(
+            named: "__kk_result_getOrThrow",
             externalLinkName: "kk_result_getOrThrow",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [],
-            returnType: tType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [],
+            returnType: tType
         )
-
-        // exceptionOrNull(): Throwable?
-        registerResultMemberFunction(
-            named: "exceptionOrNull",
+        registerMemberBridge(
+            named: "__kk_result_exceptionOrNull",
             externalLinkName: "kk_result_exceptionOrNull",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [],
-            returnType: nullableThrowableType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [],
+            returnType: nullableThrowableType
         )
 
-        // --- STDLIB-283: Result HOF functions ---
-
-        // map(transform: (T) -> R): Result<R>
-        let rName = interner.intern("R")
-
-        let mapRFQName = resultFQName + [interner.intern("map"), rName]
-        let mapRSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: mapRFQName) {
-            mapRSymbol = existing
-        } else {
-            mapRSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: mapRFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let mapRType = types.make(.typeParam(TypeParamType(symbol: mapRSymbol, nullability: .nonNull)))
-
-        let mapTransformType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [tType],
-            returnType: mapRType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let resultMapRType = types.make(.classType(ClassType(
-            classSymbol: resultSymbol, args: [.out(mapRType)], nullability: .nonNull
-        )))
-        registerResultMemberFunction(
-            named: "map",
+        let mapFQName = resultFQName + [interner.intern("__kk_result_map")]
+        let (mapRParam, mapRType) = defineTypeParameter(named: "R", under: mapFQName)
+        registerMemberBridge(
+            named: "__kk_result_map",
             externalLinkName: "kk_result_map",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [("transform", mapTransformType, false, false)],
-            returnType: resultMapRType,
-            typeParameterSymbols: [tSymbol, mapRSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [functionType(params: [tType], returnType: mapRType)],
+            returnType: makeResultType(for: mapRType),
+            ownTypeParameterSymbols: [mapRParam]
         )
 
-        // fold(onSuccess: (T) -> R, onFailure: (Throwable) -> R): R
-        let foldRFQName = resultFQName + [interner.intern("fold"), rName]
-        let foldRSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: foldRFQName) {
-            foldRSymbol = existing
-        } else {
-            foldRSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: foldRFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let foldRType = types.make(.typeParam(TypeParamType(symbol: foldRSymbol, nullability: .nonNull)))
-
-        let foldOnSuccessType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [tType],
-            returnType: foldRType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let foldOnFailureType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [throwableType],
-            returnType: foldRType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerResultMemberFunction(
-            named: "fold",
+        let foldFQName = resultFQName + [interner.intern("__kk_result_fold")]
+        let (foldRParam, foldRType) = defineTypeParameter(named: "R", under: foldFQName)
+        registerMemberBridge(
+            named: "__kk_result_fold",
             externalLinkName: "kk_result_fold",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [
-                ("onSuccess", foldOnSuccessType, false, false),
-                ("onFailure", foldOnFailureType, false, false),
+            parameterTypes: [
+                functionType(params: [tType], returnType: foldRType),
+                functionType(params: [throwableType], returnType: foldRType),
             ],
             returnType: foldRType,
-            typeParameterSymbols: [tSymbol, foldRSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            ownTypeParameterSymbols: [foldRParam]
         )
 
-        // onSuccess(action: (T) -> Unit): Result<T>
-        let onSuccessActionType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [tType],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerResultMemberFunction(
-            named: "onSuccess",
+        registerMemberBridge(
+            named: "__kk_result_onSuccess",
             externalLinkName: "kk_result_onSuccess",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [("action", onSuccessActionType, false, false)],
-            returnType: resultType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [functionType(params: [tType], returnType: unitType)],
+            returnType: resultType
         )
-
-        // onFailure(action: (Throwable) -> Unit): Result<T>
-        let onFailureActionType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [throwableType],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerResultMemberFunction(
-            named: "onFailure",
+        registerMemberBridge(
+            named: "__kk_result_onFailure",
             externalLinkName: "kk_result_onFailure",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [("action", onFailureActionType, false, false)],
-            returnType: resultType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [functionType(params: [throwableType], returnType: unitType)],
+            returnType: resultType
         )
-
-        // --- STDLIB-589: Result.recover ---
-        // recover(transform: (Throwable) -> T): Result<T>
-        //
-        // Kotlin stdlib signature: `<R, T : R> Result<T>.recover(transform: (Throwable) -> R): Result<R>`
-        // Limitation: Our type system does not support upper-bound constraints (T : R).
-        // We intentionally use single type parameter T rather than introducing an unconstrained R,
-        // because without the T : R bound an unconstrained R would allow callers to choose an
-        // unrelated R while the success path still returns the original T value, breaking type safety.
-        // Consequence: valid Kotlin code that widens the type via recover (e.g., Result<Int>.recover
-        // returning Result<Number>) will not type-check in this compiler. This is a known limitation
-        // tracked as a source-compatibility gap.
-        let recoverTransformType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [throwableType],
-            returnType: tType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerResultMemberFunction(
-            named: "recover",
+        let recoverFQName = resultFQName + [interner.intern("__kk_result_recover")]
+        let (recoverRParam, recoverRType) = defineTypeParameter(named: "R", under: recoverFQName)
+        registerMemberBridge(
+            named: "__kk_result_recover",
             externalLinkName: "kk_result_recover",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [("transform", recoverTransformType, false, false)],
-            returnType: resultType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [functionType(params: [throwableType], returnType: recoverRType)],
+            returnType: makeResultType(for: recoverRType),
+            ownTypeParameterSymbols: [recoverRParam]
         )
-
-        // --- STDLIB-RESULT-107: Result advanced operations ---
-
-        // recoverCatching(transform: (Throwable) -> T): Result<T>
-        // Like recover but catches exceptions thrown by the transform lambda.
-        let recoverCatchingTransformType = types.make(.functionType(FunctionType(
-            receiver: nil,
-            params: [throwableType],
-            returnType: tType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerResultMemberFunction(
-            named: "recoverCatching",
+        let recoverCatchingFQName = resultFQName + [interner.intern("__kk_result_recoverCatching")]
+        let (recoverCatchingRParam, recoverCatchingRType) = defineTypeParameter(
+            named: "R",
+            under: recoverCatchingFQName
+        )
+        registerMemberBridge(
+            named: "__kk_result_recoverCatching",
             externalLinkName: "kk_result_recoverCatching",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [("transform", recoverCatchingTransformType, false, false)],
-            returnType: resultType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [functionType(params: [throwableType], returnType: recoverCatchingRType)],
+            returnType: makeResultType(for: recoverCatchingRType),
+            ownTypeParameterSymbols: [recoverCatchingRParam]
         )
-
-        // component1(): T? — destructuring support (success value)
-        registerResultMemberFunction(
-            named: "component1",
+        registerMemberBridge(
+            named: "__kk_result_component1",
             externalLinkName: "kk_result_component1",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [],
-            returnType: nullableTType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [],
+            returnType: nullableTType
         )
-
-        // component2(): Throwable? — destructuring support (exception)
-        registerResultMemberFunction(
-            named: "component2",
+        registerMemberBridge(
+            named: "__kk_result_component2",
             externalLinkName: "kk_result_component2",
-            ownerSymbol: resultSymbol,
-            ownerType: resultType,
-            parameters: [],
-            returnType: nullableThrowableType,
-            typeParameterSymbols: [tSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
+            parameterTypes: [],
+            returnType: nullableThrowableType
         )
-    }
-
-    private func registerResultTopLevelFunction(
-        named name: String,
-        packageFQName: [InternedString],
-        parameters: [(name: String, type: TypeID)],
-        returnType: TypeID,
-        externalLinkName: String,
-        typeParameterSymbols: [SymbolID],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.parameterTypes == parameters.map(\.type)
-                && existingSignature.returnType == returnType
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let paramNameID = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramNameID,
-                fqName: functionFQName + [paramNameID],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map(\.type),
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
-                typeParameterSymbols: typeParameterSymbols,
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func registerResultMemberFunction(
-        named name: String,
-        externalLinkName: String,
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
-        returnType: TypeID,
-        typeParameterSymbols: [SymbolID] = [],
-        classTypeParameterCount: Int = 0,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let functionName = interner.intern(name)
-        let functionFQName = ownerInfo.fqName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.receiverType == ownerType
-                && existingSignature.parameterTypes == parameters.map(\.type)
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var parameterTypes: [TypeID] = []
-        var parameterSymbols: [SymbolID] = []
-        var parameterDefaults: [Bool] = []
-        var parameterVarargs: [Bool] = []
-
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            parameterTypes.append(parameter.type)
-            parameterSymbols.append(parameterSymbol)
-            parameterDefaults.append(parameter.hasDefault)
-            parameterVarargs.append(parameter.isVararg)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: parameterDefaults,
-                valueParameterIsVararg: parameterVarargs,
-                typeParameterSymbols: typeParameterSymbols,
-                classTypeParameterCount: classTypeParameterCount
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func registerResultMemberProperty(
-        named name: String,
-        externalLinkName: String,
-        ownerSymbol: SymbolID,
-        returnType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
     }
 }

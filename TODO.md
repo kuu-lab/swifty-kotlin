@@ -103,7 +103,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeResult.swift` (16 @_cdecl)
 > 移行先: `Stdlib/kotlin/Result.kt`
 
-- [ ] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
+- [x] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
 
 ## ターゲット外バックログ（本体非追跡）
 #### JVM Atomic相互運用stub

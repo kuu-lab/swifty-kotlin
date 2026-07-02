@@ -443,6 +443,14 @@ public final class SymbolTable {
         symbolsStorage[index].flags.formUnion(flags)
     }
 
+    public func removeFlags(_ flags: SymbolFlags, for symbol: SymbolID) {
+        let index = Int(symbol.rawValue)
+        guard index >= 0, index < symbolsStorage.count else {
+            return
+        }
+        symbolsStorage[index].flags.subtract(flags)
+    }
+
     public func lookup(fqName: [InternedString]) -> SymbolID? {
         lock.lock()
         defer { lock.unlock() }
