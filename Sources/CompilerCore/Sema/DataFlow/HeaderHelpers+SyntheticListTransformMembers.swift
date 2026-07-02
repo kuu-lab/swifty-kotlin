@@ -177,7 +177,7 @@ extension DataFlowSemaPhase {
                     externalLinkName: "kk_list_shuffled_random"
                 )
             } else {
-                assertionFailure("kotlin.random.Random must be registered before collection stubs")
+                return
             }
         }
 

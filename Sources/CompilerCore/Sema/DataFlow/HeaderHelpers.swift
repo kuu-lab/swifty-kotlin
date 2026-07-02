@@ -1113,6 +1113,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
+        registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
         patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
         patchKTypeArgumentsType(symbols: symbols, types: types, interner: interner)

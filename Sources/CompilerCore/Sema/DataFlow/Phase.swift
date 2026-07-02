@@ -99,14 +99,17 @@ final class DataFlowSemaPhase: CompilerPhase {
         BundledSyntheticStubRegistration.bundledIndex = .empty
         BundledSyntheticStubRegistration.types = types
         BundledSyntheticStubRegistration.skippedCount = 0
+        BundledSyntheticStubRegistration.postBundledPass = false
         BundledSyntheticStubRegistration.preBundledPass = true
+        defer {
+            BundledSyntheticStubRegistration.preBundledPass = false
+            BundledSyntheticStubRegistration.types = nil
+        }
         registerSyntheticDelegateStubs(
             symbols: symbols,
             types: types,
             interner: interner
         )
-        BundledSyntheticStubRegistration.preBundledPass = false
-        BundledSyntheticStubRegistration.types = nil
     }
 
     private func registerSyntheticPostBundledStubs(
@@ -118,15 +121,18 @@ final class DataFlowSemaPhase: CompilerPhase {
         BundledSyntheticStubRegistration.bundledIndex = bundledIndex
         BundledSyntheticStubRegistration.types = types
         BundledSyntheticStubRegistration.skippedCount = 0
+        BundledSyntheticStubRegistration.preBundledPass = false
         BundledSyntheticStubRegistration.postBundledPass = true
+        defer {
+            BundledSyntheticStubRegistration.postBundledPass = false
+            BundledSyntheticStubRegistration.types = nil
+        }
         registerSyntheticDelegateStubs(
             symbols: symbols,
             types: types,
             interner: interner,
             bundledIndex: bundledIndex
         )
-        BundledSyntheticStubRegistration.postBundledPass = false
-        BundledSyntheticStubRegistration.types = nil
     }
 
     private func isBundledFile(_ file: ASTFile, sourceManager: SourceManager) -> Bool {
