@@ -15,7 +15,7 @@ Metrics:
   loc_by_directory                         Physical lines in tracked files, grouped by top-level directory
   header_helpers_synthetic_total_lines     Physical lines in HeaderHelpers+Synthetic*.swift files
   kk_literal_count                         Occurrences of string literals beginning with "kk_ in Swift/Kotlin sources
-  interner_resolve_literal_comparison_count Occurrences of interner.resolve == "..." in Swift sources
+  interner_resolve_literal_comparison_count Occurrences of interner.resolve(...) == "..." in Swift sources
 USAGE
 }
 
@@ -101,4 +101,4 @@ printf 'header_helpers_synthetic_total_lines\tSources/CompilerCore/Sema/DataFlow
 printf 'kk_literal_count\tSwift/Kotlin sources\t%s\n' \
   "$(count_regex_occurrences '"kk_[^"]*"' "${SWIFT_AND_KOTLIN_FILES[@]}")"
 printf 'interner_resolve_literal_comparison_count\tSwift sources\t%s\n' \
-  "$(count_regex_occurrences 'interner\.resolve[[:space:]]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"
+  "$(count_regex_occurrences 'interner\.resolve[^=]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"

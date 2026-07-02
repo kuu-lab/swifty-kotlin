@@ -121,8 +121,7 @@ struct ValueClassUnboxingTests {
         // After unboxing, constructor calls for value classes should be
         // eliminated (rewritten to .copy or removed entirely).
         var hasValueClassConstructorCall = false
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+        for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
                 switch instruction {
                 case let .call(symbol, _, _, _, _, _, _, _):
@@ -170,8 +169,7 @@ struct ValueClassUnboxingTests {
         // After unboxing, there should be no kk_array_get_inbounds calls
         // on value class receivers.
         var hasArrayGetOnValueClass = false
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+        for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
                 if case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
                    callee == kk_array_get_inbounds,
@@ -216,8 +214,7 @@ struct ValueClassUnboxingTests {
 
         // Scan for kk_object_new calls whose result has a value class type
         var hasValueClassAlloc = false
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+        for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
                 if case let .call(_, callee, _, result, _, _, _, _) = instruction,
                    callee == kk_object_new,
@@ -258,8 +255,7 @@ struct ValueClassUnboxingTests {
 
         // Regular classes should still have kk_object_new calls.
         var hasObjectNew = false
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+        for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
                 if case let .call(_, callee, _, _, _, _, _, _) = instruction,
                    callee == kk_object_new

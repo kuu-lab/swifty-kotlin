@@ -8,6 +8,13 @@ let typeTokenSymbolOffset: Int = -20000
 /// Coroutine state machine dispatch labels start at this offset.
 let coroutineDispatchLabelBase: Int32 = 1000
 
+func findAllKIRFunctions(in module: KIRModule) -> [KIRFunction] {
+    module.arena.declarations.compactMap { decl -> KIRFunction? in
+        guard case let .function(function) = decl else { return nil }
+        return function
+    }
+}
+
 func findKIRFunction(
     named name: String,
     in module: KIRModule,
@@ -15,10 +22,9 @@ func findKIRFunction(
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> KIRFunction {
-    let function = module.arena.declarations.compactMap { decl -> KIRFunction? in
-        guard case let .function(function) = decl else { return nil }
-        return interner.resolve(function.name) == name ? function : nil
-    }.first
+    let function = findAllKIRFunctions(in: module).first { function in
+        interner.resolve(function.name) == name
+    }
     return try XCTUnwrap(function, "KIR function '\(name)' not found in module", file: file, line: line)
 }
 

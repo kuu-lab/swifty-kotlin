@@ -186,12 +186,7 @@ extension LoweringPassRegressionTests {
             interner: interner
         )
         ctx.kir = module
-        ctx.sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: bindings,
-            diagnostics: diagnostics
-        )
+        ctx.sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         try LoweringPhase().run(ctx)
 
@@ -351,13 +346,10 @@ extension LoweringPassRegressionTests {
             try LoweringPhase().run(ctx)
 
             let module = try #require(ctx.kir)
-            let loweredSuspend = try #require(module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else {
-                    return nil
-                }
+            let loweredSuspend = try #require(findAllKIRFunctions(in: module).first { function in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
-                return callees.contains("kk_suspend_coroutine") ? function : nil
-            }.first)
+                return callees.contains("kk_suspend_coroutine")
+            })
 
             let loweredCallees = extractCallees(from: loweredSuspend.body, interner: ctx.interner)
             #expect(loweredCallees.contains("kk_suspend_coroutine"))

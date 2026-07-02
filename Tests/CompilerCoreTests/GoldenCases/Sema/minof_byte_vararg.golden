@@ -6,7 +6,7 @@ symbol fq=golden.sema.varargMinByte.$0.d kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int vararg=[0,1]
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.other kind=valueParameter vis=private flags=synthetic
-file f14 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.varargMinByte fun varargMinByte sym=golden.sema.varargMinByte
 expr e@3:69 name(a) type=Int ref=golden.sema.varargMinByte.$0.a
 expr e@3:72 name(b) type=Int ref=golden.sema.varargMinByte.$0.b

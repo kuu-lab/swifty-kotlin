@@ -10,18 +10,12 @@ extension BuildKIRRegressionTests {
         try BuildKIRPhase().run(ctx)
 
         let kir = try #require(ctx.kir)
-        let pickFunction = try #require(kir.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return function.symbol == pickSymbol ? function : nil
-        }.first)
-        let mainFunction = try #require(kir.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return function.symbol == mainSymbol ? function : nil
-        }.first)
+        let pickFunction = try #require(findAllKIRFunctions(in: kir).first { function in
+            function.symbol == pickSymbol
+        })
+        let mainFunction = try #require(findAllKIRFunctions(in: kir).first { function in
+            function.symbol == mainSymbol
+        })
 
         // Type token symbols use a negative offset to avoid collision with real symbol IDs
         let expectedTokenSymbol = SymbolID(rawValue: Int32(typeTokenSymbolOffset) - typeParameterSymbol.rawValue)
@@ -59,10 +53,9 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let mainFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
-                return ctx.interner.resolve(function.name) == "main" ? function : nil
-            }.first
+            let mainFunction = findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name) == "main"
+            }
             let body = try #require(mainFunction?.body)
             let callNames = body.compactMap { instruction -> String? in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
@@ -83,10 +76,9 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let mainFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
-                return ctx.interner.resolve(function.name) == "main" ? function : nil
-            }.first
+            let mainFunction = findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name) == "main"
+            }
             let body = try #require(mainFunction?.body)
             let callNames = body.compactMap { instruction -> String? in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
@@ -106,10 +98,9 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let mainFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
-                return ctx.interner.resolve(function.name) == "main" ? function : nil
-            }.first
+            let mainFunction = findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name) == "main"
+            }
             let body = try #require(mainFunction?.body)
             let callNames = body.compactMap { instruction -> String? in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
@@ -129,10 +120,7 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
-                return function
-            }
+            let allFunctions = findAllKIRFunctions(in: module)
             let stubNames = allFunctions.map { ctx.interner.resolve($0.name) }
                 .filter { $0.hasSuffix("$default") }
             #expect(stubNames.contains("greetUser$default"), "Expected greetUser$default stub, got: \(stubNames)")
@@ -165,10 +153,9 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let stubFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
-                return ctx.interner.resolve(function.name) == "compute$default" ? function : nil
-            }.first
+            let stubFunction = findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name) == "compute$default"
+            }
             #expect(stubFunction != nil, "Expected compute$default stub function")
             if let stub = stubFunction {
                 let paramCount = stub.params.count
@@ -189,10 +176,9 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let stubFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
-                return ctx.interner.resolve(function.name) == "ordered$default" ? function : nil
-            }.first
+            let stubFunction = findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name) == "ordered$default"
+            }
             #expect(stubFunction != nil, "Expected ordered$default stub function")
             if let stub = stubFunction {
                 var labelOrder: [Int32] = []

@@ -383,6 +383,7 @@ public final class SymbolTable {
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
     private var externalLinkNames: [SymbolID: String] = [:]
+    private var stdlibSpecialCallKindsBySymbol: [SymbolID: StdlibSpecialCallKind] = [:]
     private var typeAliasUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
     private var parentSymbols: [SymbolID: SymbolID] = [:]
@@ -754,6 +755,14 @@ public final class SymbolTable {
         externalLinkNames[symbol]
     }
 
+    public func setStdlibSpecialCallKind(_ kind: StdlibSpecialCallKind, for symbol: SymbolID) {
+        stdlibSpecialCallKindsBySymbol[symbol] = kind
+    }
+
+    public func stdlibSpecialCallKind(forSymbol symbol: SymbolID) -> StdlibSpecialCallKind? {
+        stdlibSpecialCallKindsBySymbol[symbol]
+    }
+
     public func setTypeAliasUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
         lock.lock()
         defer { lock.unlock() }
@@ -856,14 +865,6 @@ public final class SymbolTable {
 
     public func accessorOwnerProperty(for accessorSymbol: SymbolID) -> SymbolID? {
         accessorOwnerProperties[accessorSymbol]
-    }
-
-    func setTypeParameterUpperBound(_ bound: TypeID, for symbol: SymbolID) {
-        var bounds = typeParameterUpperBoundsMap[symbol] ?? []
-        if !bounds.contains(bound) {
-            bounds.append(bound)
-        }
-        typeParameterUpperBoundsMap[symbol] = bounds
     }
 
     public func setTypeParameterUpperBounds(_ bounds: [TypeID], for symbol: SymbolID) {

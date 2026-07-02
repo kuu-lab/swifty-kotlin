@@ -1,4 +1,4 @@
-// SKIP-DIFF: kotlin.system.getTimeNanos is a Kotlin/Native-only API not available in kotlinc.
+// SKIP-DIFF (DEBT-DIFF-001): kotlin.system.getTimeNanos is a Kotlin/Native-only API not available in kotlinc.
 import kotlin.system.getTimeNanos
 
 fun main() {

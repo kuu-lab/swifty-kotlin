@@ -1,6 +1,6 @@
 symbol fq=nullAssertNarrows kind=function vis=public flags=_ sig=recv=_ params=[Int?] ret=Int
 symbol fq=nullAssertNarrows.$0.x kind=valueParameter vis=private flags=_
-file f14 package=_
+file f15 package=_
   decl nullAssertNarrows fun nullAssertNarrows sym=nullAssertNarrows
 expr e@2:5#0 name(x) type=Int? ref=nullAssertNarrows.$0.x
 expr e@2:5#1 nullAssert expr=e@2:5#0 type=Int

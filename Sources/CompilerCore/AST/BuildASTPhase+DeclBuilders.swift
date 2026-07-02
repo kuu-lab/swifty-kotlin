@@ -502,7 +502,7 @@ extension BuildASTPhase {
             return nil
         }
         var index = classIndex + 1
-        if index < tokens.count, isTypeLikeNameToken(tokens[index].kind) {
+        if index < tokens.count, TypeRefParserCore.isTypeLikeNameToken(tokens[index].kind) {
             index += 1
         }
         if index < tokens.count, tokens[index].kind == .symbol(.lessThan) {
@@ -595,7 +595,7 @@ extension BuildASTPhase {
             if isParameterModifierToken(token) {
                 return false
             }
-            return isTypeLikeNameToken(token.kind)
+            return TypeRefParserCore.isTypeLikeNameToken(token.kind)
         }) else {
             return
         }
@@ -660,12 +660,12 @@ extension BuildASTPhase {
             // Skip optional use-site target: `field:`, `get:`, `set:`, etc.
             if i + 1 < tokens.count,
                case .symbol(.colon) = tokens[i + 1].kind,
-               isTypeLikeNameToken(tokens[i].kind) {
+               TypeRefParserCore.isTypeLikeNameToken(tokens[i].kind) {
                 i += 2 // skip `target` and `:`
             }
             guard i < tokens.count else { break }
             // Skip annotation name
-            if isTypeLikeNameToken(tokens[i].kind) {
+            if TypeRefParserCore.isTypeLikeNameToken(tokens[i].kind) {
                 i += 1
             }
             // Skip optional parenthesised arguments: `(args)`

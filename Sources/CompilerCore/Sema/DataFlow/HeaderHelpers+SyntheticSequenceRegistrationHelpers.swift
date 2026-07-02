@@ -728,6 +728,7 @@ extension DataFlowSemaPhase {
         returnType: TypeID,
         externalLinkName: String,
         annotations: [MetadataAnnotationRecord] = [],
+        stdlibSpecialCallKind: StdlibSpecialCallKind? = nil,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -741,6 +742,9 @@ extension DataFlowSemaPhase {
                 && existingSignature.returnType == returnType
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            if let stdlibSpecialCallKind {
+                symbols.setStdlibSpecialCallKind(stdlibSpecialCallKind, for: existing)
+            }
             if !annotations.isEmpty {
                 symbols.setAnnotations(annotations, for: existing)
             }
@@ -759,6 +763,9 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         }
         symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        if let stdlibSpecialCallKind {
+            symbols.setStdlibSpecialCallKind(stdlibSpecialCallKind, for: functionSymbol)
+        }
         if !annotations.isEmpty {
             symbols.setAnnotations(annotations, for: functionSymbol)
         }

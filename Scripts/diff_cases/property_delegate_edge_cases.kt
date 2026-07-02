@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-005): common stdlib surface gap tracking
 import kotlin.properties.Delegates
 
 class Holder {

@@ -5,7 +5,7 @@ symbol fq=kotlinx.cinterop.toKString#0 kind=function vis=public flags=synthetic 
 symbol fq=kotlinx.cinterop.toKString.endIndex kind=valueParameter vis=private flags=synthetic type=Int
 symbol fq=kotlinx.cinterop.toKString.startIndex kind=valueParameter vis=private flags=synthetic type=Int
 symbol fq=kotlinx.cinterop.toKString.throwOnInvalidSequence kind=valueParameter vis=private flags=synthetic type=Boolean
-file f14 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.decodeBytes fun decodeBytes sym=golden.sema.decodeBytes
 expr e@7:45#0 name(bytes) type=kotlin.ByteArray ref=golden.sema.decodeBytes.$0.bytes
 expr e@7:45#1 memberCall recv=e@7:45#0 callee=toKString args=[] type=String call=kotlinx.cinterop.toKString#0
