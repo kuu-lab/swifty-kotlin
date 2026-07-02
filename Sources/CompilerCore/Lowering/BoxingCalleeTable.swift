@@ -101,8 +101,6 @@ struct BoxingCalleeTable {
             return .double
         case .char:
             return .char
-        case .string:
-            return nil
         }
     }
 }
