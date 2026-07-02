@@ -11,7 +11,7 @@ symbol fq=golden.sema.Right kind=interface vis=public flags=_
 symbol fq=golden.sema.Right.method kind=function vis=public flags=overrideMember sig=recv=golden.sema.Right params=[] ret=String
 symbol fq=golden.sema.WithOverride kind=class vis=public flags=_
 symbol fq=golden.sema.WithSuperCall kind=class vis=public flags=_
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Base interface Base sym=golden.sema.Base
   decl golden.sema.Left interface Left sym=golden.sema.Left
   decl golden.sema.Right interface Right sym=golden.sema.Right
@@ -21,24 +21,24 @@ file f15 package=golden.sema
   decl golden.sema.B interface B sym=golden.sema.B
   decl golden.sema.C interface C sym=golden.sema.C
   decl golden.sema.D class D sym=golden.sema.D
-expr e@6:28#4 string(Base) type=String
+expr e@6:28 string(Base) type=String
 expr e@10:37 string(Left) type=String
 expr e@14:37 string(Right) type=String
 expr e@19:37 string(Override) type=String
-expr e@24:37#1 super<Left> type=golden.sema.Left
-expr e@24:37#2 memberCall recv=e@24:37#1 callee=method args=[] type=String call=golden.sema.Left.method
+expr e@24:37 super<Left> type=golden.sema.Left
+expr e@24:37#1 memberCall recv=e@24:37 callee=method args=[] type=String call=golden.sema.Left.method
 expr e@24:60 string(+) type=String
-expr e@24:37#3 binary(add) lhs=e@24:37#2 rhs=e@24:60 type=String
-expr e@24:66#0 super<Right> type=golden.sema.Right
-expr e@24:66#1 memberCall recv=e@24:66#0 callee=method args=[] type=String call=golden.sema.Right.method
-expr e@24:37#4 binary(add) lhs=e@24:37#3 rhs=e@24:66#1 type=String
-expr e@29:27#1 string(A) type=String
+expr e@24:37#2 binary(add) lhs=e@24:37#1 rhs=e@24:60 type=String
+expr e@24:66 super<Right> type=golden.sema.Right
+expr e@24:66#1 memberCall recv=e@24:66 callee=method args=[] type=String call=golden.sema.Right.method
+expr e@24:37#3 binary(add) lhs=e@24:37#2 rhs=e@24:66#1 type=String
+expr e@29:27 string(A) type=String
 expr e@33:36 string(B) type=String
-expr e@34:27#1 string(BOnly) type=String
+expr e@34:27 string(BOnly) type=String
 expr e@38:36 string(C) type=String
-expr e@39:27#1 string(COnly) type=String
-expr e@44:36#0 super<B> type=golden.sema.B
-expr e@44:36#1 memberCall recv=e@44:36#0 callee=greet args=[] type=String call=golden.sema.B.greet
-expr e@44:55#0 super<C> type=golden.sema.C
-expr e@44:55#1 memberCall recv=e@44:55#0 callee=greet args=[] type=String call=golden.sema.C.greet
+expr e@39:27 string(COnly) type=String
+expr e@44:36 super<B> type=golden.sema.B
+expr e@44:36#1 memberCall recv=e@44:36 callee=greet args=[] type=String call=golden.sema.B.greet
+expr e@44:55 super<C> type=golden.sema.C
+expr e@44:55#1 memberCall recv=e@44:55 callee=greet args=[] type=String call=golden.sema.C.greet
 expr e@44:36#2 binary(add) lhs=e@44:36#1 rhs=e@44:55#1 type=String

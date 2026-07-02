@@ -5,23 +5,23 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.text.trimMargin kind=function vis=public flags=_ sig=recv=String params=[String] ret=String defaults=[1]
 symbol fq=kotlin.text.trimMargin.$0.marginPrefix kind=valueParameter vis=private flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl main fun main sym=main
-expr e@2:25#0 string(
+expr e@2:25 string(
         |alpha
         |beta
         |gamma
     ) type=String
-expr e@2:25#1 memberCall recv=e@2:25#0 callee=trimMargin args=[] type=String call=kotlin.text.trimMargin
+expr e@2:25#1 memberCall recv=e@2:25 callee=trimMargin args=[] type=String call=kotlin.text.trimMargin
 expr e@2:5 localDecl defaultMargin mutable=0 type=_ init=e@2:25#1 type=Unit ref=__local_0.defaultMargin
 expr e@7:13 name(defaultMargin) type=String ref=__local_0.defaultMargin
-expr e@7:5#4 call callee=e@7:5#3 args=[_:e@7:13] type=Unit call=kotlin.io.println#1
-expr e@9:24#0 string(
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13] type=Unit call=kotlin.io.println#1
+expr e@9:24 string(
         >left
         >right
     ) type=String
 expr e@12:20 string(>) type=String
-expr e@9:24#1 memberCall recv=e@9:24#0 callee=trimMargin args=[_:e@12:20] type=String call=kotlin.text.trimMargin
+expr e@9:24#1 memberCall recv=e@9:24 callee=trimMargin args=[_:e@12:20] type=String call=kotlin.text.trimMargin
 expr e@9:5 localDecl customMargin mutable=0 type=_ init=e@9:24#1 type=Unit ref=__local_1.customMargin
-expr e@13:13#1 name(customMargin) type=String ref=__local_1.customMargin
-expr e@13:5#7 call callee=e@13:5#6 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
+expr e@13:13 name(customMargin) type=String ref=__local_1.customMargin
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println#1

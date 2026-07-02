@@ -8,20 +8,20 @@ symbol fq=golden.sema.useMax kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.Comparable.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.Comparable.compareTo kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.Comparable.T params=[kotlin.Comparable.T] ret=Int
-file f15 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.max fun max sym=golden.sema.max
   decl golden.sema.useMax fun useMax sym=golden.sema.useMax
-expr e@4:9#2 name(a) type=golden.sema.max.$0.T ref=golden.sema.max.$0.a
-expr e@4:13#2 name(b) type=golden.sema.max.$0.T ref=golden.sema.max.$0.b
-expr e@4:9#3 binary(greaterThan) lhs=e@4:9#2 rhs=e@4:13#2 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.max.$0.T]
+expr e@4:9 name(a) type=golden.sema.max.$0.T ref=golden.sema.max.$0.a
+expr e@4:13 name(b) type=golden.sema.max.$0.T ref=golden.sema.max.$0.b
+expr e@4:9#1 binary(greaterThan) lhs=e@4:9 rhs=e@4:13 type=Boolean call=kotlin.Comparable.compareTo targs=[golden.sema.max.$0.T]
 expr e@4:16 name(a) type=golden.sema.max.$0.T ref=golden.sema.max.$0.a
 expr e@4:23 name(b) type=golden.sema.max.$0.T ref=golden.sema.max.$0.b
-expr e@4:5#2 if cond=e@4:9#3 then=e@4:16 else=e@4:23 type=golden.sema.max.$0.T
+expr e@4:5 if cond=e@4:9#1 then=e@4:16 else=e@4:23 type=golden.sema.max.$0.T
 expr e@7:18 int(1) type=Int
-expr e@7:21#1 int(2) type=Int
-expr e@7:14#1 call callee=e@7:14#0 args=[_:e@7:18,_:e@7:21#1] type=Int call=golden.sema.max targs=[Int]
-expr e@7:5#3 localDecl m1 mutable=0 type=_ init=e@7:14#1 type=Unit ref=__local_0.m1
+expr e@7:21 int(2) type=Int
+expr e@7:14 call callee=e@7:14#1 args=[_:e@7:18,_:e@7:21] type=Int call=golden.sema.max targs=[Int]
+expr e@7:5 localDecl m1 mutable=0 type=_ init=e@7:14 type=Unit ref=__local_0.m1
 expr e@8:18 string(a) type=String
 expr e@8:23 string(b) type=String
-expr e@8:14#1 call callee=e@8:14#0 args=[_:e@8:18,_:e@8:23] type=String call=golden.sema.max targs=[String]
-expr e@8:5#2 localDecl m2 mutable=0 type=_ init=e@8:14#1 type=Unit ref=__local_1.m2
+expr e@8:14 call callee=e@8:14#1 args=[_:e@8:18,_:e@8:23] type=String call=golden.sema.max targs=[String]
+expr e@8:5 localDecl m2 mutable=0 type=_ init=e@8:14 type=Unit ref=__local_1.m2
