@@ -72,6 +72,12 @@ final class LinkPhase: CompilerPhase {
             let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(target: ctx.options.target)
             let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target)
                 .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
+            let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)
+                .deletingLastPathComponent()
+                .path
+            defer {
+                try? FileManager.default.removeItem(atPath: entryWrapperDirectoryPath)
+            }
             let autolinkStubPath = try emitSwiftAutolinkStubIfNeeded(target: ctx.options.target)
             let linkInputs = buildLinkInputs(
                 objectPath: objectPath, entryWrapperObjectPath: entryWrapperObjectPath,

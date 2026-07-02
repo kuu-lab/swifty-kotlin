@@ -84,8 +84,8 @@ struct LLVMEntryPointObjectEmitter {
 
     private func makePrivateObjectURL() throws -> URL {
         let tempDirectory = FileManager.default.temporaryDirectory
-        let template = tempDirectory.appendingPathComponent("kswiftk-entry.XXXXXXXX").path
-        var templateBytes = Array(template.utf8) + [0]
+        let template = tempDirectory.appendingPathComponent("kswiftk-entry.XXXXXX").path
+        var templateBytes = template.utf8CString
         let privateDirectoryPath = try templateBytes.withUnsafeMutableBufferPointer { buffer -> String in
             guard let baseAddress = buffer.baseAddress, mkdtemp(baseAddress) != nil else {
                 throw LLVMEntryPointObjectEmitterError.emissionFailed(
