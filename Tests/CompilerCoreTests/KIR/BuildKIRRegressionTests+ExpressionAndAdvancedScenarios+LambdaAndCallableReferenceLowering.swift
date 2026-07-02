@@ -80,6 +80,12 @@ extension BuildKIRRegressionTests {
             #expect(callNames.contains("kk_array_set"))
             #expect(callNames.contains("kk_function_create_1"))
 
+            let adapterFunction = try #require(findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+            })
+            let adapterCallNames = extractCallees(from: adapterFunction.body, interner: ctx.interner)
+            #expect(adapterCallNames.contains("kk_unbox_int"))
+
             let generatedLambdaFunctions = findAllKIRFunctions(in: module).filter { function in
                 ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
             }

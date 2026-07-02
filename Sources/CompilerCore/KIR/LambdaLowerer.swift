@@ -472,7 +472,15 @@ final class LambdaLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            callArguments.append(loadedExpr)
+            let normalizedLoadedExpr = normalizeHOFPrimitiveParameter(
+                loadedExpr,
+                type: captureType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body
+            )
+            callArguments.append(normalizedLoadedExpr)
         }
 
         for param in valueParams {
