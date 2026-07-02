@@ -1,13 +1,13 @@
 import CompilerCore
 
 /// Converts compiler diagnostics into LSP diagnostics for `publishDiagnostics`.
-enum DiagnosticsFeature {
+public enum DiagnosticsFeature {
     /// Builds the LSP diagnostics belonging to the analyzed document.
     ///
     /// Diagnostics that carry a primary range in a different file are skipped;
     /// range-less diagnostics are anchored at the start of the document so they
     /// are still surfaced to the user.
-    static func lspDiagnostics(for analysis: Analyzer.Analysis) -> [LSPDiagnostic] {
+    public static func lspDiagnostics(for analysis: Analyzer.Analysis) -> [LSPDiagnostic] {
         let sourceManager = analysis.context.sourceManager
         var result: [LSPDiagnostic] = []
 

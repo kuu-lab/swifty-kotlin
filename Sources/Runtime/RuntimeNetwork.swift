@@ -3,7 +3,9 @@ import Foundation
 import FoundationNetworking
 #endif
 
-private final class RuntimeHTTPClientBox: @unchecked Sendable {
+final class RuntimeHttpClientBox {}
+
+private final class RuntimeHTTPClientBox {
     private let lock = NSLock()
     private var connectTimeoutMillis: Int = 30_000
     private var readTimeoutMillis: Int = 30_000
@@ -143,27 +145,9 @@ private final class RuntimeHTTPTaskResultBox: @unchecked Sendable {
     var error: Error?
 }
 
-private final class RuntimeHTTPRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    private let followRedirects: Bool
-
-    init(followRedirects: Bool) {
-        self.followRedirects = followRedirects
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest,
-        completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        completionHandler(followRedirects ? request : nil)
-    }
-}
-
-private func runtimeHttpClientBox(from raw: Int) -> RuntimeHTTPClientBox? {
+private func runtimeHttpClientBox(from raw: Int) -> RuntimeHttpClientBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeHTTPClientBox.self)
+    return tryCast(ptr, to: RuntimeHttpClientBox.self)
 }
 
 private func runtimeHttpRequestBuilderBox(from raw: Int) -> RuntimeHttpRequestBuilderBox? {
@@ -490,169 +474,9 @@ private func networkHeaderFirstValue(_ headers: [(String, [String])], name: Stri
     headers.first(where: { $0.0.caseInsensitiveCompare(name) == .orderedSame })?.1.first
 }
 
-private func runtimeHTTPProtocolClassesFromEnvironment() -> [AnyClass]? {
-    guard let rawClassName = getenv("KSWIFTK_HTTP_PROTOCOL_CLASS") else {
-        return nil
-    }
-    let className = String(cString: rawClassName)
-    guard let protocolClass = NSClassFromString(className) as? URLProtocol.Type else {
-        return nil
-    }
-    return [protocolClass]
-}
-
-private func runtimeHTTPClientSession(
-    snapshot: RuntimeHTTPClientBox.Snapshot
-) -> (session: URLSession, delegate: RuntimeHTTPRedirectDelegate) {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.timeoutIntervalForRequest = TimeInterval(max(1, snapshot.readTimeoutMillis)) / 1000.0
-    configuration.timeoutIntervalForResource = TimeInterval(max(1, snapshot.connectTimeoutMillis + snapshot.readTimeoutMillis)) / 1000.0
-    if let protocolClasses = runtimeHTTPProtocolClassesFromEnvironment() {
-        configuration.protocolClasses = protocolClasses
-    }
-    let delegate = RuntimeHTTPRedirectDelegate(followRedirects: snapshot.followRedirects)
-    return (URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil), delegate)
-}
-
-private func runtimeHTTPExecuteRequest(
-    client: RuntimeHTTPClientBox,
-    request: RuntimeHttpRequestBox,
-    encodeErrorsAsResponse: Bool,
-    redirectDepth: Int = 0
-) -> (responseRaw: Int, thrown: Int) {
-    let snapshot = client.snapshot()
-    var urlRequest = URLRequest(url: request.url)
-    urlRequest.httpMethod = request.method
-    urlRequest.httpBody = request.body
-    urlRequest.timeoutInterval = TimeInterval(max(1, snapshot.readTimeoutMillis)) / 1000.0
-    for (name, value) in snapshot.defaultHeaders {
-        urlRequest.setValue(value, forHTTPHeaderField: name)
-    }
-    if let authHeader = snapshot.authHeader {
-        urlRequest.setValue(authHeader, forHTTPHeaderField: "Authorization")
-    }
-    for (name, value) in request.headers {
-        urlRequest.addValue(value, forHTTPHeaderField: name)
-    }
-
-    let semaphore = DispatchSemaphore(value: 0)
-    let result = RuntimeHTTPTaskResultBox()
-    let (session, _) = runtimeHTTPClientSession(snapshot: snapshot)
-    let task = session.dataTask(with: urlRequest) { data, response, error in
-        result.data = data ?? Data()
-        result.response = response
-        result.error = error
-        semaphore.signal()
-    }
-    task.resume()
-
-    let timeout = DispatchTime.now() + .milliseconds(max(1, snapshot.readTimeoutMillis))
-    if semaphore.wait(timeout: timeout) == .timedOut {
-        task.cancel()
-        session.invalidateAndCancel()
-        let message = "Timeout after \(snapshot.readTimeoutMillis)ms"
-        if encodeErrorsAsResponse {
-            return (
-                registerRuntimeObject(RuntimeHttpResponseBox(
-                    statusCode: 0,
-                    headers: [],
-                    body: "",
-                    url: request.url.absoluteString,
-                    errorMessage: message,
-                    timedOut: true
-                )),
-                0
-            )
-        }
-        return (0, runtimeAllocateThrowable(message: "IOException: \(message)"))
-    }
-    session.finishTasksAndInvalidate()
-
-    if let responseError = result.error {
-        if encodeErrorsAsResponse {
-            return (
-                registerRuntimeObject(RuntimeHttpResponseBox(
-                    statusCode: 0,
-                    headers: [],
-                    body: "",
-                    url: request.url.absoluteString,
-                    errorMessage: responseError.localizedDescription,
-                    timedOut: (responseError as? URLError)?.code == .timedOut
-                )),
-                0
-            )
-        }
-        return (0, runtimeAllocateThrowable(message: "IOException: \(responseError.localizedDescription)"))
-    }
-
-    guard let httpResponse = result.response as? HTTPURLResponse else {
-        let message = "Missing HTTP response"
-        if encodeErrorsAsResponse {
-            return (
-                registerRuntimeObject(RuntimeHttpResponseBox(
-                    statusCode: 0,
-                    headers: [],
-                    body: "",
-                    url: request.url.absoluteString,
-                    errorMessage: message
-                )),
-                0
-            )
-        }
-        return (0, runtimeAllocateThrowable(message: "IOException: \(message)"))
-    }
-
-    if snapshot.followRedirects,
-       redirectDepth < 5,
-       (300 ... 399).contains(httpResponse.statusCode),
-       let location = networkHeaderFirstValue(networkHeaderPairs(from: httpResponse), name: "Location"),
-       let redirectedURL = URL(string: location, relativeTo: request.url)?.absoluteURL
-    {
-        let redirectedRequest = RuntimeHttpRequestBox(
-            url: redirectedURL,
-            method: request.method == "POST" ? "GET" : request.method,
-            headers: request.headers,
-            body: request.method == "POST" ? nil : request.body
-        )
-        return runtimeHTTPExecuteRequest(
-            client: client,
-            request: redirectedRequest,
-            encodeErrorsAsResponse: encodeErrorsAsResponse,
-            redirectDepth: redirectDepth + 1
-        )
-    }
-
-    let body = String(data: result.data, encoding: .utf8) ?? String(decoding: result.data, as: UTF8.self)
-    let responseBox = RuntimeHttpResponseBox(
-        statusCode: httpResponse.statusCode,
-        headers: networkHeaderPairs(from: httpResponse),
-        body: body,
-        url: httpResponse.url?.absoluteString ?? request.url.absoluteString
-    )
-    return (registerRuntimeObject(responseBox), 0)
-}
-
-private func runtimeHTTPRequest(
-    urlRaw: Int,
-    method: String,
-    bodyRaw: Int? = nil
-) -> RuntimeHttpRequestBox {
-    let urlText = networkString(from: urlRaw, caller: #function)
-    guard let url = URL(string: urlText) else {
-        return RuntimeHttpRequestBox(url: URL(string: "about:blank")!, method: method, headers: [], body: nil)
-    }
-    let body = bodyRaw.map { networkString(from: $0, caller: #function).data(using: .utf8) ?? Data() }
-    return RuntimeHttpRequestBox(url: url, method: method, headers: [], body: body)
-}
-
 @_cdecl("kk_http_client_newHttpClient")
 public func kk_http_client_newHttpClient() -> Int {
-    registerRuntimeObject(RuntimeHTTPClientBox())
-}
-
-@_cdecl("kk_http_client_new")
-public func kk_http_client_new() -> Int {
-    kk_http_client_newHttpClient()
+    registerRuntimeObject(RuntimeHttpClientBox())
 }
 
 @_cdecl("kk_http_request_newBuilder")
@@ -741,7 +565,7 @@ public func kk_http_body_handlers_ofString(_ bodyHandlersRaw: Int) -> Int {
 @_cdecl("kk_http_client_send")
 public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandlerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let client = runtimeHttpClientBox(from: clientRaw) else {
+    guard runtimeHttpClientBox(from: clientRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_send received invalid client handle")
     }
     guard let request = runtimeHttpRequestBox(from: requestRaw) else {
@@ -751,31 +575,41 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_send received invalid body handler handle")
     }
 
-    let result = runtimeHTTPExecuteRequest(client: client, request: request, encodeErrorsAsResponse: false)
-    outThrown?.pointee = result.thrown
-    return result.responseRaw
-}
+    var urlRequest = URLRequest(url: request.url)
+    urlRequest.httpMethod = request.method
+    urlRequest.httpBody = request.body
+    for (name, value) in request.headers {
+        urlRequest.addValue(value, forHTTPHeaderField: name)
+    }
 
-@_cdecl("kk_http_client_get")
-public func kk_http_client_get(_ clientRaw: Int, _ urlRaw: Int) -> Int {
-    guard let client = runtimeHttpClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_get received invalid client handle")
-    }
-    let request = runtimeHTTPRequest(urlRaw: urlRaw, method: "GET")
-    return runtimeHTTPExecuteRequest(client: client, request: request, encodeErrorsAsResponse: true).responseRaw
-}
+    let semaphore = DispatchSemaphore(value: 0)
+    let result = RuntimeHTTPTaskResultBox()
 
-@_cdecl("kk_http_client_post_async")
-public func kk_http_client_post_async(_ clientRaw: Int, _ urlRaw: Int, _ bodyRaw: Int, _ continuation: Int) -> Int {
-    guard let client = runtimeHttpClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_post_async received invalid client handle")
+    URLSession.shared.dataTask(with: urlRequest) { data, response, error in
+        result.data = data ?? Data()
+        result.response = response
+        result.error = error
+        semaphore.signal()
+    }.resume()
+    semaphore.wait()
+
+    if let responseError = result.error {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(responseError.localizedDescription)")
+        return 0
     }
-    DispatchQueue.global().async {
-        let request = runtimeHTTPRequest(urlRaw: urlRaw, method: "POST", bodyRaw: bodyRaw)
-        let responseRaw = runtimeHTTPExecuteRequest(client: client, request: request, encodeErrorsAsResponse: true).responseRaw
-        kk_coroutine_continuation_resume(continuation, responseRaw)
+
+    guard let httpResponse = result.response as? HTTPURLResponse else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Missing HTTP response")
+        return 0
     }
-    return Int(bitPattern: kk_coroutine_suspended())
+
+    let body = String(data: result.data, encoding: .utf8) ?? String(decoding: result.data, as: UTF8.self)
+    let responseBox = RuntimeHttpResponseBox(
+        statusCode: httpResponse.statusCode,
+        headers: networkHeaderPairs(from: httpResponse),
+        body: body
+    )
+    return registerRuntimeObject(responseBox)
 }
 
 @_cdecl("kk_http_response_statusCode")

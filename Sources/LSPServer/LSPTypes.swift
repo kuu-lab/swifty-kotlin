@@ -2,31 +2,31 @@
 // MARK: - Core geometry
 
 /// A 0-based position in a text document. `character` counts UTF-16 code units.
-struct LSPPosition: Codable, Equatable {
-    var line: Int
-    var character: Int
+public struct LSPPosition: Codable, Equatable {
+    public var line: Int
+    public var character: Int
 
-    init(line: Int, character: Int) {
+    public init(line: Int, character: Int) {
         self.line = line
         self.character = character
     }
 }
 
-struct LSPRange: Codable, Equatable {
-    var start: LSPPosition
-    var end: LSPPosition
+public struct LSPRange: Codable, Equatable {
+    public var start: LSPPosition
+    public var end: LSPPosition
 
-    init(start: LSPPosition, end: LSPPosition) {
+    public init(start: LSPPosition, end: LSPPosition) {
         self.start = start
         self.end = end
     }
 }
 
-struct LSPLocation: Codable, Equatable {
-    var uri: String
-    var range: LSPRange
+public struct LSPLocation: Codable, Equatable {
+    public var uri: String
+    public var range: LSPRange
 
-    init(uri: String, range: LSPRange) {
+    public init(uri: String, range: LSPRange) {
         self.uri = uri
         self.range = range
     }
@@ -34,75 +34,75 @@ struct LSPLocation: Codable, Equatable {
 
 // MARK: - Text document identifiers
 
-struct TextDocumentIdentifier: Codable {
-    var uri: String
+public struct TextDocumentIdentifier: Codable {
+    public var uri: String
 }
 
-struct VersionedTextDocumentIdentifier: Codable {
-    var uri: String
-    var version: Int?
+public struct VersionedTextDocumentIdentifier: Codable {
+    public var uri: String
+    public var version: Int?
 }
 
-struct TextDocumentItem: Codable {
-    var uri: String
-    var languageId: String?
-    var version: Int?
-    var text: String
+public struct TextDocumentItem: Codable {
+    public var uri: String
+    public var languageId: String?
+    public var version: Int?
+    public var text: String
 }
 
-struct TextDocumentPositionParams: Codable {
-    var textDocument: TextDocumentIdentifier
-    var position: LSPPosition
+public struct TextDocumentPositionParams: Codable {
+    public var textDocument: TextDocumentIdentifier
+    public var position: LSPPosition
 }
 
 // MARK: - Synchronization params
 
-struct DidOpenTextDocumentParams: Codable {
-    var textDocument: TextDocumentItem
+public struct DidOpenTextDocumentParams: Codable {
+    public var textDocument: TextDocumentItem
 }
 
 /// A single content change. With full document sync (the mode this server
 /// advertises) `text` carries the entire new document and `range` is absent.
-struct TextDocumentContentChangeEvent: Codable {
-    var text: String
+public struct TextDocumentContentChangeEvent: Codable {
+    public var text: String
 }
 
-struct DidChangeTextDocumentParams: Codable {
-    var textDocument: VersionedTextDocumentIdentifier
-    var contentChanges: [TextDocumentContentChangeEvent]
+public struct DidChangeTextDocumentParams: Codable {
+    public var textDocument: VersionedTextDocumentIdentifier
+    public var contentChanges: [TextDocumentContentChangeEvent]
 }
 
-struct DidCloseTextDocumentParams: Codable {
-    var textDocument: TextDocumentIdentifier
+public struct DidCloseTextDocumentParams: Codable {
+    public var textDocument: TextDocumentIdentifier
 }
 
-struct DidSaveTextDocumentParams: Codable {
-    var textDocument: TextDocumentIdentifier
-    var text: String?
+public struct DidSaveTextDocumentParams: Codable {
+    public var textDocument: TextDocumentIdentifier
+    public var text: String?
 }
 
-struct DocumentSymbolParams: Codable {
-    var textDocument: TextDocumentIdentifier
+public struct DocumentSymbolParams: Codable {
+    public var textDocument: TextDocumentIdentifier
 }
 
 // MARK: - Diagnostics
 
 /// LSP diagnostic severity codes.
-enum LSPDiagnosticSeverity: Int {
+public enum LSPDiagnosticSeverity: Int {
     case error = 1
     case warning = 2
     case information = 3
     case hint = 4
 }
 
-struct LSPDiagnostic: Codable, Equatable {
-    var range: LSPRange
-    var severity: Int?
-    var code: String?
-    var source: String?
-    var message: String
+public struct LSPDiagnostic: Codable, Equatable {
+    public var range: LSPRange
+    public var severity: Int?
+    public var code: String?
+    public var source: String?
+    public var message: String
 
-    init(
+    public init(
         range: LSPRange,
         severity: Int?,
         code: String?,
@@ -117,12 +117,12 @@ struct LSPDiagnostic: Codable, Equatable {
     }
 }
 
-struct PublishDiagnosticsParams: Codable {
-    var uri: String
-    var version: Int?
-    var diagnostics: [LSPDiagnostic]
+public struct PublishDiagnosticsParams: Codable {
+    public var uri: String
+    public var version: Int?
+    public var diagnostics: [LSPDiagnostic]
 
-    init(uri: String, version: Int?, diagnostics: [LSPDiagnostic]) {
+    public init(uri: String, version: Int?, diagnostics: [LSPDiagnostic]) {
         self.uri = uri
         self.version = version
         self.diagnostics = diagnostics
@@ -131,22 +131,22 @@ struct PublishDiagnosticsParams: Codable {
 
 // MARK: - Hover
 
-struct MarkupContent: Codable {
+public struct MarkupContent: Codable {
     /// `"markdown"` or `"plaintext"`.
-    var kind: String
-    var value: String
+    public var kind: String
+    public var value: String
 
-    init(kind: String = "markdown", value: String) {
+    public init(kind: String = "markdown", value: String) {
         self.kind = kind
         self.value = value
     }
 }
 
-struct Hover: Codable {
-    var contents: MarkupContent
-    var range: LSPRange?
+public struct Hover: Codable {
+    public var contents: MarkupContent
+    public var range: LSPRange?
 
-    init(contents: MarkupContent, range: LSPRange?) {
+    public init(contents: MarkupContent, range: LSPRange?) {
         self.contents = contents
         self.range = range
     }
@@ -155,7 +155,7 @@ struct Hover: Codable {
 // MARK: - Document symbols
 
 /// LSP `SymbolKind` numeric codes.
-enum LSPSymbolKind: Int {
+public enum LSPSymbolKind: Int {
     case file = 1
     case module = 2
     case namespace = 3
@@ -184,15 +184,15 @@ enum LSPSymbolKind: Int {
     case typeParameter = 26
 }
 
-struct DocumentSymbol: Codable {
-    var name: String
-    var detail: String?
-    var kind: Int
-    var range: LSPRange
-    var selectionRange: LSPRange
-    var children: [DocumentSymbol]?
+public struct DocumentSymbol: Codable {
+    public var name: String
+    public var detail: String?
+    public var kind: Int
+    public var range: LSPRange
+    public var selectionRange: LSPRange
+    public var children: [DocumentSymbol]?
 
-    init(
+    public init(
         name: String,
         detail: String?,
         kind: Int,
@@ -211,20 +211,20 @@ struct DocumentSymbol: Codable {
 
 // MARK: - Lifecycle
 
-struct ServerInfo: Codable {
-    var name: String
-    var version: String?
+public struct ServerInfo: Codable {
+    public var name: String
+    public var version: String?
 }
 
-struct ServerCapabilities: Codable {
+public struct ServerCapabilities: Codable {
     /// Text document sync kind: 0 = none, 1 = full, 2 = incremental.
-    var textDocumentSync: Int
-    var hoverProvider: Bool
-    var definitionProvider: Bool
-    var documentSymbolProvider: Bool
+    public var textDocumentSync: Int
+    public var hoverProvider: Bool
+    public var definitionProvider: Bool
+    public var documentSymbolProvider: Bool
 }
 
-struct InitializeResult: Codable {
-    var capabilities: ServerCapabilities
-    var serverInfo: ServerInfo?
+public struct InitializeResult: Codable {
+    public var capabilities: ServerCapabilities
+    public var serverInfo: ServerInfo?
 }

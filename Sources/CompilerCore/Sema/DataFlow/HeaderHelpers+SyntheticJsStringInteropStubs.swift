@@ -1,13 +1,15 @@
 /// Synthetic Kotlin/JS `JsString` interop surface.
 ///
-/// Covers the `kotlin.js.JsString` external class and the two conversion
-/// functions that bridge between Kotlin `String` and the JS-native string type:
+/// Covers the `kotlin.js.JsString` external interface and the two conversion
+/// extension functions that bridge between Kotlin `String` and the JS-native
+/// string type:
 ///
 ///   - `String.toJsString(): JsString`
 ///   - `JsString.toString(): String`
 ///
-/// KSwiftK lowers `String.toJsString()` through a native runtime bridge so the
-/// semantic surface is registered even in native builds.
+/// These symbols are JS-target-only and must NOT be active during native/macOS
+/// compilation. This file is intentionally excluded from the registration
+/// dispatch (CLEANUP-STUB-056).
 extension DataFlowSemaPhase {
     func registerSyntheticJsStringInteropStubs(
         symbols: SymbolTable,
@@ -20,7 +22,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        let jsStringSymbol = ensureJsStringClass(
+        let jsStringSymbol = ensureJsStringInterface(
             packageFQName: kotlinJsPkg,
             symbols: symbols,
             types: types,
@@ -44,25 +46,20 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func ensureJsStringClass(
+    private func ensureJsStringInterface(
         packageFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> SymbolID {
-        let className = interner.intern("JsString")
-        let classFQName = packageFQName + [className]
-        let classSymbol = symbols.define(
-            kind: .class,
-            name: className,
-            fqName: classFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .openType]
+        let interfaceSymbol = ensureInterfaceSymbol(
+            named: "JsString",
+            in: packageFQName,
+            symbols: symbols,
+            interner: interner
         )
-        symbols.insertFlags([.synthetic, .openType], for: classSymbol)
         if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: classSymbol)
+            symbols.setParentSymbol(packageSymbol, for: interfaceSymbol)
         }
 
         let jsAnySymbol = ensureInterfaceSymbol(
@@ -75,22 +72,17 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(packageSymbol, for: jsAnySymbol)
         }
 
-        symbols.setDirectSupertypes([jsAnySymbol], for: classSymbol)
-        types.setNominalDirectSupertypes([jsAnySymbol], for: classSymbol)
+        symbols.setDirectSupertypes([jsAnySymbol], for: interfaceSymbol)
+        types.setNominalDirectSupertypes([jsAnySymbol], for: interfaceSymbol)
 
-        let classType = types.make(.classType(ClassType(
-            classSymbol: classSymbol,
+        let interfaceType = types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol,
             args: [],
             nullability: .nonNull
         )))
-        symbols.setPropertyType(classType, for: classSymbol)
-        appendSyntheticMetadataAnnotations(
-            [jsStringInteropAnnotation()],
-            to: classSymbol,
-            symbols: symbols
-        )
+        symbols.setPropertyType(interfaceType, for: interfaceSymbol)
 
-        return classSymbol
+        return interfaceSymbol
     }
 
     private func registerStringToJsStringExtension(
@@ -108,20 +100,13 @@ extension DataFlowSemaPhase {
 
         let functionName = interner.intern("toJsString")
         let functionFQName = kotlinJsPkg + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+        let alreadyRegistered = symbols.lookupAll(fqName: functionFQName).contains { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == types.stringType
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == jsStringType
-        }) {
-            symbols.setExternalLinkName("kk_string_toJsString_flat", for: existing)
-            appendSyntheticMetadataAnnotations(
-                [jsStringInteropAnnotation()],
-                to: existing,
-                symbols: symbols
-            )
-            return
         }
+        guard !alreadyRegistered else { return }
 
         let functionSymbol = symbols.define(
             kind: .function,
@@ -145,12 +130,6 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: []
             ),
             for: functionSymbol
-        )
-        symbols.setExternalLinkName("kk_string_toJsString_flat", for: functionSymbol)
-        appendSyntheticMetadataAnnotations(
-            [jsStringInteropAnnotation()],
-            to: functionSymbol,
-            symbols: symbols
         )
     }
 
@@ -200,9 +179,5 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
-    }
-
-    private func jsStringInteropAnnotation() -> MetadataAnnotationRecord {
-        MetadataAnnotationRecord(annotationFQName: "kotlin.js.ExperimentalWasmJsInterop")
     }
 }

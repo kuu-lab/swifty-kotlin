@@ -2,8 +2,8 @@ import CompilerCore
 
 /// Resolves go-to-definition requests to the declaration site of the symbol
 /// under the cursor.
-enum DefinitionFeature {
-    static func definition(
+public enum DefinitionFeature {
+    public static func definition(
         for analysis: Analyzer.Analysis,
         line: Int,
         character: Int

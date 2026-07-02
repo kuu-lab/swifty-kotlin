@@ -71,8 +71,6 @@ extension ABIMismatchTests {
 
     private var allowedRuntimeExportOnlyABINames: Set<String> {
         [
-            "kk_js_reference_get",
-            "kk_js_set_toMutableSet",
             "kk_kclass_nested_classes",
             "kk_regex_create_with_option",
             "kk_regex_create_with_options",
@@ -128,7 +126,6 @@ extension ABIMismatchTests {
             "kk_native_alloc_bytes",
             "kk_char_sequence_length",
             "kk_instant_to_js_date",
-            "kk_js_readonly_set_toMutableSet",
             "kk_double_toJsNumber",
             "kk_dynamic_iterator",
             "kk_future_getState",

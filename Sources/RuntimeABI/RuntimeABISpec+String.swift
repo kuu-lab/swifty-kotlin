@@ -507,17 +507,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toJsString_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_startsWith_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),

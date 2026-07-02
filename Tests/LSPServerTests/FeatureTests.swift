@@ -1,4 +1,5 @@
 #if canImport(Testing)
+@testable import CompilerCore
 @testable import LSPServer
 import Testing
 

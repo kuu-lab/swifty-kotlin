@@ -96,14 +96,6 @@ private let kclassBridgeFunctions = [
     "kk_kclass_get_arity",
 ].map { bridgeSpec($0, section: "TypeCheck", params: ["kclassRaw"]) }
 
-private let jsInteropBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec(
-        "kk_js_readonly_set_toMutableSet",
-        section: "JsInterop",
-        params: ["setRaw"]
-    ),
-]
-
 private let sequenceOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
     [
         bridgeSpec(
@@ -127,7 +119,6 @@ public extension RuntimeABISpec {
         + numericOnlyBridgeFunctions
         + minMaxFloatDoubleBridgeFunctions
         + coroutineOnlyBridgeFunctions
-        + jsInteropBridgeFunctions
         + kclassBridgeFunctions
         + sequenceOnlyBridgeFunctions
 }
