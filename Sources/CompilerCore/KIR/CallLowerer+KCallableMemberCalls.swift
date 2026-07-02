@@ -44,7 +44,7 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.types.make(.primitive(.string, .nonNull))
+            ?? sema.types.stringType
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
