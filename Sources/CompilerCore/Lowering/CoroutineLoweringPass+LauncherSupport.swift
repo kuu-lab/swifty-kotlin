@@ -82,9 +82,7 @@ extension CoroutineLoweringPass {
                 .intLiteral(Int64(paramIndex)),
                 type: intType
             )
-            let argResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: suspendFunction.params[paramIndex].type
+            let argResult = module.arena.appendTemporary(type: suspendFunction.params[paramIndex].type
             )
             thunkBody.append(
                 .call(
@@ -100,9 +98,7 @@ extension CoroutineLoweringPass {
         }
 
         callArgExprs.append(contRef)
-        let callResult = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: contType
+        let callResult = module.arena.appendTemporary(type: contType
         )
         thunkBody.append(
             .call(
@@ -293,13 +289,9 @@ extension CoroutineLoweringPass {
         call: CallRewriteInput,
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction] {
-        let entryPointExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let entryFunctionID = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let entryFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
         let runtimeCallee = rewrite.ctx.interner.intern("kk_kxmini_launch_with_dispatcher")
 
@@ -330,9 +322,7 @@ extension CoroutineLoweringPass {
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
             type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
         let runtimeCallee = rewrite.ctx.interner.intern("kk_kxmini_launch_with_dispatcher_and_cont")
 
@@ -364,9 +354,7 @@ extension CoroutineLoweringPass {
             )
         }
 
-        let thunkRefExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
@@ -393,13 +381,9 @@ extension CoroutineLoweringPass {
             rewrite.ctx.interner.intern("kk_coroutine_scope_run"),
             rewrite.ctx.interner.intern("kk_supervisor_scope_run"),
         ]
-        let entryPointExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let entryFunctionID = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let entryFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
 
         return [
@@ -433,9 +417,7 @@ extension CoroutineLoweringPass {
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
             type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
 
         var rewritten: [KIRInstruction] = [
@@ -466,9 +448,7 @@ extension CoroutineLoweringPass {
             )
         }
 
-        let thunkRefExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(
@@ -496,9 +476,7 @@ extension CoroutineLoweringPass {
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
             type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
 
         var rewritten: [KIRInstruction] = [
@@ -530,9 +508,7 @@ extension CoroutineLoweringPass {
             )
         }
 
-        let thunkRefExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let thunkRefExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
         rewritten.append(.constValue(result: thunkRefExpr, value: .symbolRef(thunk.symbol)))
         rewritten.append(

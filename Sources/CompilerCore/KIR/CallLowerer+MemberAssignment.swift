@@ -85,7 +85,7 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.unitType)
+        let result = arena.appendTemporary(type: sema.types.unitType)
         instructions.append(.call(
             symbol: chosenCallee,
             callee: setterName,

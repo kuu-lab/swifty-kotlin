@@ -98,9 +98,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     if let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
                         sema.symbols.symbol(id).map { $0.kind == .function } ?? false
                     }) {
-                        let targetResult = result ?? module.arena.appendExpr(
-                            .temporary(Int32(module.arena.expressions.count)),
-                            type: stringType
+                        let targetResult = result ?? module.arena.appendTemporary(type: stringType
                         )
                         newBody.append(.call(
                             symbol: helperSymbol,
@@ -155,9 +153,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
-        let helperResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: stringType
+        let helperResult = arena.appendTemporary(type: stringType
         )
         return [
             .call(

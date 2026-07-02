@@ -1082,8 +1082,7 @@ extension CallLowerer {
         interner: StringInterner
     ) -> InternedString? {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
               knownNames.isMapLikeSymbol(symbol)
         else {
             return nil
@@ -1143,9 +1142,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return nil
         }
 

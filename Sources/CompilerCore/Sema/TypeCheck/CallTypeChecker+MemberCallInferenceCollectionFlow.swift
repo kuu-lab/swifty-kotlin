@@ -285,9 +285,7 @@ extension CallTypeChecker {
         {
             let knownNames = KnownCompilerNames(interner: interner)
             let receiverClassName: InternedString? = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                      let symbol = sema.symbols.symbol(classType.classSymbol)
-                else {
+                guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
                     return nil
                 }
                 return symbol.name
@@ -383,9 +381,7 @@ extension CallTypeChecker {
 
         let isGroupingReceiver: Bool = {
             let knownNames = KnownCompilerNames(interner: interner)
-            guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                  let symbol = sema.symbols.symbol(classType.classSymbol)
-            else {
+            guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
                 return false
             }
             return knownNames.isGroupingSymbol(symbol)
@@ -533,9 +529,7 @@ extension CallTypeChecker {
         {
             let knownNames = KnownCompilerNames(interner: interner)
             let isGenericArrayReceiver: Bool = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                      let symbol = sema.symbols.symbol(classType.classSymbol)
-                else {
+                guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
                     return false
                 }
                 return symbol.name == knownNames.array && classType.args.count == 1
@@ -615,7 +609,7 @@ extension CallTypeChecker {
                 locals: &locals
             )
             let collectionMapTypes: (key: TypeID, value: TypeID) = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                guard let classType = resolveClassType(receiverType, sema: sema),
                       classType.args.count >= 2
                 else {
                     return (sema.types.anyType, sema.types.anyType)

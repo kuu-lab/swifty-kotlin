@@ -33,8 +33,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     closureRawID = zeroExpr
                 }
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -62,8 +61,7 @@ extension CollectionLiteralLoweringPass {
                 default: lookup.kkListMinOrNullName
                 }
                 let isThrowingMin = callee == lookup.minName
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -108,8 +106,7 @@ extension CollectionLiteralLoweringPass {
                 case lookup.maxOfName: lookup.kkListMaxOfName
                 default: lookup.kkListMinOfName
                 }
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -173,8 +170,7 @@ extension CollectionLiteralLoweringPass {
                         loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                         closureRawID = zeroExpr
                     }
-                    let hofResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let hofResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -315,8 +311,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(
                         result: innerTrampolineExpr,
                         value: .externSymbolAddress(innerTrampolineName)))
-                    let reversedClosureResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil)
+                    let reversedClosureResult = module.arena.appendTemporary(type: nil)
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkComparatorReversedName,
@@ -332,8 +327,7 @@ extension CollectionLiteralLoweringPass {
                 }
                 let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
                 loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -551,8 +545,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(
                         result: innerTrampolineExpr,
                         value: .externSymbolAddress(innerTrampolineName)))
-                    let reversedClosureResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil)
+                    let reversedClosureResult = module.arena.appendTemporary(type: nil)
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkComparatorReversedName,
@@ -575,8 +568,7 @@ extension CollectionLiteralLoweringPass {
                 case lookup.minOfWithName: lookup.kkListMinOfWithName
                 default: lookup.kkListMinOfWithOrNullName
                 }
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
