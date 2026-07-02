@@ -78,7 +78,14 @@ struct LLVMEntryPointObjectEmitter {
         // emitted `.o` before the linker consumes it, since the containing directory is private to
         // the compiling user and not guessable.
         let objectURL = try makePrivateObjectURL()
-        try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+        do {
+            try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+        } catch {
+            // On success the caller owns the directory and removes it after linking; on failure it
+            // never receives the path, so drop the private directory here to avoid leaking it.
+            try? FileManager.default.removeItem(at: objectURL.deletingLastPathComponent())
+            throw error
+        }
         return objectURL.path
     }
 
