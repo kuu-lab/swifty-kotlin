@@ -21,6 +21,29 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        let calleeText = interner.resolve(calleeName)
+        if [
+            "fold",
+            "reduce",
+            "scan",
+            "associate",
+            "associateBy",
+            "groupBy",
+            "sumOf",
+            "maxByOrNull",
+            "minByOrNull",
+        ].contains(calleeText),
+            let chosenBase64Callee,
+            sema.symbols.symbol(chosenBase64Callee)?.declSite != nil,
+            (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+        {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                return nil
+            }
+        }
+
         // any/none 0-arg
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
