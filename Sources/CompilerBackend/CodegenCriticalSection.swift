@@ -18,17 +18,22 @@ enum CodegenCriticalSection {
         }
 
         // Isolate the lock directory per-user so it cannot be pre-created by
-        // another local user, and verify it is a directory we own with 0700
+        // another local user. Create it atomically with mkdir(0700); if it
+        // already exists, verify it is a directory we own with 0700
         // permissions before trusting it. This defeats the TOCTOU/symlink
         // hazard of a shared, world-writable temp directory.
         let lockDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("kswiftk-codegen-locks-\(getuid())", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: lockDirectory,
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: NSNumber(value: Int16(0o700))]
-        )
-        try verifyOwnedDirectory(at: lockDirectory)
+        let mkdirResult = lockDirectory.path.withCString { path in
+            mkdir(path, S_IRWXU)
+        }
+        if mkdirResult != 0 {
+            if errno == EEXIST {
+                try verifyOwnedDirectory(at: lockDirectory)
+            } else {
+                throw CodegenCriticalSectionError.systemCallFailed("mkdir", errno)
+            }
+        }
 
         let targetKey = CodegenRuntimeSupport.stableFNV1a64Hex(CodegenRuntimeSupport.targetTripleString(target))
         let lockURL = lockDirectory.appendingPathComponent("executable-toolchain-\(targetKey).lock")
