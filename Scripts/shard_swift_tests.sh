@@ -17,9 +17,9 @@ and runs Scripts/swift_test.sh with a --filter that selects only this
 shard's share, so multiple CI jobs can split one slow test target.
 
 Modes:
-  dynamic   Lists concrete test identifiers via `swift test list --skip-build
-            --filter <list-filter>` (requires the target to already be
-            built) and shards at the individual-test level. Safe for pure
+  dynamic   Lists concrete test identifiers via `swift test list --skip-build`
+            (requires the target to already be built), filters the list with
+            <list-filter>, and shards at the individual-test level. Safe for pure
             XCTest targets, where `swift test list` prints the documented
             "Module.Class/method" specifier for every test. Do NOT use this
             mode for targets that mix in Swift Testing (@Suite/@Test), since
@@ -85,7 +85,32 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_swift_test() {
-    exec bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
+    bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
+}
+
+run_filter_chunks() {
+    local total=$(( $# / 2 ))
+    local chunk=1
+    local status=0
+    local flag pattern
+
+    if (( total == 0 )); then
+        return 0
+    fi
+
+    while (( $# > 0 )); do
+        flag="$1"
+        pattern="$2"
+        shift 2
+
+        # SwiftPM 6.2 does not reliably combine repeated --filter flags,
+        # so each chunk must run as its own swift test invocation.
+        echo "shard_swift_tests.sh: running filter chunk ${chunk}/${total}." >&2
+        run_swift_test "$flag" "$pattern" || status=$?
+        chunk=$(( chunk + 1 ))
+    done
+
+    return "$status"
 }
 
 case "$mode" in
@@ -107,6 +132,7 @@ if (( shard_count <= 1 )); then
     else
         run_swift_test --filter "^${target_prefix}\\."
     fi
+    exit $?
 fi
 
 # ---------------------------------------------------------------------------
@@ -114,7 +140,13 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "$mode" == "dynamic" ]]; then
     echo "shard_swift_tests.sh: listing tests matching '$list_filter'..." >&2
-    mapfile -t all_tests < <(swift test list --skip-build --filter "$list_filter" | sort)
+    # `swift test list` does not honor --filter on every SwiftPM version.
+    # List everything and apply the requested shard prefix locally.
+    mapfile -t all_tests < <(
+        swift test list --skip-build \
+            | awk -v filter="$list_filter" '$0 ~ filter { print }' \
+            | sort
+    )
 
     total="${#all_tests[@]}"
     if (( total == 0 )); then
@@ -172,7 +204,8 @@ if [[ "$mode" == "dynamic" ]]; then
 
     echo "shard_swift_tests.sh: split into $(( ${#filter_args[@]} / 2 )) --filter chunks of up to $chunk_size tests each." >&2
 
-    run_swift_test "${filter_args[@]}"
+    run_filter_chunks "${filter_args[@]}"
+    exit $?
 fi
 
 # ---------------------------------------------------------------------------
@@ -277,4 +310,5 @@ for f in "${filters[@]}"; do
     filter_args+=(--filter "$f")
 done
 
-run_swift_test "${filter_args[@]}"
+run_filter_chunks "${filter_args[@]}"
+exit $?
