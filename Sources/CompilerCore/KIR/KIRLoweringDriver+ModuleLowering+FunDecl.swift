@@ -17,7 +17,17 @@ extension KIRLoweringDriver {
         let returnType = signature?.returnType ?? sema.types.unitType
         var body: KIRLoweringEmitContext = [.beginBlock]
         bindFunctionParameterLocals(params: params, body: &body, arena: arena)
-        lowerFunDeclBody(function, shared: shared, body: &body)
+        // Functions with an external link name are bridged to a runtime
+        // function; call sites are redirected so the source body is never
+        // executed. Emit a stub body to avoid lowering placeholder
+        // expressions that may reference unlinked symbols.
+        if let externalLink = sema.symbols.externalLinkName(for: symbol),
+           !externalLink.isEmpty
+        {
+            appendExternalLinkStubBody(returnType: returnType, sema: sema, body: &body, arena: arena)
+        } else {
+            lowerFunDeclBody(function, shared: shared, body: &body)
+        }
         body.append(.endBlock)
         // Auto-inline functions that have function-type parameters (receiver lambdas etc.)
         // so that lambda arguments are expanded at the call site, matching Kotlin semantics.
@@ -121,6 +131,24 @@ extension KIRLoweringDriver {
     }
 
     // MARK: - Body lowering
+
+    /// Emits a stub body for functions bridged to a runtime entry point via
+    /// `externalLinkName`. The body is never executed at runtime (call sites
+    /// are redirected to the external link), so we return a default value
+    /// matching the declared return type.
+    private func appendExternalLinkStubBody(
+        returnType: TypeID,
+        sema: SemaModule,
+        body: inout KIRLoweringEmitContext,
+        arena: KIRArena
+    ) {
+        if returnType == sema.types.unitType {
+            body.append(.returnUnit)
+        } else {
+            let zero = arena.appendExpr(.intLiteral(0), type: returnType)
+            body.append(.returnValue(zero))
+        }
+    }
 
     private func lowerFunDeclBody(
         _ function: FunDecl,
