@@ -25,15 +25,22 @@ struct BundledDeclarationIndex {
     /// breaks sema until synthetic type foundations are split (KSP-002). AST scanning
     /// preserves compilation behavior while supplying `(owner, name, arity)` keys.
     static func build(ast: ASTModule, sourceManager: SourceManager) -> BundledDeclarationIndex {
+        let bundledFiles = ast.sortedFiles.filter {
+            sourceManager.path(of: $0.fileID).hasPrefix("__bundled_")
+        }
+        let topLevelNominalNamesByPackage = collectTopLevelNominalNamesByPackage(
+            files: bundledFiles,
+            ast: ast
+        )
+
         var keys: Set<BundledMemberKey> = []
-        for file in ast.sortedFiles {
-            guard sourceManager.path(of: file.fileID).hasPrefix("__bundled_") else {
-                continue
-            }
+        for file in bundledFiles {
+            let topLevelNominalNames = topLevelNominalNamesByPackage[file.packageFQName] ?? []
             for declID in file.topLevelDecls {
                 collectBundledTopLevelDecl(
                     declID: declID,
                     packageFQName: file.packageFQName,
+                    topLevelNominalNames: topLevelNominalNames,
                     ast: ast,
                     keys: &keys
                 )
@@ -119,6 +126,7 @@ struct BundledDeclarationIndex {
     private static func collectBundledTopLevelDecl(
         declID: DeclID,
         packageFQName: [InternedString],
+        topLevelNominalNames: Set<InternedString>,
         ast: ASTModule,
         keys: inout Set<BundledMemberKey>
     ) {
@@ -130,7 +138,12 @@ struct BundledDeclarationIndex {
         case let .funDecl(funDecl):
             guard let receiverTypeID = funDecl.receiverType,
                   let receiverType = ast.arena.typeRef(receiverTypeID),
-                  let ownerFQName = fqName(for: receiverType, relativeTo: packageFQName, ast: ast)
+                  let ownerFQName = fqName(
+                    for: receiverType,
+                    relativeTo: packageFQName,
+                    topLevelNominalNames: topLevelNominalNames,
+                    ast: ast
+                  )
             else {
                 return
             }
@@ -145,7 +158,12 @@ struct BundledDeclarationIndex {
         case let .propertyDecl(propertyDecl):
             guard let receiverTypeID = propertyDecl.receiverType,
                   let receiverType = ast.arena.typeRef(receiverTypeID),
-                  let ownerFQName = fqName(for: receiverType, relativeTo: packageFQName, ast: ast)
+                  let ownerFQName = fqName(
+                    for: receiverType,
+                    relativeTo: packageFQName,
+                    topLevelNominalNames: topLevelNominalNames,
+                    ast: ast
+                  )
             else {
                 return
             }
@@ -282,6 +300,17 @@ struct BundledDeclarationIndex {
                 ast: ast,
                 keys: &keys
             )
+        case let .interfaceDecl(interfaceDecl):
+            collectBundledNominalMembers(
+                memberFunctions: interfaceDecl.memberFunctions,
+                memberProperties: interfaceDecl.memberProperties,
+                nestedClasses: interfaceDecl.nestedClasses,
+                nestedObjects: interfaceDecl.nestedObjects,
+                companionObject: interfaceDecl.companionObject,
+                ownerFQName: ownerFQName + [interfaceDecl.name],
+                ast: ast,
+                keys: &keys
+            )
         case let .objectDecl(objectDecl):
             collectBundledNominalMembers(
                 memberFunctions: objectDecl.memberFunctions,
@@ -301,6 +330,7 @@ struct BundledDeclarationIndex {
     private static func fqName(
         for typeRef: TypeRef,
         relativeTo packageFQName: [InternedString],
+        topLevelNominalNames: Set<InternedString>,
         ast: ASTModule
     ) -> [InternedString]? {
         switch typeRef {
@@ -308,15 +338,23 @@ struct BundledDeclarationIndex {
             guard let first = path.first else {
                 return nil
             }
-            if path.count == 1 {
-                return packageFQName + [first]
+            if pathStarts(with: path, prefix: packageFQName) {
+                return path
+            }
+            if path.count == 1 || topLevelNominalNames.contains(first) {
+                return packageFQName + path
             }
             return path
         case let .annotated(base, _):
             guard let baseRef = ast.arena.typeRef(base) else {
                 return nil
             }
-            return fqName(for: baseRef, relativeTo: packageFQName, ast: ast)
+            return fqName(
+                for: baseRef,
+                relativeTo: packageFQName,
+                topLevelNominalNames: topLevelNominalNames,
+                ast: ast
+            )
         case .functionType, .intersection:
             return nil
         }
@@ -327,11 +365,61 @@ struct BundledDeclarationIndex {
         symbols: SymbolTable,
         types: TypeSystem
     ) -> [InternedString]? {
-        switch types.kind(of: typeID) {
-        case let .classType(classType):
-            return symbols.symbol(classType.classSymbol)?.fqName
+        switch types.kind(of: types.makeNonNullable(typeID)) {
+        case let .classType(nominalType):
+            guard let symbol = symbols.symbol(nominalType.classSymbol) else {
+                return nil
+            }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                return symbol.fqName
+            default:
+                return nil
+            }
         default:
             return nil
         }
+    }
+
+    private static func collectTopLevelNominalNamesByPackage(
+        files: [ASTFile],
+        ast: ASTModule
+    ) -> [[InternedString]: Set<InternedString>] {
+        var namesByPackage: [[InternedString]: Set<InternedString>] = [:]
+        for file in files {
+            for declID in file.topLevelDecls {
+                guard let name = topLevelNominalName(declID: declID, ast: ast) else {
+                    continue
+                }
+                namesByPackage[file.packageFQName, default: Set<InternedString>()].insert(name)
+            }
+        }
+        return namesByPackage
+    }
+
+    private static func topLevelNominalName(declID: DeclID, ast: ASTModule) -> InternedString? {
+        guard let decl = ast.arena.decl(declID) else {
+            return nil
+        }
+        switch decl {
+        case let .classDecl(classDecl):
+            return classDecl.name
+        case let .interfaceDecl(interfaceDecl):
+            return interfaceDecl.name
+        case let .objectDecl(objectDecl):
+            return objectDecl.name
+        default:
+            return nil
+        }
+    }
+
+    private static func pathStarts(with path: [InternedString], prefix: [InternedString]) -> Bool {
+        guard path.count >= prefix.count else {
+            return false
+        }
+        for (index, element) in prefix.enumerated() where path[index] != element {
+            return false
+        }
+        return true
     }
 }

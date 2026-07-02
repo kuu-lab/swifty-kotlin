@@ -126,7 +126,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] KSP-001: bundled 宣言インデックスを構築する
   - 前提: なし
   - 変更: 新規 `Sources/CompilerCore/Sema/DataFlow/BundledDeclarationIndex.swift` / `Sources/CompilerCore/Sema/DataFlow/Phase.swift` / `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers.swift` の `registerSyntheticDelegateStubs(symbols:types:interner:)`
-  - 手順: (0) `Phase.swift` の `run()` で bundled ソース宣言の SymbolTable 登録が `registerSyntheticDelegateStubs` 呼び出しより先であることを確認（先でなければ中断して報告） (1) パスが `__bundled_` で始まる fileID 集合を `ctx.sourceManager` から取り、`declSite` がそこに属す関数/プロパティの `(所有型FQName, メンバ名, パラメータ数)` Set を持つ struct `BundledDeclarationIndex` を実装（member lookup の型は `SymbolTable.lookupAll(fqName:)` / `Helpers+TypeArgsAndMemberLookup.swift` の `lookupMemberProperty` を参照） (2) `registerSyntheticDelegateStubs` に引数 `bundledIndex`（既定 `.empty`）を追加し `Phase.swift` から渡す
+  - 手順: (0) `Phase.swift` の `run()` では synthetic 型基盤が先に必要なため、bundled ソース宣言の SymbolTable 登録は `registerSyntheticDelegateStubs` より後に残す (1) パスが `__bundled_` で始まる fileID 集合を `ctx.sourceManager` から取り、AST から bundled 関数/プロパティ/nominal member の `(所有型FQName, メンバ名, パラメータ数)` Set を持つ struct `BundledDeclarationIndex` を実装する。post-header 利用向けの SymbolTable builder は同じ key 規則で保持する (2) `registerSyntheticDelegateStubs` に引数 `bundledIndex`（既定 `.empty`）を追加し `Phase.swift` から渡す
   - 検証: `swift build` + G（このタスクでは挙動不変）
 - [ ] KSP-002: 優先規則（Kotlin ソース > 合成スタブ）を実装する
   - 前提: KSP-001
