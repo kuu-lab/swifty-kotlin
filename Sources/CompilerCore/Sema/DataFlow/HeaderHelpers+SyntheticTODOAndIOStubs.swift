@@ -8,8 +8,10 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
+        let kotlinPkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin")],
+            symbols: symbols
+        )
         let packageSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
 
         registerSyntheticPreconditionFunction(
