@@ -266,6 +266,7 @@ extension CallLowerer {
 
             let receiverSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
             let receiverSymExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: contentType)
+            instructions.append(.copy(from: loweredReceiverID, to: receiverSymExpr))
 
             let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
             let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()

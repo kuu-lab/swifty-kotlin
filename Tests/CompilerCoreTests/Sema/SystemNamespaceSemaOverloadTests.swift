@@ -37,6 +37,16 @@ struct SystemNamespaceSemaOverloadTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
+    private func systemPkgStdlibSpecialCallKind(
+        for name: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> StdlibSpecialCallKind? {
+        let fq = ["kotlin", "system", name].map { interner.intern($0) }
+        guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
+        return sema.symbols.stdlibSpecialCallKind(forSymbol: sym)
+    }
+
     // MARK: - STDLIB-SYSTEM-001: API list / symbol registration
 
     @Test
@@ -58,6 +68,14 @@ struct SystemNamespaceSemaOverloadTests {
                 "kotlin.system.\(function.name) should remain implemented via \(function.link)"
             )
         }
+        #expect(
+            systemPkgStdlibSpecialCallKind(for: "measureTimeMillis", sema: sema, interner: interner) ==
+            .measureTimeMillis
+        )
+        #expect(
+            systemPkgStdlibSpecialCallKind(for: "measureTimeMicros", sema: sema, interner: interner) ==
+            .measureTimeMicros
+        )
 
         let systemFQ = ["kotlin", "system", "System"].map { interner.intern($0) }
         let systemSymbol = try #require(

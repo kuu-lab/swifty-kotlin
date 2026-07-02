@@ -972,9 +972,15 @@ final class CallTypeChecker {
         // Infer the lambda argument with the expected `(Int) -> Unit` type so
         // implicit `it` resolves to the loop index.
         if let calleeName,
-           interner.resolve(calleeName) == "repeat",
            args.count == 2,
-           shouldUseRepeatSpecialHandling(calleeName: calleeName, locals: locals)
+           shouldUseRepeatSpecialHandling(calleeName: calleeName, locals: locals),
+           topLevelStdlibSpecialCallKind(
+               calleeName: calleeName,
+               argCount: args.count,
+               locals: locals,
+               ctx: ctx,
+               rejectNonSyntheticShadow: false
+           ) == .repeatLoop
         {
             let intType = sema.types.intType
             let unitType = sema.types.unitType
@@ -1009,7 +1015,6 @@ final class CallTypeChecker {
 
         // --- Stdlib measureTimeMillis { ... } (STDLIB-131) ---
         if let calleeName,
-           interner.resolve(calleeName) == "measureTimeMillis",
            args.count == 1,
            shouldUseRuntimeStdlibSpecialCall(
                calleeName,
@@ -1036,7 +1041,6 @@ final class CallTypeChecker {
 
         // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-FN-006) ---
         if let calleeName,
-           interner.resolve(calleeName) == "measureTimeMicros",
            args.count == 1,
            shouldUseRuntimeStdlibSpecialCall(
                calleeName,
