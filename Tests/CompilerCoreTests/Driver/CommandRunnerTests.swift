@@ -67,6 +67,24 @@ struct CommandRunnerTests {
         }
     }
 
+    @Test
+    func testResolveExecutableAcceptsSymlinkedTrustedPATHDirectory() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let trustedDirectory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        let symlinkDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try makeSymbolicLink(at: symlinkDirectory, pointingTo: trustedDirectory)
+        defer {
+            try? FileManager.default.removeItem(at: symlinkDirectory)
+            try? FileManager.default.removeItem(at: trustedDirectory)
+        }
+
+        try Self.withTemporaryPath([symlinkDirectory.path]) {
+            let fallback = "/this/path/does/not/exist/\(toolName)"
+            let resolved = CommandRunner.resolveExecutable(toolName, fallback: fallback)
+            #expect(resolved == symlinkDirectory.appendingPathComponent(toolName).path)
+        }
+    }
+
     // MARK: - run: stdout / exit code
 
     @Test
@@ -243,6 +261,10 @@ struct CommandRunnerTests {
             ofItemAtPath: toolURL.path
         )
         return directory
+    }
+
+    private func makeSymbolicLink(at linkURL: URL, pointingTo destinationURL: URL) throws {
+        try FileManager.default.createSymbolicLink(atPath: linkURL.path, withDestinationPath: destinationURL.path)
     }
 }
 #endif

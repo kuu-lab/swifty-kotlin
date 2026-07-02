@@ -89,7 +89,11 @@ package enum CommandRunner {
         guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
             return false
         }
-        guard let attributes = try? fileManager.attributesOfItem(atPath: path) else {
+        // Resolve symlinks so we inspect the target directory's attributes
+        // rather than the link's (symlinks always report 0o777 permissions,
+        // e.g. /bin -> /usr/bin on modern Debian/Ubuntu).
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        guard let attributes = try? fileManager.attributesOfItem(atPath: resolvedPath) else {
             return false
         }
         guard let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value else {
@@ -100,10 +104,13 @@ package enum CommandRunner {
         if permissions & (groupWrite | otherWrite) != 0 {
             return false
         }
-        if let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value {
-            if owner != 0 && owner != getuid() {
-                return false
-            }
+        // Fail closed: if ownership can't be determined, treat the directory as
+        // untrusted rather than assuming it is safe.
+        guard let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value else {
+            return false
+        }
+        if owner != 0 && owner != getuid() {
+            return false
         }
         return true
     }
