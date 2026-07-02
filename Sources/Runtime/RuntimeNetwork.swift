@@ -3,8 +3,6 @@ import Foundation
 import FoundationNetworking
 #endif
 
-final class RuntimeHttpClientBox {}
-
 private final class RuntimeHTTPClientBox {
     private let lock = NSLock()
     private var connectTimeoutMillis: Int = 30_000
@@ -145,9 +143,52 @@ private final class RuntimeHTTPTaskResultBox: @unchecked Sendable {
     var error: Error?
 }
 
-private func runtimeHttpClientBox(from raw: Int) -> RuntimeHttpClientBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeHttpClientBox.self)
+/// URLSession delegate that enforces a client's redirect policy and prevents
+/// sensitive headers from leaking across origins on redirects.
+private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let followRedirects: Bool
+
+    init(followRedirects: Bool) {
+        self.followRedirects = followRedirects
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard followRedirects else {
+            // Stop the redirect: deliver the 3xx response to the caller instead
+            // of following the Location header.
+            completionHandler(nil)
+            return
+        }
+
+        var redirected = request
+        if !RuntimeHTTPSessionDelegate.sameOrigin(task.originalRequest?.url, request.url) {
+            // Do not forward credentials to a different origin on redirect.
+            redirected.setValue(nil, forHTTPHeaderField: "Authorization")
+            redirected.setValue(nil, forHTTPHeaderField: "Cookie")
+        }
+        completionHandler(redirected)
+    }
+
+    private static func sameOrigin(_ lhs: URL?, _ rhs: URL?) -> Bool {
+        guard let lhs, let rhs else { return false }
+        func port(for url: URL) -> Int? {
+            if let explicit = url.port { return explicit }
+            switch url.scheme?.lowercased() {
+            case "https": return 443
+            case "http": return 80
+            default: return nil
+            }
+        }
+        return lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
+            && lhs.host?.lowercased() == rhs.host?.lowercased()
+            && port(for: lhs) == port(for: rhs)
+    }
 }
 
 private func runtimeHttpRequestBuilderBox(from raw: Int) -> RuntimeHttpRequestBuilderBox? {
@@ -476,7 +517,7 @@ private func networkHeaderFirstValue(_ headers: [(String, [String])], name: Stri
 
 @_cdecl("kk_http_client_newHttpClient")
 public func kk_http_client_newHttpClient() -> Int {
-    registerRuntimeObject(RuntimeHttpClientBox())
+    registerRuntimeObject(RuntimeHTTPClientBox())
 }
 
 @_cdecl("kk_http_request_newBuilder")
@@ -565,7 +606,7 @@ public func kk_http_body_handlers_ofString(_ bodyHandlersRaw: Int) -> Int {
 @_cdecl("kk_http_client_send")
 public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandlerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard runtimeHttpClientBox(from: clientRaw) != nil else {
+    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_send received invalid client handle")
     }
     guard let request = runtimeHttpRequestBox(from: requestRaw) else {
@@ -575,17 +616,46 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_send received invalid body handler handle")
     }
 
+    let config = client.snapshot()
+    let readTimeout = config.readTimeoutMillis > 0 ? Double(config.readTimeoutMillis) / 1000 : Double.infinity
+
     var urlRequest = URLRequest(url: request.url)
     urlRequest.httpMethod = request.method
     urlRequest.httpBody = request.body
+    urlRequest.timeoutInterval = readTimeout
+    // Client-level default headers apply first; per-request headers override them.
+    for (name, value) in config.defaultHeaders {
+        urlRequest.setValue(value, forHTTPHeaderField: name)
+    }
+    if let authHeader = config.authHeader {
+        urlRequest.setValue(authHeader, forHTTPHeaderField: "Authorization")
+    }
     for (name, value) in request.headers {
         urlRequest.addValue(value, forHTTPHeaderField: name)
     }
 
+    // Use a per-client session instead of URLSession.shared so redirect policy,
+    // timeouts, and credential storage are scoped to this client rather than the
+    // process-wide shared configuration.
+    let sessionConfig = URLSessionConfiguration.ephemeral
+    sessionConfig.httpShouldSetCookies = false
+    sessionConfig.httpCookieStorage = nil
+    sessionConfig.urlCredentialStorage = nil
+    if config.connectTimeoutMillis > 0 {
+        sessionConfig.timeoutIntervalForRequest = Double(config.connectTimeoutMillis) / 1000
+    }
+    if config.connectTimeoutMillis > 0 || config.readTimeoutMillis > 0 {
+        sessionConfig.timeoutIntervalForResource = Double(config.connectTimeoutMillis + config.readTimeoutMillis) / 1000
+    }
+
+    let delegate = RuntimeHTTPSessionDelegate(followRedirects: config.followRedirects)
+    let session = URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
+    defer { session.finishTasksAndInvalidate() }
+
     let semaphore = DispatchSemaphore(value: 0)
     let result = RuntimeHTTPTaskResultBox()
 
-    URLSession.shared.dataTask(with: urlRequest) { data, response, error in
+    session.dataTask(with: urlRequest) { data, response, error in
         result.data = data ?? Data()
         result.response = response
         result.error = error
