@@ -647,7 +647,9 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
     if config.connectTimeoutMillis > 0 {
         sessionConfig.timeoutIntervalForRequest = Double(config.connectTimeoutMillis) / 1000
     }
-    if config.connectTimeoutMillis > 0 || config.readTimeoutMillis > 0 {
+    // Only cap total resource time when both timeouts are bounded; a value of 0
+    // means "no limit", so summing would otherwise treat a disabled timeout as 0ms.
+    if config.connectTimeoutMillis > 0, config.readTimeoutMillis > 0 {
         sessionConfig.timeoutIntervalForResource = Double(config.connectTimeoutMillis + config.readTimeoutMillis) / 1000
     }
 
