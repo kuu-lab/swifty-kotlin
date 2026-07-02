@@ -21,19 +21,6 @@ Validate compiler runtime link names against `RuntimeABISpec`:
 bash Scripts/validate_runtime_abi_links.sh
 ```
 
-## Kotlin stdlib source bundle
-
-Build the repo-local Kotlin stdlib sources into a `.kklib`:
-
-```bash
-bash Scripts/build_kotlin_stdlib.sh
-```
-
-The default output is `.build/debug/kotlin-stdlib.kklib`, next to the debug
-`kswiftc` binary so normal CLI runs can discover it automatically. Set `KSWIFTC`
-to use an already-built compiler binary, or pass an output base path as the
-first argument.
-
 ## TODO hygiene
 
 Detect duplicate task IDs in `TODO.md`:

@@ -411,12 +411,7 @@ package final class MetadataEncoder {
                 types: types,
                 nameResolver: { interner.resolve($0) }
             )
-            let carriesRuntimeNameAnnotation = symbols.annotations(for: symbol.id).contains {
-                KnownCompilerAnnotation.kSwiftKRuntimeName.matches($0.annotationFQName)
-            }
-            externalLinkName = carriesRuntimeNameAnnotation
-                ? symbols.externalLinkName(for: symbol.id)
-                : functionLinkNames[symbol.id]
+            externalLinkName = functionLinkNames[symbol.id]
         }
 
         if symbol.kind == .property || symbol.kind == .field,

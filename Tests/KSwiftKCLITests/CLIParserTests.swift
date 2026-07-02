@@ -2,7 +2,6 @@
 @testable import CompilerCore
 @testable import KSwiftKCLI
 import Testing
-import XCTest
 
 @Suite("CLI.Parser")
 struct CLIParserTests {
@@ -23,7 +22,6 @@ struct CLIParserTests {
             "--emit", "kir",
             "-O2",
             "-I", "include",
-            "--stdlib", "kotlin-stdlib.kklib",
             "-L", "lib",
             "-l", "runtime",
             "--target", "x86_64-apple-macos",
@@ -39,8 +37,6 @@ struct CLIParserTests {
         #expect(options.emit == .kirDump)
         #expect(options.optLevel == .O2)
         #expect(options.searchPaths == ["include"])
-        XCTAssertTrue(options.includeStdlib)
-        XCTAssertTrue(options.stdlibSearchPaths.contains("kotlin-stdlib.kklib"))
         #expect(options.libraryPaths == ["lib"])
         #expect(options.linkLibraries == ["runtime"])
         #expect(options.frontendFlags == ["time-phases"])
@@ -51,13 +47,6 @@ struct CLIParserTests {
         #expect(options.target.arch == "x86_64")
         #expect(options.target.vendor == "apple")
         #expect(options.target.os == "macos")
-    }
-
-    func testParsesNoStdlibFlag() throws {
-        let options = try CLIParser.parse(args: ["--no-stdlib", "main.kt"])
-
-        XCTAssertFalse(options.includeStdlib)
-        XCTAssertEqual(options.effectiveSearchPaths, options.searchPaths)
     }
 
     @Test

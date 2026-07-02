@@ -9,6 +9,8 @@ public struct IncrementalFrontendState: Codable {
     public let arenaSnapshot: ASTArenaSnapshot
     public let activeDeclsByFileRawID: [Int32: [DeclID]]
     public let tokenCountsByFileRawID: [Int32: Int]
+    public let declarationCount: Int
+    public let tokenCount: Int
 
     public init(
         buildConfigurationHash: String,
@@ -16,7 +18,9 @@ public struct IncrementalFrontendState: Codable {
         files: [ASTFile],
         arenaSnapshot: ASTArenaSnapshot,
         activeDeclsByFileRawID: [Int32: [DeclID]],
-        tokenCountsByFileRawID: [Int32: Int]
+        tokenCountsByFileRawID: [Int32: Int],
+        declarationCount: Int,
+        tokenCount: Int
     ) {
         version = Self.supportedVersion
         self.buildConfigurationHash = buildConfigurationHash
@@ -25,6 +29,8 @@ public struct IncrementalFrontendState: Codable {
         self.arenaSnapshot = arenaSnapshot
         self.activeDeclsByFileRawID = activeDeclsByFileRawID
         self.tokenCountsByFileRawID = tokenCountsByFileRawID
+        self.declarationCount = declarationCount
+        self.tokenCount = tokenCount
     }
 
     public init?(context ctx: CompilationContext, buildConfigurationHash: String) {
@@ -41,7 +47,9 @@ public struct IncrementalFrontendState: Codable {
             files: ast.files,
             arenaSnapshot: ast.arena.snapshot(),
             activeDeclsByFileRawID: ast.activeDeclsByFileRawID,
-            tokenCountsByFileRawID: tokenCountsByFileRawID
+            tokenCountsByFileRawID: tokenCountsByFileRawID,
+            declarationCount: ast.declarationCount,
+            tokenCount: ast.tokenCount
         )
     }
 }

@@ -10,7 +10,7 @@ package kotlin.collections
 // helpers while stdlib-source dispatch is rolled out incrementally.
 
 public fun <T> List<T>.first(): T {
-    if (size == 0) throw NoSuchElementException("Collection is empty.")
+    if (isEmpty()) throw NoSuchElementException("Collection is empty.")
     return this[0]
 }
 
@@ -26,7 +26,7 @@ public fun <T> List<T>.first(predicate: (T) -> Boolean): T {
 }
 
 public fun <T> List<T>.firstOrNull(): T? {
-    if (size == 0) return null
+    if (isEmpty()) return null
     return this[0]
 }
 
@@ -53,7 +53,7 @@ public fun <T> List<T>.find(predicate: (T) -> Boolean): T? {
 }
 
 public fun <T> List<T>.last(): T {
-    if (size == 0) throw NoSuchElementException("Collection is empty.")
+    if (isEmpty()) throw NoSuchElementException("Collection is empty.")
     return this[size - 1]
 }
 
@@ -68,7 +68,7 @@ public fun <T> List<T>.last(predicate: (T) -> Boolean): T {
 }
 
 public fun <T> List<T>.lastOrNull(): T? {
-    if (size == 0) return null
+    if (isEmpty()) return null
     return this[size - 1]
 }
 

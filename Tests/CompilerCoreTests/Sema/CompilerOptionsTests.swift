@@ -1,7 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
-import XCTest
 
 @Suite
 struct CompilerOptionsTests {
@@ -48,9 +47,6 @@ struct CompilerOptionsTests {
         #expect(opts.moduleName == "Test")
         #expect(opts.inputs == ["/a.kt"])
         #expect(opts.outputPath == "/out")
-        XCTAssertTrue(opts.stdlibSearchPaths.isEmpty)
-        XCTAssertTrue(opts.includeStdlib)
-        XCTAssertTrue(opts.effectiveSearchPaths.isEmpty)
         #expect(opts.emit == .executable)
         #expect(opts.searchPaths.isEmpty)
         #expect(opts.libraryPaths.isEmpty)
@@ -70,7 +66,6 @@ struct CompilerOptionsTests {
             outputPath: "/out/bin",
             emit: .object,
             searchPaths: ["/lib"],
-            stdlibSearchPaths: ["/stdlib"],
             libraryPaths: ["/ext"],
             linkLibraries: ["runtime"],
             target: TargetTriple(arch: "x86_64", vendor: "unknown", os: "linux-gnu", osVersion: nil),
@@ -85,8 +80,6 @@ struct CompilerOptionsTests {
         #expect(opts.inputs.count == 2)
         #expect(opts.emit == .object)
         #expect(opts.searchPaths == ["/lib"])
-        XCTAssertEqual(opts.stdlibSearchPaths, ["/stdlib"])
-        XCTAssertEqual(opts.effectiveSearchPaths, ["/stdlib", "/lib"])
         #expect(opts.libraryPaths == ["/ext"])
         #expect(opts.linkLibraries == ["runtime"])
         #expect(opts.optLevel == .O2)

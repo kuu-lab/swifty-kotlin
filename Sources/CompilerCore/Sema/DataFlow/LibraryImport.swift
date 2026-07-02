@@ -17,7 +17,7 @@ extension DataFlowSemaPhase {
         importedInlineFunctions: inout [SymbolID: KIRFunction],
         cache: LibraryMetadataCache? = nil
     ) {
-        let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveSearchPaths)
+        let libraryDirs = discoverLibraryDirectories(searchPaths: options.searchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
 

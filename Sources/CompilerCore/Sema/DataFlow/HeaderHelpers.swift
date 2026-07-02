@@ -103,13 +103,6 @@ extension DataFlowSemaPhase {
             )
         }
         symbols.setAnnotations(records, for: symbol)
-        applyKSwiftKRuntimeNameAnnotation(
-            astAnnotations,
-            symbol: symbol,
-            declRange: declRange,
-            symbols: symbols,
-            diagnostics: diagnostics
-        )
 
         // Register @Suppress ranges so matching diagnostics are filtered.
         guard let declRange else {
@@ -123,52 +116,6 @@ extension DataFlowSemaPhase {
                 }
             }
         }
-    }
-
-    private func applyKSwiftKRuntimeNameAnnotation(
-        _ astAnnotations: [AnnotationNode],
-        symbol: SymbolID,
-        declRange: SourceRange?,
-        symbols: SymbolTable,
-        diagnostics: DiagnosticEngine
-    ) {
-        guard let runtimeNameAnnotation = astAnnotations.first(where: {
-            KnownCompilerAnnotation.kSwiftKRuntimeName.matches($0.name)
-        }) else {
-            return
-        }
-        guard symbols.symbol(symbol)?.kind == .function else {
-            diagnostics.error(
-                "KSWIFTK-SEMA-RUNTIME-NAME",
-                "@KSwiftKRuntimeName can only be used on functions.",
-                range: declRange
-            )
-            return
-        }
-        guard let linkName = runtimeNameArgument(from: runtimeNameAnnotation), !linkName.isEmpty else {
-            diagnostics.error(
-                "KSWIFTK-SEMA-RUNTIME-NAME",
-                "@KSwiftKRuntimeName requires a non-empty runtime symbol name.",
-                range: declRange
-            )
-            return
-        }
-        symbols.setExternalLinkName(linkName, for: symbol)
-    }
-
-    private func runtimeNameArgument(from annotation: AnnotationNode) -> String? {
-        guard let raw = annotation.arguments.first else {
-            return nil
-        }
-        let assignmentPrefixes = ["name =", "value ="]
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let value = assignmentPrefixes.reduce(trimmed) { partial, prefix in
-            if partial.hasPrefix(prefix) {
-                return String(partial.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            return partial
-        }
-        return value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
     }
 
     private func suppressionRange(for decl: Decl, declRange: SourceRange?) -> SourceRange? {

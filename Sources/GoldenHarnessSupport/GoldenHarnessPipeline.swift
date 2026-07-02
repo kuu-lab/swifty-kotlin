@@ -7,8 +7,6 @@ func makeCompilationContext(
     emit: EmitMode = .kirDump,
     outputPath: String? = nil,
     searchPaths: [String] = [],
-    stdlibSearchPaths: [String] = [],
-    includeStdlib: Bool = true,
     irFlags: [String] = [],
     frontendFlags: [String] = []
 ) -> CompilationContext {
@@ -21,8 +19,6 @@ func makeCompilationContext(
         outputPath: destination,
         emit: emit,
         searchPaths: searchPaths,
-        stdlibSearchPaths: stdlibSearchPaths,
-        includeStdlib: includeStdlib,
         target: TargetTriple.hostDefault(),
         frontendFlags: frontendFlags,
         irFlags: irFlags
