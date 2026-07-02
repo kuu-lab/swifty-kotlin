@@ -27,9 +27,13 @@ extension DataFlowSemaPhase {
             else {
                 return false
             }
-            return signature.parameterTypes[0] == types.intType
+            let isRepeatSignature = signature.parameterTypes[0] == types.intType
                 && functionType.params == [types.intType]
                 && functionType.returnType == types.unitType
+            if isRepeatSignature {
+                symbols.setStdlibSpecialCallKind(.repeatLoop, for: symbolID)
+            }
+            return isRepeatSignature
         }) {
             return
         }
@@ -84,5 +88,6 @@ extension DataFlowSemaPhase {
             ),
             for: repeatSymbol
         )
+        symbols.setStdlibSpecialCallKind(.repeatLoop, for: repeatSymbol)
     }
 }

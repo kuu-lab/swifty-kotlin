@@ -272,6 +272,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "block", type: blockFunctionType)],
             returnType: types.longType,
             externalLinkName: "kk_system_measureTimeMicros",
+            stdlibSpecialCallKind: .measureTimeMicros,
             symbols: symbols,
             interner: interner
         )
@@ -282,6 +283,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "block", type: blockFunctionType)],
             returnType: types.longType,
             externalLinkName: "kk_system_measureTimeMillis",
+            stdlibSpecialCallKind: .measureTimeMillis,
             symbols: symbols,
             interner: interner
         )

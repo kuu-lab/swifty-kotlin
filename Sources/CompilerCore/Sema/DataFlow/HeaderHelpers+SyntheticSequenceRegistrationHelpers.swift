@@ -687,10 +687,11 @@ extension DataFlowSemaPhase {
         returnType: TypeID,
         externalLinkName: String,
         annotations: [MetadataAnnotationRecord] = [],
+        stdlibSpecialCallKind: StdlibSpecialCallKind? = nil,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        registerSyntheticFunctionStub(
+        let functionSymbol = registerSyntheticFunctionStub(
             named: name,
             ownerFQName: packageFQName,
             parentSymbol: symbols.lookup(fqName: packageFQName),
@@ -702,6 +703,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        if let stdlibSpecialCallKind {
+            symbols.setStdlibSpecialCallKind(stdlibSpecialCallKind, for: functionSymbol)
+        }
     }
 
     /// Register a synthetic empty-collection factory function (emptyList, emptySet, emptyMap)

@@ -1,6 +1,6 @@
 symbol fq=golden.sema.None kind=object vis=public flags=dataType
 symbol fq=golden.sema.useDataObject kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
-file f14 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.None object None sym=golden.sema.None
   decl golden.sema.useDataObject fun useDataObject sym=golden.sema.useDataObject
 expr e@5:32#0 name(None) type=golden.sema.None ref=golden.sema.None
