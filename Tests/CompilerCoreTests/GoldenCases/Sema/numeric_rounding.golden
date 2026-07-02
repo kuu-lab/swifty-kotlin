@@ -11,29 +11,29 @@ symbol fq=kotlin.math.roundToInt#1 kind=function vis=public flags=synthetic sig=
 symbol fq=kotlin.math.roundToLong#0 kind=function vis=public flags=synthetic sig=recv=Double params=[] ret=Long
 symbol fq=kotlin.math.roundToLong#1 kind=function vis=public flags=synthetic sig=recv=Float params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl main fun main sym=main
 expr e@6:21 double(3.7) type=Double
-expr e@6:5#3 localDecl d mutable=0 type=Double init=e@6:21 type=Unit ref=__local_0.d
-expr e@7:23#1 name(d) type=Double ref=__local_0.d
-expr e@7:23#2 memberCall recv=e@7:23#1 callee=roundToInt args=[] type=Int call=kotlin.math.roundToInt#0
-expr e@7:5#3 localDecl dToInt mutable=0 type=Int init=e@7:23#2 type=Unit ref=__local_1.dToInt
-expr e@8:25#0 name(d) type=Double ref=__local_0.d
-expr e@8:25#1 memberCall recv=e@8:25#0 callee=roundToLong args=[] type=Long call=kotlin.math.roundToLong#0
-expr e@8:5#2 localDecl dToLong mutable=0 type=Long init=e@8:25#1 type=Unit ref=__local_2.dToLong
+expr e@6:5 localDecl d mutable=0 type=Double init=e@6:21 type=Unit ref=__local_0.d
+expr e@7:23 name(d) type=Double ref=__local_0.d
+expr e@7:23#1 memberCall recv=e@7:23 callee=roundToInt args=[] type=Int call=kotlin.math.roundToInt#0
+expr e@7:5 localDecl dToInt mutable=0 type=Int init=e@7:23#1 type=Unit ref=__local_1.dToInt
+expr e@8:25 name(d) type=Double ref=__local_0.d
+expr e@8:25#1 memberCall recv=e@8:25 callee=roundToLong args=[] type=Long call=kotlin.math.roundToLong#0
+expr e@8:5 localDecl dToLong mutable=0 type=Long init=e@8:25#1 type=Unit ref=__local_2.dToLong
 expr e@9:13 name(dToInt) type=Int ref=__local_1.dToInt
-expr e@9:5#1 call callee=e@9:5#0 args=[_:e@9:13] type=Unit call=kotlin.io.println#1
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13] type=Unit call=kotlin.io.println#1
 expr e@10:13 name(dToLong) type=Long ref=__local_2.dToLong
-expr e@10:5#2 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println#1
-expr e@13:20#2 float(2.3) type=Float
-expr e@13:5#6 localDecl f mutable=0 type=Float init=e@13:20#2 type=Unit ref=__local_3.f
-expr e@14:23#0 name(f) type=Float ref=__local_3.f
-expr e@14:23#1 memberCall recv=e@14:23#0 callee=roundToInt args=[] type=Int call=kotlin.math.roundToInt#1
-expr e@14:5#7 localDecl fToInt mutable=0 type=Int init=e@14:23#1 type=Unit ref=__local_4.fToInt
-expr e@15:25#0 name(f) type=Float ref=__local_3.f
-expr e@15:25#1 memberCall recv=e@15:25#0 callee=roundToLong args=[] type=Long call=kotlin.math.roundToLong#1
-expr e@15:5#6 localDecl fToLong mutable=0 type=Long init=e@15:25#1 type=Unit ref=__local_5.fToLong
-expr e@16:13#1 name(fToInt) type=Int ref=__local_4.fToInt
-expr e@16:5#7 call callee=e@16:5#6 args=[_:e@16:13#1] type=Unit call=kotlin.io.println#1
-expr e@17:13#3 name(fToLong) type=Long ref=__local_5.fToLong
-expr e@17:5#4 call callee=e@17:5#3 args=[_:e@17:13#3] type=Unit call=kotlin.io.println#1
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println#1
+expr e@13:20 float(2.3) type=Float
+expr e@13:5 localDecl f mutable=0 type=Float init=e@13:20 type=Unit ref=__local_3.f
+expr e@14:23 name(f) type=Float ref=__local_3.f
+expr e@14:23#1 memberCall recv=e@14:23 callee=roundToInt args=[] type=Int call=kotlin.math.roundToInt#1
+expr e@14:5 localDecl fToInt mutable=0 type=Int init=e@14:23#1 type=Unit ref=__local_4.fToInt
+expr e@15:25 name(f) type=Float ref=__local_3.f
+expr e@15:25#1 memberCall recv=e@15:25 callee=roundToLong args=[] type=Long call=kotlin.math.roundToLong#1
+expr e@15:5 localDecl fToLong mutable=0 type=Long init=e@15:25#1 type=Unit ref=__local_5.fToLong
+expr e@16:13 name(fToInt) type=Int ref=__local_4.fToInt
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println#1
+expr e@17:13 name(fToLong) type=Long ref=__local_5.fToLong
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println#1

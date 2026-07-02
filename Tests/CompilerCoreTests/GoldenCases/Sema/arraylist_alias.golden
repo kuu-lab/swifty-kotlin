@@ -34,7 +34,7 @@ symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=nestedLists kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=processList kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableList<String>] ret=Unit
 symbol fq=processList.$1.list kind=valueParameter vis=private flags=_
-file f15 package=_
+file f0 package=_
   decl processList fun processList sym=processList
   decl createList fun createList sym=createList
   decl Container class Container sym=Container
@@ -43,120 +43,120 @@ file f15 package=_
   decl constrain fun constrain sym=constrain
   decl customExtension fun customExtension sym=customExtension
   decl main fun main sym=main
-expr e@2:13#0 name(list) type=kotlin.collections.MutableList<String> ref=processList.$1.list
-expr e@2:13#1 memberCall recv=e@2:13#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@2:5#1 call callee=e@2:5#0 args=[_:e@2:13#1] type=Unit call=kotlin.io.println#1
-expr e@6:12#2 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@6:12#3 call callee=e@6:12#2 args=[] type=kotlin.collections.MutableList<Int>
-expr e@6:5#3 return value=e@6:12#3 type=Nothing
-expr e@10:36#0 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@10:36#1 call callee=e@10:36#0 args=[] type=kotlin.collections.MutableList<String>
-expr e@11:35#0 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@11:35#1 call callee=e@11:35#0 args=[] type=kotlin.collections.MutableList<Int>
-expr e@15:48#2 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@15:48#3 call callee=e@15:48#2 args=[] type=kotlin.collections.MutableList<kotlin.collections.MutableList<String>>
-expr e@15:5#6 localDecl nested mutable=0 type=ArrayList<ArrayList<String>> init=e@15:48#3 type=Unit ref=__local_0.nested
-expr e@16:17#0 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@16:17#1 call callee=e@16:17#0 args=[] type=kotlin.collections.MutableList<String>
-expr e@16:5#6 localDecl inner mutable=0 type=_ init=e@16:17#1 type=Unit ref=__local_1.inner
-expr e@17:5#3 name(inner) type=kotlin.collections.MutableList<String> ref=__local_1.inner
+expr e@2:13 name(list) type=kotlin.collections.MutableList<String> ref=processList.$1.list
+expr e@2:13#1 memberCall recv=e@2:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@2:5 call callee=e@2:5#1 args=[_:e@2:13#1] type=Unit call=kotlin.io.println#1
+expr e@6:12 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@6:12#1 call callee=e@6:12 args=[] type=kotlin.collections.MutableList<Int>
+expr e@6:5 return value=e@6:12#1 type=Nothing
+expr e@10:36 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@10:36#1 call callee=e@10:36 args=[] type=kotlin.collections.MutableList<String>
+expr e@11:35 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@11:35#1 call callee=e@11:35 args=[] type=kotlin.collections.MutableList<Int>
+expr e@15:48 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@15:48#1 call callee=e@15:48 args=[] type=kotlin.collections.MutableList<kotlin.collections.MutableList<String>>
+expr e@15:5 localDecl nested mutable=0 type=ArrayList<ArrayList<String>> init=e@15:48#1 type=Unit ref=__local_0.nested
+expr e@16:17 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@16:17#1 call callee=e@16:17 args=[] type=kotlin.collections.MutableList<String>
+expr e@16:5 localDecl inner mutable=0 type=_ init=e@16:17#1 type=Unit ref=__local_1.inner
+expr e@17:5 name(inner) type=kotlin.collections.MutableList<String> ref=__local_1.inner
 expr e@17:15 string(nested) type=String
-expr e@17:5#4 memberCall recv=e@17:5#3 callee=add args=[_:e@17:15] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@18:5#4 name(nested) type=kotlin.collections.MutableList<kotlin.collections.MutableList<String>> ref=__local_0.nested
-expr e@18:16#1 name(inner) type=kotlin.collections.MutableList<String> ref=__local_1.inner
-expr e@18:5#5 memberCall recv=e@18:5#4 callee=add args=[_:e@18:16#1] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@19:13#0 name(nested) type=kotlin.collections.MutableList<kotlin.collections.MutableList<String>> ref=__local_0.nested
-expr e@19:13#1 memberCall recv=e@19:13#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@19:5#7 call callee=e@19:5#6 args=[_:e@19:13#1] type=Unit call=kotlin.io.println#1
+expr e@17:5#1 memberCall recv=e@17:5 callee=add args=[_:e@17:15] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@18:5 name(nested) type=kotlin.collections.MutableList<kotlin.collections.MutableList<String>> ref=__local_0.nested
+expr e@18:16 name(inner) type=kotlin.collections.MutableList<String> ref=__local_1.inner
+expr e@18:5#1 memberCall recv=e@18:5 callee=add args=[_:e@18:16] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@19:13 name(nested) type=kotlin.collections.MutableList<kotlin.collections.MutableList<String>> ref=__local_0.nested
+expr e@19:13#1 memberCall recv=e@19:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#1] type=Unit call=kotlin.io.println#1
 expr e@23:22 string(custom) type=String
-expr e@27:12#2 name(list) type=constrain.$0.T ref=constrain.$0.list
-expr e@27:5#4 return value=e@27:12#2 type=Nothing
-expr e@31:25#0 this type=kotlin.collections.MutableList<String>
-expr e@31:25#1 memberCall recv=e@31:25#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@31:12#3 stringTemplate[lit(extended: ),expr(e@31:25#1)] type=String
-expr e@31:5#6 return value=e@31:12#3 type=Nothing
-expr e@35:35#0 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@35:35#1 call callee=e@35:35#0 args=[] type=kotlin.collections.MutableList<String>
-expr e@35:5#8 localDecl list mutable=0 type=ArrayList<String> init=e@35:35#1 type=Unit ref=__local_2.list
-expr e@36:5#7 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
+expr e@27:12 name(list) type=constrain.$0.T ref=constrain.$0.list
+expr e@27:5 return value=e@27:12 type=Nothing
+expr e@31:25 this type=kotlin.collections.MutableList<String>
+expr e@31:25#1 memberCall recv=e@31:25 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@31:12 stringTemplate[lit(extended: ),expr(e@31:25#1)] type=String
+expr e@31:5 return value=e@31:12 type=Nothing
+expr e@35:35 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@35:35#1 call callee=e@35:35 args=[] type=kotlin.collections.MutableList<String>
+expr e@35:5 localDecl list mutable=0 type=ArrayList<String> init=e@35:35#1 type=Unit ref=__local_2.list
+expr e@36:5 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
 expr e@36:14 string(hello) type=String
-expr e@36:5#8 memberCall recv=e@36:5#7 callee=add args=[_:e@36:14] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@37:5#6 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
-expr e@37:14#2 string(world) type=String
-expr e@37:5#7 memberCall recv=e@37:5#6 callee=add args=[_:e@37:14#2] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@38:13#2 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
-expr e@38:13#3 memberCall recv=e@38:13#2 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@38:5#5 call callee=e@38:5#4 args=[_:e@38:13#3] type=Unit call=kotlin.io.println#1
-expr e@39:13#1 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
+expr e@36:5#1 memberCall recv=e@36:5 callee=add args=[_:e@36:14] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@37:5 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
+expr e@37:14 string(world) type=String
+expr e@37:5#1 memberCall recv=e@37:5 callee=add args=[_:e@37:14] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@38:13 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
+expr e@38:13#1 memberCall recv=e@38:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13#1] type=Unit call=kotlin.io.println#1
+expr e@39:13 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
 expr e@39:18 int(0) type=Int
-expr e@39:13#2 indexedAccess receiver=e@39:13#1 indices=[e@39:18] type=String call=kotlin.collections.List.get targs=[String]
-expr e@39:5#5 call callee=e@39:5#4 args=[_:e@39:13#2] type=Unit call=kotlin.io.println#1
+expr e@39:13#1 indexedAccess receiver=e@39:13 indices=[e@39:18] type=String call=kotlin.collections.List.get targs=[String]
+expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13#1] type=Unit call=kotlin.io.println#1
 expr e@41:35 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
-expr e@41:5#5 localDecl ml mutable=0 type=MutableList<String> init=e@41:35 type=Unit ref=__local_3.ml
-expr e@42:5#3 name(ml) type=kotlin.collections.MutableList<String> ref=__local_3.ml
-expr e@42:12#1 string(!) type=String
-expr e@42:5#4 memberCall recv=e@42:5#3 callee=add args=[_:e@42:12#1] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@43:13#3 name(ml) type=kotlin.collections.MutableList<String> ref=__local_3.ml
-expr e@43:13#4 memberCall recv=e@43:13#3 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@43:5#2 call callee=e@43:5#1 args=[_:e@43:13#4] type=Unit call=kotlin.io.println#1
-expr e@45:16#0 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@45:16#1 call callee=e@45:16#0 args=[] type=kotlin.collections.MutableList<Int>
-expr e@45:5#4 localDecl nums mutable=0 type=_ init=e@45:16#1 type=Unit ref=__local_4.nums
-expr e@46:5#8 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
-expr e@46:14#1 int(1) type=Int
-expr e@46:5#9 memberCall recv=e@46:5#8 callee=add args=[_:e@46:14#1] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@47:5#8 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
-expr e@47:14#2 int(2) type=Int
-expr e@47:5#9 memberCall recv=e@47:5#8 callee=add args=[_:e@47:14#2] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@48:5#3 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
+expr e@41:5 localDecl ml mutable=0 type=MutableList<String> init=e@41:35 type=Unit ref=__local_3.ml
+expr e@42:5 name(ml) type=kotlin.collections.MutableList<String> ref=__local_3.ml
+expr e@42:12 string(!) type=String
+expr e@42:5#1 memberCall recv=e@42:5 callee=add args=[_:e@42:12] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@43:13 name(ml) type=kotlin.collections.MutableList<String> ref=__local_3.ml
+expr e@43:13#1 memberCall recv=e@43:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@43:5 call callee=e@43:5#1 args=[_:e@43:13#1] type=Unit call=kotlin.io.println#1
+expr e@45:16 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@45:16#1 call callee=e@45:16 args=[] type=kotlin.collections.MutableList<Int>
+expr e@45:5 localDecl nums mutable=0 type=_ init=e@45:16#1 type=Unit ref=__local_4.nums
+expr e@46:5 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
+expr e@46:14 int(1) type=Int
+expr e@46:5#1 memberCall recv=e@46:5 callee=add args=[_:e@46:14] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@47:5 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
+expr e@47:14 int(2) type=Int
+expr e@47:5#1 memberCall recv=e@47:5 callee=add args=[_:e@47:14] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@48:5 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
 expr e@48:14 int(3) type=Int
-expr e@48:5#4 memberCall recv=e@48:5#3 callee=add args=[_:e@48:14] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@49:5#2 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
+expr e@48:5#1 memberCall recv=e@48:5 callee=add args=[_:e@48:14] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@49:5 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
 expr e@49:19 int(0) type=Int
-expr e@49:5#3 memberCall recv=e@49:5#2 callee=removeAt args=[_:e@49:19] type=Int call=kotlin.collections.MutableList.removeAt targs=[Int]
-expr e@50:13#1 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
-expr e@50:5#4 call callee=e@50:5#3 args=[_:e@50:13#1] type=Unit call=kotlin.io.println#1
-expr e@52:31#0 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
-expr e@52:31#1 call callee=e@52:31#0 args=[] type=kotlin.collections.List<String>
-expr e@52:5#4 localDecl items mutable=0 type=List<String> init=e@52:31#1 type=Unit ref=__local_5.items
-expr e@53:13#1 name(items) type=kotlin.collections.List<String> ref=__local_5.items
-expr e@53:13#2 memberCall recv=e@53:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@53:5#5 call callee=e@53:5#4 args=[_:e@53:13#2] type=Unit call=kotlin.io.println#1
+expr e@49:5#1 memberCall recv=e@49:5 callee=removeAt args=[_:e@49:19] type=Int call=kotlin.collections.MutableList.removeAt targs=[Int]
+expr e@50:13 name(nums) type=kotlin.collections.MutableList<Int> ref=__local_4.nums
+expr e@50:5 call callee=e@50:5#1 args=[_:e@50:13] type=Unit call=kotlin.io.println#1
+expr e@52:31 name(ArrayList) type=Any ref=kotlin.collections.ArrayList
+expr e@52:31#1 call callee=e@52:31 args=[] type=kotlin.collections.List<String>
+expr e@52:5 localDecl items mutable=0 type=List<String> init=e@52:31#1 type=Unit ref=__local_5.items
+expr e@53:13 name(items) type=kotlin.collections.List<String> ref=__local_5.items
+expr e@53:13#1 memberCall recv=e@53:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@53:5 call callee=e@53:5#1 args=[_:e@53:13#1] type=Unit call=kotlin.io.println#1
 expr e@55:17 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
-expr e@55:5#2 call callee=e@55:5#1 args=[_:e@55:17] type=Unit call=processList
-expr e@57:19#2 call callee=e@57:19#1 args=[] type=kotlin.collections.MutableList<Int> call=createList
-expr e@57:5#6 localDecl created mutable=0 type=_ init=e@57:19#2 type=Unit ref=__local_6.created
-expr e@58:5#1 name(created) type=kotlin.collections.MutableList<Int> ref=__local_6.created
+expr e@55:5 call callee=e@55:5#1 args=[_:e@55:17] type=Unit call=processList
+expr e@57:19 call callee=e@57:19#1 args=[] type=kotlin.collections.MutableList<Int> call=createList
+expr e@57:5 localDecl created mutable=0 type=_ init=e@57:19 type=Unit ref=__local_6.created
+expr e@58:5 name(created) type=kotlin.collections.MutableList<Int> ref=__local_6.created
 expr e@58:17 int(42) type=Int
-expr e@58:5#2 memberCall recv=e@58:5#1 callee=add args=[_:e@58:17] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@59:13#3 name(created) type=kotlin.collections.MutableList<Int> ref=__local_6.created
-expr e@59:13#4 memberCall recv=e@59:13#3 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@59:5#4 call callee=e@59:5#3 args=[_:e@59:13#4] type=Unit call=kotlin.io.println#1
-expr e@61:21#1 call callee=e@61:21#0 args=[] type=Container call=Container.<init>
-expr e@61:5#4 localDecl container mutable=0 type=_ init=e@61:21#1 type=Unit ref=__local_7.container
-expr e@62:5#3 name(container) type=Container ref=__local_7.container
-expr e@62:5#4 memberCall recv=e@62:5#3 callee=items args=[] type=kotlin.collections.MutableList<String> ref=Container.items
+expr e@58:5#1 memberCall recv=e@58:5 callee=add args=[_:e@58:17] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@59:13 name(created) type=kotlin.collections.MutableList<Int> ref=__local_6.created
+expr e@59:13#1 memberCall recv=e@59:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@59:5 call callee=e@59:5#1 args=[_:e@59:13#1] type=Unit call=kotlin.io.println#1
+expr e@61:21 call callee=e@61:21#1 args=[] type=Container call=Container.<init>
+expr e@61:5 localDecl container mutable=0 type=_ init=e@61:21 type=Unit ref=__local_7.container
+expr e@62:5 name(container) type=Container ref=__local_7.container
+expr e@62:5#1 memberCall recv=e@62:5 callee=items args=[] type=kotlin.collections.MutableList<String> ref=Container.items
 expr e@62:25 string(property) type=String
-expr e@62:5#5 memberCall recv=e@62:5#4 callee=add args=[_:e@62:25] type=Boolean call=kotlin.collections.MutableList.add#1
-expr e@63:13#1 name(container) type=Container ref=__local_7.container
-expr e@63:13#2 memberCall recv=e@63:13#1 callee=items args=[] type=kotlin.collections.MutableList<String> ref=Container.items
-expr e@63:13#3 memberCall recv=e@63:13#2 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@63:5#2 call callee=e@63:5#1 args=[_:e@63:13#3] type=Unit call=kotlin.io.println#1
-expr e@65:5#3 call callee=e@65:5#2 args=[] type=Unit call=nestedLists
-expr e@67:18#1 call callee=e@67:18#0 args=[] type=MyList call=MyList.<init>
-expr e@67:5#6 localDecl myList mutable=0 type=_ init=e@67:18#1 type=Unit ref=__local_8.myList
-expr e@68:5#4 name(myList) type=MyList ref=__local_8.myList
+expr e@62:5#2 memberCall recv=e@62:5#1 callee=add args=[_:e@62:25] type=Boolean call=kotlin.collections.MutableList.add#1
+expr e@63:13 name(container) type=Container ref=__local_7.container
+expr e@63:13#1 memberCall recv=e@63:13 callee=items args=[] type=kotlin.collections.MutableList<String> ref=Container.items
+expr e@63:13#2 memberCall recv=e@63:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13#2] type=Unit call=kotlin.io.println#1
+expr e@65:5 call callee=e@65:5#1 args=[] type=Unit call=nestedLists
+expr e@67:18 call callee=e@67:18#1 args=[] type=MyList call=MyList.<init>
+expr e@67:5 localDecl myList mutable=0 type=_ init=e@67:18 type=Unit ref=__local_8.myList
+expr e@68:5 name(myList) type=MyList ref=__local_8.myList
 expr e@68:16 string(inherited) type=String
-expr e@68:5#5 memberCall recv=e@68:5#4 callee=add args=[_:e@68:16] type=<error>
-expr e@69:13#0 name(myList) type=MyList ref=__local_8.myList
-expr e@69:13#1 memberCall recv=e@69:13#0 callee=customOp args=[] type=String call=MyList.customOp
-expr e@69:5#2 call callee=e@69:5#1 args=[_:e@69:13#1] type=Unit call=kotlin.io.println#1
+expr e@68:5#1 memberCall recv=e@68:5 callee=add args=[_:e@68:16] type=<error>
+expr e@69:13 name(myList) type=MyList ref=__local_8.myList
+expr e@69:13#1 memberCall recv=e@69:13 callee=customOp args=[] type=String call=MyList.customOp
+expr e@69:5 call callee=e@69:5#1 args=[_:e@69:13#1] type=Unit call=kotlin.io.println#1
 expr e@71:33 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
-expr e@71:23#2 call callee=e@71:23#1 args=[_:e@71:33] type=kotlin.collections.MutableList<String> call=constrain targs=[kotlin.collections.MutableList<String>]
-expr e@71:5#2 localDecl constrained mutable=0 type=_ init=e@71:23#2 type=Unit ref=__local_9.constrained
-expr e@72:13#0 name(constrained) type=kotlin.collections.MutableList<String> ref=__local_9.constrained
-expr e@72:13#1 memberCall recv=e@72:13#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@72:5#7 call callee=e@72:5#6 args=[_:e@72:13#1] type=Unit call=kotlin.io.println#1
-expr e@74:13#0 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
-expr e@74:13#1 memberCall recv=e@74:13#0 callee=customExtension args=[] type=String call=customExtension
-expr e@74:5#4 call callee=e@74:5#3 args=[_:e@74:13#1] type=Unit call=kotlin.io.println#1
+expr e@71:23 call callee=e@71:23#1 args=[_:e@71:33] type=kotlin.collections.MutableList<String> call=constrain targs=[kotlin.collections.MutableList<String>]
+expr e@71:5 localDecl constrained mutable=0 type=_ init=e@71:23 type=Unit ref=__local_9.constrained
+expr e@72:13 name(constrained) type=kotlin.collections.MutableList<String> ref=__local_9.constrained
+expr e@72:13#1 memberCall recv=e@72:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@72:5 call callee=e@72:5#1 args=[_:e@72:13#1] type=Unit call=kotlin.io.println#1
+expr e@74:13 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
+expr e@74:13#1 memberCall recv=e@74:13 callee=customExtension args=[] type=String call=customExtension
+expr e@74:5 call callee=e@74:5#1 args=[_:e@74:13#1] type=Unit call=kotlin.io.println#1

@@ -9,24 +9,24 @@ symbol fq=kotlin.random.Random.<init>.seed kind=valueParameter vis=private flags
 symbol fq=kotlin.random.Random.nextBits kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Int] ret=Int
 symbol fq=kotlin.random.Random.nextBits.bitCount kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandomNextBits kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl useRandomNextBits fun useRandomNextBits sym=useRandomNextBits
-expr e@4:20#1 int(42) type=Int
-expr e@4:13#3 call callee=e@4:13#2 args=[_:e@4:20#1] type=kotlin.random.Random call=kotlin.random.Random.<init>#0
-expr e@4:5#2 localDecl r mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.r
-expr e@5:13#1 name(r) type=kotlin.random.Random ref=__local_0.r
+expr e@4:20 int(42) type=Int
+expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.random.Random call=kotlin.random.Random.<init>#0
+expr e@4:5 localDecl r mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.r
+expr e@5:13 name(r) type=kotlin.random.Random ref=__local_0.r
 expr e@5:24 int(8) type=Int
-expr e@5:13#2 memberCall recv=e@5:13#1 callee=nextBits args=[_:e@5:24] type=Int call=kotlin.random.Random.nextBits
-expr e@5:5#2 localDecl a mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_1.a
-expr e@6:13#1 name(r) type=kotlin.random.Random ref=__local_0.r
-expr e@6:24#2 int(16) type=Int
-expr e@6:13#2 memberCall recv=e@6:13#1 callee=nextBits args=[_:e@6:24#2] type=Int call=kotlin.random.Random.nextBits
-expr e@6:5#3 localDecl b mutable=0 type=_ init=e@6:13#2 type=Unit ref=__local_2.b
-expr e@7:13#0 name(r) type=kotlin.random.Random ref=__local_0.r
+expr e@5:13#1 memberCall recv=e@5:13 callee=nextBits args=[_:e@5:24] type=Int call=kotlin.random.Random.nextBits
+expr e@5:5 localDecl a mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_1.a
+expr e@6:13 name(r) type=kotlin.random.Random ref=__local_0.r
+expr e@6:24 int(16) type=Int
+expr e@6:13#1 memberCall recv=e@6:13 callee=nextBits args=[_:e@6:24] type=Int call=kotlin.random.Random.nextBits
+expr e@6:5 localDecl b mutable=0 type=_ init=e@6:13#1 type=Unit ref=__local_2.b
+expr e@7:13 name(r) type=kotlin.random.Random ref=__local_0.r
 expr e@7:24 int(32) type=Int
-expr e@7:13#1 memberCall recv=e@7:13#0 callee=nextBits args=[_:e@7:24] type=Int call=kotlin.random.Random.nextBits
-expr e@7:5#3 localDecl c mutable=0 type=_ init=e@7:13#1 type=Unit ref=__local_3.c
-expr e@8:13#0 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
+expr e@7:13#1 memberCall recv=e@7:13 callee=nextBits args=[_:e@7:24] type=Int call=kotlin.random.Random.nextBits
+expr e@7:5 localDecl c mutable=0 type=_ init=e@7:13#1 type=Unit ref=__local_3.c
+expr e@8:13 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e@8:29 int(1) type=Int
-expr e@8:13#1 memberCall recv=e@8:13#0 callee=nextBits args=[_:e@8:29] type=Int call=kotlin.random.Random.nextBits
-expr e@8:5#2 localDecl d mutable=0 type=_ init=e@8:13#1 type=Unit ref=__local_4.d
+expr e@8:13#1 memberCall recv=e@8:13 callee=nextBits args=[_:e@8:29] type=Int call=kotlin.random.Random.nextBits
+expr e@8:5 localDecl d mutable=0 type=_ init=e@8:13#1 type=Unit ref=__local_4.d

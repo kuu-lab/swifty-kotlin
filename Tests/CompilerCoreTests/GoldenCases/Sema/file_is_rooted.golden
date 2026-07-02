@@ -7,11 +7,11 @@ symbol fq=kotlin.io.isRooted.$get kind=function vis=public flags=synthetic sig=r
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f15 package=_
+file f0 package=_
   decl main fun main sym=main
 expr e@4:18 string(/tmp/golden_isrooted.txt) type=String
-expr e@4:13#3 call callee=e@4:13#2 args=[_:e@4:18] type=java.io.File call=java.io.File.<init>#0
-expr e@4:5#2 localDecl f mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.f
-expr e@5:13#1 name(f) type=java.io.File ref=__local_0.f
-expr e@5:13#2 memberCall recv=e@5:13#1 callee=isRooted args=[] type=Boolean ref=kotlin.io.isRooted call=kotlin.io.isRooted.$get
-expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:13#2] type=Unit call=kotlin.io.println#1
+expr e@4:13 call callee=e@4:13#1 args=[_:e@4:18] type=java.io.File call=java.io.File.<init>#0
+expr e@4:5 localDecl f mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.f
+expr e@5:13 name(f) type=java.io.File ref=__local_0.f
+expr e@5:13#1 memberCall recv=e@5:13 callee=isRooted args=[] type=Boolean ref=kotlin.io.isRooted call=kotlin.io.isRooted.$get
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1

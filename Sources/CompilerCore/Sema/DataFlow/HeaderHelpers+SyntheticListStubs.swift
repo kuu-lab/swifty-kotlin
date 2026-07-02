@@ -12,7 +12,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
-        collectionInterfaceSymbol: SymbolID
+        collectionInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) -> SymbolID {
         let listName = interner.intern("List")
         let listFQName = kotlinCollectionsPkg + [listName]
@@ -102,7 +104,9 @@ extension DataFlowSemaPhase {
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
+            listTypeParamType: listTypeParamType,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerListIteratorMember(
             symbols: symbols, types: types, interner: interner,

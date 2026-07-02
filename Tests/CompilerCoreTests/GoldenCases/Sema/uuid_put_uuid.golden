@@ -8,13 +8,13 @@ symbol fq=kotlin.uuid.putUuid.at kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.uuid.putUuid.uuid kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.uuid.uuid kind=function vis=public flags=synthetic sig=recv=kotlin.ByteArray params=[Int] ret=kotlin.uuid.Uuid
 symbol fq=kotlin.uuid.uuid.at kind=valueParameter vis=private flags=synthetic
-file f15 package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
+file f0 package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
   decl golden.sema.writeThenReadUuid fun writeThenReadUuid sym=golden.sema.writeThenReadUuid
-expr e@10:5#1 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
+expr e@10:5 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
 expr e@10:17 int(0) type=Int
 expr e@10:20 name(u) type=kotlin.uuid.Uuid ref=golden.sema.writeThenReadUuid.$0.u
-expr e@10:5#2 memberCall recv=e@10:5#1 callee=putUuid args=[_:e@10:17,_:e@10:20] type=Unit call=kotlin.uuid.putUuid
-expr e@11:12#0 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
-expr e@11:21#1 int(0) type=Int
-expr e@11:12#1 memberCall recv=e@11:12#0 callee=uuid args=[_:e@11:21#1] type=kotlin.uuid.Uuid call=kotlin.uuid.uuid
-expr e@11:5#2 return value=e@11:12#1 type=Nothing
+expr e@10:5#1 memberCall recv=e@10:5 callee=putUuid args=[_:e@10:17,_:e@10:20] type=Unit call=kotlin.uuid.putUuid
+expr e@11:12 name(arr) type=kotlin.ByteArray ref=golden.sema.writeThenReadUuid.$0.arr
+expr e@11:21 int(0) type=Int
+expr e@11:12#1 memberCall recv=e@11:12 callee=uuid args=[_:e@11:21] type=kotlin.uuid.Uuid call=kotlin.uuid.uuid
+expr e@11:5 return value=e@11:12#1 type=Nothing

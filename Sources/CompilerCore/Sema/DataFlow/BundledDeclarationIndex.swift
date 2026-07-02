@@ -20,11 +20,31 @@ struct BundledDeclarationIndex {
         keys.contains(BundledMemberKey(ownerFQName: owner, name: name, arity: arity))
     }
 
+    func contains(ownerFQName: [InternedString], name: InternedString, arity: Int) -> Bool {
+        contains(owner: ownerFQName, name: name, arity: arity)
+    }
+
     /// Build from AST bundled sources before SymbolTable header collection.
     /// Step (0) requires bundled SymbolTable registration before stubs; that reorder
     /// breaks sema until synthetic type foundations are split (KSP-002). AST scanning
     /// preserves compilation behavior while supplying `(owner, name, arity)` keys.
     static func build(ast: ASTModule, sourceManager: SourceManager) -> BundledDeclarationIndex {
+        BundledDeclarationIndex(keys: buildKeys(ast: ast, sourceManager: sourceManager))
+    }
+
+    static func build(
+        ast: ASTModule,
+        symbols _: SymbolTable,
+        types _: TypeSystem,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> BundledDeclarationIndex {
+        var keys = buildKeys(ast: ast, sourceManager: sourceManager)
+        addListIterableAliases(to: &keys, interner: interner)
+        return BundledDeclarationIndex(keys: keys)
+    }
+
+    private static func buildKeys(ast: ASTModule, sourceManager: SourceManager) -> Set<BundledMemberKey> {
         let bundledFiles = ast.sortedFiles.filter {
             sourceManager.path(of: $0.fileID).hasPrefix("__bundled_")
         }
@@ -46,7 +66,7 @@ struct BundledDeclarationIndex {
                 )
             }
         }
-        return BundledDeclarationIndex(keys: keys)
+        return keys
     }
 
     /// Build from SymbolTable symbols whose `declSite` is in bundled virtual files.
@@ -121,6 +141,24 @@ struct BundledDeclarationIndex {
         }
 
         return BundledDeclarationIndex(keys: keys)
+    }
+
+    private static func addListIterableAliases(to keys: inout Set<BundledMemberKey>, interner: StringInterner) {
+        let kotlin = interner.intern("kotlin")
+        let collections = interner.intern("collections")
+        let listOwnerFQName = [kotlin, collections, interner.intern("List")]
+        let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
+
+        let listKeys = keys.filter { $0.ownerFQName == listOwnerFQName }
+        for key in listKeys {
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: iterableOwnerFQName,
+                    name: key.name,
+                    arity: key.arity
+                )
+            )
+        }
     }
 
     private static func collectBundledTopLevelDecl(
