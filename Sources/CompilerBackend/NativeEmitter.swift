@@ -147,11 +147,35 @@ struct NativeEmitter {
             if spec.name == "kk_object_register_itable_method" {
                 continue
             }
-            let positions = spec.parameters.enumerated().compactMap { index, parameter -> Int? in
+            var positions: [Int] = []
+            var abiIndex = 0
+            var kirIndex = 0
+            while abiIndex < spec.parameters.count {
+                let parameter = spec.parameters[abiIndex]
                 let name = parameter.name.lowercased()
                 // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
                 // kk_function_invoke, which uses the flat intptr callback ABI.
-                return (name.contains("fnptr") || name == "functionraw" || name == "bodyraw") ? index : nil
+                if name.contains("fnptr") || name == "functionraw" || name == "bodyraw" {
+                    positions.append(kirIndex)
+                }
+                if abiIndex + 3 < spec.parameters.count,
+                   name.hasSuffix("data")
+                {
+                    let prefix = String(name.dropLast("data".count))
+                    let lengthName = spec.parameters[abiIndex + 1].name.lowercased()
+                    let byteCountName = spec.parameters[abiIndex + 2].name.lowercased()
+                    let hashName = spec.parameters[abiIndex + 3].name.lowercased()
+                    if lengthName == "\(prefix)length",
+                       byteCountName == "\(prefix)bytecount",
+                       hashName == "\(prefix)hash"
+                    {
+                        kirIndex += 1
+                        abiIndex += 4
+                        continue
+                    }
+                }
+                kirIndex += 1
+                abiIndex += 1
             }
             if !positions.isEmpty {
                 positionsByCallee[interner.intern(spec.name)] = positions

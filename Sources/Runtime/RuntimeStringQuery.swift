@@ -4,6 +4,12 @@
 
 import Foundation
 
+@_cdecl("kk_char_sequence_length")
+public func kk_char_sequence_length(_ raw: Int) -> Int {
+    // Match the flat String aggregate length field used by String.length lowering.
+    runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
+}
+
 // MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull
 
 @_cdecl("kk_string_first")

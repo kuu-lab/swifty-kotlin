@@ -703,78 +703,106 @@ public func kk_list_containsAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
     return kk_box_bool(1)
 }
 
+private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
+    if !currentValues.isEmpty,
+       currentValues.allSatisfy({ $0.tag == RuntimeValue.charTag })
+    {
+        return RuntimeValue(charScalar: maybeUnbox(rawValue))
+    }
+    return RuntimeValue(raw: rawValue)
+}
+
 @_cdecl("kk_mutable_list_add")
 public func kk_mutable_list_add(_ listRaw: Int, _ elem: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return kk_box_bool(0)
     }
-    list.elements.append(elem)
+    var values = list.values
+    values.append(runtimeMutableListInsertedValue(for: values, rawValue: elem))
+    list.values = values
     return kk_box_bool(1)
 }
 
 @_cdecl("kk_mutable_list_remove")
 public func kk_mutable_list_remove(_ listRaw: Int, _ elem: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
-          let index = list.elements.firstIndex(where: { runtimeValuesEqual($0, elem) })
+          let index = list.values.firstIndex(where: { runtimeValuesEqual($0.legacyRawValue, elem) })
     else {
         return kk_box_bool(0)
     }
-    list.elements.remove(at: index)
+    var values = list.values
+    values.remove(at: index)
+    list.values = values
     return kk_box_bool(1)
 }
 
 @_cdecl("kk_mutable_list_removeAt")
 public func kk_mutable_list_removeAt(_ listRaw: Int, _ index: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
-          list.elements.indices.contains(index)
+          list.values.indices.contains(index)
     else {
         return runtimeNullSentinelInt
     }
-    return list.elements.remove(at: index)
+    var values = list.values
+    let removed = values.remove(at: index)
+    list.values = values
+    return removed.legacyRawValue
 }
 
 @_cdecl("kk_mutable_list_removeFirst")
 public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw),
-          !list.elements.isEmpty
+          !list.values.isEmpty
     else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "List is empty.")
         return 0
     }
-    return list.elements.removeFirst()
+    var values = list.values
+    let removed = values.removeFirst()
+    list.values = values
+    return removed.legacyRawValue
 }
 
 @_cdecl("kk_mutable_list_removeFirstOrNull")
 public func kk_mutable_list_removeFirstOrNull(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
-          !list.elements.isEmpty
+          !list.values.isEmpty
     else {
         return runtimeNullSentinelInt
     }
-    return list.elements.removeFirst()
+    var values = list.values
+    let removed = values.removeFirst()
+    list.values = values
+    return removed.legacyRawValue
 }
 
 @_cdecl("kk_mutable_list_removeLast")
 public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw),
-          !list.elements.isEmpty
+          !list.values.isEmpty
     else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "List is empty.")
         return 0
     }
-    return list.elements.removeLast()
+    var values = list.values
+    let removed = values.removeLast()
+    list.values = values
+    return removed.legacyRawValue
 }
 
 @_cdecl("kk_mutable_list_removeLastOrNull")
 public func kk_mutable_list_removeLastOrNull(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw),
-          !list.elements.isEmpty
+          !list.values.isEmpty
     else {
         return runtimeNullSentinelInt
     }
-    return list.elements.removeLast()
+    var values = list.values
+    let removed = values.removeLast()
+    list.values = values
+    return removed.legacyRawValue
 }
 
 @_cdecl("kk_mutable_list_clear")
@@ -782,7 +810,7 @@ public func kk_mutable_list_clear(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
     }
-    list.elements.removeAll(keepingCapacity: false)
+    list.values = []
     return 0
 }
 
@@ -791,9 +819,12 @@ public func kk_mutable_list_fill(_ listRaw: Int, _ element: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         return 0
     }
-    for index in 0 ..< list.elements.count {
-        list.elements[index] = element
+    var values = list.values
+    let filledValue = runtimeMutableListInsertedValue(for: values, rawValue: element)
+    for index in 0 ..< values.count {
+        values[index] = filledValue
     }
+    list.values = values
     return 0
 }
 
@@ -804,13 +835,15 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
         outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
         return 0
     }
-    guard (0...list.elements.count).contains(index) else {
+    var values = list.values
+    guard (0...values.count).contains(index) else {
         outThrown?.pointee = runtimeAllocateThrowable(
-            message: "MutableList index \(index) out of bounds for length \(list.elements.count)."
+            message: "MutableList index \(index) out of bounds for length \(values.count)."
         )
         return 0
     }
-    list.elements.insert(element, at: index)
+    values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
+    list.values = values
     return 0
 }
 
@@ -821,15 +854,17 @@ public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ 
         outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
         return 0
     }
-    guard list.elements.indices.contains(index) else {
+    var values = list.values
+    guard values.indices.contains(index) else {
         outThrown?.pointee = runtimeAllocateThrowable(
-            message: "MutableList index \(index) out of bounds for length \(list.elements.count)."
+            message: "MutableList index \(index) out of bounds for length \(values.count)."
         )
         return 0
     }
-    let old = list.elements[index]
-    list.elements[index] = element
-    return old
+    let old = values[index]
+    values[index] = runtimeMutableListInsertedValue(for: values, rawValue: element)
+    list.values = values
+    return old.legacyRawValue
 }
 
 // MARK: - MutableList shuffle/reverse (STDLIB-206)

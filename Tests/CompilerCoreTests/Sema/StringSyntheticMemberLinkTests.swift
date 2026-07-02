@@ -1681,7 +1681,7 @@ struct StringSyntheticMemberLinkTests {
             }
 
             #expect(
-                externalLinks == ["kk_string_zipWithNext_flat", "kk_string_zipWithNextTransform"]
+                externalLinks == ["kk_string_zipWithNext_flat", "kk_string_zipWithNextTransform_flat"]
             )
         }
     }
@@ -2000,7 +2000,7 @@ struct StringSyntheticMemberLinkTests {
             }
 
             #expect(
-                externalLinks == ["kk_string_zip_flat", "kk_string_zipTransform"]
+                externalLinks == ["kk_string_zip_flat", "kk_string_zipTransform_flat"]
             )
         }
     }
