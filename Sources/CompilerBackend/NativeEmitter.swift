@@ -149,7 +149,9 @@ struct NativeEmitter {
             }
             let positions = spec.parameters.enumerated().compactMap { index, parameter -> Int? in
                 let name = parameter.name.lowercased()
-                return (name.contains("fnptr") || name == "functionraw") ? index : nil
+                // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
+                // kk_function_invoke, which uses the flat intptr callback ABI.
+                return (name.contains("fnptr") || name == "functionraw" || name == "bodyraw") ? index : nil
             }
             if !positions.isEmpty {
                 positionsByCallee[interner.intern(spec.name)] = positions
