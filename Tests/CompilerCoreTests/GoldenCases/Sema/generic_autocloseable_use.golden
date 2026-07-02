@@ -1,17 +1,17 @@
 symbol fq=golden.sema.MyAutoResource kind=class vis=public flags=_
 symbol fq=golden.sema.MyAutoResource.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.MyAutoResource params=[] ret=golden.sema.MyAutoResource
 symbol fq=golden.sema.callSite kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=golden.sema.useIt kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.useIt.$0.T] ret=Unit bounds=[kotlin.io.Closeable]
-symbol fq=golden.sema.useIt.$0.T kind=typeParameter vis=private flags=_
-symbol fq=golden.sema.useIt.$0.t kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.useIt kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.useIt.$6924.T] ret=Unit bounds=[kotlin.io.Closeable]
+symbol fq=golden.sema.useIt.$6924.T kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.useIt.$6924.t kind=valueParameter vis=private flags=_
 symbol fq=kotlin.io.Closeable kind=interface vis=public flags=synthetic
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.MyAutoResource class MyAutoResource sym=golden.sema.MyAutoResource
   decl golden.sema.useIt fun useIt sym=golden.sema.useIt
   decl golden.sema.callSite fun callSite sym=golden.sema.callSite
-expr e@12:5#4 name(t) type=golden.sema.useIt.$0.T ref=golden.sema.useIt.$0.t
+expr e@12:5#4 name(t) type=golden.sema.useIt.$6924.T ref=golden.sema.useIt.$6924.t
 expr e@12:12#2 blockExpr stmts=[] trailing=_ type=Unit
-expr e@12:11 lambda params=[] body=e@12:12#2 label=use type=(golden.sema.useIt.$0.T) -> Any
+expr e@12:11 lambda params=[] body=e@12:12#2 label=use type=(golden.sema.useIt.$6924.T) -> Any
 expr e@12:5#5 memberCall recv=e@12:5#4 callee=use args=[_:e@12:11] type=Unit
 expr e@16:11#1 call callee=e@16:11#0 args=[] type=golden.sema.MyAutoResource call=golden.sema.MyAutoResource.<init>
-expr e@16:5#7 call callee=e@16:5#6 args=[_:e@16:11#1] type=<error>
+expr e@16:5#8 call callee=e@16:5#7 args=[_:e@16:11#1] type=<error>

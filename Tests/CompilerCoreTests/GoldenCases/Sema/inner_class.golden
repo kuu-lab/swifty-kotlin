@@ -1,16 +1,16 @@
-symbol fq=__local_0.outer kind=local vis=private flags=_ type=golden.sema.Outer
-symbol fq=__local_1.inner kind=local vis=private flags=_ type=golden.sema.Outer.Inner
-symbol fq=__local_2.result kind=local vis=private flags=_ type=Int
+symbol fq=__local_3665.outer kind=local vis=private flags=_ type=golden.sema.Outer
+symbol fq=__local_3668.inner kind=local vis=private flags=_ type=golden.sema.Outer.Inner
+symbol fq=__local_3671.result kind=local vis=private flags=_ type=Int
 symbol fq=golden.sema.Outer kind=class vis=public flags=_
 symbol fq=golden.sema.Outer.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Outer params=[Int] ret=golden.sema.Outer
-symbol fq=golden.sema.Outer.<init>.$0.x kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.Outer.<init>.$6922.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.Outer.Inner kind=class vis=public flags=innerClass
 symbol fq=golden.sema.Outer.Inner.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Outer.Inner params=[] ret=golden.sema.Outer.Inner
 symbol fq=golden.sema.Outer.Inner.getY kind=function vis=public flags=_ sig=recv=golden.sema.Outer.Inner params=[] ret=Int
 symbol fq=golden.sema.Outer.x kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.Outer.y kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.Outer class Outer sym=golden.sema.Outer
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:18 name(x) type=Int ref=golden.sema.Outer.x
@@ -20,10 +20,10 @@ expr e@11:32#0 this@Outer type=<error>
 expr e@11:32#1 memberCall recv=e@11:32#0 callee=y args=[] type=<error>
 expr e@16:23 int(42) type=Int
 expr e@16:17#1 call callee=e@16:17#0 args=[_:e@16:23] type=golden.sema.Outer call=golden.sema.Outer.<init>
-expr e@16:5#6 localDecl outer mutable=0 type=_ init=e@16:17#1 type=Unit ref=__local_0.outer
-expr e@17:17#0 name(outer) type=golden.sema.Outer ref=__local_0.outer
+expr e@16:5#7 localDecl outer mutable=0 type=_ init=e@16:17#1 type=Unit ref=__local_3665.outer
+expr e@17:17#0 name(outer) type=golden.sema.Outer ref=__local_3665.outer
 expr e@17:17#1 memberCall recv=e@17:17#0 callee=Inner args=[] type=golden.sema.Outer.Inner call=golden.sema.Outer.Inner.<init>
-expr e@17:5#4 localDecl inner mutable=0 type=_ init=e@17:17#1 type=Unit ref=__local_1.inner
-expr e@18:18#2 name(inner) type=golden.sema.Outer.Inner ref=__local_1.inner
+expr e@17:5#7 localDecl inner mutable=0 type=_ init=e@17:17#1 type=Unit ref=__local_3668.inner
+expr e@18:18#2 name(inner) type=golden.sema.Outer.Inner ref=__local_3668.inner
 expr e@18:18#3 memberCall recv=e@18:18#2 callee=getY args=[] type=Int call=golden.sema.Outer.Inner.getY
-expr e@18:5#5 localDecl result mutable=0 type=_ init=e@18:18#3 type=Unit ref=__local_2.result
+expr e@18:5#6 localDecl result mutable=0 type=_ init=e@18:18#3 type=Unit ref=__local_3671.result

@@ -1,19 +1,19 @@
-symbol fq=__local_0.a kind=local vis=private flags=_ type=Float
-symbol fq=__local_1.b kind=local vis=private flags=_ type=Float
+symbol fq=__local_3660.a kind=local vis=private flags=_ type=Float
+symbol fq=__local_3665.b kind=local vis=private flags=_ type=Float
 symbol fq=kotlin.random.Random kind=object vis=public flags=synthetic type=kotlin.random.Random
 symbol fq=kotlin.random.nextFloat#1 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Float] ret=Float
 symbol fq=kotlin.random.nextFloat#2 kind=function vis=public flags=synthetic sig=recv=kotlin.random.Random params=[Float,Float] ret=Float
 symbol fq=kotlin.random.nextFloat.from kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.random.nextFloat.until kind=valueParameter vis=private flags=synthetic
 symbol fq=useRandomFloatRanges kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file f18 package=_
   decl useRandomFloatRanges fun useRandomFloatRanges sym=useRandomFloatRanges
-expr e@4:13#2 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
+expr e@4:13#0 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e@4:30 float(10.0) type=Float
-expr e@4:13#3 memberCall recv=e@4:13#2 callee=nextFloat args=[_:e@4:30] type=Float call=kotlin.random.nextFloat#1
-expr e@4:5#2 localDecl a mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.a
+expr e@4:13#1 memberCall recv=e@4:13#0 callee=nextFloat args=[_:e@4:30] type=Float call=kotlin.random.nextFloat#1
+expr e@4:5#2 localDecl a mutable=0 type=_ init=e@4:13#1 type=Unit ref=__local_3660.a
 expr e@5:13#1 name(Random) type=kotlin.random.Random ref=kotlin.random.Random
 expr e@5:30 float(1.0) type=Float
 expr e@5:36 float(10.0) type=Float
 expr e@5:13#2 memberCall recv=e@5:13#1 callee=nextFloat args=[_:e@5:30,_:e@5:36] type=Float call=kotlin.random.nextFloat#2
-expr e@5:5#2 localDecl b mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_1.b
+expr e@5:5#2 localDecl b mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_3665.b

@@ -1,18 +1,18 @@
-symbol fq=__local_0.a kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_1.b kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_2.sum kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_3.diff kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_4.product kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_5.quotient kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_6.g kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_7.neg kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_8.abs kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_9.base kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_10.powered kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_11.s kind=local vis=private flags=_ type=java.math.BigInteger
-symbol fq=__local_12.i kind=local vis=private flags=_ type=Int
-symbol fq=__local_13.l kind=local vis=private flags=_ type=Long
-symbol fq=__local_14.str kind=local vis=private flags=_ type=String
+symbol fq=__local_3660.a kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3664.b kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3668.sum kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3672.diff kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3676.product kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3680.quotient kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3684.g kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3688.neg kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3691.abs kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3695.base kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3699.powered kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3703.s kind=local vis=private flags=_ type=java.math.BigInteger
+symbol fq=__local_3706.i kind=local vis=private flags=_ type=Int
+symbol fq=__local_3709.l kind=local vis=private flags=_ type=Long
+symbol fq=__local_3712.str kind=local vis=private flags=_ type=String
 symbol fq=java.math.BigInteger kind=class vis=public flags=synthetic type=java.math.BigInteger
 symbol fq=java.math.BigInteger.<init> kind=constructor vis=public flags=synthetic sig=recv=_ params=[String] ret=java.math.BigInteger
 symbol fq=java.math.BigInteger.<init>.value kind=valueParameter vis=private flags=synthetic
@@ -33,56 +33,56 @@ symbol fq=java.math.BigInteger.toInt kind=function vis=public flags=synthetic si
 symbol fq=java.math.BigInteger.toLong kind=function vis=public flags=synthetic sig=recv=java.math.BigInteger params=[] ret=Long
 symbol fq=java.math.BigInteger.toString kind=function vis=public flags=synthetic sig=recv=java.math.BigInteger params=[] ret=String
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file f18 package=_
   decl main fun main sym=main
 expr e@4:24 string(100) type=String
-expr e@4:13#3 call callee=e@4:13#2 args=[_:e@4:24] type=java.math.BigInteger call=java.math.BigInteger.<init>
-expr e@4:5#2 localDecl a mutable=0 type=_ init=e@4:13#3 type=Unit ref=__local_0.a
+expr e@4:13#1 call callee=e@4:13#0 args=[_:e@4:24] type=java.math.BigInteger call=java.math.BigInteger.<init>
+expr e@4:5#2 localDecl a mutable=0 type=_ init=e@4:13#1 type=Unit ref=__local_3660.a
 expr e@5:24 string(200) type=String
 expr e@5:13#2 call callee=e@5:13#1 args=[_:e@5:24] type=java.math.BigInteger call=java.math.BigInteger.<init>
-expr e@5:5#2 localDecl b mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_1.b
-expr e@6:15#0 name(a) type=java.math.BigInteger ref=__local_0.a
-expr e@6:21 name(b) type=java.math.BigInteger ref=__local_1.b
+expr e@5:5#2 localDecl b mutable=0 type=_ init=e@5:13#2 type=Unit ref=__local_3664.b
+expr e@6:15#0 name(a) type=java.math.BigInteger ref=__local_3660.a
+expr e@6:21 name(b) type=java.math.BigInteger ref=__local_3664.b
 expr e@6:15#1 memberCall recv=e@6:15#0 callee=add args=[_:e@6:21] type=java.math.BigInteger call=java.math.BigInteger.add
-expr e@6:5#3 localDecl sum mutable=0 type=_ init=e@6:15#1 type=Unit ref=__local_2.sum
-expr e@7:16#1 name(b) type=java.math.BigInteger ref=__local_1.b
-expr e@7:27#1 name(a) type=java.math.BigInteger ref=__local_0.a
+expr e@6:5#3 localDecl sum mutable=0 type=_ init=e@6:15#1 type=Unit ref=__local_3668.sum
+expr e@7:16#1 name(b) type=java.math.BigInteger ref=__local_3664.b
+expr e@7:27#1 name(a) type=java.math.BigInteger ref=__local_3660.a
 expr e@7:16#2 memberCall recv=e@7:16#1 callee=subtract args=[_:e@7:27#1] type=java.math.BigInteger call=java.math.BigInteger.subtract
-expr e@7:5#3 localDecl diff mutable=0 type=_ init=e@7:16#2 type=Unit ref=__local_3.diff
-expr e@8:19#0 name(a) type=java.math.BigInteger ref=__local_0.a
-expr e@8:30 name(b) type=java.math.BigInteger ref=__local_1.b
+expr e@7:5#3 localDecl diff mutable=0 type=_ init=e@7:16#2 type=Unit ref=__local_3672.diff
+expr e@8:19#0 name(a) type=java.math.BigInteger ref=__local_3660.a
+expr e@8:30 name(b) type=java.math.BigInteger ref=__local_3664.b
 expr e@8:19#1 memberCall recv=e@8:19#0 callee=multiply args=[_:e@8:30] type=java.math.BigInteger call=java.math.BigInteger.multiply
-expr e@8:5#2 localDecl product mutable=0 type=_ init=e@8:19#1 type=Unit ref=__local_4.product
-expr e@9:20#0 name(b) type=java.math.BigInteger ref=__local_1.b
-expr e@9:29 name(a) type=java.math.BigInteger ref=__local_0.a
+expr e@8:5#2 localDecl product mutable=0 type=_ init=e@8:19#1 type=Unit ref=__local_3676.product
+expr e@9:20#0 name(b) type=java.math.BigInteger ref=__local_3664.b
+expr e@9:29 name(a) type=java.math.BigInteger ref=__local_3660.a
 expr e@9:20#1 memberCall recv=e@9:20#0 callee=divide args=[_:e@9:29] type=java.math.BigInteger call=java.math.BigInteger.divide
-expr e@9:5 localDecl quotient mutable=0 type=_ init=e@9:20#1 type=Unit ref=__local_5.quotient
-expr e@10:13#0 name(a) type=java.math.BigInteger ref=__local_0.a
-expr e@10:19 name(b) type=java.math.BigInteger ref=__local_1.b
+expr e@9:5 localDecl quotient mutable=0 type=_ init=e@9:20#1 type=Unit ref=__local_3680.quotient
+expr e@10:13#0 name(a) type=java.math.BigInteger ref=__local_3660.a
+expr e@10:19 name(b) type=java.math.BigInteger ref=__local_3664.b
 expr e@10:13#1 memberCall recv=e@10:13#0 callee=gcd args=[_:e@10:19] type=java.math.BigInteger call=java.math.BigInteger.gcd
-expr e@10:5#1 localDecl g mutable=0 type=_ init=e@10:13#1 type=Unit ref=__local_6.g
+expr e@10:5#1 localDecl g mutable=0 type=_ init=e@10:13#1 type=Unit ref=__local_3684.g
 expr e@11:26 string(-42) type=String
 expr e@11:15#1 call callee=e@11:15#0 args=[_:e@11:26] type=java.math.BigInteger call=java.math.BigInteger.<init>
-expr e@11:5#2 localDecl neg mutable=0 type=_ init=e@11:15#1 type=Unit ref=__local_7.neg
-expr e@12:15#2 name(neg) type=java.math.BigInteger ref=__local_7.neg
+expr e@11:5#2 localDecl neg mutable=0 type=_ init=e@11:15#1 type=Unit ref=__local_3688.neg
+expr e@12:15#2 name(neg) type=java.math.BigInteger ref=__local_3688.neg
 expr e@12:15#3 memberCall recv=e@12:15#2 callee=abs args=[] type=java.math.BigInteger call=java.math.BigInteger.abs
-expr e@12:5#4 localDecl abs mutable=0 type=_ init=e@12:15#3 type=Unit ref=__local_8.abs
+expr e@12:5#4 localDecl abs mutable=0 type=_ init=e@12:15#3 type=Unit ref=__local_3691.abs
 expr e@13:27#1 string(2) type=String
 expr e@13:16#1 call callee=e@13:16#0 args=[_:e@13:27#1] type=java.math.BigInteger call=java.math.BigInteger.<init>
-expr e@13:5#5 localDecl base mutable=0 type=_ init=e@13:16#1 type=Unit ref=__local_9.base
-expr e@14:19#1 name(base) type=java.math.BigInteger ref=__local_9.base
+expr e@13:5#5 localDecl base mutable=0 type=_ init=e@13:16#1 type=Unit ref=__local_3695.base
+expr e@14:19#1 name(base) type=java.math.BigInteger ref=__local_3695.base
 expr e@14:28 int(10) type=Int
 expr e@14:19#2 memberCall recv=e@14:19#1 callee=pow args=[_:e@14:28] type=java.math.BigInteger call=java.math.BigInteger.pow
-expr e@14:5#6 localDecl powered mutable=0 type=_ init=e@14:19#2 type=Unit ref=__local_10.powered
+expr e@14:5#8 localDecl powered mutable=0 type=_ init=e@14:19#2 type=Unit ref=__local_3699.powered
 expr e@15:24 string(12345) type=String
 expr e@15:13#2 call callee=e@15:13#1 args=[_:e@15:24] type=java.math.BigInteger call=java.math.BigInteger.<init>
-expr e@15:5#6 localDecl s mutable=0 type=_ init=e@15:13#2 type=Unit ref=__local_11.s
-expr e@16:13#1 name(s) type=java.math.BigInteger ref=__local_11.s
+expr e@15:5#6 localDecl s mutable=0 type=_ init=e@15:13#2 type=Unit ref=__local_3703.s
+expr e@16:13#1 name(s) type=java.math.BigInteger ref=__local_3703.s
 expr e@16:13#2 memberCall recv=e@16:13#1 callee=toInt args=[] type=Int call=java.math.BigInteger.toInt
-expr e@16:5#6 localDecl i mutable=0 type=_ init=e@16:13#2 type=Unit ref=__local_12.i
-expr e@17:13#4 name(s) type=java.math.BigInteger ref=__local_11.s
+expr e@16:5#7 localDecl i mutable=0 type=_ init=e@16:13#2 type=Unit ref=__local_3706.i
+expr e@17:13#4 name(s) type=java.math.BigInteger ref=__local_3703.s
 expr e@17:13#5 memberCall recv=e@17:13#4 callee=toLong args=[] type=Long call=java.math.BigInteger.toLong
-expr e@17:5#4 localDecl l mutable=0 type=_ init=e@17:13#5 type=Unit ref=__local_13.l
-expr e@18:15#0 name(s) type=java.math.BigInteger ref=__local_11.s
-expr e@18:15#1 memberCall recv=e@18:15#0 callee=toString args=[] type=String call=java.math.BigInteger.toString
-expr e@18:5#5 localDecl str mutable=0 type=_ init=e@18:15#1 type=Unit ref=__local_14.str
+expr e@17:5#7 localDecl l mutable=0 type=_ init=e@17:13#5 type=Unit ref=__local_3709.l
+expr e@18:15#2 name(s) type=java.math.BigInteger ref=__local_3703.s
+expr e@18:15#3 memberCall recv=e@18:15#2 callee=toString args=[] type=String call=java.math.BigInteger.toString
+expr e@18:5#6 localDecl str mutable=0 type=_ init=e@18:15#3 type=Unit ref=__local_3712.str

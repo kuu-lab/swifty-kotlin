@@ -1,11 +1,11 @@
 symbol fq=classify kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=String
-symbol fq=classify.$0.x kind=valueParameter vis=private flags=_
+symbol fq=classify.$6921.x kind=valueParameter vis=private flags=_
 symbol fq=kotlin.length.$get kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
-file f0 package=_
+file f18 package=_
   decl classify fun classify sym=classify
-expr e@2:18#0 name(x) type=Any ref=classify.$0.x
+expr e@2:18#0 name(x) type=Any ref=classify.$6921.x
 expr e@2:18#1 isCheck expr=e@2:18#0 type=String type=Boolean
-expr e@3:22#0 name(x) type=String ref=classify.$0.x
+expr e@3:22#0 name(x) type=String ref=classify.$6921.x
 expr e@3:22#1 memberCall recv=e@3:22#0 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@3:33 int(3) type=Int
 expr e@3:22#2 binary(greaterThan) lhs=e@3:22#1 rhs=e@3:33 type=Boolean
@@ -13,7 +13,7 @@ expr e@3:38 string(long string) type=String
 expr e@2:18#2 isCheck expr=e@2:18#0 type=String type=Boolean
 expr e@4:22 string(short string) type=String
 expr e@2:18#3 isCheck expr=e@2:18#0 type=Int type=Boolean
-expr e@5:19#0 name(x) type=Int ref=classify.$0.x
+expr e@5:19#0 name(x) type=Int ref=classify.$6921.x
 expr e@5:23 int(0) type=Int
 expr e@5:19#1 binary(greaterThan) lhs=e@5:19#0 rhs=e@5:23 type=Boolean
 expr e@5:28 string(positive int) type=String

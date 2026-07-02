@@ -2,7 +2,7 @@ symbol fq=golden.sema.caller kind=function vis=public flags=_ sig=recv=_ params=
 symbol fq=golden.sema.newFun kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.oldFunError kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.oldFunWarning kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.oldFunError fun oldFunError sym=golden.sema.oldFunError
   decl golden.sema.oldFunWarning fun oldFunWarning sym=golden.sema.oldFunWarning
   decl golden.sema.newFun fun newFun sym=golden.sema.newFun

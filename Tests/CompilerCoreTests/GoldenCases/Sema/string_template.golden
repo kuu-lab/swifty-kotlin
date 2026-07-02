@@ -1,23 +1,23 @@
-symbol fq=__local_0.name kind=local vis=private flags=_ type=String
-symbol fq=__local_1.x kind=local vis=private flags=_ type=Int
-symbol fq=__local_2.greeting kind=local vis=private flags=_ type=String
-symbol fq=__local_3.result kind=local vis=private flags=_ type=String
+symbol fq=__local_3658.name kind=local vis=private flags=_ type=String
+symbol fq=__local_3660.x kind=local vis=private flags=_ type=Int
+symbol fq=__local_3663.greeting kind=local vis=private flags=_ type=String
+symbol fq=__local_3666.result kind=local vis=private flags=_ type=String
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:16 string(world) type=String
-expr e@4:5#2 localDecl name mutable=0 type=_ init=e@4:16 type=Unit ref=__local_0.name
+expr e@4:5#2 localDecl name mutable=0 type=_ init=e@4:16 type=Unit ref=__local_3658.name
 expr e@5:13#1 int(42) type=Int
-expr e@5:5#2 localDecl x mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_1.x
-expr e@6:28#4 name(name) type=String ref=__local_0.name
+expr e@5:5#2 localDecl x mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_3660.x
+expr e@6:28#4 name(name) type=String ref=__local_3658.name
 expr e@6:20 stringTemplate[lit(Hello ),expr(e@6:28#4)] type=String
-expr e@6:5#3 localDecl greeting mutable=0 type=_ init=e@6:20 type=Unit ref=__local_2.greeting
-expr e@7:27#1 name(x) type=Int ref=__local_1.x
+expr e@6:5#3 localDecl greeting mutable=0 type=_ init=e@6:20 type=Unit ref=__local_3663.greeting
+expr e@7:27#1 name(x) type=Int ref=__local_3660.x
 expr e@7:18 stringTemplate[lit(value=),expr(e@7:27#1)] type=String
-expr e@7:5#3 localDecl result mutable=0 type=_ init=e@7:18 type=Unit ref=__local_3.result
-expr e@8:13 name(greeting) type=String ref=__local_2.greeting
+expr e@7:5#3 localDecl result mutable=0 type=_ init=e@7:18 type=Unit ref=__local_3666.result
+expr e@8:13 name(greeting) type=String ref=__local_3663.greeting
 expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13] type=Unit call=kotlin.io.println#1
-expr e@9:13 name(result) type=String ref=__local_3.result
+expr e@9:13 name(result) type=String ref=__local_3666.result
 expr e@9:5#1 call callee=e@9:5#0 args=[_:e@9:13] type=Unit call=kotlin.io.println#1

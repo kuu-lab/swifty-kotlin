@@ -2,13 +2,13 @@ symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.ranges.IntRange kind=class vis=public flags=synthetic
 symbol fq=kotlin.ranges.IntRange.toList kind=function vis=public flags=synthetic sig=recv=kotlin.ranges.IntRange params=[] ret=kotlin.collections.List<out Int>
 symbol fq=rangeContains kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Boolean
-symbol fq=rangeContains.$0.x kind=valueParameter vis=private flags=_
+symbol fq=rangeContains.$6924.x kind=valueParameter vis=private flags=_
 symbol fq=rangeCount kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=rangeFirst kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=rangeLast kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=rangeReversed kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
 symbol fq=rangeToList kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
-file f0 package=_
+file f18 package=_
   decl rangeFirst fun rangeFirst sym=rangeFirst
   decl rangeLast fun rangeLast sym=rangeLast
   decl rangeCount fun rangeCount sym=rangeCount

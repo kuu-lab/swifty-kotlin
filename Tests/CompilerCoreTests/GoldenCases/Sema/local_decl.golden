@@ -1,8 +1,8 @@
-symbol fq=__local_0.x kind=local vis=private flags=_ type=Int
-symbol fq=__local_1.y kind=local vis=private flags=_ type=Int
-symbol fq=__local_2.z kind=local vis=private flags=mutable type=Int
-symbol fq=__local_3.a kind=local vis=private flags=_ type=Int
-symbol fq=__local_4.b kind=local vis=private flags=mutable type=Int
+symbol fq=__local_3658.x kind=local vis=private flags=_ type=Int
+symbol fq=__local_3663.y kind=local vis=private flags=_ type=Int
+symbol fq=__local_3668.z kind=local vis=private flags=mutable type=Int
+symbol fq=__local_3675.a kind=local vis=private flags=_ type=Int
+symbol fq=__local_3682.b kind=local vis=private flags=mutable type=Int
 symbol fq=deferredValInit kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=inferredLocal kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
@@ -10,31 +10,31 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=mutableTyped kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=typedLocal kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=useBeforeInit kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=_
+file f18 package=_
   decl typedLocal fun typedLocal sym=typedLocal
   decl inferredLocal fun inferredLocal sym=inferredLocal
   decl mutableTyped fun mutableTyped sym=mutableTyped
   decl deferredValInit fun deferredValInit sym=deferredValInit
   decl useBeforeInit fun useBeforeInit sym=useBeforeInit
 expr e@2:18 int(10) type=Int
-expr e@2:5 localDecl x mutable=0 type=Int init=e@2:18 type=Unit ref=__local_0.x
-expr e@3:13 name(x) type=Int ref=__local_0.x
+expr e@2:5 localDecl x mutable=0 type=Int init=e@2:18 type=Unit ref=__local_3658.x
+expr e@3:13 name(x) type=Int ref=__local_3658.x
 expr e@3:5#1 call callee=e@3:5#0 args=[_:e@3:13] type=Unit call=kotlin.io.println#1
 expr e@7:13 int(20) type=Int
-expr e@7:5#3 localDecl y mutable=0 type=_ init=e@7:13 type=Unit ref=__local_1.y
-expr e@8:13 name(y) type=Int ref=__local_1.y
+expr e@7:5#3 localDecl y mutable=0 type=_ init=e@7:13 type=Unit ref=__local_3663.y
+expr e@8:13 name(y) type=Int ref=__local_3663.y
 expr e@8:5#3 call callee=e@8:5#2 args=[_:e@8:13] type=Unit call=kotlin.io.println#1
 expr e@12:18#4 int(30) type=Int
-expr e@12:5#4 localDecl z mutable=1 type=Int init=e@12:18#4 type=Unit ref=__local_2.z
+expr e@12:5#4 localDecl z mutable=1 type=Int init=e@12:18#4 type=Unit ref=__local_3668.z
 expr e@13:9#2 int(40) type=Int
-expr e@13:5#6 localAssign z value=e@13:9#2 type=Unit ref=__local_2.z
-expr e@14:13#2 name(z) type=Int ref=__local_2.z
-expr e@14:5#7 call callee=e@14:5#6 args=[_:e@14:13#2] type=Unit call=kotlin.io.println#1
-expr e@18:5#5 localDecl a mutable=0 type=Int init=_ type=Unit ref=__local_3.a
+expr e@13:5#6 localAssign z value=e@13:9#2 type=Unit ref=__local_3668.z
+expr e@14:13#2 name(z) type=Int ref=__local_3668.z
+expr e@14:5#9 call callee=e@14:5#8 args=[_:e@14:13#2] type=Unit call=kotlin.io.println#1
+expr e@18:5#6 localDecl a mutable=0 type=Int init=_ type=Unit ref=__local_3675.a
 expr e@19:9#6 int(5) type=Int
-expr e@19:5#7 localAssign a value=e@19:9#6 type=Unit ref=__local_3.a
-expr e@20:13#1 name(a) type=Int ref=__local_3.a
-expr e@20:5#5 call callee=e@20:5#4 args=[_:e@20:13#1] type=Unit call=kotlin.io.println#1
-expr e@24:5#3 localDecl b mutable=1 type=Int init=_ type=Unit ref=__local_4.b
-expr e@25:13 name(b) type=Int ref=__local_4.b
-expr e@25:5#7 call callee=e@25:5#6 args=[_:e@25:13] type=Unit call=kotlin.io.println#1
+expr e@19:5#8 localAssign a value=e@19:9#6 type=Unit ref=__local_3675.a
+expr e@20:13#1 name(a) type=Int ref=__local_3675.a
+expr e@20:5#8 call callee=e@20:5#7 args=[_:e@20:13#1] type=Unit call=kotlin.io.println#1
+expr e@24:5#5 localDecl b mutable=1 type=Int init=_ type=Unit ref=__local_3682.b
+expr e@25:13 name(b) type=Int ref=__local_3682.b
+expr e@25:5#8 call callee=e@25:5#7 args=[_:e@25:13] type=Unit call=kotlin.io.println#1

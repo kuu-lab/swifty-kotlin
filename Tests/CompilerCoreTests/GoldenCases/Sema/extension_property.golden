@@ -2,13 +2,13 @@ symbol fq=golden.sema.doubled kind=property vis=public flags=_ type=Int
 symbol fq=golden.sema.doubled.$get kind=function vis=public flags=synthetic sig=recv=Int params=[] ret=Int
 symbol fq=golden.sema.isPositive kind=property vis=public flags=_ type=Boolean
 symbol fq=golden.sema.useExtProp kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.doubled property doubled var=0 sym=golden.sema.doubled
   decl golden.sema.isPositive property isPositive var=0 sym=golden.sema.isPositive
   decl golden.sema.useExtProp fun useExtProp sym=golden.sema.useExtProp
-expr e@4:13#2 this type=Int
+expr e@4:13#0 this type=Int
 expr e@4:20#1 int(2) type=Int
-expr e@4:13#3 binary(multiply) lhs=e@4:13#2 rhs=e@4:20#1 type=Int
+expr e@4:13#1 binary(multiply) lhs=e@4:13#0 rhs=e@4:20#1 type=Int
 expr e@7:13#0 this type=Int
 expr e@7:20 int(0) type=Int
 expr e@7:13#1 binary(greaterThan) lhs=e@7:13#0 rhs=e@7:20 type=Boolean

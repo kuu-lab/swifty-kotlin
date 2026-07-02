@@ -5,7 +5,7 @@ symbol fq=kotlinx.cinterop.vectorOf.f0 kind=valueParameter vis=private flags=syn
 symbol fq=kotlinx.cinterop.vectorOf.f1 kind=valueParameter vis=private flags=synthetic type=Int
 symbol fq=kotlinx.cinterop.vectorOf.f2 kind=valueParameter vis=private flags=synthetic type=Int
 symbol fq=kotlinx.cinterop.vectorOf.f3 kind=valueParameter vis=private flags=synthetic type=Int
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.makeIntVector fun makeIntVector sym=golden.sema.makeIntVector
 expr e@8:43 int(1) type=Int
 expr e@8:46 int(2) type=Int

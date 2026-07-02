@@ -8,7 +8,7 @@ symbol fq=kotlin.LazyThreadSafetyMode.PUBLICATION kind=field vis=public flags=sy
 symbol fq=kotlin.LazyThreadSafetyMode.SYNCHRONIZED kind=field vis=public flags=synthetic type=kotlin.LazyThreadSafetyMode
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.syncProp property syncProp var=0 sym=golden.sema.syncProp
   decl golden.sema.pubProp property pubProp var=0 sym=golden.sema.pubProp
   decl golden.sema.noneProp property noneProp var=0 sym=golden.sema.noneProp
@@ -23,8 +23,8 @@ expr e@16:30#0 name(LazyThreadSafetyMode) type=Any ref=kotlin.LazyThreadSafetyMo
 expr e@16:30#1 memberCall recv=e@16:30#0 callee=NONE args=[] type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode.NONE
 expr e@16:25#1 call callee=e@16:25#0 args=[_:e@16:30#1] type=<error>
 expr e@21:13 name(syncProp) type=String ref=golden.sema.syncProp
-expr e@21:5#4 call callee=e@21:5#3 args=[_:e@21:13] type=Unit call=kotlin.io.println#1
+expr e@21:5#5 call callee=e@21:5#4 args=[_:e@21:13] type=Unit call=kotlin.io.println#1
 expr e@22:13#2 name(pubProp) type=String ref=golden.sema.pubProp
-expr e@22:5#6 call callee=e@22:5#5 args=[_:e@22:13#2] type=Unit call=kotlin.io.println#1
+expr e@22:5#8 call callee=e@22:5#7 args=[_:e@22:13#2] type=Unit call=kotlin.io.println#1
 expr e@23:13#2 name(noneProp) type=String ref=golden.sema.noneProp
-expr e@23:5#5 call callee=e@23:5#4 args=[_:e@23:13#2] type=Unit call=kotlin.io.println#1
+expr e@23:5#8 call callee=e@23:5#7 args=[_:e@23:13#2] type=Unit call=kotlin.io.println#1

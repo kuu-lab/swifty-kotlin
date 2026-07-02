@@ -1,7 +1,7 @@
 symbol fq=golden.sema.ExperimentalSemaApi kind=annotationClass vis=public flags=_
 symbol fq=golden.sema.callerSema kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=golden.sema.unstableSema kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.ExperimentalSemaApi class ExperimentalSemaApi sym=golden.sema.ExperimentalSemaApi
   decl golden.sema.unstableSema fun unstableSema sym=golden.sema.unstableSema
   decl golden.sema.callerSema fun callerSema sym=golden.sema.callerSema

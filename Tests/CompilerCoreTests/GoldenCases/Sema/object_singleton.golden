@@ -2,7 +2,7 @@ symbol fq=golden.sema.Counter kind=object vis=public flags=_
 symbol fq=golden.sema.Counter.increment kind=function vis=public flags=_ sig=recv=golden.sema.Counter params=[] ret=Unit
 symbol fq=golden.sema.Counter.n kind=property vis=public flags=mutable type=Int
 symbol fq=golden.sema.useCounter kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f0 package=golden.sema
+file f18 package=golden.sema
   decl golden.sema.Counter object Counter sym=golden.sema.Counter
   decl golden.sema.useCounter fun useCounter sym=golden.sema.useCounter
 expr e@4:25 string(counter) type=String
@@ -15,5 +15,5 @@ expr e@8:13 int(1) type=Int
 expr e@8:9#1 localAssign n value=e@8:13 type=Unit ref=golden.sema.Counter.n
 expr e@15:5#6 name(Counter) type=golden.sema.Counter ref=golden.sema.Counter
 expr e@15:5#7 memberCall recv=e@15:5#6 callee=increment args=[] type=Unit call=golden.sema.Counter.increment
-expr e@16:5#6 name(Counter) type=golden.sema.Counter ref=golden.sema.Counter
-expr e@16:5#7 memberCall recv=e@16:5#6 callee=increment args=[] type=Unit call=golden.sema.Counter.increment
+expr e@16:5#7 name(Counter) type=golden.sema.Counter ref=golden.sema.Counter
+expr e@16:5#8 memberCall recv=e@16:5#7 callee=increment args=[] type=Unit call=golden.sema.Counter.increment
