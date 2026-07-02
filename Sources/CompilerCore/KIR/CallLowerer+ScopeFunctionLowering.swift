@@ -218,7 +218,7 @@ extension CallLowerer {
                 return nil
             } ?? {
                 guard let receiverType = sema.bindings.exprTypes[receiverExpr],
-                      case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                      let classType = resolveClassType(receiverType, sema: sema),
                       let cValueSymbol = sema.symbols.lookup(fqName: [
                           interner.intern("kotlinx"),
                           interner.intern("cinterop"),

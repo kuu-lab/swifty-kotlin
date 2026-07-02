@@ -413,8 +413,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID {
         let nonNullTargetType = sema.types.makeNonNullable(targetType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullTargetType),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullTargetType, sema: sema),
               symbol.fqName.dropLast() == [interner.intern("kotlin")]
         else {
             return nonNullTargetType

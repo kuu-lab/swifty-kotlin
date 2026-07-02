@@ -59,8 +59,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                 }
                 let classSymbol: SymbolID? = {
                     if let argType = module.arena.exprType(receiver),
-                       case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
-                       let sym = sema.symbols.symbol(classType.classSymbol),
+                       let (classType, sym) = resolveClassTypeSymbol(argType, sema: sema),
                        sym.kind == .enumClass
                     {
                         return classType.classSymbol
@@ -198,8 +197,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             break
         }
         if let argType = arena.exprType(exprID),
-           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
-           let sym = sema.symbols.symbol(classType.classSymbol),
+           let (classType, sym) = resolveClassTypeSymbol(argType, sema: sema),
            sym.kind == .enumClass
         {
             return classType.classSymbol

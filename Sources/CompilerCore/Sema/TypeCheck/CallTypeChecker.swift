@@ -1722,8 +1722,8 @@ final class CallTypeChecker {
             if explicitTypeArgs.count == 2 {
                 inferredTypeArgs = explicitTypeArgs
             } else if let expectedType,
-                      case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-                      sema.symbols.symbol(classType.classSymbol)?.fqName == functionFQName,
+                      let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
+                      symbol.fqName == functionFQName,
                       classType.args.count == 2
             {
                 let unpacked = classType.args.compactMap { arg -> TypeID? in
@@ -2424,8 +2424,7 @@ final class CallTypeChecker {
            interner.resolve(calleeName) == "callRecursive",
            args.count == 1,
            let receiverType = ctx.implicitReceiverType,
-           case let .classType(scopeClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-           let scopeSymbol = sema.symbols.symbol(scopeClass.classSymbol),
+           let (scopeClass, scopeSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
            scopeSymbol.fqName.count == 2,
            interner.resolve(scopeSymbol.fqName[0]) == "kotlin",
            interner.resolve(scopeSymbol.fqName[1]) == "DeepRecursiveScope",
@@ -2663,8 +2662,7 @@ final class CallTypeChecker {
             }
             func arrayElementType(from type: TypeID) -> TypeID {
                 let nonNullType = sema.types.makeNonNullable(type)
-                guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-                      let symbol = sema.symbols.symbol(classType.classSymbol),
+                guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
                       symbol.name == knownNames.array,
                       let firstArg = classType.args.first
                 else {
@@ -3625,8 +3623,7 @@ final class CallTypeChecker {
             let name = interner.resolve(calleeName)
             if name == "callRecursive",
                args.count == 1,
-               case let .classType(scopeClass) = sema.types.kind(of: nonNullReceiver),
-               let scopeSymbol = sema.symbols.symbol(scopeClass.classSymbol),
+               let (scopeClass, scopeSymbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema),
                scopeSymbol.fqName.count == 2,
                interner.resolve(scopeSymbol.fqName[0]) == "kotlin",
                interner.resolve(scopeSymbol.fqName[1]) == "DeepRecursiveScope",

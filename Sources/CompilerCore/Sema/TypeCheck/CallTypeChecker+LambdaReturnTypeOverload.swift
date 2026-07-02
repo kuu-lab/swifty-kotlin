@@ -369,7 +369,7 @@ extension CallTypeChecker {
               signature.classTypeParameterCount > 0,
               !signature.typeParameterSymbols.isEmpty,
               sema.symbols.symbol(candidate)?.kind != .constructor,
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+              let classType = resolveClassType(receiverType, sema: sema)
         else {
             return parameterType
         }

@@ -832,8 +832,7 @@ extension CollectionLiteralLoweringPass {
         // is tracked through the generic Iterable interface.
         let minusElementReturnsList = result.flatMap { module.arena.exprType($0) }.map { resultType in
             guard let sema = context.sema,
-                  case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(resultType)),
-                  let resultSymbol = sema.symbols.symbol(classType.classSymbol)
+                  let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
             else { return false }
             return context.interner.resolve(resultSymbol.name) == "List"
         } ?? false

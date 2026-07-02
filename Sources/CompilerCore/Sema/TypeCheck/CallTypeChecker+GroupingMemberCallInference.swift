@@ -191,8 +191,7 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let expectedGroupingValueType: TypeID = if let expectedType,
-                                                       case let .classType(expectedClassType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-                                                       let expectedSymbol = sema.symbols.symbol(expectedClassType.classSymbol),
+                                                       let (expectedClassType, expectedSymbol) = resolveClassTypeSymbol(expectedType, sema: sema),
                                                        knownNames.isMapLikeSymbol(expectedSymbol),
                                                        expectedClassType.args.count >= 2
             {

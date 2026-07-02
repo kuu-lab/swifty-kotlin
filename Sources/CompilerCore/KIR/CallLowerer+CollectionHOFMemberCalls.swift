@@ -122,9 +122,7 @@ extension CallLowerer {
             loweredComparatorID: KIRExprID
         ) -> PrimitiveCompareABIKind? {
             func comparatorElementType(from type: TypeID) -> TypeID? {
-                let nonNullType = sema.types.makeNonNullable(type)
-                guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-                      let symbol = sema.symbols.symbol(classType.classSymbol),
+                guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
                       interner.resolve(symbol.name) == "Comparator",
                       let firstArg = classType.args.first
                 else {
