@@ -176,9 +176,10 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
 ///   units. The default is `0`, which disables the cap. Any positive value
 ///   enables a fail-closed precheck that treats oversized inputs as no match.
 ///
-/// When a timeout or size cap trips, the runtime degrades conservatively to a
-/// "no match" or partial result instead of hanging. Tune or disable the
-/// limits with the environment variables above.
+/// When a timeout or size cap trips, bulk operations such as replace and split
+/// fail closed and return the original input unchanged rather than hanging or
+/// producing partial output. Tune or disable the limits with the environment
+/// variables above.
 private enum RegexEvaluationLimits {
     static let matchTimeout: TimeInterval = {
         let environment = ProcessInfo.processInfo.environment
@@ -317,9 +318,9 @@ private func boundedMatches(
     in str: String,
     options: NSRegularExpression.MatchingOptions,
     range: NSRange
-) -> [NSTextCheckingResult] {
+) -> [NSTextCheckingResult]? {
     if RegexEvaluationLimits.maxInputLength > 0, range.length > RegexEvaluationLimits.maxInputLength {
-        return []
+        return nil
     }
     guard RegexEvaluationLimits.isTimeoutEnabled else {
         return regex.matches(in: str, options: options, range: range)
@@ -328,9 +329,11 @@ private func boundedMatches(
     let deadline = Date().addingTimeInterval(RegexEvaluationLimits.matchTimeout)
     let matchingOptions = options.union(.reportProgress)
     var matches: [NSTextCheckingResult] = []
+    var timedOut = false
     regex.enumerateMatches(in: str, options: matchingOptions, range: range) { result, flags, stop in
         if flags.contains(.progress) {
             if Date() >= deadline {
+                timedOut = true
                 stop.pointee = true
             }
             return
@@ -340,7 +343,7 @@ private func boundedMatches(
             matches.append(result)
         }
     }
-    return matches
+    return timedOut ? nil : matches
 }
 
 // MARK: - STDLIB-100: Regex constructor, matches, contains
@@ -398,6 +401,7 @@ public func kk_regex_findAll(_ regexRaw: Int, _ strRaw: Int) -> Int {
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
     let results = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let results else { return regexMakeListRaw([]) }
     let matchResults = results.map { result -> Int in
         let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
         return registerRuntimeObject(matchResult)
@@ -415,6 +419,9 @@ public func kk_string_replace_regex(_ strRaw: Int, _ regexRaw: Int, _ replacemen
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
     let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let matches else {
+        return regexMakeStringRaw(rawStr)
+    }
     if matches.isEmpty {
         return regexMakeStringRaw(str)
     }
@@ -438,6 +445,9 @@ public func kk_string_split_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
     let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let matches else {
+        return regexMakeStringListRaw([str])
+    }
     if matches.isEmpty {
         return regexMakeStringListRaw([str])
     }
@@ -467,6 +477,7 @@ public func kk_regex_replace_lambda(
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
     let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let matches else { return strRaw }
     if matches.isEmpty { return strRaw }
     var result = ""
     var lastEnd = str.startIndex
