@@ -745,10 +745,22 @@ extension DataFlowSemaPhase {
         }
         let functionName = interner.intern(name)
         let functionFQName = ownerInfo.fqName + [functionName]
+        let ownerName = interner.resolve(ownerInfo.name)
+        let isUnsignedProgressionOwner = ownerName == "UIntRange"
+            || ownerName == "UIntProgression"
+            || ownerName == "ULongRange"
+            || ownerName == "ULongProgression"
+        let shouldDeferToBundledToList = functionName == interner.intern("toList")
+            && !isUnsignedProgressionOwner
+        let bundledSkipReceiverType: TypeID? = shouldDeferToBundledToList ? receiverType : nil
         if let types = BundledSyntheticStubRegistration.types,
            BundledSyntheticStubRegistration.shouldSkipRegistration(
                declaredOwnerFQName: ownerInfo.fqName,
-               receiverType: receiverType,
+               // Most progression helpers are class members; their receiver is the dispatch self type,
+               // not an extension receiver that should be skipped before bundled declarations load.
+               // Signed and Char `toList` helpers are supplied by bundled stdlib, so defer them to the
+               // bundled-index guard. Unsigned progressions still need their synthetic fallback.
+               receiverType: bundledSkipReceiverType,
                name: functionName,
                arity: parameterTypes.count,
                symbols: symbols,

@@ -64,14 +64,22 @@ struct RangeSyntheticMemberLinkTests {
         #expect(sema.symbols.externalLinkName(for: fromClosedRangeSymbol) == "kk_char_progression_fromClosedRange")
         #expect(fromClosedRangeSignature.parameterTypes == [sema.types.charType, sema.types.charType, sema.types.intType])
         #expect(fromClosedRangeSignature.returnType == charProgressionType)
+        let bundledToListName = ["kotlin", "ranges", "toList"].map { interner.intern($0) }
+        let bundledToListSymbol = try #require(sema.symbols.lookupAll(fqName: bundledToListName).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == charProgressionType
+                && signature.parameterTypes.isEmpty
+        })
+        let bundledToListSignature = try #require(sema.symbols.functionSignature(for: bundledToListSymbol))
+        #expect(sema.symbols.externalLinkName(for: bundledToListSymbol) == nil)
         #expect(
-            functionExternalLink(
-                for: "CharProgression",
-                member: "toList",
-                parameterCount: 0,
-                sema: sema,
+            sema.types.displayName(
+                of: bundledToListSignature.returnType,
+                symbols: sema.symbols,
                 interner: interner
-            ) == "kk_char_range_toList"
+            ) == "List<Char>"
         )
         #expect(
             functionExternalLink(
