@@ -90,21 +90,32 @@ public final class JSONRPCConnection {
             }
 
             let headerData = Data(buffer.prefix(headerOffset))
-            guard let contentLength = parseContentLength(headerData),
-                  contentLength >= 0,
-                  contentLength <= maxBodyBytes
-            else {
-                // Missing, malformed, negative, or oversized Content-Length:
-                // drop the header block and resynchronize.
+            guard let contentLength = parseContentLength(headerData) else {
+                // Missing or malformed Content-Length: drop the header block
+                // and resynchronize.
                 buffer = Data(buffer.dropFirst(headerOffset + 4))
+                continue
+            }
+
+            if contentLength < 0 {
+                // Negative Content-Length is untrustworthy. Drop the header
+                // block and resynchronize.
+                buffer = Data(buffer.dropFirst(headerOffset + 4))
+                continue
+            }
+
+            if contentLength > maxBodyBytes {
+                // Oversized but numeric Content-Length: drain the declared
+                // body so we can safely resynchronize at the next frame.
+                if !discard(headerOffset + 4) { return nil }
+                if !discard(contentLength) { return nil }
                 continue
             }
 
             let bodyStart = headerOffset + 4
             let (totalNeeded, overflowed) = bodyStart.addingReportingOverflow(contentLength)
             if overflowed {
-                buffer = Data(buffer.dropFirst(bodyStart))
-                continue
+                return nil
             }
             while buffer.count < totalNeeded {
                 if !readMore() { return nil }
@@ -141,6 +152,21 @@ public final class JSONRPCConnection {
         let chunk = input.readChunk()
         if chunk.isEmpty { return false }
         buffer.append(chunk)
+        return true
+    }
+
+    private func discard(_ count: Int) -> Bool {
+        var remaining = count
+        while remaining > 0 {
+            if buffer.isEmpty {
+                if !readMore() { return false }
+                continue
+            }
+
+            let toDrop = min(remaining, buffer.count)
+            buffer.removeFirst(toDrop)
+            remaining -= toDrop
+        }
         return true
     }
 

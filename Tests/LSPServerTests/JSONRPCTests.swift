@@ -80,7 +80,8 @@ struct JSONRPCTests {
 
     @Test
     func dropsOversizedContentLengthAndRecovers() {
-        let oversized = Data("Content-Length: 32\r\n\r\n".utf8) + Data(repeating: 0x20, count: 32)
+        let oversizedBody = Data("{\"note\":\"line1\r\n\r\nContent-Length: 999\r\n\r\nline2\"}".utf8)
+        let oversized = Data("Content-Length: \(oversizedBody.count)\r\n\r\n".utf8) + oversizedBody
         let valid = LSPTestSupport.frame(["x": 1])
         let connection = JSONRPCConnection(
             input: MemoryInputStream(chunks: [oversized + valid]),
@@ -93,16 +94,26 @@ struct JSONRPCTests {
     }
 
     @Test
-    func dropsMalformedContentLengthAndRecovers() {
+    func dropsNonNumericContentLengthAndRecovers() {
         let malformed = Data("Content-Length: not-a-number\r\n\r\n".utf8)
-        let huge = Data("Content-Length: 9223372036854775807\r\n\r\n".utf8)
         let valid = LSPTestSupport.frame(["x": 1])
         let connection = JSONRPCConnection(
-            input: MemoryInputStream(chunks: [malformed + huge + valid]),
+            input: MemoryInputStream(chunks: [malformed + valid]),
             output: MemoryOutputStream()
         )
 
         #expect((connection.receive()?["x"] as? Int) == 1)
+        #expect(connection.receive() == nil)
+    }
+
+    @Test
+    func nearIntMaxContentLengthDoesNotTrap() {
+        let header = Data("Content-Length: 9223372036854775807\r\n\r\n".utf8)
+        let connection = JSONRPCConnection(
+            input: MemoryInputStream(header),
+            output: MemoryOutputStream()
+        )
+
         #expect(connection.receive() == nil)
     }
 
