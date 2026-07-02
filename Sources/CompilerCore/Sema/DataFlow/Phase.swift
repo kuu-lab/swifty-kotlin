@@ -21,9 +21,31 @@ final class DataFlowSemaPhase: CompilerPhase {
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
 
+        // KSP-001: bundled stdlib declarations must be in SymbolTable before synthetic stubs.
+        let isBundledFile: (FileID) -> Bool = { fileID in
+            ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+        }
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
-            symbols: symbols, types: types, bindings: bindings, ctx: ctx
+            symbols: symbols, types: types, bindings: bindings, ctx: ctx,
+            includeFile: isBundledFile
+        )
+
+        let bundledIndex = BundledDeclarationIndex.build(
+            sourceManager: ctx.sourceManager,
+            symbols: symbols
+        )
+        registerSyntheticDelegateStubs(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
+        )
+
+        collectAllHeaders(
+            ast: ast, fileScopes: fileScopes,
+            symbols: symbols, types: types, bindings: bindings, ctx: ctx,
+            includeFile: { !isBundledFile($0) }
         )
         assignCompilationModuleFQNames(
             symbols: symbols,
@@ -59,16 +81,17 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics, interner: ctx.interner,
             importedInlineFunctions: &importedInlineFunctions
         )
-        registerSyntheticDelegateStubs(symbols: symbols, types: types, interner: ctx.interner)
         return importedInlineFunctions
     }
 
     func collectAllHeaders(
         ast: ASTModule, fileScopes: [Int32: FileScope],
         symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
-        ctx: CompilationContext
+        ctx: CompilationContext,
+        includeFile: (FileID) -> Bool = { _ in true }
     ) {
         for file in ast.sortedFiles {
+            guard includeFile(file.fileID) else { continue }
             guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
             registerFileAnnotations(
                 file: file,
