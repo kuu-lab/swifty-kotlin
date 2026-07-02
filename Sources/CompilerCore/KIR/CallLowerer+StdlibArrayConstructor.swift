@@ -37,7 +37,7 @@ extension CallLowerer {
         )
 
         // 2. Create the array: kk_array_new(size)
-        let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+        let arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: arrayNewCallee,
@@ -48,7 +48,7 @@ extension CallLowerer {
         ))
 
         // 3. Loop setup: index = 0
-        let indexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: indexExpr, value: .intLiteral(0)))
@@ -60,7 +60,7 @@ extension CallLowerer {
         instructions.append(.label(conditionLabel))
 
         // 4. Loop condition: index < size
-        let conditionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
             callee: lessThanCallee,
@@ -110,7 +110,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+                let actionResult = arena.appendTemporary(type: anyType)
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
@@ -125,7 +125,7 @@ extension CallLowerer {
 
         // 6. kk_array_set(array, index, lambdaResult)
         if let lambdaResult = lambdaResultExpr {
-            let setResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+            let setResult = arena.appendTemporary(type: anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: arraySetCallee,
@@ -137,7 +137,7 @@ extension CallLowerer {
         }
 
         // 7. index = index + 1
-        let nextIndexBoxedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: addCallee,
@@ -146,7 +146,7 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
-        let nextIndexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let nextIndexExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: unboxIntCallee,

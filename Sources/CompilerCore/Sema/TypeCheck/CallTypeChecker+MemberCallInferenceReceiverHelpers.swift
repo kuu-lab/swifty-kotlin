@@ -437,9 +437,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isCoroutineHandleSymbol(symbol)
@@ -452,9 +450,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return symbol.fqName.count >= 2
@@ -473,9 +469,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return symbol.fqName.count >= 2
@@ -492,9 +486,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return symbol.fqName.count >= 4
@@ -510,9 +502,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isChannelSymbol(symbol)
@@ -528,9 +518,7 @@ extension CallTypeChecker {
             return kClassType.argument
         }
 
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
             return nil
         }
 

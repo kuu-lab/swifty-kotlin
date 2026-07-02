@@ -125,7 +125,7 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                 // wrap its Int result to 32 bits via kk_int_narrow.
                 if narrowingIDs.contains(callee), let result, resultKind == .int {
                     let resultType = arena.exprType(result) ?? types.intType
-                    let rawResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                    let rawResult = arena.appendTemporary(type: resultType)
                     newBody.append(.call(
                         symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
                         canThrow: canThrow, thrownResult: thrownResult,
@@ -141,7 +141,7 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                 // UInt results: mask to 32 bits via kk_uint_narrow (zero-extend low 32 bits).
                 if narrowingIDs.contains(callee), let result, resultKind == .uint {
                     let resultType = arena.exprType(result) ?? types.uintType
-                    let rawResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                    let rawResult = arena.appendTemporary(type: resultType)
                     newBody.append(.call(
                         symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
                         canThrow: canThrow, thrownResult: thrownResult,

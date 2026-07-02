@@ -407,9 +407,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             body.append(.constValue(result: selfRef, value: .symbolRef(selfParamSymbol)))
 
             let propertyIndex = componentIndex - 1 // 0-based
-            let resultExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: returnType
+            let resultExpr = module.arena.appendTemporary(type: returnType
             )
 
             // Read the primary-constructor-backed field via layout offset.
@@ -568,9 +566,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         existingFunctionSymbols: Set<SymbolID>
     ) {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: returnType
+        let resultExpr = module.arena.appendTemporary(type: returnType
         )
         let body: [KIRInstruction] = [
             .constValue(result: resultExpr, value: .intLiteral(value)),
@@ -598,9 +594,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         existingFunctionSymbols: Set<SymbolID>
     ) {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: returnType
+        let resultExpr = module.arena.appendTemporary(type: returnType
         )
         let body: [KIRInstruction] = [
             .constValue(result: resultExpr, value: .stringLiteral(value)),

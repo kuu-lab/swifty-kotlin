@@ -33,8 +33,7 @@ extension DataEnumSealedSynthesisPass {
         )
 
         // kk_enum_make_values_array(array, count) -- result uses the enum type
-        let listExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)), type: returnType
+        let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
             symbol: nil,
@@ -90,8 +89,7 @@ extension DataEnumSealedSynthesisPass {
         )
 
         // kk_enum_make_entries_list(array, count) -- returns List for EnumEntries
-        let listExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)), type: returnType
+        let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
             symbol: nil,
@@ -124,13 +122,11 @@ extension DataEnumSealedSynthesisPass {
         sema: SemaModule,
         interner: StringInterner
     ) -> (array: KIRExprID, count: KIRExprID) {
-        let countExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)), type: intType
+        let countExpr = module.arena.appendTemporary(type: intType
         )
         body.append(.constValue(result: countExpr, value: .intLiteral(Int64(entries.count))))
 
-        let arrayExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)), type: sema.types.anyType
+        let arrayExpr = module.arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(
             symbol: nil,
@@ -143,8 +139,7 @@ extension DataEnumSealedSynthesisPass {
 
         let stringType = sema.types.stringType
         for (ordinal, entry) in entries.enumerated() {
-            let indexExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: intType
+            let indexExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(ordinal))))
 
@@ -152,8 +147,7 @@ extension DataEnumSealedSynthesisPass {
             // so println(entries) shows "NORTH" not "0".
             let entryNameStr = interner.resolve(entry.name)
             let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
-            let entryRef = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: stringType
+            let entryRef = module.arena.appendTemporary(type: stringType
             )
             body.append(.call(
                 symbol: nil,
@@ -202,7 +196,6 @@ extension DataEnumSealedSynthesisPass {
         )
         let param = KIRParameter(symbol: paramSymbol, type: intType)
         let paramRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: intType)
-
         var body: [KIRInstruction] = []
         body.append(.constValue(result: paramRef, value: .symbolRef(paramSymbol)))
         let unboxedOrdinalRef = emitNonThrowingCall(
@@ -217,9 +210,7 @@ extension DataEnumSealedSynthesisPass {
         for (ordinal, entry) in entries.enumerated() {
             let entryName = interner.resolve(entry.name)
             let helperName = interner.intern("\(entryName)$enumName")
-            let resultExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: stringType
+            let resultExpr = module.arena.appendTemporary(type: stringType
             )
             let ordinalExpr = module.arena.appendExpr(
                 .intLiteral(Int64(ordinal)),
@@ -319,10 +310,7 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.constValue(result: entryNameExpr, value: .stringLiteral(entryNameStr)))
 
-            let boxedCmpResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: sema.types.anyType
-            )
+            let boxedCmpResult = module.arena.appendTemporary(type: sema.types.anyType)
             let cmpCallee = interner.intern("kk_string_equals_flat")
             body.append(.call(
                 symbol: nil,
@@ -333,8 +321,7 @@ extension DataEnumSealedSynthesisPass {
                 thrownResult: nil
             ))
 
-            let cmpResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
+            let cmpResult = module.arena.appendTemporary(
                 type: sema.types.make(.primitive(.boolean, .nonNull))
             )
             body.append(.call(
@@ -378,9 +365,7 @@ extension DataEnumSealedSynthesisPass {
         )
         body.append(.constValue(result: prefixExpr, value: .stringLiteral(prefixInterned)))
 
-        let qualifiedNameExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: stringType
+        let qualifiedNameExpr = module.arena.appendTemporary(type: stringType
         )
         body.append(.call(
             symbol: nil,
@@ -392,9 +377,7 @@ extension DataEnumSealedSynthesisPass {
         ))
 
         let throwCallee = interner.intern("kk_enum_valueOf_throw")
-        let throwResult = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: sema.types.nothingType
+        let throwResult = module.arena.appendTemporary(type: sema.types.nothingType
         )
         body.append(.call(
             symbol: nil,

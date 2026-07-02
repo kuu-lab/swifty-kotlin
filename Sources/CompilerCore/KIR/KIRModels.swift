@@ -224,6 +224,23 @@ public final class KIRArena {
         return id
     }
 
+    public func appendTemporary(type: TypeID? = nil) -> KIRExprID {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            let id = KIRExprID(rawValue: Int32(expressions.count))
+            expressions.append(.temporary(id.rawValue))
+            if let type { exprTypes[id] = type }
+            return id
+        }
+        let id = KIRExprID(rawValue: Int32(expressions.count))
+        expressions.append(.temporary(id.rawValue))
+        if let type {
+            exprTypes[id] = type
+        }
+        return id
+    }
+
     public func decl(_ id: KIRDeclID) -> KIRDecl? {
         let index = Int(id.rawValue)
         guard index >= 0, index < declarations.count else {

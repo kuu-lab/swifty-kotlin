@@ -1473,72 +1473,21 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.receiverType == receiverType
-                && existingSignature.parameterTypes == parameters.map { $0.type }
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: flags
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var parameterTypes: [TypeID] = []
-        var parameterSymbols: [SymbolID] = []
-        var parameterDefaults: [Bool] = []
-        var parameterVarargs: [Bool] = []
-        parameterTypes.reserveCapacity(parameters.count)
-        parameterSymbols.reserveCapacity(parameters.count)
-        parameterDefaults.reserveCapacity(parameters.count)
-        parameterVarargs.reserveCapacity(parameters.count)
-
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            parameterTypes.append(parameter.type)
-            parameterSymbols.append(parameterSymbol)
-            parameterDefaults.append(parameter.hasDefault)
-            parameterVarargs.append(parameter.isVararg)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: parameterDefaults,
-                valueParameterIsVararg: parameterVarargs,
-                typeParameterSymbols: typeParameterSymbols
-            ),
-            for: functionSymbol
+        let functionSymbol = registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: packageFQName,
+            parentSymbol: symbols.lookup(fqName: packageFQName),
+            receiverType: receiverType,
+            parameters: parameters,
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            flags: flags,
+            typeParameterSymbols: typeParameterSymbols,
+            symbols: symbols,
+            interner: interner
         )
 
+        let parameterTypes = parameters.map(\.type)
         symbols.setPropertyType(types.make(.functionType(FunctionType(
             params: parameterTypes,
             returnType: returnType,

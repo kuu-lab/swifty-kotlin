@@ -18,8 +18,7 @@ extension CollectionLiteralLoweringPass {
             let count = arguments.count
             let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
             loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-            let arrayExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let arrayExpr = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -32,8 +31,7 @@ extension CollectionLiteralLoweringPass {
             for (i, arg) in arguments.enumerated() {
                 let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
                 loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
-                let setResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let setResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -371,9 +369,7 @@ extension CollectionLiteralLoweringPass {
            let types = ctx.sema?.types,
            let unboxCallee = primitiveUnboxCalleeForType(resultTypeID, types: types, interner: ctx.interner)
         {
-            let tempBoxed = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: nil
+            let tempBoxed = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -408,10 +404,9 @@ extension CollectionLiteralLoweringPass {
         types: TypeSystem,
         interner: StringInterner
     ) -> InternedString? {
-        let kind = types.kind(of: typeID)
-        guard case .primitive(_, .nonNull) = kind else {
-            return nil
-        }
-        return ABILoweringPass.primitiveUnboxingCallee(for: kind, interner: interner)
+        BoxingCalleeTable(interner: interner).unboxCallee(
+            for: types.kind(of: typeID),
+            requireNonNull: true
+        )
     }
 }

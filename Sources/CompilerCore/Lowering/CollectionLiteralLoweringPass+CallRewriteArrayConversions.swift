@@ -14,8 +14,7 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.toMutableListName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.arrayExprIDs.contains(receiverID.rawValue) {
-            let toMutableListResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toMutableListResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -38,8 +37,7 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.toTypedArrayName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -57,8 +55,7 @@ extension CollectionLiteralLoweringPass {
             return true
         }
         if state.arrayExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -81,8 +78,7 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.toIntArrayName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -105,8 +101,7 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.toLongArrayName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -129,8 +124,7 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.toByteArrayName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -164,8 +158,7 @@ extension CollectionLiteralLoweringPass {
     if let unsignedArrayCallee, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
-            let toArrayResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -188,8 +181,7 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.copyOfName, (1...4).contains(arguments.count) {
         let receiverID = arguments[0]
         if state.arrayExprIDs.contains(receiverID.rawValue) {
-            let copyResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let copyResult = module.arena.appendTemporary(type: nil
             )
             let runtimeCallee: InternedString
             let runtimeArguments: [KIRExprID]
@@ -235,8 +227,7 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.copyOfRangeName, arguments.count == 3 {
         let receiverID = arguments[0]
         if state.arrayExprIDs.contains(receiverID.rawValue) {
-            let copyResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let copyResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,

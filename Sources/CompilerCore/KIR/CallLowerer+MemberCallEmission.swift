@@ -789,7 +789,7 @@ extension CallLowerer {
             )
             let memberArgumentCount = finalArguments.count - 1
             if memberArgumentCount == 1 || memberArgumentCount == 2 {
-                let sizeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.intType)
+                let sizeExpr = arena.appendTemporary(type: sema.types.intType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: sizeRuntimeCallee,
@@ -891,8 +891,7 @@ extension CallLowerer {
                     instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
                     let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
                     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
-                    let closureObjExpr = arena.appendExpr(
-                        .temporary(Int32(clamping: arena.expressions.count)), type: anyType)
+                    let closureObjExpr = arena.appendTemporary(type: anyType)
                     instructions.append(.call(
                         symbol: nil,
                         callee: kkObjectNew,
@@ -905,8 +904,7 @@ extension CallLowerer {
                         let fieldOffset = Int64(captureIndex + 2)
                         let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: intType)
                         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
-                        let unusedResult = arena.appendExpr(
-                            .temporary(Int32(clamping: arena.expressions.count)), type: anyType)
+                        let unusedResult = arena.appendTemporary(type: anyType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: kkArraySet,
@@ -1226,8 +1224,7 @@ extension CallLowerer {
                 instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
                 let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
                 instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
-                let closureObjExpr = arena.appendExpr(
-                    .temporary(Int32(clamping: arena.expressions.count)), type: anyType)
+                let closureObjExpr = arena.appendTemporary(type: anyType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: kkObjectNew,
@@ -1240,8 +1237,7 @@ extension CallLowerer {
                     let fieldOffset = Int64(captureIndex + 2)
                     let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: intType)
                     instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
-                    let unusedResult = arena.appendExpr(
-                        .temporary(Int32(clamping: arena.expressions.count)), type: anyType)
+                    let unusedResult = arena.appendTemporary(type: anyType)
                     instructions.append(.call(
                         symbol: nil,
                         callee: kkArraySet,

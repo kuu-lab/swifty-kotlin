@@ -43,7 +43,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let result = arena.appendTemporary(type: boundType)
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.
@@ -76,9 +76,9 @@ extension CallLowerer {
                 // For != (equals desugaring), the call result is Bool that needs negation.
                 // We allocate a separate temporary for both cases.
                 let callResult: KIRExprID = if isCompareToDesugaring {
-                    arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                    arena.appendTemporary(type: intType)
                 } else if isEqualsDesugaring {
-                    arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                    arena.appendTemporary(type: boolType)
                 } else {
                     result
                 }
@@ -220,8 +220,7 @@ extension CallLowerer {
                 } else {
                     // Wrap single element in a one-element sequence so the
                     // runtime always receives a collection handle.
-                    let wrappedExpr = arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)), type: nil
+                    let wrappedExpr = arena.appendTemporary(type: nil
                     )
                     instructions.append(
                         .call(
@@ -306,8 +305,7 @@ extension CallLowerer {
                 let tag = anyFallbackTag(for: rhsExprType ?? sema.types.anyType, sema: sema)
                 let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
                 instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)), type: stringType
+                let converted = arena.appendTemporary(type: stringType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -328,8 +326,7 @@ extension CallLowerer {
                 let tag = anyFallbackTag(for: lhsExprType ?? sema.types.anyType, sema: sema)
                 let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
                 instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)), type: stringType
+                let converted = arena.appendTemporary(type: stringType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -411,7 +408,7 @@ extension CallLowerer {
                 instructions.append(.unary(op: .not, operand: eqResult, result: result))
                 return result
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
-                let compareResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let compareResult = arena.appendTemporary(type: intType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_compareTo_flat"),
@@ -702,7 +699,9 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+            let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_string_get_flat"),
@@ -729,7 +728,7 @@ extension CallLowerer {
                     instructions: &instructions
                 )
             }
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             emitMemberCallInstruction(
                 normalized: driver.callSupportLowerer.normalizedCallArguments(
                     providedArguments: loweredIndices,
@@ -769,7 +768,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get"),
@@ -842,7 +841,7 @@ extension CallLowerer {
                 }
             }
             let loweredArgs = loweredIndices + [valueID]
-            let callResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.unitType)
+            let callResult = arena.appendTemporary(type: sema.types.unitType)
             emitMemberCallInstruction(
                 normalized: driver.callSupportLowerer.normalizedCallArguments(
                     providedArguments: loweredArgs,
@@ -931,7 +930,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let getResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let getResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get"),
@@ -940,7 +939,7 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-        let opResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let opResult = arena.appendTemporary(type: sema.types.anyType)
         guard let expr = ast.arena.expr(exprID),
               case let .indexedCompoundAssign(op, _, _, _, _) = expr
         else {

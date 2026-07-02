@@ -923,9 +923,7 @@ extension CallLowerer {
                     // thrownResult to non-nil for those HOFs would silently swallow the
                     // exception instead of propagating it.
                     let stringHOFThrownResult: KIRExprID? = calleeStr == "partition"
-                        ? arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
+                        ? arena.appendTemporary(type: sema.types.nullableAnyType
                         )
                         : nil
                     instructions.append(.call(
@@ -1562,9 +1560,9 @@ extension CallLowerer {
                 func boxedFormatArgument(_ argExpr: ExprID, loweredArgID: KIRExprID) -> KIRExprID {
                     let argType = sema.bindings.exprTypes[argExpr] ?? sema.types.anyType
                     let nonNullArgType = sema.types.makeNonNullable(argType)
-                    let boxCallee = ABILoweringPass.primitiveBoxingCallee(
+                    let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
                         for: sema.types.kind(of: nonNullArgType),
-                        interner: interner
+                        requireNonNull: true
                     )
 
                     if let boxCallee {

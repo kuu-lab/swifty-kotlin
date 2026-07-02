@@ -104,9 +104,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let getter = getterSymbol else {
             return nil
         }
-        let targetResult = result ?? arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let targetResult = result ?? arena.appendTemporary(type: sema.types.anyType
         )
         return .call(
             symbol: getter,
