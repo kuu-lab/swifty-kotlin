@@ -97,7 +97,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
 > 移行先: `Stdlib/kotlin/uuid/Uuid.kt`
 
-- [ ] MIGRATION-UUID-001: `Uuid` クラス API を Kotlin source に移行する（`Uuid.random`, `Uuid.parse`, `toString`, `toLongs`, `toByteArray`）
+- [x] MIGRATION-UUID-001: `Uuid` クラス API を Kotlin source に移行する（`Uuid.random`, `Uuid.parse`, `toString`, `toLongs`, `toByteArray`）
 
 ### Phase M13: kotlin (Result)
 > 移行元: `Sources/Runtime/RuntimeResult.swift` (16 @_cdecl)

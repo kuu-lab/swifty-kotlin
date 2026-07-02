@@ -80,7 +80,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 collectHeader(
                     declID: declID, file: file, ast: ast,
                     symbols: symbols, types: types, bindings: bindings,
-                    scope: fileScope, diagnostics: ctx.diagnostics, interner: ctx.interner
+                    scope: fileScope, diagnostics: ctx.diagnostics, interner: ctx.interner,
+                    ctx: ctx
                 )
             }
         }

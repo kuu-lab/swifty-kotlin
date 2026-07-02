@@ -119,7 +119,10 @@ struct FrontendPhasesTests {
             #expect(!(topLevelNames.contains("oldChanged")))
 
             try SemaPhase().run(incrementalCtx)
-            #expect(!(incrementalCtx.diagnostics.hasError))
+            #expect(
+                !(incrementalCtx.diagnostics.hasError),
+                Comment(rawValue: "Unexpected diagnostics: \(incrementalCtx.diagnostics.diagnostics)")
+            )
         }
     }
 

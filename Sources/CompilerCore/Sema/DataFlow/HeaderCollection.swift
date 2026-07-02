@@ -52,7 +52,8 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         scope: Scope,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        ctx: CompilationContext
     ) {
         guard let decl = ast.arena.decl(declID) else { return }
         let package = file.packageFQName
@@ -174,17 +175,27 @@ extension DataFlowSemaPhase {
         } else {
             newIsExtensionProperty = false
         }
-        checkAndReportDuplicateDeclaration(
-            newKind: declaration.kind,
+        let adoptedSyntheticSymbol = adoptedSyntheticUuidSourceDeclarationSymbol(
+            kind: declaration.kind,
             fqName: fqName,
-            range: declaration.range,
+            sourceFileID: file.fileID,
+            ctx: ctx,
             symbols: symbols,
-            diagnostics: diagnostics,
-            newFlags: declaration.flags,
-            additionalExisting: scopeExisting,
-            newIsExtensionProperty: newIsExtensionProperty
+            interner: interner
         )
-        let symbol = symbols.define(
+        if adoptedSyntheticSymbol == nil {
+            checkAndReportDuplicateDeclaration(
+                newKind: declaration.kind,
+                fqName: fqName,
+                range: declaration.range,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                newFlags: declaration.flags,
+                additionalExisting: scopeExisting,
+                newIsExtensionProperty: newIsExtensionProperty
+            )
+        }
+        let symbol = adoptedSyntheticSymbol ?? symbols.define(
             kind: declaration.kind,
             name: declaration.name,
             fqName: fqName,
@@ -202,6 +213,14 @@ extension DataFlowSemaPhase {
             declRange: declaration.range,
             symbols: symbols,
             diagnostics: diagnostics
+        )
+        attachUuidSourceMigrationClassAnnotationIfNeeded(
+            to: symbol,
+            fqName: fqName,
+            sourceFileID: file.fileID,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
         )
 
         switch decl {
@@ -431,6 +450,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: classType),
                 sourceFileID: file.fileID,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -465,6 +485,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ownerType: classType,
                     sourceFileID: file.fileID,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -552,6 +573,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: interfaceType),
                 sourceFileID: file.fileID,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -570,6 +592,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ownerType: interfaceType,
                     sourceFileID: file.fileID,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -607,6 +630,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: objectType),
                 sourceFileID: file.fileID,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,

@@ -25,6 +25,10 @@ struct ASTEquivalenceRegressionTests {
         return (ast, ctx)
     }
 
+    private func isUserSourceRange(_ range: SourceRange, in ctx: CompilationContext) -> Bool {
+        !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+    }
+
     private func assertValidSourceRange(
         _ range: SourceRange?,
         label: String,
@@ -100,13 +104,14 @@ struct ASTEquivalenceRegressionTests {
         }
         fun main() = Counter(0).get()
         """
-        let (ast, _) = try buildAST(from: source)
+        let (ast, ctx) = try buildAST(from: source)
 
         // classDecl + funDecl(main) + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
         let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
             guard case let .classDecl(c) = decl else { return nil }
+            guard isUserSourceRange(c.range, in: ctx) else { return nil }
             return c
         }
         #expect(classDecls.count == 1)
