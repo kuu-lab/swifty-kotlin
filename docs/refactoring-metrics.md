@@ -75,3 +75,29 @@ Tests-only observation with the same `minLines=5` / `minTokens=50` settings:
 | Duplicated token % | 16.55% |
 
 The CI observation step is report-only. Set a Tests-specific threshold after enough runs confirm a stable target.
+
+## Bundled Stdlib Injection Cost
+
+Captured on 2026-07-03 for KSP-007 with a debug `kswiftc` build on macOS.
+
+Display path:
+- `Driver.finalizeRun` calls `PhaseTimer.printSummary()` when `-Xfrontend time-phases` is present.
+- `PhaseTimer.phaseRecords` stores phase records and their subrecords; `printSummary()` renders the `bundled-stdlib` subrecords recorded by `Lex` and `Parse`.
+
+Command:
+
+```bash
+.build/debug/kswiftc Scripts/diff_cases/hello.kt -o /tmp/ksp_out -Xfrontend time-phases
+```
+
+Bundled stdlib injection cost is defined here as `Lex bundled-stdlib + Parse bundled-stdlib`.
+
+| Run | Lex bundled-stdlib (ms) | Parse bundled-stdlib (ms) | Total (ms) |
+|---:|---:|---:|---:|
+| 1 | 19.37 | 3.58 | 22.95 |
+| 2 | 14.80 | 3.30 | 18.10 |
+| 3 | 14.27 | 2.99 | 17.26 |
+
+Median bundled stdlib injection cost: **18.10 ms**.
+
+Cache work trigger: start bundled stdlib caching when the same local/debug measurement regresses by **+100 ms** or more from this baseline, i.e. median total `>= 118.10 ms`.

@@ -281,6 +281,10 @@ final class MemberLowerer {
               case let .funDecl(function) = decl,
               let symbol = sema.bindings.declSymbols[declID]
         else { return }
+        if function.modifiers.contains(.external), function.body == .unit {
+            return
+        }
+
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
         driver.ctx.setCurrentFunctionSymbol(symbol)

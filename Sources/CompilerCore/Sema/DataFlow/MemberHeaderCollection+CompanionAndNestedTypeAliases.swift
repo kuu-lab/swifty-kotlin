@@ -6,6 +6,7 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID?,
         sourceFileID: FileID,
+        sourceManager: SourceManager,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -43,6 +44,8 @@ extension DataFlowSemaPhase {
             for: decl,
             symbol: companionSymbol,
             declRange: companionObject.range,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -77,6 +80,7 @@ extension DataFlowSemaPhase {
             ),
             owner: OwnerContext(fqName: companionFQName, symbol: companionSymbol, type: companionType),
             sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             ast: ast,
             symbols: symbols,
             types: types,

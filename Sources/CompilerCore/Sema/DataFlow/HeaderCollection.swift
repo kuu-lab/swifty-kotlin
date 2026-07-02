@@ -51,6 +51,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         bindings: BindingTable,
         scope: Scope,
+        sourceManager: SourceManager,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -196,10 +197,20 @@ extension DataFlowSemaPhase {
         scope.insert(symbol)
         bindings.bindDecl(declID, symbol: symbol)
 
+        if case let .funDecl(funDecl) = decl {
+            diagnoseReservedExternalFunctionUse(
+                funDecl,
+                sourceFileID: file.fileID,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics
+            )
+        }
         registerAnnotations(
             for: decl,
             symbol: symbol,
             declRange: declaration.range,
+            sourceFileID: file.fileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -431,6 +442,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: classType),
                 sourceFileID: file.fileID,
+                sourceManager: sourceManager,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -465,6 +477,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ownerType: classType,
                     sourceFileID: file.fileID,
+                    sourceManager: sourceManager,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -552,6 +565,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: interfaceType),
                 sourceFileID: file.fileID,
+                sourceManager: sourceManager,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -570,6 +584,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ownerType: interfaceType,
                     sourceFileID: file.fileID,
+                    sourceManager: sourceManager,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -607,6 +622,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: objectType),
                 sourceFileID: file.fileID,
+                sourceManager: sourceManager,
                 ast: ast,
                 symbols: symbols,
                 types: types,
