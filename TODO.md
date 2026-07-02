@@ -19,19 +19,12 @@
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 
-#### kotlin.text 関数の実装
-- [x] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
-
 #### kotlin.coroutines 関数の実装
 
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
 
 ### Phase 5: 非スコープ/高度領域
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
-- [x] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
-- [x] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
-- [x] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
-- [x] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
 - [ ] STDLIB-JVM-166: Java プレビュー機能の実装
 - [ ] STDLIB-REFL-175: アノテーション処理高度機能実装
 
@@ -78,25 +71,6 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 
 - [x] MIGRATION-COMP-001: Comparator ファクトリ・合成を Kotlin source に移行する（`compareBy`, `compareByDescending`, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`）
 - [ ] MIGRATION-COMP-002: maxOf/minOf 全オーバーロードを Kotlin source に移行する（Comparable版, プリミティブ版, vararg版）
-
-### Phase M6: kotlin.ranges
-> 移行元: `Sources/Runtime/RuntimeRangeAndDispatch.swift` (46), `RuntimeRangeIntRangeHOF.swift` (30), `RuntimeRangeLongRange.swift`, `RuntimeRangeUIntULongRange.swift`
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/ranges/`
-
-- [x] MIGRATION-RANGE-001: Range/Progression クラス API を Kotlin source に移行する（`IntRange`, `LongRange`, `CharRange`, `IntProgression`, `LongProgression`, `CharProgression` の iterator/contains/isEmpty）
-- [x] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`）— IntRange/IntProgression/LongRange/LongProgression/CharRange/CharProgression 対応。`first`/`last`/`step`/`reversed` は既存 synthetic stub で完結（純 Kotlin 化には新規ネイティブブリッジが必要で挙動変化がないため対象外）。`count(predicate)` は Range member fallback（`CallTypeChecker+RangeMemberFallback.swift`）の arity allow-list が0引数のみ許可し呼び出し不能なため対象外
-- [x] MIGRATION-RANGE-003: Range ユーティリティを Kotlin source に移行する（`coerceIn`, `coerceAtLeast`, `coerceAtMost`）— `until`/`downTo` は MIGRATION-RANGE-001 完了後に対応（IntRange/IntProgression 型移行が前提）
-
-### Phase M7: kotlin.random
-> 移行元: `Sources/Runtime/RuntimeRandom.swift` (38 @_cdecl)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/random/Random.kt`
-
-
-### Phase M8: kotlin.time / Duration
-> 移行元: `Sources/Runtime/RuntimeDuration.swift` (61 @_cdecl)
-> 移行先: `Sources/CompilerCore/Stdlib/kotlin/time/Duration.kt`
-
-- [x] MIGRATION-TIME-001: `Duration` 算術・変換を Kotlin source に移行する（`plus`, `minus`, `times`, `div`, `unaryMinus`, `absoluteValue`, `isPositive`, `isNegative`, `isInfinite`）
 
 ### Phase M12: kotlin.uuid
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
@@ -147,15 +121,6 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [x] RF-GUARD-003: SwiftLint の `file_length` / `type_body_length` を有効化し、既存違反は `.swiftlint.baseline.json` で凍結する（新規悪化のみ CI fail にするラチェット）
 - [x] RF-GUARD-004: `RuntimeABIExternalLinkValidationTests` の検証範囲を調査し、「CompilerCore が emit しうる全 `kk_*` 名が `RuntimeABISpec` に宣言されている」ことの検証ギャップ一覧を作る（enforcing 化は KIR link validation 側で対応）。調査結果: [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md)
 - [x] RF-GUARD-005: リファクタ PR の必須ゲート（全テスト + golden + `diff_kotlinc.sh` green、`loc_report.sh` の悪化なし）を `CLAUDE.md` に明文化する
-
-### Phase RF1: プロセス資産の修復（依存なし・並列可）
-- [x] RF-HYG-001: TODO.md の重複タスク ID を解消する。過去の text/comparison/parity 重複ブロックは現在の実装状態へ統合済みで、各 ID は定義箇所 1 回のみの運用へ正規化する
-- [x] RF-HYG-002: TODO.md の構造破損を修復する。legacy stdlib backlog の見出しを整理し、ID 重複を検出する軽量チェックを Scripts に追加済み
-- [x] RF-HYG-003: text split/join と common-prefix/suffix の migration 完了状態を監査する。現在は `Sources/CompilerCore/Stdlib/` の auto-discovery と legacy root `Stdlib/` が混在するため、M セクション冒頭の完了条件と各 text migration の部分完了注記へ正規化済み
-- [x] RF-HYG-004: Stdlib ソース配置を一本化する（ルート `Stdlib/kotlin/text/StringComparison.kt` と `Sources/CompilerCore/Stdlib/kotlin/text/StringSplitJoin.kt` の 2 系統を統合。推奨: `Bundle.module` で読める `Sources/CompilerCore/Stdlib/`。Swift ソース 0 件の `Stdlib` ターゲットと未使用 `resources: [.process("Stdlib")]` の Package.swift 設定もここで整理）
-- [x] RF-HYG-005: `docs/ARCHITECTURE.md` を実態に同期する（モジュール構成に LSPServer / KSwiftLSPCLI / GoldenHarnessSupport / GoldenHarnessWorker / Stdlib / RuntimeTestsParallel を追加、「テストFW: XCTest」を「XCTest 主体 + Golden は Swift Testing」に修正、CI ジョブ表へ full-swift-tests / diff-regression-shards を反映）
-- [x] RF-HYG-006: `docs/spec.md` / `docs/debugging.md` の stale 記述を監査する（参照ファイルの実在チェックを含む）
-- [x] RF-HYG-007: `.vscode/launch.json` の git 追跡可否を決定する（不要なら gitignore へ）
 
 ### Phase RF2: Stdlib ソースパイプライン基盤（本計画のクリティカルパス）
 > 背景: M1–M17 の前提となる「bundled .kt をコンパイルに含める機構」は基本配線済みだが、opt-out、source origin、合成スタブとの優先順位、incremental/golden 安定化を設計として固定する必要がある。
@@ -236,29 +201,14 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
 - [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift` — `RuntimeSequenceCoroutine` / `RuntimeIteratorBuilderBox` は producer を専用 `Thread` へ逃がし、consumer 側 continuation API（`nextElementAsync` / `probeHasNextAsync`）まで実装済み。残りは `yield()` 自体を suspend point として CPS lowering へ接続し、専用 producer thread を撤去する
 - [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
-
-### Sema 近似実装・既知クラッシュ
-- [x] DEBT-SEMA-001: `Sources/CompilerCore/Sema/TypeCheck/Helpers+TypeArgsAndMemberLookup.swift:113-135` の型エイリアス use-site variance 検証が no-op（計算結果を `_ = (declaredVariance, argVariance)` で破棄、`declaredVariance` は三項演算子の両分岐とも `.invariant`）。宣言側 variance を参照した実検証を実装するか、no-op で正しい仕様根拠をコメントへ明記する
-- [x] DEBT-SEMA-002: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift:809` 付近のジェネリック戻り値の共変 override チェックが「For now, implement basic checks」の保守的近似。完全な型引数置換ベースへ拡張する。先に現状すり抜ける不正 override ケースを golden 化してから着手する
-- [x] DEBT-SEMA-003: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift:959` 付近のモジュール境界の可視性検証（internal override 等）が保守的近似のまま。モジュール FQN 比較ベースの検証を実装する
-- [x] DEBT-SEMA-004: `Sources/CompilerCore/Sema/DataFlow/BodyAnalysis.swift:693` の `typeArgInnerType(.star)` が `fatalError("typeArgInnerType called on .star")` — star projection `<*>` を含む入力でコンパイラ自体がクラッシュしうる。診断付きの安全な経路へ変更し、`<*>` を含む回帰テストを追加する
-
+      
 ### KIR / Lowering
 - [ ] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift:1085-1094` で vtable dispatch が無効化され常に static dispatch へフォールバックしている（「TODO: Re-enable once kk_alloc-based object allocation is in place」）。ブロッカーとされた `kk_alloc` は `Sources/Runtime/RuntimeGC.swift:151` に実装済みのため、前提充足を監査して再有効化を検討する。再有効化時は `VirtualDispatchTests` へ該当経路のケースを追加する
 - [x] DEBT-KIR-003: `Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift` の手書き約 1,300 行 Set リテラルを `RuntimeABISpec` 由来の導出へ置換する。`RuntimeABIFunctionSpec` に throwing 属性が無いため throwing 情報が二重管理になっている — spec へ `isThrowing` フィールドを追加し、既存手書きリストとの全件突き合わせ検証を経て自動導出へ移行する（non-throwing callee cleanup と runtime/compiler ABI validation とも整合）
 
 ### RuntimeABISpec 本体の分割完遂
 > 既に 33 ファイルへ +分割済みだが、本体 `RuntimeABISpec.swift`（3,629 行）に 19 個の `static let *Functions` が残存する。
-- [x] DEBT-ABI-001: `operatorFunctions`（約 508 行）を `RuntimeABISpec+Operator.swift` へ移動する
-- [x] DEBT-ABI-002: `bitwiseFunctions`（約 322 行）を `RuntimeABISpec+Bitwise.swift` へ移動する
-- [x] DEBT-ABI-003: `exceptionFunctions`（約 329 行）を `RuntimeABISpec+Exception.swift` へ移動する
 - [ ] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
-
-### テスト衛生
-- [x] DEBT-TEST-002: `Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests.swift:548` と `LoweringABIAndPropertyRegressionTests.swift:6` に同一実装の `private func makeContext(...)` がコピー存在する。`Integration/TestSupport/Pipeline.swift` の `makeCompilationContext()` へ統一する
-- [x] DEBT-TEST-003: `Tests/CompilerCoreTests/Sema/SemaCacheContextTests.swift:8` の `makeContextFromSourceWithCache()` を、`Pipeline.swift` の `makeContextFromSource()` へ `frontendFlags` 引数を追加して統合する
-- [x] DEBT-TEST-004: KIR / Lowering テスト群に散在する `SemaModule(...)` 直接構築（計 90 箇所超: `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios` / `VirtualDispatchTests+InliningCoroutineAndDispatchResolution` / `RuntimeTypeCheckTokenTests` 等）を `makeSemaModule()` ヘルパー利用へ移行する（ファイル単位で分割実施可）
-- [x] DEBT-TEST-005: `Scripts/diff_cases` の `// SKIP-DIFF` / `// KSWIFTK_DIFF_IGNORE` 66 ケースを棚卸しし、各ケースへ対応タスク ID（SPEC-* / PARITY-* / DEBT-*）をコメント付与する。対応タスクが無い skip は新規起票する（skip 放置の防止。SPEC 方法論「修正後にマーカーを外せば回帰テストになる」の運用徹底）
 
 #### Diff skip 追跡（DEBT-TEST-005）
 - [ ] DEBT-DIFF-001: `Scripts/diff_cases` のうち JVM kotlinc reference では実行不能な target / classpath / runtime-only ケースを、diff harness の除外理由として維持するか、個別 runner / dependency injection で実行可能化するか棚卸しする。対象: Kotlin/Native・Kotlin/JS・KMP・`kotlin.io.path`・JDBC/SQLite・serialization・SLF4J/logging・system time/process API・assert JVM `-ea` 差分・compiler plugin API。
@@ -280,29 +230,12 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 > 検証で ALIVE と確定し**削除禁止**のもの: `kk_atomic_*` 全 32 件（`HeaderHelpers+SyntheticAtomicStubs.swift` の接尾辞補間で emit）、`kk_match_result_destructured_component1..9` / `kk_base64_*`（補間 emit）、`kk_long_range_forEach` / `kk_long_range_map`（`MemberRuntimeDispatch` 経由）、`kk_bits_to_*` / `kk_*_to_bits` / `kk_*_trampoline` / `kk_future_complete` / `kk_flow_stopped` / `kk_with_context_full` / `kk_is_cancellation_exception` / `kk_kclass_register_metadata_v2` / `kk_context_get_dispatcher`（Runtime 内部呼び出し）。`kk_pin_object` / `kk_pinned_get` / `kk_unpin_object` は STDLIB-CINTEROP-FN-009/042 が配線予定のため対象外。
 > 完了ゲートは refactor PR gate と同じ（全テスト + golden + `diff_kotlinc.sh` green）。
 
-### Runtime: ファイル丸ごと削除可能（emit 経路なし・テスト参照なし）
-- [x] DEADCODE-002: `RuntimeFlowErrorHandling.swift` を削除する（`kk_flow_catch` / `on_completion` / `on_error_resume` / `on_error_return` / `retry` / `retry_when` の 6/6 件が未到達。kotlinx.coroutines 風 Flow エラー演算子はターゲット外）
-
-### Runtime: 未到達 `@_cdecl` エクスポート（関数単位）
-- [x] DEADCODE-003: Flow/Channel 系 12 件を削除する — `kk_callback_flow_await_close` / `kk_callback_flow_create`、`kk_channel_flow_create` / `kk_channel_flow_send` / `kk_channel_flow_try_send`、`kk_channel_pipeline_drain`、`kk_channel_send_suspending`、`kk_broadcast_channel_close` / `create` / `send` / `subscribe` / `unsubscribe`（主に `RuntimeCoroutineChannel.swift` / `RuntimeCoroutineFlow.swift`）
-- [x] DEADCODE-005: `__string_*` ブリッジ 12 件を削除する — `__string_removePrefix` / `removeRange` / `removeRange_range` / `removeSuffix` / `removeSurrounding` / `removeSurrounding_pair` / `replace` / `replaceFirst` / `replaceRange` / `replace_char` / `replace_char_ignoreCase` / `replace_ignoreCase`（`RuntimeStringStdlib.swift`。同機能は `kk_string_*` 側が配線済みで `__` 版は .kt からも参照ゼロ。runtime string shrinkage の「`__` ブリッジ降格」方針との整合を確認の上で削除）
-
 ### CompilerCore / LSPServer / RuntimeABI: 参照ゼロの Swift シンボル
 
-### テストのみ参照（fiction 棚卸し — 配線するか、テストごと削除するか）
-- [x] DEADCODE-013: テストのみ参照の Swift シンボル約 20 件を棚卸しする（2026-07-02 実施）— 削除: `KotlinParser.canStartTypeArguments(after:)` overloads、`setTypeParameterUpperBound`、`RuntimeMetadataCodec`、`runtimeDetectMemoryLeak`、`completeCancellationIfNeeded`、`RuntimeABIExterns.externDecl`。Tests へ移動: `RuntimeReflectionMetadataDecoder`。現 HEAD で既に存在しない候補: `PhaseTimer.exportTSV` / `exportJSON`、`KotlinLanguageVersion` / `CompilerVersion`、`BlockScope` / `validateExpectActualLinks` / `hasContractReturnsNotNull`、`smartCastTypeForWhenSubjectCase`、DataFlow の `invalidateVariable` / `narrowToNonNull`、`IncrementalCompilationCache.clearCache`、`SemaCacheContext.invalidateScope`、`FileFingerprint.mtimeUnchanged`、`DependencyGraph.clearFile`、`compilerPluginMetadata`。詳細は `docs/dead-code-audit.md` Section D
 
 ### 未監査領域（フォローアップ）
 - [ ] DEADCODE-014: 今回未監査の領域を同手法で監査する — Runtime の C コード（GC 等の .c/.h）、診断コード `KSWIFTK-*` の未発行コード、stored property / global 定数、Tests 内ヘルパ、`Scripts/diff_cases` の SKIP-DIFF ケースの実行可否。以降は四半期運用に乗せる
 
-### Phase RF9: デッドコード削除（dead-code audit 2026-06-12 検出分）
-
-> 検出手法・全インベントリ・再現コマンドは `docs/dead-code-audit.md` を参照。
-> 注意: `RuntimeABISpec`（`+ABIParity` / `+RuntimeOnlyBridge`）への登録は exported シンボルの必須ミラーであり「使用」の証拠ではない。
-> 削除時は Runtime 実装と spec エントリをセットで消し、孤立する private ヘルパー・Box 型も同時に削除する。
-
-- [x] RF-DEAD-001: 完全到達不能の `kk_*` ランタイム関数 102 個を削除する（CompilerCore から静的にも動的（文字列補間 25 プレフィックス・`StdlibSurfaceSpec` 表駆動）にも emit されず、Tests・Runtime 内部・`Stdlib/*.kt` からの参照もゼロ）。内訳: SLF4J 互換ロギング 28 / リフレクション（`kk_kclass_*` / `kk_kconstructor_*` / `kk_kproperty_*` / `kk_callable_ref_*`）32 / coroutines・Flow 19 / 配列 HOF 取り残し 8 / java.time・JS Date ブリッジ 5 / HTTP 2 / その他（`kk_math_pi` / `kk_char_plus` 等）8。カテゴリ単位の分割 PR 推奨
-- [x] RF-DEAD-004: dead-code 検出を `Scripts/dead_code_audit.sh` としてスクリプト化する（`docs/dead-code-audit.md` の再現コマンドを移植。動的補間プレフィックス・`StdlibSurfaceSpec` 表駆動経路・テスト参照の除外を含む。四半期 audit で再利用）
 ---
 
 ## コード共通化タスク（REFACT: 2026-06-28 調査）
