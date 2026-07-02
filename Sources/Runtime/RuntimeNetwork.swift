@@ -623,11 +623,14 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
     urlRequest.httpMethod = request.method
     urlRequest.httpBody = request.body
     urlRequest.timeoutInterval = readTimeout
-    // Client-level default headers apply first; per-request headers override them.
-    for (name, value) in config.defaultHeaders {
+    // Per-request headers win: a request that sets a header (e.g. Authorization)
+    // suppresses the client-level default/bearer for that field rather than
+    // appending to it, which would produce a malformed combined value.
+    let requestHeaderNames = Set(request.headers.map { $0.0.lowercased() })
+    for (name, value) in config.defaultHeaders where !requestHeaderNames.contains(name.lowercased()) {
         urlRequest.setValue(value, forHTTPHeaderField: name)
     }
-    if let authHeader = config.authHeader {
+    if let authHeader = config.authHeader, !requestHeaderNames.contains("authorization") {
         urlRequest.setValue(authHeader, forHTTPHeaderField: "Authorization")
     }
     for (name, value) in request.headers {
