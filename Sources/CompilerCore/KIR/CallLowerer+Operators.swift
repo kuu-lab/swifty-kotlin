@@ -540,6 +540,28 @@ extension CallLowerer {
         case .logicalOr:
             kirOp = .logicalOr
         case .elvis:
+            if boundType == stringType {
+                let rawResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_elvis"),
+                    arguments: [lhsID, rhsID],
+                    result: rawResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                let stringTag = arena.appendExpr(.intLiteral(3), type: intType)
+                instructions.append(.constValue(result: stringTag, value: .intLiteral(3)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [rawResult, stringTag],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_op_elvis"),

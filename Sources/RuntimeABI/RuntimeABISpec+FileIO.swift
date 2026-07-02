@@ -582,7 +582,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiverHash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "FileIO"
+            section: "FileIO",
+            isThrowing: false
         ),
         // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset)
         RuntimeABIFunctionSpec(
@@ -595,7 +596,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "charsetTag", type: .intptr),
             ],
             returnType: .intptr,
-            section: "FileIO"
+            section: "FileIO",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_input_stream_read",

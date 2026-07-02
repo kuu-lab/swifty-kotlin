@@ -37,7 +37,7 @@ Modes:
 
 Options:
   --mode <dynamic|static>   Sharding mode (required)
-  --list-filter <regex>     (dynamic) regex passed to `swift test list --filter`
+  --list-filter <regex>     (dynamic) regex applied locally to `swift test list`
   --tests-dir <path>        (static) directory to grep test sources from
   --target-prefix <name>    (static) module prefix for the --filter regex
   --shard-index <n>         0-based shard index (default: 0)
@@ -106,7 +106,12 @@ run_filter_chunks() {
         # SwiftPM 6.2 does not reliably combine repeated --filter flags,
         # so each chunk must run as its own swift test invocation.
         echo "shard_swift_tests.sh: running filter chunk ${chunk}/${total}." >&2
-        run_swift_test "$flag" "$pattern" || status=$?
+        if run_swift_test "$flag" "$pattern"; then
+            :
+        else
+            status=$?
+            return "$status"
+        fi
         chunk=$(( chunk + 1 ))
     done
 
@@ -177,9 +182,8 @@ if [[ "$mode" == "dynamic" ]]; then
     # Linux's per-argument exec() limit (MAX_ARG_STRLEN, ~128KB) once a
     # shard selects a few thousand tests, which fails with "Argument list
     # too long" (observed with CompilerBackendTests: 9000+ tests total).
-    # `swift test --filter` may be repeated any number of times (patterns
-    # are OR'd), so chunk the alternation into many small arguments instead
-    # of one huge one.
+    # SwiftPM 6.2 does not reliably OR repeated --filter flags, so chunk the
+    # alternation across multiple invocations instead of one huge argument.
     chunk_size=100
     declare -a filter_args=()
     chunk_regex=""

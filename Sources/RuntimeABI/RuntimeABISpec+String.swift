@@ -90,7 +90,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_trimStart_flat",
@@ -714,7 +715,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherHash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_equalsIgnoreCase_flat",
@@ -785,7 +787,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_isNullOrEmpty",
@@ -1355,7 +1358,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delimiterHash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_split_limit_flat",

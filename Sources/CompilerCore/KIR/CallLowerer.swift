@@ -62,6 +62,36 @@ final class CallLowerer {
         return boxedArgument
     }
 
+    private func buildStringAppendRuntimeCall(
+        for argument: KIRExprID,
+        flatCallee: String,
+        objectCallee: String,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> (callee: String, arguments: [KIRExprID]) {
+        if let argumentType = arena.exprType(argument),
+           sema.types.nullability(of: argumentType) == .nonNull,
+           sema.types.isSubtype(argumentType, sema.types.stringType)
+        {
+            return (flatCallee, [argument])
+        }
+
+        return (
+            objectCallee,
+            [
+                boxBuildStringTextArgumentIfNeeded(
+                    argument,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ),
+            ]
+        )
+    }
+
     /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
     /// Decomposes a range argument into first/last bounds and emits a call to
     /// kk_{int,long,uint,ulong}_coerceIn. Used by both normal and safe-call member lowering
@@ -717,25 +747,41 @@ final class CallLowerer {
             }
             if let builderRuntimeCallee {
                 let runtimeArguments: [KIRExprID]
+                let runtimeCallee: String
                 switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
-                case ("append", 1), ("appendLine", 1):
-                    runtimeArguments = [
-                        boxBuildStringTextArgumentIfNeeded(
-                            loweredArgIDs[0],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        ),
-                    ]
+                case ("append", 1):
+                    let appendCall = buildStringAppendRuntimeCall(
+                        for: loweredArgIDs[0],
+                        flatCallee: "kk_string_builder_append_flat",
+                        objectCallee: "kk_string_builder_append",
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    runtimeCallee = appendCall.callee
+                    runtimeArguments = appendCall.arguments
+                case ("appendLine", 1):
+                    let appendCall = buildStringAppendRuntimeCall(
+                        for: loweredArgIDs[0],
+                        flatCallee: "kk_string_builder_append_line_flat",
+                        objectCallee: "kk_string_builder_append_line",
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    runtimeCallee = appendCall.callee
+                    runtimeArguments = appendCall.arguments
                 default:
+                    runtimeCallee = builderRuntimeCallee
                     runtimeArguments = loweredArgIDs
                 }
                 let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern(builderRuntimeCallee),
+                    callee: interner.intern(runtimeCallee),
                     arguments: runtimeArguments,
                     result: result,
                     canThrow: false,

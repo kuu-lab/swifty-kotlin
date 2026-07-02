@@ -3,8 +3,8 @@ import Testing
 
 /// STDLIB-TEXT-FN-054: Validates that `String.repeat(n)` resolves through
 /// Sema for plain String receivers as well as literal / expression contexts.
-/// The runtime link involved is `kk_string_repeat_flat`
-/// (see `Sources/Runtime/RuntimeStringStdlib.swift`).
+/// `String.repeat(n)` is implemented as bundled Kotlin source, not a C runtime
+/// external link.
 @Suite
 struct StringRepeatFunctionTests {
     @Test func testStringRepeatResolvesInSource() throws {

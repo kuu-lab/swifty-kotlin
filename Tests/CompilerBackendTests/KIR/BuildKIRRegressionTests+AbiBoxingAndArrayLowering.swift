@@ -574,13 +574,16 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            func flags(_ primary: String, _ aliases: String...) -> [Bool]? {
+                ([primary] + aliases).compactMap { throwFlags[$0] }.first
+            }
             XCTAssertEqual(throwFlags["kk_string_trim_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_split_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
             XCTAssertNil(throwFlags["kk_string_subSequence"])
-            XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty_flat"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_isNullOrBlank_flat"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_repeat_flat"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(flags("kk_string_isNullOrEmpty", "kk_string_isNullOrEmpty_flat", "__string_isNullOrEmpty_flat")?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(flags("kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat")?.allSatisfy { $0 == false }, true)
+            XCTAssertNil(throwFlags["kk_string_repeat_flat"])
             XCTAssertNil(throwFlags["kk_string_repeat"])
             XCTAssertEqual(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)

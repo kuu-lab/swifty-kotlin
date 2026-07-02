@@ -3722,7 +3722,7 @@ extension DataFlowSemaPhase {
                 return sig.receiverType == receiverType && sig.parameterTypes.count == 1
             }
             if let existingZipWithNextTransform {
-                symbols.setExternalLinkName("kk_string_zipWithNextTransform", for: existingZipWithNextTransform)
+                symbols.setExternalLinkName("kk_string_zipWithNextTransform_flat", for: existingZipWithNextTransform)
                 return
             }
 
@@ -3759,7 +3759,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: transformMemberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_zipWithNextTransform", for: transformMemberSymbol)
+            symbols.setExternalLinkName("kk_string_zipWithNextTransform_flat", for: transformMemberSymbol)
             let transformParamName = interner.intern("transform")
             let transformParamSymbol = symbols.define(
                 kind: .valueParameter,
@@ -4010,7 +4010,7 @@ extension DataFlowSemaPhase {
                 return sig.receiverType == receiverType && sig.parameterTypes.count == 2
             }
             if let existingZipTransform {
-                symbols.setExternalLinkName("kk_string_zipTransform", for: existingZipTransform)
+                symbols.setExternalLinkName("kk_string_zipTransform_flat", for: existingZipTransform)
                 return
             }
 
@@ -4047,7 +4047,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_zipTransform", for: memberSymbol)
+            symbols.setExternalLinkName("kk_string_zipTransform_flat", for: memberSymbol)
             let otherParamName = interner.intern("other")
             let otherParamSymbol = symbols.define(
                 kind: .valueParameter,
