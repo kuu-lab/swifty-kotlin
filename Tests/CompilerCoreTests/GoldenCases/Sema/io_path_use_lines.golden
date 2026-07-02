@@ -9,8 +9,6 @@ symbol fq=kotlin.io.path.Path#0 kind=class vis=public flags=synthetic type=kotli
 symbol fq=kotlin.io.path.Path#1 kind=function vis=public flags=synthetic sig=recv=_ params=[String] ret=kotlin.io.path.Path
 symbol fq=kotlin.io.path.Path.pathString kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
-symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.Sequence.toList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.List<out kotlin.sequences.Sequence.T>
 file f0 package=_
   decl collectLines fun collectLines sym=collectLines
   decl countLines fun countLines sym=countLines
@@ -19,7 +17,7 @@ expr e@5:13 call callee=e@5:13#1 args=[_:e@5:18] type=kotlin.io.path.Path call=k
 expr e@5:5 localDecl p mutable=0 type=_ init=e@5:13 type=Unit ref=__local_0.p
 expr e@6:12 name(p) type=kotlin.io.path.Path ref=__local_0.p
 expr e@7:9 name(lines) type=kotlin.sequences.Sequence<out String> ref=s-0
-expr e@7:9#1 memberCall recv=e@7:9 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.sequences.Sequence.toList
+expr e@7:9#1 memberCall recv=e@7:9 callee=toList args=[] type=kotlin.collections.List<String>
 expr e@6:23 lambda params=[lines] body=e@7:9#1 label=useLines type=(kotlin.sequences.Sequence<out String>) -> kotlin.collections.List<String>
 expr e@6:12#1 memberCall recv=e@6:12 callee=useLines args=[_:e@6:23] type=kotlin.collections.List<String>
 expr e@6:5 return value=e@6:12#1 type=Nothing

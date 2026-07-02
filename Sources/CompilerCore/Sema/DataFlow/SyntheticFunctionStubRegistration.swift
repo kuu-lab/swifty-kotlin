@@ -26,6 +26,12 @@ func registerSyntheticFunctionStub(
     let functionName = interner.intern(name)
     let functionFQName = ownerFQName + [functionName]
     let parameterTypes = parameters.map(\.type)
+    if BundledSyntheticStubRegistration.postBundledPass, receiverType == nil {
+        return .invalid
+    }
+    if BundledSyntheticStubRegistration.preBundledPass, receiverType != nil {
+        return .invalid
+    }
     if let contextTypes = BundledSyntheticStubRegistration.types,
        BundledSyntheticStubRegistration.shouldSkipRegistration(
            declaredOwnerFQName: ownerFQName,

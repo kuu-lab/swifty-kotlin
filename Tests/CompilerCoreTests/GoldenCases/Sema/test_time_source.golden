@@ -13,7 +13,7 @@ symbol fq=kotlin.time.TestTimeSource.<init> kind=constructor vis=public flags=sy
 symbol fq=kotlin.time.TestTimeSource.markNow kind=function vis=public flags=synthetic|openType|overrideMember sig=recv=kotlin.time.TestTimeSource params=[] ret=kotlin.time.ComparableTimeMark
 symbol fq=kotlin.time.TestTimeSource.plusAssign kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.time.TestTimeSource params=[kotlin.time.Duration] ret=Unit
 symbol fq=kotlin.time.TestTimeSource.plusAssign.duration kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.time.inWholeMilliseconds.$get kind=function vis=public flags=synthetic sig=recv=<error> params=[] ret=Long
+symbol fq=kotlin.time.inWholeMilliseconds.$get kind=function vis=public flags=synthetic sig=recv=kotlin.time.Duration params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f0 package=_
   decl main fun main sym=main

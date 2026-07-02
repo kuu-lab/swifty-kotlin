@@ -3,6 +3,7 @@ symbol fq=charSequenceToList.$0.cs kind=valueParameter vis=private flags=_
 symbol fq=kotlin.CharSequence kind=interface vis=public flags=synthetic type=kotlin.CharSequence
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.text.toList#0 kind=function vis=public flags=synthetic sig=recv=String params=[] ret=kotlin.collections.List<out Char>
+symbol fq=kotlin.text.toList#1 kind=function vis=public flags=synthetic sig=recv=kotlin.CharSequence params=[] ret=kotlin.collections.List<out Char>
 symbol fq=stringToList kind=function vis=public flags=_ sig=recv=_ params=[String] ret=kotlin.collections.List<Char>
 symbol fq=stringToList.$1.s kind=valueParameter vis=private flags=_
 file f0 package=_
@@ -11,4 +12,4 @@ file f0 package=_
 expr e@4:43 name(s) type=String ref=stringToList.$1.s
 expr e@4:43#1 memberCall recv=e@4:43 callee=toList args=[] type=kotlin.collections.List<out Char> call=kotlin.text.toList#0
 expr e@5:56 name(cs) type=kotlin.CharSequence ref=charSequenceToList.$0.cs
-expr e@5:56#1 memberCall recv=e@5:56 callee=toList args=[] type=<error>
+expr e@5:56#1 memberCall recv=e@5:56 callee=toList args=[] type=kotlin.collections.List<out Char> call=kotlin.text.toList#1

@@ -45,6 +45,19 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = listFQName + [memberName]
+            if let types = BundledSyntheticStubRegistration.types,
+               BundledSyntheticStubRegistration.shouldSkipRegistration(
+                   declaredOwnerFQName: listFQName,
+                   receiverType: receiverType,
+                   name: memberName,
+                   arity: parameterTypes.count,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner
+               )
+            {
+                return
+            }
             let alreadySameSignature = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
                 guard let sig = symbols.functionSignature(for: symbolID) else { return false }
                 return sig.parameterTypes == parameterTypes
@@ -75,6 +88,19 @@ extension DataFlowSemaPhase {
             reifiedTypeParameterIndices: Set<Int> = [],
             canThrow: Bool = false
         ) {
+            if let types = BundledSyntheticStubRegistration.types,
+               BundledSyntheticStubRegistration.shouldSkipRegistration(
+                   declaredOwnerFQName: listFQName,
+                   receiverType: receiverType,
+                   name: memberName,
+                   arity: parameterTypes.count,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner
+               )
+            {
+                return
+            }
             let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
                 guard let sig = symbols.functionSignature(for: symbolID) else { return false }
                 return sig.parameterTypes == parameterTypes

@@ -1010,6 +1010,14 @@ extension DataFlowSemaPhase {
         }
         BundledSyntheticStubRegistration.bundledIndex = bundledIndex
         BundledSyntheticStubRegistration.types = types
+        if BundledSyntheticStubRegistration.postBundledPass {
+            registerSyntheticPostBundledMemberStubs(
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            return
+        }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
@@ -1096,6 +1104,73 @@ extension DataFlowSemaPhase {
         // The Phase file preserves the exact original call order.
         registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
         skipStats.logIfEnabled()
+    }
+
+    /// Replay deferred extension-member stub registration after bundled headers are indexed.
+    func registerSyntheticPostBundledMemberStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
+        registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
+        patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
+        patchKTypeArgumentsType(symbols: symbols, types: types, interner: interner)
+        patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
+        registerSyntheticRangeProgressionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticRangeUntilStubs(symbols: symbols, types: types, interner: interner)
+        if types.comparableInterfaceSymbol == nil {
+            registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
+        }
+        registerSyntheticBuilderDSLStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticComparatorStubs(symbols: symbols, types: types, interner: interner)
+        patchArrayBinarySearchComparatorStub(symbols: symbols, types: types, interner: interner)
+        patchArraySortedArrayWithComparatorStub(symbols: symbols, types: types, interner: interner)
+        registerSyntheticComparisonStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticStdlibLoopStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticTestFrameworkStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinPkg: kotlinPkg
+        )
+        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
+        registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticResultStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticDeepRecursiveStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
+        patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
+        patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
+        patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
+        registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

@@ -5,8 +5,8 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.time.Duration kind=class vis=public flags=synthetic type=kotlin.time.Duration
 symbol fq=kotlin.time.Duration.Companion.milliseconds.$get#1 kind=function vis=public flags=synthetic sig=recv=Long params=[] ret=kotlin.time.Duration
 symbol fq=kotlin.time.Duration.Companion.seconds.$get#1 kind=function vis=public flags=synthetic sig=recv=Long params=[] ret=kotlin.time.Duration
-symbol fq=kotlin.time.inWholeMilliseconds.$get kind=function vis=public flags=synthetic sig=recv=<error> params=[] ret=Long
-symbol fq=kotlin.time.inWholeSeconds.$get kind=function vis=public flags=synthetic sig=recv=<error> params=[] ret=Long
+symbol fq=kotlin.time.inWholeMilliseconds.$get kind=function vis=public flags=synthetic sig=recv=kotlin.time.Duration params=[] ret=Long
+symbol fq=kotlin.time.inWholeSeconds.$get kind=function vis=public flags=synthetic sig=recv=kotlin.time.Duration params=[] ret=Long
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f0 package=_
   decl main fun main sym=main

@@ -186,6 +186,10 @@ enum BundledSyntheticStubRegistration {
     nonisolated(unsafe) static var bundledIndex: BundledDeclarationIndex = .empty
     nonisolated(unsafe) static var types: TypeSystem?
     nonisolated(unsafe) static var skippedCount: Int = 0
+    /// When true, extension-member stub registration is deferred to the post-bundled pass.
+    nonisolated(unsafe) static var preBundledPass: Bool = false
+    /// When true, only extension-member stubs are registered (post-bundled pass).
+    nonisolated(unsafe) static var postBundledPass: Bool = false
 
     static func shouldSkipRegistration(
         declaredOwnerFQName: [InternedString],
@@ -196,6 +200,14 @@ enum BundledSyntheticStubRegistration {
         types: TypeSystem,
         interner: StringInterner
     ) -> Bool {
+        if postBundledPass, receiverType == nil {
+            skippedCount += 1
+            return true
+        }
+        if preBundledPass, receiverType != nil {
+            skippedCount += 1
+            return true
+        }
         let ownerFQName = BundledDeclarationIndex.ownerFQName(
             declaredOwnerFQName: declaredOwnerFQName,
             receiverType: receiverType,

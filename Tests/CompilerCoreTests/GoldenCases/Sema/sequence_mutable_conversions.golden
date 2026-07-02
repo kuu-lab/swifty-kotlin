@@ -13,7 +13,6 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.sequences.Sequence.toHashSet kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.MutableSet<kotlin.sequences.Sequence.T>
-symbol fq=kotlin.sequences.Sequence.toMutableList kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.MutableList<kotlin.sequences.Sequence.T>
 symbol fq=kotlin.sequences.Sequence.toMutableSet kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.sequences.Sequence<out kotlin.sequences.Sequence.T> params=[] ret=kotlin.collections.MutableSet<kotlin.sequences.Sequence.T>
 symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
@@ -29,7 +28,7 @@ expr e@2:38 int(3) type=Int
 expr e@2:15 call callee=e@2:15#1 args=[_:e@2:26,_:e@2:29,_:e@2:32,_:e@2:35,_:e@2:38] type=kotlin.sequences.Sequence<out Int> call=kotlin.sequences.sequenceOf targs=[Int]
 expr e@2:5 localDecl seq mutable=0 type=_ init=e@2:15 type=Unit ref=__local_0.seq
 expr e@4:41 name(seq) type=kotlin.sequences.Sequence<out Int> ref=__local_0.seq
-expr e@4:41#1 memberCall recv=e@4:41 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int> call=kotlin.sequences.Sequence.toMutableList
+expr e@4:41#1 memberCall recv=e@4:41 callee=toMutableList args=[] type=kotlin.collections.MutableList<Int>
 expr e@4:5 localDecl mutableList mutable=0 type=MutableList<Int> init=e@4:41#1 type=Unit ref=__local_1.mutableList
 expr e@5:5 name(mutableList) type=kotlin.collections.MutableList<Int> ref=__local_1.mutableList
 expr e@5:21 int(99) type=Int

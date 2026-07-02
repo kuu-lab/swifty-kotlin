@@ -745,6 +745,19 @@ extension DataFlowSemaPhase {
         }
         let functionName = interner.intern(name)
         let functionFQName = ownerInfo.fqName + [functionName]
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: ownerInfo.fqName,
+               receiverType: receiverType,
+               name: functionName,
+               arity: parameterTypes.count,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return
+        }
         if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let symbol = symbols.symbol(symbolID),
                   symbol.kind == .function,

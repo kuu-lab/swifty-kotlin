@@ -20,6 +20,13 @@ final class DataFlowSemaPhase: CompilerPhase {
 
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
 
+        sema.importedInlineFunctions = loadImportedLibrarySymbols(
+            ctx: ctx, symbols: symbols, types: types
+        )
+        registerSyntheticPreBundledStubs(
+            symbols: symbols, types: types, interner: ctx.interner
+        )
+
         collectBundledHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
@@ -30,8 +37,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager,
             interner: ctx.interner
         )
-        sema.importedInlineFunctions = loadImports(
-            ctx: ctx, symbols: symbols, types: types, bundledIndex: bundledIndex
+        registerSyntheticPostBundledStubs(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
         )
         bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
@@ -69,9 +79,8 @@ final class DataFlowSemaPhase: CompilerPhase {
         return fileScopes
     }
 
-    private func loadImports(
-        ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem,
-        bundledIndex: BundledDeclarationIndex
+    private func loadImportedLibrarySymbols(
+        ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
     ) -> [SymbolID: KIRFunction] {
         var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
         loadImportedLibrarySymbols(
@@ -79,17 +88,45 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics, interner: ctx.interner,
             importedInlineFunctions: &importedInlineFunctions
         )
-        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
+        return importedInlineFunctions
+    }
+
+    private func registerSyntheticPreBundledStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        BundledSyntheticStubRegistration.bundledIndex = .empty
         BundledSyntheticStubRegistration.types = types
         BundledSyntheticStubRegistration.skippedCount = 0
+        BundledSyntheticStubRegistration.preBundledPass = true
         registerSyntheticDelegateStubs(
             symbols: symbols,
             types: types,
-            interner: ctx.interner,
+            interner: interner
+        )
+        BundledSyntheticStubRegistration.preBundledPass = false
+        BundledSyntheticStubRegistration.types = nil
+    }
+
+    private func registerSyntheticPostBundledStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
+        BundledSyntheticStubRegistration.types = types
+        BundledSyntheticStubRegistration.skippedCount = 0
+        BundledSyntheticStubRegistration.postBundledPass = true
+        registerSyntheticDelegateStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
             bundledIndex: bundledIndex
         )
+        BundledSyntheticStubRegistration.postBundledPass = false
         BundledSyntheticStubRegistration.types = nil
-        return importedInlineFunctions
     }
 
     private func isBundledFile(_ file: ASTFile, sourceManager: SourceManager) -> Bool {
