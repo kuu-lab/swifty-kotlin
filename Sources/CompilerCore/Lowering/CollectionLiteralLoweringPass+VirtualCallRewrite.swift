@@ -1735,24 +1735,17 @@ extension CollectionLiteralLoweringPass {
         guard case let .classType(classType) = kind else { return }
         let classSymbol = classType.classSymbol
         guard let symInfo = symbols.symbol(classSymbol) else { return }
-        guard let simpleName = symInfo.fqName.last else { return }
 
-        let resolved = interner.resolve(simpleName)
-        switch resolved {
-        case "List", "MutableList", "ArrayList",
-             "AbstractList", "AbstractMutableList":
+        switch trackedStaticTypeKind(of: symInfo, interner: interner) {
+        case .list:
             listExprIDs.insert(raw)
-        case "Set", "MutableSet", "HashSet", "LinkedHashSet",
-             "AbstractSet", "AbstractMutableSet":
+        case .set:
             setExprIDs.insert(raw)
-        case "Map", "MutableMap", "HashMap", "LinkedHashMap",
-             "AbstractMap", "AbstractMutableMap":
+        case .map:
             mapExprIDs.insert(raw)
-        case "Array", "IntArray", "LongArray", "DoubleArray",
-             "FloatArray", "BooleanArray", "CharArray",
-             "ByteArray", "ShortArray", "UByteArray", "UShortArray", "UIntArray", "ULongArray":
+        case .array:
             arrayExprIDs.insert(raw)
-        case "Sequence":
+        case .sequence:
             sequenceExprIDs.insert(raw)
         default:
             break

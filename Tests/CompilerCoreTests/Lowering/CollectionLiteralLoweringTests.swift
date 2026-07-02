@@ -1101,10 +1101,12 @@ struct CollectionLiteralLoweringTests {
     private func defineNominalSymbol(
         name: String,
         interner: StringInterner,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        fqNameComponents: [String]? = nil
     ) -> SymbolID {
         let internedName = interner.intern(name)
-        let fqName = [interner.intern("kotlin"), interner.intern("collections"), internedName]
+        let fqName = (fqNameComponents ?? canonicalStdlibFQNameComponents(for: name))
+            .map { interner.intern($0) }
         return symbols.define(
             kind: .interface,
             name: internedName,
@@ -1115,12 +1117,28 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
+    private func canonicalStdlibFQNameComponents(for name: String) -> [String] {
+        switch name {
+        case "Array", "IntArray", "LongArray", "DoubleArray",
+             "FloatArray", "BooleanArray", "CharArray",
+             "ByteArray", "ShortArray", "UByteArray",
+             "UShortArray", "UIntArray", "ULongArray",
+             "String":
+            ["kotlin", name]
+        case "Sequence":
+            ["kotlin", "sequences", name]
+        default:
+            ["kotlin", "collections", name]
+        }
+    }
+
     /// Build a one-function module with a single virtualCall on a receiver
     /// whose static type is `receiverTypeName` (e.g. "List", "Set", "Map"),
     /// run the lowering pass, and return the resulting callees.
     private func buildAndLowerVirtualCall(
         receiverTypeName: String,
         callee: String,
+        fqNameComponents: [String]? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> [String] {
@@ -1129,7 +1147,10 @@ struct CollectionLiteralLoweringTests {
         let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
 
         let symbolID = defineNominalSymbol(
-            name: receiverTypeName, interner: interner, symbols: symbols
+            name: receiverTypeName,
+            interner: interner,
+            symbols: symbols,
+            fqNameComponents: fqNameComponents
         )
         let receiverType = types.make(.classType(ClassType(classSymbol: symbolID)))
 
@@ -1190,6 +1211,19 @@ struct CollectionLiteralLoweringTests {
         #expect(
             callees.contains("kk_map_size"),
             "virtualCall(size) on Map-typed parameter should be rewritten to kk_map_size, got: \(callees)"
+        )
+    }
+
+    @Test
+    func testVirtualCallOnUserDefinedListTypedParameterDoesNotRewriteToKkListSize() throws {
+        let callees = try buildAndLowerVirtualCall(
+            receiverTypeName: "List",
+            callee: "size",
+            fqNameComponents: ["com", "example", "List"]
+        )
+        #expect(
+            !callees.contains("kk_list_size"),
+            "virtualCall(size) on user-defined List must not be rewritten to kk_list_size, got: \(callees)"
         )
     }
 
