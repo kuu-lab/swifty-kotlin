@@ -1,18 +1,18 @@
 import Foundation
 
-private struct BundledMemberKey: Hashable {
-    let ownerFQName: [InternedString]
-    let name: InternedString
-    let arity: Int
-}
-
 /// Index of member declarations originating from bundled stdlib virtual sources (`__bundled_*.kt`).
 struct BundledDeclarationIndex {
     static let empty = BundledDeclarationIndex(keys: [])
 
+    private struct BundledMemberKey: Hashable {
+        let ownerFQName: [InternedString]
+        let name: InternedString
+        let arity: Int
+    }
+
     private let keys: Set<BundledMemberKey>
 
-    init(keys: Set<BundledMemberKey>) {
+    private init(keys: Set<BundledMemberKey>) {
         self.keys = keys
     }
 
