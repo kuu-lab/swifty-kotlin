@@ -461,8 +461,7 @@ extension CallLowerer {
                         let knownNames = KnownCompilerNames(interner: interner)
                         let isSetArg: Bool = {
                             guard let argType,
-                                  case let .classType(ct) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
-                                  let sym = sema.symbols.symbol(ct.classSymbol)
+                                  let (_, sym) = resolveClassTypeSymbol(argType, sema: sema)
                             else { return false }
                             return knownNames.isSetLikeSymbol(sym)
                         }()

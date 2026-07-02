@@ -67,8 +67,7 @@ extension CallLowerer {
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
         // Check for KFunction class types.
-        if case let .classType(classType) = sema.types.kind(of: nonNullType),
-           let symbol = sema.symbols.symbol(classType.classSymbol)
+        if let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema)
         {
             let resolvedName = interner.resolve(symbol.name)
             return resolvedName == "KFunction" || resolvedName == "KFunction0"

@@ -923,8 +923,7 @@ extension CallLowerer {
               || memberName == "reduceRightIndexed"
               || memberName == "reduceRightOrNull"
               || memberName == "reduceRightIndexedOrNull",
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
+              let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
         else {
             return nil
         }

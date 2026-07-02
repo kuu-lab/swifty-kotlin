@@ -335,12 +335,11 @@ extension CallTypeChecker {
     func getCollectionElementType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(type)
-        guard let classType = resolveClassType(nonNullType, sema: sema) else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return sema.types.anyType
         }
 
-        if let symbol = sema.symbols.symbol(classType.classSymbol),
-           knownNames.isMapLikeSymbol(symbol),
+        if knownNames.isMapLikeSymbol(symbol),
            classType.args.count == 2
         {
             let keyType = switch classType.args[0] {
@@ -388,9 +387,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         let knownNames = KnownCompilerNames(interner: interner)
-        let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
               knownNames.isGroupingSymbol(symbol),
               classType.args.count >= 2
         else {
@@ -448,9 +445,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
-        let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
               knownNames.isConcreteListLikeSymbol(symbol),
               classType.args.count == 1,
               let firstArg = classType.args.first
@@ -470,9 +465,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
-        let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
               classType.args.count == 1,
               let firstArg = classType.args.first
         else {
@@ -521,8 +514,8 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let nonNullType = sema.types.makeNonNullable(type)
         switch sema.types.kind(of: nonNullType) {
-        case let .classType(classType):
-            guard let symbol = sema.symbols.symbol(classType.classSymbol),
+        case .classType:
+            guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
                   symbol.fqName == comparatorFQName,
                   let firstArg = classType.args.first
             else {
@@ -799,8 +792,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        let nonNull = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNull),
+        guard let classType = resolveClassType(receiverType, sema: sema),
               let cValueSymbol = sema.symbols.lookup(fqName: [
                   interner.intern("kotlinx"),
                   interner.intern("cinterop"),
@@ -840,9 +832,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         let knownNames = KnownCompilerNames(interner: interner)
-        let nonNull = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNull),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
               symbol.fqName == knownNames.kotlinResultFQName,
               let firstArg = classType.args.first
         else {
@@ -906,7 +896,7 @@ extension CallTypeChecker {
                   interner.intern("lang"),
                   interner.intern("ThreadLocal"),
               ]),
-              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let receiverClassType = resolveClassType(receiverType, sema: sema),
               receiverClassType.classSymbol == threadLocalSymbol
         else {
             return nil
@@ -984,8 +974,7 @@ extension CallTypeChecker {
 
         guard calleeName == knownNames.getOrElse,
               args.count == 2,
-              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol),
+              let (receiverClassType, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
               knownNames.isMapLikeSymbol(receiverSymbol),
               receiverClassType.args.count >= 2
         else {
@@ -1054,8 +1043,7 @@ extension CallTypeChecker {
 
         guard calleeName == withDefaultName,
               args.count == 1,
-              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let receiverSymbol = sema.symbols.symbol(receiverClassType.classSymbol),
+              let (receiverClassType, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
               knownNames.isMapLikeSymbol(receiverSymbol),
               receiverClassType.args.count >= 2
         else {
@@ -1136,7 +1124,7 @@ extension CallTypeChecker {
                   interner.intern("locks"),
                   interner.intern("ReentrantReadWriteLock"),
               ]),
-              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let receiverClassType = resolveClassType(receiverType, sema: sema),
               receiverClassType.classSymbol == lockSymbol
         else {
             return nil
