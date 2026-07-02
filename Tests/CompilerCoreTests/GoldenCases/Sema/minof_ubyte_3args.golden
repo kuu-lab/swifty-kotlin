@@ -1,14 +1,14 @@
 symbol fq=golden.sema.threeArgMinUByte kind=function vis=public flags=_ sig=recv=_ params=[UByte,UByte,UByte] ret=UByte
-symbol fq=golden.sema.threeArgMinUByte.$6921.a kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.threeArgMinUByte.$6921.b kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.threeArgMinUByte.$6921.c kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.threeArgMinUByte.$0.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.threeArgMinUByte.$0.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.threeArgMinUByte.$0.c kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.minOf#13 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[UByte,UByte,UByte] ret=UByte
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
-file f18 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.threeArgMinUByte fun threeArgMinUByte sym=golden.sema.threeArgMinUByte
-expr e@3:67 name(a) type=UByte ref=golden.sema.threeArgMinUByte.$6921.a
-expr e@3:70 name(b) type=UByte ref=golden.sema.threeArgMinUByte.$6921.b
-expr e@3:73 name(c) type=UByte ref=golden.sema.threeArgMinUByte.$6921.c
-expr e@3:61#1 call callee=e@3:61#0 args=[_:e@3:67,_:e@3:70,_:e@3:73] type=UByte call=kotlin.comparisons.minOf#13
+expr e@3:67 name(a) type=UByte ref=golden.sema.threeArgMinUByte.$0.a
+expr e@3:70 name(b) type=UByte ref=golden.sema.threeArgMinUByte.$0.b
+expr e@3:73 name(c) type=UByte ref=golden.sema.threeArgMinUByte.$0.c
+expr e@3:61 call callee=e@3:61#1 args=[_:e@3:67,_:e@3:70,_:e@3:73] type=UByte call=kotlin.comparisons.minOf#13

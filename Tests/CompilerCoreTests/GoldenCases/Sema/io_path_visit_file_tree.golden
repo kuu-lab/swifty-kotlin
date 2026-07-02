@@ -5,21 +5,21 @@ symbol fq=kotlin.io.path.visitFileTree.builderAction kind=valueParameter vis=pri
 symbol fq=kotlin.io.path.visitFileTree.followLinks kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.io.path.visitFileTree.maxDepth kind=valueParameter vis=private flags=synthetic
 symbol fq=visitWithAllParams kind=function vis=public flags=_ sig=recv=_ params=[kotlin.io.path.Path] ret=Unit
-symbol fq=visitWithAllParams.$6921.path kind=valueParameter vis=private flags=_
+symbol fq=visitWithAllParams.$0.path kind=valueParameter vis=private flags=_
 symbol fq=visitWithFollowLinksDefault kind=function vis=public flags=_ sig=recv=_ params=[kotlin.io.path.Path] ret=Unit
-symbol fq=visitWithFollowLinksDefault.$6923.path kind=valueParameter vis=private flags=_
-file f18 package=_
+symbol fq=visitWithFollowLinksDefault.$1.path kind=valueParameter vis=private flags=_
+file f0 package=_
   decl visitWithAllParams fun visitWithAllParams sym=visitWithAllParams
   decl visitWithFollowLinksDefault fun visitWithFollowLinksDefault sym=visitWithFollowLinksDefault
-expr e@5:5#2 name(path) type=kotlin.io.path.Path ref=visitWithAllParams.$6921.path
+expr e@5:5 name(path) type=kotlin.io.path.Path ref=visitWithAllParams.$0.path
 expr e@5:35 int(5) type=Int
 expr e@5:52 bool(true) type=Boolean
 expr e@5:59 blockExpr stmts=[] trailing=_ type=Unit
 expr e@5:58 lambda params=[] body=e@5:59 label=visitFileTree type=kotlin.io.path.FileVisitorBuilder.() -> Unit
-expr e@5:5#3 memberCall recv=e@5:5#2 callee=visitFileTree args=[maxDepth:e@5:35,followLinks:e@5:52,_:e@5:58] type=Unit call=kotlin.io.path.visitFileTree#0
-expr e@10:5#1 name(path) type=kotlin.io.path.Path ref=visitWithFollowLinksDefault.$6923.path
+expr e@5:5#1 memberCall recv=e@5:5 callee=visitFileTree args=[maxDepth:e@5:35,followLinks:e@5:52,_:e@5:58] type=Unit call=kotlin.io.path.visitFileTree#0
+expr e@10:5 name(path) type=kotlin.io.path.Path ref=visitWithFollowLinksDefault.$1.path
 expr e@10:35 int(3) type=Int
 expr e@10:52 bool(false) type=Boolean
 expr e@10:60 blockExpr stmts=[] trailing=_ type=Unit
 expr e@10:59 lambda params=[] body=e@10:60 label=visitFileTree type=kotlin.io.path.FileVisitorBuilder.() -> Unit
-expr e@10:5#2 memberCall recv=e@10:5#1 callee=visitFileTree args=[maxDepth:e@10:35,followLinks:e@10:52,_:e@10:59] type=Unit call=kotlin.io.path.visitFileTree#0
+expr e@10:5#1 memberCall recv=e@10:5 callee=visitFileTree args=[maxDepth:e@10:35,followLinks:e@10:52,_:e@10:59] type=Unit call=kotlin.io.path.visitFileTree#0

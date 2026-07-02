@@ -3,17 +3,17 @@ symbol fq=Bird kind=class vis=public flags=_
 symbol fq=Cat kind=class vis=public flags=_
 symbol fq=Dog kind=class vis=public flags=_
 symbol fq=describeAnimal kind=function vis=public flags=_ sig=recv=_ params=[Animal] ret=String
-symbol fq=describeAnimal.$6929.a kind=valueParameter vis=private flags=_
-file f18 package=_
+symbol fq=describeAnimal.$0.a kind=valueParameter vis=private flags=_
+file f0 package=_
   decl Animal class Animal sym=Animal
   decl Dog class Dog sym=Dog
   decl Cat class Cat sym=Cat
   decl Bird class Bird sym=Bird
   decl describeAnimal fun describeAnimal sym=describeAnimal
-expr e@7:18#0 name(a) type=Animal ref=describeAnimal.$6929.a
-expr e@7:18#1 isCheck expr=e@7:18#0 type=Dog type=Boolean
+expr e@7:18 name(a) type=Animal ref=describeAnimal.$0.a
+expr e@7:18#1 isCheck expr=e@7:18 type=Dog type=Boolean
 expr e@8:19 string(dog) type=String
-expr e@7:18#2 isCheck expr=e@7:18#0 type=Cat type=Boolean
+expr e@7:18#2 isCheck expr=e@7:18 type=Cat type=Boolean
 expr e@9:19 string(cat) type=String
-expr e@7:12#3 when subject=e@7:18#0 branches=[e@7:18#1->e@8:19,e@7:18#2->e@9:19] else=_ type=String
-expr e@7:5#3 return value=e@7:12#3 type=Nothing
+expr e@7:12 when subject=e@7:18 branches=[e@7:18#1->e@8:19,e@7:18#2->e@9:19] else=_ type=String
+expr e@7:5 return value=e@7:12 type=Nothing

@@ -2,22 +2,22 @@ symbol fq=golden.sema.Func kind=typeAlias vis=public flags=_
 symbol fq=golden.sema.Predicate kind=typeAlias vis=public flags=_
 symbol fq=golden.sema.StringAlias kind=typeAlias vis=public flags=_
 symbol fq=golden.sema.useAlias kind=function vis=public flags=_ sig=recv=_ params=[String] ret=String
-symbol fq=golden.sema.useAlias.$6930.s kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.useAlias.$0.s kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.useFunc kind=function vis=public flags=_ sig=recv=_ params=[(String) -> String] ret=String
-symbol fq=golden.sema.useFunc.$6928.f kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.useFunc.$1.f kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.usePredicate kind=function vis=public flags=_ sig=recv=_ params=[(Int) -> Boolean] ret=Boolean
-symbol fq=golden.sema.usePredicate.$6926.p kind=valueParameter vis=private flags=_
-file f18 package=golden.sema
+symbol fq=golden.sema.usePredicate.$2.p kind=valueParameter vis=private flags=_
+file f0 package=golden.sema
   decl golden.sema.Predicate typealias Predicate sym=golden.sema.Predicate
   decl golden.sema.Func typealias Func sym=golden.sema.Func
   decl golden.sema.StringAlias typealias StringAlias sym=golden.sema.StringAlias
   decl golden.sema.usePredicate fun usePredicate sym=golden.sema.usePredicate
   decl golden.sema.useFunc fun useFunc sym=golden.sema.useFunc
   decl golden.sema.useAlias fun useAlias sym=golden.sema.useAlias
-expr e@7:39#0 name(p) type=(Int) -> Boolean ref=golden.sema.usePredicate.$6926.p
+expr e@7:39 name(p) type=(Int) -> Boolean ref=golden.sema.usePredicate.$2.p
 expr e@7:41 int(42) type=Int
-expr e@7:39#1 call callee=e@7:39#0 args=[_:e@7:41] type=Boolean
-expr e@8:32#0 name(f) type=(String) -> String ref=golden.sema.useFunc.$6928.f
+expr e@7:39#1 call callee=e@7:39 args=[_:e@7:41] type=Boolean
+expr e@8:32 name(f) type=(String) -> String ref=golden.sema.useFunc.$1.f
 expr e@8:34 string(hello) type=String
-expr e@8:32#1 call callee=e@8:32#0 args=[_:e@8:34] type=String
-expr e@9:32 name(s) type=String ref=golden.sema.useAlias.$6930.s
+expr e@8:32#1 call callee=e@8:32 args=[_:e@8:34] type=String
+expr e@9:32 name(s) type=String ref=golden.sema.useAlias.$0.s

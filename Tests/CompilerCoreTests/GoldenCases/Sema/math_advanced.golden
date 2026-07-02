@@ -1,19 +1,19 @@
 symbol fq=golden.sema.testAtan2 kind=function vis=public flags=_ sig=recv=_ params=[] ret=Double
 symbol fq=golden.sema.testCoerceAtLeast kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
-symbol fq=golden.sema.testCoerceAtLeast.$6925.x kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testCoerceAtLeast.$0.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testCoerceAtMost kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
-symbol fq=golden.sema.testCoerceAtMost.$6927.x kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testCoerceAtMost.$1.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testCoerceIn kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
-symbol fq=golden.sema.testCoerceIn.$6923.x kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testCoerceIn.$2.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testHypot kind=function vis=public flags=_ sig=recv=_ params=[] ret=Double
 symbol fq=golden.sema.testMaxOf3 kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=golden.sema.testMaxOf3.$6929.a kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMaxOf3.$6929.b kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMaxOf3.$6929.c kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMaxOf3.$3.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMaxOf3.$3.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMaxOf3.$3.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testMinOf3 kind=function vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=golden.sema.testMinOf3.$6933.a kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMinOf3.$6933.b kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.testMinOf3.$6933.c kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMinOf3.$4.a kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMinOf3.$4.b kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.testMinOf3.$4.c kind=valueParameter vis=private flags=_
 symbol fq=kotlin.comparisons.maxOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
 symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
@@ -28,7 +28,7 @@ symbol fq=kotlin.math.atan2.y kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.hypot#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Double,Double] ret=Double
 symbol fq=kotlin.math.hypot.x kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.hypot.y kind=valueParameter vis=private flags=synthetic
-file f18 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.testAtan2 fun testAtan2 sym=golden.sema.testAtan2
   decl golden.sema.testHypot fun testHypot sym=golden.sema.testHypot
   decl golden.sema.testCoerceIn fun testCoerceIn sym=golden.sema.testCoerceIn
@@ -38,25 +38,25 @@ file f18 package=golden.sema
   decl golden.sema.testMinOf3 fun testMinOf3 sym=golden.sema.testMinOf3
 expr e@5:33 double(1.0) type=Double
 expr e@5:38 double(1.0) type=Double
-expr e@5:27#1 call callee=e@5:27#0 args=[_:e@5:33,_:e@5:38] type=Double call=kotlin.math.atan2#0
+expr e@5:27 call callee=e@5:27#1 args=[_:e@5:33,_:e@5:38] type=Double call=kotlin.math.atan2#0
 expr e@6:33 double(3.0) type=Double
-expr e@6:38#4 double(4.0) type=Double
-expr e@6:27#1 call callee=e@6:27#0 args=[_:e@6:33,_:e@6:38#4] type=Double call=kotlin.math.hypot#0
-expr e@8:33#0 name(x) type=Int ref=golden.sema.testCoerceIn.$6923.x
+expr e@6:38 double(4.0) type=Double
+expr e@6:27 call callee=e@6:27#1 args=[_:e@6:33,_:e@6:38] type=Double call=kotlin.math.hypot#0
+expr e@8:33 name(x) type=Int ref=golden.sema.testCoerceIn.$2.x
 expr e@8:44 int(1) type=Int
 expr e@8:47 int(10) type=Int
-expr e@8:33#1 memberCall recv=e@8:33#0 callee=coerceIn args=[_:e@8:44,_:e@8:47] type=Int
-expr e@9:38#0 name(x) type=Int ref=golden.sema.testCoerceAtLeast.$6925.x
+expr e@8:33#1 memberCall recv=e@8:33 callee=coerceIn args=[_:e@8:44,_:e@8:47] type=Int
+expr e@9:38 name(x) type=Int ref=golden.sema.testCoerceAtLeast.$0.x
 expr e@9:54 int(0) type=Int
-expr e@9:38#1 memberCall recv=e@9:38#0 callee=coerceAtLeast args=[_:e@9:54] type=Int
-expr e@10:37#0 name(x) type=Int ref=golden.sema.testCoerceAtMost.$6927.x
+expr e@9:38#1 memberCall recv=e@9:38 callee=coerceAtLeast args=[_:e@9:54] type=Int
+expr e@10:37 name(x) type=Int ref=golden.sema.testCoerceAtMost.$1.x
 expr e@10:52 int(100) type=Int
-expr e@10:37#1 memberCall recv=e@10:37#0 callee=coerceAtMost args=[_:e@10:52] type=Int
-expr e@12:53 name(a) type=Int ref=golden.sema.testMaxOf3.$6929.a
-expr e@12:56 name(b) type=Int ref=golden.sema.testMaxOf3.$6929.b
-expr e@12:59 name(c) type=Int ref=golden.sema.testMaxOf3.$6929.c
-expr e@12:47#1 call callee=e@12:47#0 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf#6
-expr e@13:53 name(a) type=Int ref=golden.sema.testMinOf3.$6933.a
-expr e@13:56 name(b) type=Int ref=golden.sema.testMinOf3.$6933.b
-expr e@13:59 name(c) type=Int ref=golden.sema.testMinOf3.$6933.c
-expr e@13:47#1 call callee=e@13:47#0 args=[_:e@13:53,_:e@13:56,_:e@13:59] type=Int call=kotlin.comparisons.minOf#7
+expr e@10:37#1 memberCall recv=e@10:37 callee=coerceAtMost args=[_:e@10:52] type=Int
+expr e@12:53 name(a) type=Int ref=golden.sema.testMaxOf3.$3.a
+expr e@12:56 name(b) type=Int ref=golden.sema.testMaxOf3.$3.b
+expr e@12:59 name(c) type=Int ref=golden.sema.testMaxOf3.$3.c
+expr e@12:47 call callee=e@12:47#1 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf#6
+expr e@13:53 name(a) type=Int ref=golden.sema.testMinOf3.$4.a
+expr e@13:56 name(b) type=Int ref=golden.sema.testMinOf3.$4.b
+expr e@13:59 name(c) type=Int ref=golden.sema.testMinOf3.$4.c
+expr e@13:47 call callee=e@13:47#1 args=[_:e@13:53,_:e@13:56,_:e@13:59] type=Int call=kotlin.comparisons.minOf#7

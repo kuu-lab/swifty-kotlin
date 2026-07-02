@@ -1483,7 +1483,8 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("List"),
             ]
 
-            for memberName in ["sumOf", "forEachIndexed", "mapIndexed", "filterIndexed"] {
+            // forEachIndexed remains synthetic; mapIndexed / filterIndexed / sumOf are bundled source.
+            for memberName in ["forEachIndexed"] {
                 let symbolID = try #require(sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]))
                 let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
                 #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")

@@ -1,18 +1,18 @@
 symbol fq=golden.sema.useBuildStringWithCapacity kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useBuildStringWithCapacityPositional kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-file f18 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.useBuildStringWithCapacity fun useBuildStringWithCapacity sym=golden.sema.useBuildStringWithCapacity
   decl golden.sema.useBuildStringWithCapacityPositional fun useBuildStringWithCapacityPositional sym=golden.sema.useBuildStringWithCapacityPositional
 expr e@3:67 int(16) type=Int
 expr e@4:12 string(hello) type=String
-expr e@4:5#3 call callee=e@4:5#2 args=[_:e@4:12] type=Unit
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:12] type=Unit
 expr e@5:12 string( world) type=String
-expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:12] type=Unit
-expr e@4:5#4 blockExpr stmts=[e@4:5#3] trailing=e@5:5#3 type=Unit
-expr e@3:71 lambda params=[] body=e@4:5#4 label=buildString type=() -> Unit
-expr e@3:44#1 call callee=e@3:44#0 args=[capacity:e@3:67,_:e@3:71] type=String
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:12] type=Unit
+expr e@4:5#2 blockExpr stmts=[e@4:5] trailing=e@5:5 type=Unit
+expr e@3:71 lambda params=[] body=e@4:5#2 label=buildString type=() -> Unit
+expr e@3:44 call callee=e@3:44#1 args=[capacity:e@3:67,_:e@3:71] type=String
 expr e@8:66 int(32) type=Int
-expr e@9:12#1 string(foo) type=String
-expr e@9:5#3 call callee=e@9:5#2 args=[_:e@9:12#1] type=Unit
-expr e@8:70 lambda params=[] body=e@9:5#3 label=buildString type=() -> Unit
-expr e@8:54#1 call callee=e@8:54#0 args=[_:e@8:66,_:e@8:70] type=String
+expr e@9:12 string(foo) type=String
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:12] type=Unit
+expr e@8:70 lambda params=[] body=e@9:5 label=buildString type=() -> Unit
+expr e@8:54 call callee=e@8:54#1 args=[_:e@8:66,_:e@8:70] type=String

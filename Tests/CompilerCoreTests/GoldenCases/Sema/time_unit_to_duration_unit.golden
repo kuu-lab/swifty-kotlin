@@ -2,8 +2,8 @@ symbol fq=java.util.concurrent.TimeUnit kind=enumClass vis=public flags=syntheti
 symbol fq=kotlin.time.DurationUnit kind=enumClass vis=public flags=synthetic
 symbol fq=kotlin.time.toDurationUnit kind=function vis=public flags=synthetic sig=recv=java.util.concurrent.TimeUnit params=[] ret=kotlin.time.DurationUnit
 symbol fq=timeUnitToDurationUnit kind=function vis=public flags=_ sig=recv=_ params=[java.util.concurrent.TimeUnit] ret=kotlin.time.DurationUnit
-symbol fq=timeUnitToDurationUnit.$6921.u kind=valueParameter vis=private flags=_
-file f18 package=_
+symbol fq=timeUnitToDurationUnit.$0.u kind=valueParameter vis=private flags=_
+file f0 package=_
   decl timeUnitToDurationUnit fun timeUnitToDurationUnit sym=timeUnitToDurationUnit
-expr e@1:90#0 name(u) type=java.util.concurrent.TimeUnit ref=timeUnitToDurationUnit.$6921.u
-expr e@1:90#1 memberCall recv=e@1:90#0 callee=toDurationUnit args=[] type=kotlin.time.DurationUnit call=kotlin.time.toDurationUnit
+expr e@1:90 name(u) type=java.util.concurrent.TimeUnit ref=timeUnitToDurationUnit.$0.u
+expr e@1:90#1 memberCall recv=e@1:90 callee=toDurationUnit args=[] type=kotlin.time.DurationUnit call=kotlin.time.toDurationUnit

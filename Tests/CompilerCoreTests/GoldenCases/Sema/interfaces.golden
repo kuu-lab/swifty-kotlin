@@ -1,3 +1,3 @@
 symbol fq=golden.sema.Greeter kind=interface vis=public flags=_
-file f18 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Greeter interface Greeter sym=golden.sema.Greeter

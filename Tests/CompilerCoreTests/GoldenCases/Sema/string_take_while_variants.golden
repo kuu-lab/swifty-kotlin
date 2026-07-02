@@ -1,5 +1,5 @@
-symbol fq=__local_3666.prefix kind=local vis=private flags=_ type=String
-symbol fq=__local_3674.suffix kind=local vis=private flags=_ type=String
+symbol fq=__local_0.prefix kind=local vis=private flags=_ type=String
+symbol fq=__local_1.suffix kind=local vis=private flags=_ type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.isDigit kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Boolean
@@ -8,22 +8,22 @@ symbol fq=kotlin.text.takeLastWhile.predicate kind=valueParameter vis=private fl
 symbol fq=kotlin.text.takeWhile kind=function vis=public flags=synthetic sig=recv=String params=[(Char) -> Boolean] ret=String
 symbol fq=kotlin.text.takeWhile.predicate kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-file f18 package=_
+file f0 package=_
   decl main fun main sym=main
-expr e@2:26#0 string(abcde) type=String
-expr e@2:46#2 name(it) type=Char ref=s-1937984
-expr e@2:52#1 char(99) type=Char
-expr e@2:46#3 binary(notEqual) lhs=e@2:46#2 rhs=e@2:52#1 type=Boolean
-expr e@2:44 lambda params=[] body=e@2:46#3 label=takeWhile type=(Char) -> Boolean
-expr e@2:26#1 memberCall recv=e@2:26#0 callee=takeWhile args=[_:e@2:44] type=String call=kotlin.text.takeWhile
-expr e@2:5 localDecl prefix mutable=0 type=String init=e@2:26#1 type=Unit ref=__local_3666.prefix
-expr e@3:26#0 string(abc123) type=String
-expr e@3:51#2 name(it) type=Char ref=s-1940032
-expr e@3:51#3 memberCall recv=e@3:51#2 callee=isDigit args=[] type=Boolean call=kotlin.text.isDigit
-expr e@3:49 lambda params=[] body=e@3:51#3 label=takeLastWhile type=(Char) -> Boolean
-expr e@3:26#1 memberCall recv=e@3:26#0 callee=takeLastWhile args=[_:e@3:49] type=String call=kotlin.text.takeLastWhile
-expr e@3:5 localDecl suffix mutable=0 type=String init=e@3:26#1 type=Unit ref=__local_3674.suffix
-expr e@4:13 name(prefix) type=String ref=__local_3666.prefix
-expr e@4:5#3 call callee=e@4:5#2 args=[_:e@4:13] type=Unit call=kotlin.io.println#1
-expr e@5:13#1 name(suffix) type=String ref=__local_3674.suffix
-expr e@5:5#3 call callee=e@5:5#2 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1
+expr e@2:26 string(abcde) type=String
+expr e@2:46 name(it) type=Char ref=s-0
+expr e@2:52 char(99) type=Char
+expr e@2:46#1 binary(notEqual) lhs=e@2:46 rhs=e@2:52 type=Boolean
+expr e@2:44 lambda params=[] body=e@2:46#1 label=takeWhile type=(Char) -> Boolean
+expr e@2:26#1 memberCall recv=e@2:26 callee=takeWhile args=[_:e@2:44] type=String call=kotlin.text.takeWhile
+expr e@2:5 localDecl prefix mutable=0 type=String init=e@2:26#1 type=Unit ref=__local_0.prefix
+expr e@3:26 string(abc123) type=String
+expr e@3:51 name(it) type=Char ref=s-1
+expr e@3:51#1 memberCall recv=e@3:51 callee=isDigit args=[] type=Boolean call=kotlin.text.isDigit
+expr e@3:49 lambda params=[] body=e@3:51#1 label=takeLastWhile type=(Char) -> Boolean
+expr e@3:26#1 memberCall recv=e@3:26 callee=takeLastWhile args=[_:e@3:49] type=String call=kotlin.text.takeLastWhile
+expr e@3:5 localDecl suffix mutable=0 type=String init=e@3:26#1 type=Unit ref=__local_1.suffix
+expr e@4:13 name(prefix) type=String ref=__local_0.prefix
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13] type=Unit call=kotlin.io.println#1
+expr e@5:13 name(suffix) type=String ref=__local_1.suffix
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13] type=Unit call=kotlin.io.println#1
