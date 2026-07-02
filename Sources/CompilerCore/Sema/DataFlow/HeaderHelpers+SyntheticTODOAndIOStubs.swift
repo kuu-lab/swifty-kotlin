@@ -1325,25 +1325,3 @@ extension DataFlowSemaPhase {
         )))
     }
 }
-
-extension DataFlowSemaPhase {
-    fileprivate func ensureSyntheticPackage(
-        fqName: [InternedString],
-        symbols: SymbolTable
-    ) -> SymbolID {
-        if let existing = symbols.lookup(fqName: fqName) {
-            return existing
-        }
-        guard let name = fqName.last else {
-            return .invalid
-        }
-        return symbols.define(
-            kind: .package,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-    }
-}

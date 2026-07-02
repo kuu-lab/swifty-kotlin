@@ -27,7 +27,7 @@ final class ForLoweringPass: LoweringPass, ParallelLoweringPass {
                 }
 
                 didRewrite = true
-                let hasNextResult = module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)))
+                let hasNextResult = module.arena.appendTemporary()
                 rewrittenBody.append(.call(
                     symbol: nil,
                     callee: hasNext,

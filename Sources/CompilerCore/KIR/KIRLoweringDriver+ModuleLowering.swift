@@ -269,9 +269,7 @@ extension KIRLoweringDriver {
             _ = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: propertyType)))
             existingGlobals.insert(symbol)
 
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: propertyType
+            let result = arena.appendTemporary(type: propertyType
             )
             let storage = arena.appendExpr(
                 .symbolRef(symbol),
@@ -302,9 +300,7 @@ extension KIRLoweringDriver {
         let companionInitializers = ctx.allCompanionInitializers()
         guard !companionInitializers.isEmpty else { return }
         for initializer in companionInitializers {
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.unitType
+            let result = arena.appendTemporary(type: sema.types.unitType
             )
             allTopLevelInitInstructions.append(
                 .call(

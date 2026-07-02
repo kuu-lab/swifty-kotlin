@@ -71,7 +71,7 @@ extension CallLowerer {
         instructions.append(.constValue(result: kindExpr, value: .intLiteral(kindLiteral)))
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.intType
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_primitive_compareTo"),

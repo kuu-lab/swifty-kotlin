@@ -31,8 +31,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     closureRawID = zeroExpr
                 }
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -67,8 +66,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             let foldCallee = state.sequenceExprIDs.contains(receiverID.rawValue)
                 ? lookup.kkSequenceFoldName
@@ -100,8 +98,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -130,8 +127,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -160,7 +156,7 @@ extension CollectionLiteralLoweringPass {
             let closureRawID: KIRExprID
             if arguments.count == 4 { closureRawID = arguments[3] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
             let kkName = state.sequenceExprIDs.contains(receiverID.rawValue) ? lookup.kkSequenceFoldIndexedName : lookup.kkListFoldIndexedName
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: kkName, arguments: [receiverID, initialID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -173,7 +169,7 @@ extension CollectionLiteralLoweringPass {
             let closureRawID: KIRExprID
             if arguments.count == 3 { closureRawID = arguments[2] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
             let kkName = state.sequenceExprIDs.contains(receiverID.rawValue) ? lookup.kkSequenceReduceIndexedName : lookup.kkListReduceIndexedName
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: kkName, arguments: [receiverID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -196,9 +192,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: z, value: .intLiteral(0)))
                 closureRawID = z
             }
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -224,7 +218,7 @@ extension CollectionLiteralLoweringPass {
             let lambdaID = arguments[2]
             let closureRawID: KIRExprID
             if arguments.count == 4 { closureRawID = arguments[3] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListFoldRightName, arguments: [receiverID, initialID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -237,7 +231,7 @@ extension CollectionLiteralLoweringPass {
             let lambdaID = arguments[2]
             let closureRawID: KIRExprID
             if arguments.count == 4 { closureRawID = arguments[3] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListFoldRightIndexedName, arguments: [receiverID, initialID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -249,7 +243,7 @@ extension CollectionLiteralLoweringPass {
             let lambdaID = arguments[1]
             let closureRawID: KIRExprID
             if arguments.count == 3 { closureRawID = arguments[2] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListReduceRightName, arguments: [receiverID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -261,7 +255,7 @@ extension CollectionLiteralLoweringPass {
             let lambdaID = arguments[1]
             let closureRawID: KIRExprID
             if arguments.count == 3 { closureRawID = arguments[2] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListReduceRightIndexedName, arguments: [receiverID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -273,7 +267,7 @@ extension CollectionLiteralLoweringPass {
             let lambdaID = arguments[1]
             let closureRawID: KIRExprID
             if arguments.count == 3 { closureRawID = arguments[2] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListReduceRightIndexedOrNullName, arguments: [receiverID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -285,7 +279,7 @@ extension CollectionLiteralLoweringPass {
             let lambdaID = arguments[1]
             let closureRawID: KIRExprID
             if arguments.count == 3 { closureRawID = arguments[2] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListReduceRightOrNullName, arguments: [receiverID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -297,7 +291,7 @@ extension CollectionLiteralLoweringPass {
         if state.listExprIDs.contains(receiverID.rawValue) {
             let closureRawID: KIRExprID
             if arguments.count == 3 { closureRawID = arguments[2] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let hofResult = module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let hofResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListFilterIndexedName, arguments: [receiverID, lambdaID, closureRawID], result: hofResult, canThrow: canThrow, thrownResult: thrownResult))
             if let result { loweredBody.append(.copy(from: hofResult, to: result)); state.listExprIDs.insert(result.rawValue) }
             state.listExprIDs.insert(hofResult.rawValue); return true
@@ -317,7 +311,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: z, value: .intLiteral(0)))
                 closureRawID = z
             }
-            let hofResult = module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let hofResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkListTakeWhileName,
@@ -346,7 +340,7 @@ extension CollectionLiteralLoweringPass {
             let kkName = state.sequenceExprIDs.contains(receiverID.rawValue)
                 ? lookup.kkSequenceReduceIndexedOrNullName
                 : lookup.kkListReduceIndexedOrNullName
-            let callResult = result ?? module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let callResult = result ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: kkName, arguments: [receiverID, lambdaID, closureRawID], result: callResult, canThrow: canThrow, thrownResult: thrownResult))
             return true
         }
@@ -364,7 +358,7 @@ extension CollectionLiteralLoweringPass {
             let closureRawID: KIRExprID
             if arguments.count == 4 { closureRawID = arguments[3] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
             let kkName = (callee == lookup.scanIndexedName || callee == lookup.kkListScanIndexedName) ? lookup.kkListScanIndexedName : lookup.kkListRunningFoldIndexedName
-            let hofResult = module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let hofResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: kkName, arguments: [receiverID, initialID, lambdaID, closureRawID], result: hofResult, canThrow: canThrow, thrownResult: thrownResult))
             if let result { loweredBody.append(.copy(from: hofResult, to: result)); state.listExprIDs.insert(result.rawValue) }
             state.listExprIDs.insert(hofResult.rawValue); return true
@@ -372,7 +366,7 @@ extension CollectionLiteralLoweringPass {
             let closureRawID: KIRExprID
             if arguments.count == 4 { closureRawID = arguments[3] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
             let kkName = (callee == lookup.scanIndexedName || callee == lookup.kkSequenceScanIndexedName) ? lookup.kkSequenceScanIndexedName : lookup.kkSequenceRunningFoldIndexedName
-            let hofResult = module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let hofResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: kkName, arguments: [receiverID, initialID, lambdaID, closureRawID], result: hofResult, canThrow: canThrow, thrownResult: thrownResult))
             if let result { loweredBody.append(.copy(from: hofResult, to: result)); state.sequenceExprIDs.insert(result.rawValue) }
             state.sequenceExprIDs.insert(hofResult.rawValue); return true
@@ -385,7 +379,7 @@ extension CollectionLiteralLoweringPass {
         if state.listExprIDs.contains(receiverID.rawValue) {
             let closureRawID: KIRExprID
             if arguments.count == 3 { closureRawID = arguments[2] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
-            let hofResult = module.arena.appendExpr(.temporary(Int32(module.arena.expressions.count)), type: nil)
+            let hofResult = module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(symbol: nil, callee: lookup.kkListRunningReduceIndexedName, arguments: [receiverID, lambdaID, closureRawID], result: hofResult, canThrow: canThrow, thrownResult: thrownResult))
             if let result { loweredBody.append(.copy(from: hofResult, to: result)); state.listExprIDs.insert(result.rawValue) }
             state.listExprIDs.insert(hofResult.rawValue); return true
@@ -414,8 +408,7 @@ extension CollectionLiteralLoweringPass {
                 closureRawID = zeroExpr
             }
             let kkName = callee == lookup.scanName ? lookup.kkListScanName : lookup.kkListRunningFoldName
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -448,8 +441,7 @@ extension CollectionLiteralLoweringPass {
                 closureRawID = zeroExpr
             }
             let kkName = callee == lookup.scanReduceName ? lookup.kkListScanReduceName : lookup.kkListRunningReduceName
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -484,8 +476,7 @@ extension CollectionLiteralLoweringPass {
             }
             let kkName = callee == lookup.scanName
                 ? lookup.kkSequenceScanName : lookup.kkSequenceRunningFoldName
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -516,8 +507,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -548,8 +538,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -580,8 +569,7 @@ extension CollectionLiteralLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let hofResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,

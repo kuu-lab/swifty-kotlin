@@ -176,7 +176,7 @@ struct TypeInferenceContext {
     /// `@DslMarker`.
     func collectDslMarkerAnnotations(for typeID: TypeID) -> Set<String> {
         let nonNull = sema.types.makeNonNullable(typeID)
-        guard case let .classType(classType) = sema.types.kind(of: nonNull) else {
+        guard let classType = resolveClassType(nonNull, sema: sema) else {
             return []
         }
         let classSymbol = classType.classSymbol

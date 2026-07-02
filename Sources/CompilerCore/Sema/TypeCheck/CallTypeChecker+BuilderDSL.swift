@@ -354,8 +354,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsListFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName,
               let firstArg = classType.args.first
@@ -379,8 +378,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsSetFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableSetFQName,
               let firstArg = classType.args.first
@@ -404,8 +402,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsMapFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName,
               classType.args.count >= 2
@@ -692,7 +689,7 @@ extension CallTypeChecker {
     }
 
     private func typeArguments(of type: TypeID, sema: SemaModule) -> [TypeArg] {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)) else {
+        guard let classType = resolveClassType(type, sema: sema) else {
             return []
         }
         return classType.args

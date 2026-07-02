@@ -7,7 +7,7 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
-        boxCallees: BoxingCalleeNames,
+        boxingCalleeTable: BoxingCalleeTable,
         callee: InternedString?,
         interner: StringInterner,
         newBody: inout [KIRInstruction]
@@ -34,7 +34,7 @@ extension ABILoweringPass {
                 callee: callee,
                 types: types,
                 interner: interner,
-                boxCallees: boxCallees,
+                boxingCalleeTable: boxingCalleeTable,
                 symbols: symbols
             ) {
                 let boxedResult = emitNonThrowingCall(
@@ -58,7 +58,7 @@ extension ABILoweringPass {
         module: KIRModule,
         types: TypeSystem?,
         symbols: SymbolTable?,
-        unboxCallees: UnboxingCalleeNames
+        boxingCalleeTable: BoxingCalleeTable
     ) -> (InternedString, TypeID)? {
         guard let types, let result else { return nil }
         var returnType: TypeID?
@@ -79,7 +79,7 @@ extension ABILoweringPass {
         guard let unboxCallee = unboxingCallee(
             sourceKind: returnKind,
             targetKind: resultKind,
-            unboxCallees: unboxCallees,
+            boxingCalleeTable: boxingCalleeTable,
             types: types,
             symbols: symbols
         ) else {

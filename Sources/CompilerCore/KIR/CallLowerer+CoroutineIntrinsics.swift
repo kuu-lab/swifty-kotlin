@@ -35,13 +35,9 @@ extension CallLowerer {
 
         let blockResultExpr: KIRExprID
         if let callableInfo = driver.ctx.callableValueInfo(for: loweredBlockExpr) {
-            let continuationExpr = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: continuationType
+            let continuationExpr = arena.appendTemporary(type: continuationType
             )
-            let callResultExpr = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: resultType
+            let callResultExpr = arena.appendTemporary(type: resultType
             )
             instructions.append(.call(
                 symbol: callableInfo.symbol,
@@ -56,9 +52,7 @@ extension CallLowerer {
             blockResultExpr = loweredBlockExpr
         }
 
-        let suspendedExpr = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: resultType
+        let suspendedExpr = arena.appendTemporary(type: resultType
         )
         instructions.append(.call(
             symbol: nil,

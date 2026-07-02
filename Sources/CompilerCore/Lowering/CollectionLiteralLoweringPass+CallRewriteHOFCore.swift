@@ -56,8 +56,7 @@ extension CollectionLiteralLoweringPass {
                     || callee == lookup.filterName
                     || callee == lookup.filterNotName
                     || callee == lookup.onEachName
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -94,8 +93,7 @@ extension CollectionLiteralLoweringPass {
                     closureRawID = zeroExpr
                 }
                 let kkName = lookup.collectionHOFRuntimeName(ownerKind: .map, callee: callee, arity: 1) ?? callee
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -147,8 +145,7 @@ extension CollectionLiteralLoweringPass {
                         kkName = isCharRange ? lookup.kkCharRangeForEachName : lookup.kkRangeForEachName
                     }
                 }
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -191,8 +188,7 @@ extension CollectionLiteralLoweringPass {
                 default: callee
                 }
                 let needsListTag = callee == lookup.mapName || callee == lookup.filterName
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -234,8 +230,7 @@ extension CollectionLiteralLoweringPass {
                 let needsListTag = callee == lookup.mapName || callee == lookup.filterName
                     || callee == lookup.filterNotName || callee == lookup.mapNotNullName
                     || callee == lookup.flatMapName
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
