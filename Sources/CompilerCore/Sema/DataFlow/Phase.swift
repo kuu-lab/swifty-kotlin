@@ -21,10 +21,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
 
-        collectAllHeaders(
-            ast: ast, fileScopes: fileScopes,
-            symbols: symbols, types: types, bindings: bindings, ctx: ctx
-        )
+        // Build bundled declaration index from AST before synthetic registration so
+        // KSP-002 skip logic can run while type stubs are still registered ahead of
+        // header collection (bundled .kt sources reference List, Iterable, etc.).
         let bundledIndex = BundledDeclarationIndex.build(
             ast: ast,
             symbols: symbols,
@@ -37,6 +36,10 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner,
             bundledIndex: bundledIndex
+        )
+        collectAllHeaders(
+            ast: ast, fileScopes: fileScopes,
+            symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
         assignCompilationModuleFQNames(
             symbols: symbols,

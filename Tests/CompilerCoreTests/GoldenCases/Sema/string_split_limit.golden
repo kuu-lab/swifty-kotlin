@@ -1,10 +1,10 @@
-symbol fq=golden.sema.useSplitDefaultSplit kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useSplitIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useSplitIgnoreCaseLimit kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useSplitLimit kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useSplitLimitOnly kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useSplitLimitOnlyThree kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useSplitMultiCharLimit kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
+symbol fq=golden.sema.useSplitDefaultSplit kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
+symbol fq=golden.sema.useSplitIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
+symbol fq=golden.sema.useSplitIgnoreCaseLimit kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
+symbol fq=golden.sema.useSplitLimit kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
+symbol fq=golden.sema.useSplitLimitOnly kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
+symbol fq=golden.sema.useSplitLimitOnlyThree kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
+symbol fq=golden.sema.useSplitMultiCharLimit kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.text.split#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=kotlin.collections.List<out String>
 symbol fq=kotlin.text.split#1 kind=function vis=public flags=synthetic sig=recv=String params=[String,Boolean] ret=kotlin.collections.List<out String>

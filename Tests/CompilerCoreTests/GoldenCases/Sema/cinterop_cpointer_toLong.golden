@@ -1,11 +1,13 @@
+symbol fq=kotlinx.cinterop.ByteVarOf kind=class vis=public flags=synthetic type=kotlinx.cinterop.ByteVarOf<kotlinx.cinterop.ByteVarOf.T>
+symbol fq=kotlinx.cinterop.ByteVarOf.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.CPointed kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CPointed
 symbol fq=kotlinx.cinterop.CPointer kind=class vis=public flags=synthetic type=kotlinx.cinterop.CPointer<kotlinx.cinterop.CPointer.T>
 symbol fq=kotlinx.cinterop.CPointer.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.toLong kind=function vis=public flags=inlineFunction|synthetic sig=recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.toLong.T>? params=[] ret=Long bounds=[kotlinx.cinterop.CPointed]
 symbol fq=kotlinx.cinterop.toLong.T kind=typeParameter vis=private flags=synthetic
-symbol fq=pointerToAddr kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=Long
+symbol fq=pointerToAddr kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?] ret=Long
 symbol fq=pointerToAddr.$0.p kind=valueParameter vis=private flags=_
 file f0 package=_
   decl pointerToAddr fun pointerToAddr sym=pointerToAddr
-expr e@5:50 name(p) type=<error> ref=pointerToAddr.$0.p
-expr e@5:50#1 memberCall recv=e@5:50 callee=toLong args=[] type=Long call=kotlinx.cinterop.toLong
+expr e@5:50 name(p) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>? ref=pointerToAddr.$0.p
+expr e@5:50#1 memberCall recv=e@5:50 callee=toLong args=[] type=Long call=kotlinx.cinterop.toLong targs=[kotlinx.cinterop.ByteVarOf<Int>]

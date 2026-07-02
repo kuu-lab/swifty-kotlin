@@ -1,7 +1,19 @@
-symbol fq=listToValues kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
+symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=kotlinx.cinterop.ByteVarOf kind=class vis=public flags=synthetic type=kotlinx.cinterop.ByteVarOf<kotlinx.cinterop.ByteVarOf.T>
+symbol fq=kotlinx.cinterop.ByteVarOf.T kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.CPointed kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CPointed
+symbol fq=kotlinx.cinterop.CPointer kind=class vis=public flags=synthetic type=kotlinx.cinterop.CPointer<kotlinx.cinterop.CPointer.T>
+symbol fq=kotlinx.cinterop.CPointer.T kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.CPointerVarOf kind=class vis=public flags=synthetic type=kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.CPointerVarOf.T>
+symbol fq=kotlinx.cinterop.CPointerVarOf.T kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.CValues kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CValues<kotlinx.cinterop.CValues.T>
+symbol fq=kotlinx.cinterop.CValues.T kind=typeParameter vis=private flags=_
+symbol fq=kotlinx.cinterop.toCValues#10 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlinx.cinterop.CPointer<kotlinx.cinterop.toCValues.T>?> params=[] ret=kotlinx.cinterop.CValues<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.toCValues.T>> bounds=[kotlinx.cinterop.CPointed]
+symbol fq=kotlinx.cinterop.toCValues.T kind=typeParameter vis=private flags=synthetic
+symbol fq=listToValues kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?>] ret=kotlinx.cinterop.CValues<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.ByteVarOf<Int>>>
 symbol fq=listToValues.$0.ptrs kind=valueParameter vis=private flags=_
 file f0 package=_
   decl listToValues fun listToValues sym=listToValues
-expr e@8:12 name(ptrs) type=<error> ref=listToValues.$0.ptrs
-expr e@8:12#1 memberCall recv=e@8:12 callee=toCValues args=[] type=<error>
+expr e@8:12 name(ptrs) type=kotlin.collections.List<kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?> ref=listToValues.$0.ptrs
+expr e@8:12#1 memberCall recv=e@8:12 callee=toCValues args=[] type=kotlinx.cinterop.CValues<kotlinx.cinterop.CPointerVarOf<kotlinx.cinterop.ByteVarOf<Int>>> call=kotlinx.cinterop.toCValues#10 targs=[kotlinx.cinterop.ByteVarOf<Int>]
 expr e@8:5 return value=e@8:12#1 type=Nothing

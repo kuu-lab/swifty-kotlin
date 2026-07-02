@@ -1,4 +1,4 @@
-symbol fq=getStringType kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
+symbol fq=getStringType kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.reflect.KType
 symbol fq=kotlin.reflect.KType kind=interface vis=public flags=synthetic
 symbol fq=kotlinx.cinterop.typeOf kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=kotlin.reflect.KType
 symbol fq=kotlinx.cinterop.typeOf.T kind=typeParameter vis=private flags=synthetic|reifiedTypeParameter

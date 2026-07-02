@@ -4,7 +4,7 @@ symbol fq=__local_2.file kind=local vis=private flags=_ type=java.io.File
 symbol fq=__local_3.line kind=local vis=private flags=_ type=String?
 symbol fq=golden.sema.readLineByLine kind=function vis=public flags=_ sig=recv=_ params=[String] ret=Unit
 symbol fq=golden.sema.readLineByLine.$0.path kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.readLinesWithBufferedReader kind=function vis=public flags=_ sig=recv=_ params=[String] ret=<error>
+symbol fq=golden.sema.readLinesWithBufferedReader kind=function vis=public flags=_ sig=recv=_ params=[String] ret=kotlin.collections.List<String>
 symbol fq=golden.sema.readLinesWithBufferedReader.$1.path kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.readWithBufferedReader kind=function vis=public flags=_ sig=recv=_ params=[String] ret=String
 symbol fq=golden.sema.readWithBufferedReader.$2.path kind=valueParameter vis=private flags=_
@@ -41,8 +41,8 @@ expr e@14:12 name(file) type=java.io.File ref=__local_1.file
 expr e@14:12#1 memberCall recv=e@14:12 callee=bufferedReader args=[] type=java.io.BufferedReader call=java.io.File.bufferedReader
 expr e@15:9 name(reader) type=java.io.BufferedReader ref=s-1
 expr e@15:9#1 memberCall recv=e@15:9 callee=readLines args=[] type=kotlin.collections.List<out String> call=java.io.BufferedReader.readLines
-expr e@14:38 lambda params=[reader] body=e@15:9#1 label=use type=(java.io.BufferedReader) -> <error>
-expr e@14:12#2 memberCall recv=e@14:12#1 callee=use args=[_:e@14:38] type=<error>
+expr e@14:38 lambda params=[reader] body=e@15:9#1 label=use type=(java.io.BufferedReader) -> kotlin.collections.List<String>
+expr e@14:12#2 memberCall recv=e@14:12#1 callee=use args=[_:e@14:38] type=kotlin.collections.List<String>
 expr e@14:5 return value=e@14:12#2 type=Nothing
 expr e@20:21 name(path) type=String ref=golden.sema.readLineByLine.$0.path
 expr e@20:16 call callee=e@20:16#1 args=[_:e@20:21] type=java.io.File call=java.io.File.<init>#0

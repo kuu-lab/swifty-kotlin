@@ -1,6 +1,11 @@
-symbol fq=golden.sema.decodeBytes kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=String
+symbol fq=golden.sema.decodeBytes kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ByteArray] ret=String
 symbol fq=golden.sema.decodeBytes.$0.bytes kind=valueParameter vis=private flags=_
+symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
+symbol fq=kotlinx.cinterop.toKString#0 kind=function vis=public flags=synthetic sig=recv=kotlin.ByteArray params=[Int,Int,Boolean] ret=String defaults=[1,1,1]
+symbol fq=kotlinx.cinterop.toKString.endIndex kind=valueParameter vis=private flags=synthetic type=Int
+symbol fq=kotlinx.cinterop.toKString.startIndex kind=valueParameter vis=private flags=synthetic type=Int
+symbol fq=kotlinx.cinterop.toKString.throwOnInvalidSequence kind=valueParameter vis=private flags=synthetic type=Boolean
 file f0 package=golden.sema
   decl golden.sema.decodeBytes fun decodeBytes sym=golden.sema.decodeBytes
-expr e@7:45 name(bytes) type=<error> ref=golden.sema.decodeBytes.$0.bytes
-expr e@7:45#1 memberCall recv=e@7:45 callee=toKString args=[] type=<error>
+expr e@7:45 name(bytes) type=kotlin.ByteArray ref=golden.sema.decodeBytes.$0.bytes
+expr e@7:45#1 memberCall recv=e@7:45 callee=toKString args=[] type=String call=kotlinx.cinterop.toKString#0

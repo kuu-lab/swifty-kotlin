@@ -20,7 +20,7 @@ symbol fq=golden.sema.useReplaceFirst kind=function vis=public flags=_ sig=recv=
 symbol fq=golden.sema.useReplaceFirstIgnoreCase kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceIndent kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useReplaceRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=golden.sema.useSplit kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
+symbol fq=golden.sema.useSplit kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<String>
 symbol fq=golden.sema.useStartsWith kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
 symbol fq=golden.sema.useSubstring1 kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useSubstring2 kind=function vis=public flags=_ sig=recv=_ params=[] ret=String

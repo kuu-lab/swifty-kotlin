@@ -1,6 +1,6 @@
-symbol fq=charCategory kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=<error>
+symbol fq=charCategory kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=kotlin.text.CharCategory
 symbol fq=charCategory.$0.c kind=valueParameter vis=private flags=_
-symbol fq=charDirectionality kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=<error>
+symbol fq=charDirectionality kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=kotlin.text.CharDirectionality
 symbol fq=charDirectionality.$1.c kind=valueParameter vis=private flags=_
 symbol fq=charIsSurrogate kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Boolean
 symbol fq=charIsSurrogate.$2.c kind=valueParameter vis=private flags=_

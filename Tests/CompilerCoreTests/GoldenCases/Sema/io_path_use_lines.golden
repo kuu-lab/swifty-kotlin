@@ -1,6 +1,6 @@
 symbol fq=__local_0.p kind=local vis=private flags=_ type=kotlin.io.path.Path
 symbol fq=__local_1.p kind=local vis=private flags=_ type=kotlin.io.path.Path
-symbol fq=collectLines kind=function vis=public flags=_ sig=recv=_ params=[String] ret=<error>
+symbol fq=collectLines kind=function vis=public flags=_ sig=recv=_ params=[String] ret=kotlin.collections.List<String>
 symbol fq=collectLines.$0.path kind=valueParameter vis=private flags=_
 symbol fq=countLines kind=function vis=public flags=_ sig=recv=_ params=[String] ret=Int
 symbol fq=countLines.$1.path kind=valueParameter vis=private flags=_
@@ -20,8 +20,8 @@ expr e@5:5 localDecl p mutable=0 type=_ init=e@5:13 type=Unit ref=__local_0.p
 expr e@6:12 name(p) type=kotlin.io.path.Path ref=__local_0.p
 expr e@7:9 name(lines) type=kotlin.sequences.Sequence<out String> ref=s-0
 expr e@7:9#1 memberCall recv=e@7:9 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.sequences.Sequence.toList
-expr e@6:23 lambda params=[lines] body=e@7:9#1 label=useLines type=(kotlin.sequences.Sequence<out String>) -> <error>
-expr e@6:12#1 memberCall recv=e@6:12 callee=useLines args=[_:e@6:23] type=<error>
+expr e@6:23 lambda params=[lines] body=e@7:9#1 label=useLines type=(kotlin.sequences.Sequence<out String>) -> kotlin.collections.List<String>
+expr e@6:12#1 memberCall recv=e@6:12 callee=useLines args=[_:e@6:23] type=kotlin.collections.List<String>
 expr e@6:5 return value=e@6:12#1 type=Nothing
 expr e@12:18 name(path) type=String ref=countLines.$1.path
 expr e@12:13 call callee=e@12:13#1 args=[_:e@12:18] type=kotlin.io.path.Path call=kotlin.io.path.Path#1

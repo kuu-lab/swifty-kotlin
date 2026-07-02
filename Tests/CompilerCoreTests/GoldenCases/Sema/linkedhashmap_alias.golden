@@ -1,6 +1,6 @@
 symbol fq=OrderedMapHolder kind=class vis=public flags=_
 symbol fq=OrderedMapHolder.<init> kind=constructor vis=public flags=_ sig=recv=OrderedMapHolder params=[] ret=OrderedMapHolder
-symbol fq=OrderedMapHolder.scores kind=property vis=public flags=_ type=<error>
+symbol fq=OrderedMapHolder.scores kind=property vis=public flags=_ type=kotlin.collections.MutableMap<String, Int>
 symbol fq=__for_destructuring_0.key kind=local vis=private flags=_ type=Int
 symbol fq=__for_destructuring_0.value kind=local vis=private flags=_ type=String
 symbol fq=__local_0.lhm kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String, Int>
@@ -8,13 +8,10 @@ symbol fq=__local_1.lhm2 kind=local vis=private flags=_ type=kotlin.collections.
 symbol fq=__local_2.mutable kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Int, String>
 symbol fq=__local_3.generic kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Double, Boolean>
 symbol fq=__local_4.empty kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String, Int>
-symbol fq=__local_5.created kind=local vis=private flags=_ type=<error>
+symbol fq=__local_5.created kind=local vis=private flags=_ type=kotlin.collections.MutableMap<Int, String>
 symbol fq=__local_6.holder kind=local vis=private flags=_ type=OrderedMapHolder
-symbol fq=createLinkedMap kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
+symbol fq=createLinkedMap kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.MutableMap<Int, String>
 symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
-symbol fq=kotlin.collections.ArrayDeque kind=class vis=public flags=synthetic
-symbol fq=kotlin.collections.ArrayDeque.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.ArrayDeque.size kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.ArrayDeque<kotlin.collections.ArrayDeque.E> params=[] ret=Int
 symbol fq=kotlin.collections.Collection kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Collection.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection.toList kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Collection<out kotlin.collections.Collection.E> params=[] ret=kotlin.collections.List<out kotlin.collections.Collection.E>
@@ -42,21 +39,21 @@ symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=processLinkedMap kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=Unit
+symbol fq=processLinkedMap kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableMap<String, Int>] ret=Unit
 symbol fq=processLinkedMap.$0.map kind=valueParameter vis=private flags=_
 file f0 package=_
   decl processLinkedMap fun processLinkedMap sym=processLinkedMap
   decl createLinkedMap fun createLinkedMap sym=createLinkedMap
   decl OrderedMapHolder class OrderedMapHolder sym=OrderedMapHolder
   decl main fun main sym=main
-expr e@2:13 name(map) type=<error> ref=processLinkedMap.$0.map
-expr e@2:13#1 memberCall recv=e@2:13 callee=size args=[] type=Int call=kotlin.collections.ArrayDeque.size
+expr e@2:13 name(map) type=kotlin.collections.MutableMap<String, Int> ref=processLinkedMap.$0.map
+expr e@2:13#1 memberCall recv=e@2:13 callee=size args=[] type=Int
 expr e@2:5 call callee=e@2:5#1 args=[_:e@2:13#1] type=Unit call=kotlin.io.println#1
 expr e@6:12 name(LinkedHashMap) type=Any ref=kotlin.collections.LinkedHashMap
 expr e@6:12#1 call callee=e@6:12 args=[] type=kotlin.collections.MutableMap<Int, String>
 expr e@6:5 return value=e@6:12#1 type=Nothing
 expr e@10:46 name(LinkedHashMap) type=Any ref=kotlin.collections.LinkedHashMap
-expr e@10:46#1 call callee=e@10:46 args=[] type=kotlin.collections.MutableMap<Any, Any>
+expr e@10:46#1 call callee=e@10:46 args=[] type=kotlin.collections.MutableMap<String, Int>
 expr e@11:46 name(LinkedHashMap) type=Any ref=kotlin.collections.LinkedHashMap
 expr e@11:46#1 call callee=e@11:46 args=[] type=kotlin.collections.MutableMap<Int, String>
 expr e@15:40 name(LinkedHashMap) type=Any ref=kotlin.collections.LinkedHashMap
@@ -205,24 +202,24 @@ expr e@68:9 call callee=e@68:9#1 args=[_:e@68:17] type=Unit call=kotlin.io.print
 expr e@67:35 blockExpr stmts=[] trailing=e@68:9 type=Unit
 expr e@67:5 forDestructuring names=[key,value] iterable=e@67:26 body=e@67:35 type=Unit
 expr e@71:22 name(lhm2) type=kotlin.collections.MutableMap<String, String> ref=__local_1.lhm2
-expr e@71:5 call callee=e@71:5#1 args=[_:e@71:22] type=Unit call=processLinkedMap
-expr e@73:19 call callee=e@73:19#1 args=[] type=<error> call=createLinkedMap
+expr e@71:5 call callee=e@71:5#1 args=[_:e@71:22] type=<error>
+expr e@73:19 call callee=e@73:19#1 args=[] type=kotlin.collections.MutableMap<Int, String> call=createLinkedMap
 expr e@73:5 localDecl created mutable=0 type=_ init=e@73:19 type=Unit ref=__local_5.created
-expr e@74:5 name(created) type=<error> ref=__local_5.created
+expr e@74:5 name(created) type=kotlin.collections.MutableMap<Int, String> ref=__local_5.created
 expr e@74:13 int(1) type=Int
 expr e@74:18 string(one) type=String
-expr e@74:5#1 indexedAssign receiver=e@74:5 indices=[e@74:13] value=e@74:18 type=Unit
-expr e@75:13 name(created) type=<error> ref=__local_5.created
-expr e@75:13#1 memberCall recv=e@75:13 callee=size args=[] type=Int call=kotlin.collections.ArrayDeque.size
+expr e@74:5#1 indexedAssign receiver=e@74:5 indices=[e@74:13] value=e@74:18 type=Unit call=kotlin.collections.MutableMap.set targs=[Int,String]
+expr e@75:13 name(created) type=kotlin.collections.MutableMap<Int, String> ref=__local_5.created
+expr e@75:13#1 memberCall recv=e@75:13 callee=size args=[] type=Int
 expr e@75:5 call callee=e@75:5#1 args=[_:e@75:13#1] type=Unit call=kotlin.io.println#1
 expr e@77:18 call callee=e@77:18#1 args=[] type=OrderedMapHolder call=OrderedMapHolder.<init>
 expr e@77:5 localDecl holder mutable=0 type=_ init=e@77:18 type=Unit ref=__local_6.holder
 expr e@78:5 name(holder) type=OrderedMapHolder ref=__local_6.holder
-expr e@78:5#1 memberCall recv=e@78:5 callee=scores args=[] type=<error> ref=OrderedMapHolder.scores
+expr e@78:5#1 memberCall recv=e@78:5 callee=scores args=[] type=kotlin.collections.MutableMap<String, Int> ref=OrderedMapHolder.scores
 expr e@78:19 string(alice) type=String
 expr e@78:30 int(100) type=Int
 expr e@78:5#2 indexedAssign receiver=e@78:5#1 indices=[e@78:19] value=e@78:30 type=Unit call=kotlin.collections.MutableMap.set targs=[String,Int]
 expr e@79:13 name(holder) type=OrderedMapHolder ref=__local_6.holder
-expr e@79:13#1 memberCall recv=e@79:13 callee=scores args=[] type=<error> ref=OrderedMapHolder.scores
-expr e@79:13#2 memberCall recv=e@79:13#1 callee=size args=[] type=Int call=kotlin.collections.ArrayDeque.size
+expr e@79:13#1 memberCall recv=e@79:13 callee=scores args=[] type=kotlin.collections.MutableMap<String, Int> ref=OrderedMapHolder.scores
+expr e@79:13#2 memberCall recv=e@79:13#1 callee=size args=[] type=Int
 expr e@79:5 call callee=e@79:5#1 args=[_:e@79:13#2] type=Unit call=kotlin.io.println#1

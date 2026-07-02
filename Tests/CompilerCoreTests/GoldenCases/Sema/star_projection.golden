@@ -1,5 +1,5 @@
 symbol fq=__local_0.v kind=local vis=private flags=_ type=Any?
-symbol fq=__local_1.x kind=local vis=private flags=_ type=<error>
+symbol fq=__local_1.x kind=local vis=private flags=_ type=kotlin.collections.List<out Any?>
 symbol fq=golden.sema.Container kind=class vis=public flags=_
 symbol fq=golden.sema.Container.$class0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.Container.item kind=property vis=public flags=_ type=golden.sema.Container.$class0.T
@@ -7,10 +7,11 @@ symbol fq=golden.sema.OutBox kind=class vis=public flags=_
 symbol fq=golden.sema.OutBox.$class1.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.OutBox.value kind=property vis=public flags=_ type=golden.sema.OutBox.$class1.T
 symbol fq=golden.sema.Wrapper kind=class vis=public flags=_
-symbol fq=golden.sema.Wrapper.items kind=property vis=public flags=_ type=<error>
+symbol fq=golden.sema.Wrapper.$class2.T kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.Wrapper.items kind=property vis=public flags=_ type=kotlin.collections.List<out golden.sema.Wrapper.$class2.T>
 symbol fq=golden.sema.acceptAny kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Container<*>] ret=Unit
 symbol fq=golden.sema.acceptAny.$0.c kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.eraseType kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=Int
+symbol fq=golden.sema.eraseType kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<*>] ret=Int
 symbol fq=golden.sema.eraseType.$1.list kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.readContainer kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Container<*>] ret=Any?
 symbol fq=golden.sema.readContainer.$2.c kind=valueParameter vis=private flags=_
@@ -18,9 +19,8 @@ symbol fq=golden.sema.readOutBox kind=function vis=public flags=_ sig=recv=_ par
 symbol fq=golden.sema.readOutBox.$3.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.readWrapper kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Wrapper<*>] ret=Unit
 symbol fq=golden.sema.readWrapper.$4.w kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.ArrayDeque kind=class vis=public flags=synthetic
-symbol fq=kotlin.collections.ArrayDeque.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.ArrayDeque.size kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.ArrayDeque<kotlin.collections.ArrayDeque.E> params=[] ret=Int
+symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
+symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 file f0 package=golden.sema
   decl golden.sema.Container class Container sym=golden.sema.Container
   decl golden.sema.readContainer fun readContainer sym=golden.sema.readContainer
@@ -32,13 +32,13 @@ file f0 package=golden.sema
   decl golden.sema.readWrapper fun readWrapper sym=golden.sema.readWrapper
 expr e@6:44 name(c) type=golden.sema.Container<*> ref=golden.sema.readContainer.$2.c
 expr e@6:44#1 memberCall recv=e@6:44 callee=item args=[] type=Any? ref=golden.sema.Container.item
-expr e@9:37 name(list) type=<error> ref=golden.sema.eraseType.$1.list
-expr e@9:37#1 memberCall recv=e@9:37 callee=size args=[] type=Int call=kotlin.collections.ArrayDeque.size
+expr e@9:37 name(list) type=kotlin.collections.List<*> ref=golden.sema.eraseType.$1.list
+expr e@9:37#1 memberCall recv=e@9:37 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e@13:13 name(c) type=golden.sema.Container<*> ref=golden.sema.acceptAny.$0.c
 expr e@13:13#1 memberCall recv=e@13:13 callee=item args=[] type=Any? ref=golden.sema.Container.item
 expr e@13:5 localDecl v mutable=0 type=_ init=e@13:13#1 type=Unit ref=__local_0.v
 expr e@19:38 name(b) type=golden.sema.OutBox<*> ref=golden.sema.readOutBox.$3.b
 expr e@19:38#1 memberCall recv=e@19:38 callee=value args=[] type=Any? ref=golden.sema.OutBox.value
 expr e@25:13 name(w) type=golden.sema.Wrapper<*> ref=golden.sema.readWrapper.$4.w
-expr e@25:13#1 memberCall recv=e@25:13 callee=items args=[] type=<error> ref=golden.sema.Wrapper.items
+expr e@25:13#1 memberCall recv=e@25:13 callee=items args=[] type=kotlin.collections.List<out Any?> ref=golden.sema.Wrapper.items
 expr e@25:5 localDecl x mutable=0 type=_ init=e@25:13#1 type=Unit ref=__local_1.x

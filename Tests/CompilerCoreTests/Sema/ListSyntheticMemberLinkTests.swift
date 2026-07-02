@@ -404,7 +404,7 @@ struct ListSyntheticMemberLinkTests {
             let expectedExternalLinks = [
                 "filterNot": "kk_list_filterNot",
                 "sum": "kk_list_sum",
-                "sumOf": "kk_list_sumOf",
+                // sumOf / minByOrNull / maxByOrNull are bundled Kotlin source (KSP-002).
                 "maxOfWith": "kk_list_maxOfWith",
                 "minOfWith": "kk_list_minOfWith",
                 "minBy": "kk_list_minBy",
@@ -415,9 +415,7 @@ struct ListSyntheticMemberLinkTests {
                 "maxOrNull": "kk_list_maxOrNull",
                 "minOrNull": "kk_list_minOrNull",
                 "minOf": "kk_list_minOf",
-                "minByOrNull": "kk_list_minByOrNull",
                 "maxBy": "kk_list_maxBy",
-                "maxByOrNull": "kk_list_maxByOrNull",
                 "minOfWithOrNull": "kk_list_minOfWithOrNull",
                 "maxOfOrNull": "kk_list_maxOfOrNull",
                 "filterNotTo": "kk_list_filterNotTo",

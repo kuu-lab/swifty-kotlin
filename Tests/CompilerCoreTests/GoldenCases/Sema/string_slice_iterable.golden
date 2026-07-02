@@ -1,7 +1,7 @@
-symbol fq=golden.sema.useListOfExplicitTypeArg kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useListSliceEmptyExplicitType kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useListSliceListOf kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=golden.sema.useListSliceRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
+symbol fq=golden.sema.useListOfExplicitTypeArg kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
+symbol fq=golden.sema.useListSliceEmptyExplicitType kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
+symbol fq=golden.sema.useListSliceListOf kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
+symbol fq=golden.sema.useListSliceRange kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List.slice#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List<out kotlin.collections.List.E>
@@ -33,4 +33,4 @@ expr e@9:63 int(1) type=Int
 expr e@9:66 int(2) type=Int
 expr e@9:63#1 binary(rangeTo) lhs=e@9:63 rhs=e@9:66 type=Int
 expr e@9:38#2 memberCall recv=e@9:38 callee=slice args=[_:e@9:63#1] type=kotlin.collections.List<Int> call=kotlin.collections.List.slice#0
-expr e@11:45 call callee=e@11:45#1 args=[] type=kotlin.collections.List<out Int>
+expr e@11:45 call callee=e@11:45#1 args=[] type=kotlin.collections.List<Int>

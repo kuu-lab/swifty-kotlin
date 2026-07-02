@@ -15,19 +15,19 @@ symbol fq=kotlin.io.FileTreeWalk.onLeave.function kind=valueParameter vis=privat
 symbol fq=kotlin.io.FileTreeWalk.toList kind=function vis=public flags=synthetic sig=recv=kotlin.io.FileTreeWalk params=[] ret=kotlin.collections.List<out java.io.File>
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=testForEach kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=Unit
+symbol fq=testForEach kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=Unit
 symbol fq=testForEach.$0.dir kind=valueParameter vis=private flags=_
-symbol fq=testMaxDepth kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
+symbol fq=testMaxDepth kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk
 symbol fq=testMaxDepth.$1.dir kind=valueParameter vis=private flags=_
-symbol fq=testOnEnter kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
+symbol fq=testOnEnter kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk
 symbol fq=testOnEnter.$2.dir kind=valueParameter vis=private flags=_
-symbol fq=testOnLeave kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
+symbol fq=testOnLeave kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk
 symbol fq=testOnLeave.$3.dir kind=valueParameter vis=private flags=_
-symbol fq=testToList kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
+symbol fq=testToList kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.collections.List<java.io.File>
 symbol fq=testToList.$4.dir kind=valueParameter vis=private flags=_
-symbol fq=testWalkBottomUp kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
+symbol fq=testWalkBottomUp kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk
 symbol fq=testWalkBottomUp.$5.dir kind=valueParameter vis=private flags=_
-symbol fq=testWalkTopDown kind=function vis=public flags=_ sig=recv=_ params=[<error>] ret=<error>
+symbol fq=testWalkTopDown kind=function vis=public flags=_ sig=recv=_ params=[java.io.File] ret=kotlin.io.FileTreeWalk
 symbol fq=testWalkTopDown.$6.dir kind=valueParameter vis=private flags=_
 file f0 package=_
   decl testWalkTopDown fun testWalkTopDown sym=testWalkTopDown
@@ -37,18 +37,18 @@ file f0 package=_
   decl testOnEnter fun testOnEnter sym=testOnEnter
   decl testOnLeave fun testOnLeave sym=testOnLeave
   decl testForEach fun testForEach sym=testForEach
-expr e@4:48 name(dir) type=<error> ref=testWalkTopDown.$6.dir
+expr e@4:48 name(dir) type=java.io.File ref=testWalkTopDown.$6.dir
 expr e@4:48#1 memberCall recv=e@4:48 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
-expr e@5:49 name(dir) type=<error> ref=testWalkBottomUp.$5.dir
+expr e@5:49 name(dir) type=java.io.File ref=testWalkBottomUp.$5.dir
 expr e@5:49#1 memberCall recv=e@5:49 callee=walkBottomUp args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkBottomUp
-expr e@6:45 name(dir) type=<error> ref=testMaxDepth.$1.dir
+expr e@6:45 name(dir) type=java.io.File ref=testMaxDepth.$1.dir
 expr e@6:45#1 memberCall recv=e@6:45 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
 expr e@6:72 int(2) type=Int
 expr e@6:45#2 memberCall recv=e@6:45#1 callee=maxDepth args=[_:e@6:72] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.maxDepth
-expr e@7:41 name(dir) type=<error> ref=testToList.$4.dir
+expr e@7:41 name(dir) type=java.io.File ref=testToList.$4.dir
 expr e@7:41#1 memberCall recv=e@7:41 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
 expr e@7:41#2 memberCall recv=e@7:41#1 callee=toList args=[] type=kotlin.collections.List<out java.io.File> call=kotlin.io.FileTreeWalk.toList
-expr e@8:44 name(dir) type=<error> ref=testOnEnter.$2.dir
+expr e@8:44 name(dir) type=java.io.File ref=testOnEnter.$2.dir
 expr e@8:44#1 memberCall recv=e@8:44 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
 expr e@8:72 name(it) type=java.io.File ref=s-0
 expr e@8:72#1 memberCall recv=e@8:72 callee=name args=[] type=String ref=java.io.File.name
@@ -56,14 +56,14 @@ expr e@8:83 string(skip) type=String
 expr e@8:72#2 binary(notEqual) lhs=e@8:72#1 rhs=e@8:83 type=Boolean
 expr e@8:70 lambda params=[] body=e@8:72#2 label=onEnter type=(java.io.File) -> Boolean
 expr e@8:44#2 memberCall recv=e@8:44#1 callee=onEnter args=[_:e@8:70] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onEnter
-expr e@9:44 name(dir) type=<error> ref=testOnLeave.$3.dir
+expr e@9:44 name(dir) type=java.io.File ref=testOnLeave.$3.dir
 expr e@9:44#1 memberCall recv=e@9:44 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
 expr e@9:80 name(it) type=java.io.File ref=s-1
 expr e@9:80#1 memberCall recv=e@9:80 callee=name args=[] type=String ref=java.io.File.name
 expr e@9:72 call callee=e@9:72#1 args=[_:e@9:80#1] type=Unit call=kotlin.io.println#1
 expr e@9:70 lambda params=[] body=e@9:72 label=onLeave type=(java.io.File) -> Unit
 expr e@9:44#2 memberCall recv=e@9:44#1 callee=onLeave args=[_:e@9:70] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.onLeave
-expr e@11:5 name(dir) type=<error> ref=testForEach.$0.dir
+expr e@11:5 name(dir) type=java.io.File ref=testForEach.$0.dir
 expr e@11:5#1 memberCall recv=e@11:5 callee=walkTopDown args=[] type=kotlin.io.FileTreeWalk call=java.io.File.walkTopDown
 expr e@11:32 int(3) type=Int
 expr e@11:5#2 memberCall recv=e@11:5#1 callee=maxDepth args=[_:e@11:32] type=kotlin.io.FileTreeWalk call=kotlin.io.FileTreeWalk.maxDepth

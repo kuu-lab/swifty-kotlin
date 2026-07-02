@@ -38,14 +38,14 @@ symbol fq=kotlin.ranges.ULongProgression.Companion.fromClosedRange.rangeEnd kind
 symbol fq=kotlin.ranges.ULongProgression.Companion.fromClosedRange.rangeStart kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.ranges.ULongProgression.Companion.fromClosedRange.step kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.ranges.ULongProgression.toList kind=function vis=public flags=synthetic sig=recv=kotlin.ranges.ULongProgression params=[] ret=kotlin.collections.List<out ULong>
-symbol fq=testCharProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=testCharProgressionStep kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=testIntProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
+symbol fq=testCharProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Char>
+symbol fq=testCharProgressionStep kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Char>
+symbol fq=testIntProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
 symbol fq=testIntProgressionIsEmpty kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
-symbol fq=testIntProgressionReversed kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=testLongProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=testUIntProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
-symbol fq=testULongProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=<error>
+symbol fq=testIntProgressionReversed kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Int>
+symbol fq=testLongProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Long>
+symbol fq=testUIntProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<UInt>
+symbol fq=testULongProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<ULong>
 file f0 package=_
   decl testIntProgression fun testIntProgression sym=testIntProgression
   decl testLongProgression fun testLongProgression sym=testLongProgression
