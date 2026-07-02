@@ -2,12 +2,12 @@ package kotlin
 
 import kswiftk.internal.*
 
-// MARK: - Basic conversions (pure Kotlin)
+// MARK: - Basic conversions
 
 val Char.code: Int
-    get() = this.toInt()
+    get() = __char_code(this)
 
-fun Char.toInt(): Int = this.code
+fun Char.toInt(): Int = __char_toInt(this)
 
 fun Char.toDouble(): Double = this.code.toDouble()
 

@@ -353,6 +353,12 @@ external fun __testAssertNullMessage(actualValue: Any?, message: Any?)
 
 // MARK: - Char functions (Unicode-dependent, require runtime)
 
+@KSwiftKRuntimeName("kk_char_code")
+external fun __char_code(c: Char): Int
+
+@KSwiftKRuntimeName("kk_char_toInt")
+external fun __char_toInt(c: Char): Int
+
 @KSwiftKRuntimeName("kk_char_isDigit")
 external fun __char_isDigit(c: Char): Boolean
 
