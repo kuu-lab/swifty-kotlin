@@ -2,12 +2,12 @@ symbol fq=golden.sema.pickLargerString kind=function vis=public flags=_ sig=recv
 symbol fq=golden.sema.pickLargerString.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.pickLargerString.$0.b kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
-symbol fq=kotlin.comparisons.maxOf#23 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[kotlin.comparisons.maxOf.T,kotlin.comparisons.maxOf.T] ret=kotlin.comparisons.maxOf.T bounds=[kotlin.Comparable<kotlin.comparisons.maxOf.T>]
-symbol fq=kotlin.comparisons.maxOf.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.comparisons.maxOf#24 kind=function vis=public flags=inlineFunction sig=recv=_ params=[kotlin.comparisons.maxOf.$1.T,kotlin.comparisons.maxOf.$1.T] ret=kotlin.comparisons.maxOf.$1.T bounds=[kotlin.Comparable<kotlin.comparisons.maxOf.$1.T>]
+symbol fq=kotlin.comparisons.maxOf.$1.T kind=typeParameter vis=private flags=_
+symbol fq=kotlin.comparisons.maxOf.$1.a kind=valueParameter vis=private flags=_
+symbol fq=kotlin.comparisons.maxOf.$1.b kind=valueParameter vis=private flags=_
 file f14 package=golden.sema
   decl golden.sema.pickLargerString fun pickLargerString sym=golden.sema.pickLargerString
 expr e@4:60 name(a) type=String ref=golden.sema.pickLargerString.$0.a
 expr e@4:63 name(b) type=String ref=golden.sema.pickLargerString.$0.b
-expr e@4:54#1 call callee=e@4:54#0 args=[_:e@4:60,_:e@4:63] type=String call=kotlin.comparisons.maxOf#23 targs=[String]
+expr e@4:54#1 call callee=e@4:54#0 args=[_:e@4:60,_:e@4:63] type=String call=kotlin.comparisons.maxOf#24 targs=[String]

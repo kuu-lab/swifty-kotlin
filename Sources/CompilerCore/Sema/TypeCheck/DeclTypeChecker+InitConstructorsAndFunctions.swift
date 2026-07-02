@@ -270,6 +270,7 @@ extension DeclTypeChecker {
         let isAbstract = function.body == .unit
             && (sema.symbols.symbol(symbol)?.flags.contains(.abstractType) ?? false)
         if isAbstract { return }
+        if function.modifiers.contains(.external) { return }
 
         let bodyType = inferFunctionBodyType(
             function.body,

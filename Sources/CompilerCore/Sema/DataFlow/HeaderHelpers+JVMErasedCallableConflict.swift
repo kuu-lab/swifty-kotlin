@@ -53,9 +53,19 @@ extension DataFlowSemaPhase {
             return false
         }
 
+        let lhsVarargs = normalizedVarargFlags(lhs.valueParameterIsVararg, count: lhs.parameterTypes.count)
+        let rhsVarargs = normalizedVarargFlags(rhs.valueParameterIsVararg, count: rhs.parameterTypes.count)
+        guard lhsVarargs == rhsVarargs else {
+            return false
+        }
+
         let lhsParameters = lhs.parameterTypes.map { jvmErasedCallableType($0, types: types) }
         let rhsParameters = rhs.parameterTypes.map { jvmErasedCallableType($0, types: types) }
         return zip(lhsParameters, rhsParameters).allSatisfy(==)
+    }
+
+    private func normalizedVarargFlags(_ flags: [Bool], count: Int) -> [Bool] {
+        flags.isEmpty ? Array(repeating: false, count: count) : flags
     }
 
     func jvmErasedCallableType(_ type: TypeID, types: TypeSystem) -> TypeID {

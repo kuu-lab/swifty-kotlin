@@ -3,13 +3,13 @@ symbol fq=golden.sema.varargMinByte.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMinByte.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMinByte.$0.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMinByte.$0.d kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int vararg=[0,1]
-symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.minOf.other kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.comparisons.minOf#7 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Int,Int] ret=Int vararg=[0,1]
+symbol fq=kotlin.comparisons.minOf.$1.a kind=valueParameter vis=private flags=_
+symbol fq=kotlin.comparisons.minOf.$1.other kind=valueParameter vis=private flags=_
 file f14 package=golden.sema
   decl golden.sema.varargMinByte fun varargMinByte sym=golden.sema.varargMinByte
 expr e@3:69 name(a) type=Int ref=golden.sema.varargMinByte.$0.a
 expr e@3:72 name(b) type=Int ref=golden.sema.varargMinByte.$0.b
 expr e@3:75 name(c) type=Int ref=golden.sema.varargMinByte.$0.c
 expr e@3:78 name(d) type=Int ref=golden.sema.varargMinByte.$0.d
-expr e@3:63#1 call callee=e@3:63#0 args=[_:e@3:69,_:e@3:72,_:e@3:75,_:e@3:78] type=Int call=kotlin.comparisons.minOf#6
+expr e@3:63#1 call callee=e@3:63#0 args=[_:e@3:69,_:e@3:72,_:e@3:75,_:e@3:78] type=Int call=kotlin.comparisons.minOf#7
