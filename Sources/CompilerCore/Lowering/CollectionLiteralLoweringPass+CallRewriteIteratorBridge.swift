@@ -379,14 +379,12 @@ extension CollectionLiteralLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-            loweredBody.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: unboxCallee,
-                arguments: [tempBoxed],
+                arg: tempBoxed,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &loweredBody
+            )
         } else {
             loweredBody.append(.call(
                 symbol: nil,
