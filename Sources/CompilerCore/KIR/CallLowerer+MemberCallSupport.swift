@@ -69,9 +69,7 @@ extension CallLowerer {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isCoroutineHandleSymbol(symbol)
@@ -83,9 +81,7 @@ extension CallLowerer {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isChannelSymbol(symbol)
@@ -96,9 +92,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         guard interner.resolve(symbol.name) == "CoroutineContext" else {

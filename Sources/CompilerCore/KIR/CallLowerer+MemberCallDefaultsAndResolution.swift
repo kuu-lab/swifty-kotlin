@@ -62,9 +62,7 @@ extension CallLowerer {
                 sema: sema,
                 interner: interner
             ) ?? interner.intern("kk_list_size")
-            let sizeExpr = arena.appendExpr(
-                .temporary(Int32(clamping: arena.expressions.count)),
-                type: intType
+            let sizeExpr = arena.appendTemporary(type: intType
             )
             instructions.append(.call(
                 symbol: nil,
@@ -128,7 +126,7 @@ extension CallLowerer {
         }
 
         if (defaultMask & toIndexMaskBit) != 0 {
-            let sizeExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: intType)
+            let sizeExpr = arena.appendTemporary(type: intType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_size"),
@@ -170,7 +168,7 @@ extension CallLowerer {
         }
 
         if (defaultMask & endIndexMaskBit) != 0 {
-            let sizeExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: intType)
+            let sizeExpr = arena.appendTemporary(type: intType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_size"),
@@ -206,7 +204,7 @@ extension CallLowerer {
             return
         }
         let intType = sema.types.intType
-        let sizeExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: intType)
+        let sizeExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_size"),

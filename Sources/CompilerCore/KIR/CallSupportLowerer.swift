@@ -152,11 +152,11 @@ final class CallSupportLowerer {
                 let bitValue = Int64(1) << i
                 let divisorExpr = arena.appendExpr(.intLiteral(bitValue), type: intType)
                 body.append(.constValue(result: divisorExpr, value: .intLiteral(bitValue)))
-                let dividedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let dividedExpr = arena.appendTemporary(type: intType)
                 body.append(.binary(op: .divide, lhs: maskExpr, rhs: divisorExpr, result: dividedExpr))
                 let twoExpr = arena.appendExpr(.intLiteral(2), type: intType)
                 body.append(.constValue(result: twoExpr, value: .intLiteral(2)))
-                let bitExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let bitExpr = arena.appendTemporary(type: intType)
                 body.append(.binary(op: .modulo, lhs: dividedExpr, rhs: twoExpr, result: bitExpr))
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
                 body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -175,7 +175,7 @@ final class CallSupportLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &body
                 )
-                let resolvedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: paramType)
+                let resolvedExpr = arena.appendTemporary(type: paramType)
                 body.append(.copy(from: defaultVal, to: resolvedExpr))
                 body.append(.jump(afterLabel))
 
@@ -202,7 +202,7 @@ final class CallSupportLowerer {
             callArgs.append(tokenExpr)
         }
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: signature.returnType)
+        let result = arena.appendTemporary(type: signature.returnType)
         body.append(.call(
             symbol: originalSymbol,
             callee: originalName,
@@ -322,7 +322,7 @@ final class CallSupportLowerer {
             }
             let countExpr: KIRExprID
             if hasAnySpread {
-                countExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                countExpr = arena.appendTemporary(type: intType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_size"),
@@ -459,7 +459,7 @@ final class CallSupportLowerer {
             }
             let pairCountExpr = arena.appendExpr(.intLiteral(Int64(pairsCount)), type: intType)
             instructions.append(.constValue(result: pairCountExpr, value: .intLiteral(Int64(pairsCount))))
-            let concatResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+            let concatResult = arena.appendTemporary(type: anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_vararg_spread_concat"),
@@ -524,7 +524,7 @@ final class CallSupportLowerer {
         anyType: TypeID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let listID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+        let listID = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_toList"),
@@ -546,7 +546,7 @@ final class CallSupportLowerer {
     ) -> KIRExprID {
         let countExpr = arena.appendExpr(.intLiteral(Int64(count)), type: intType)
         instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-        let arrayID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+        let arrayID = arena.appendTemporary(type: anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_new"),

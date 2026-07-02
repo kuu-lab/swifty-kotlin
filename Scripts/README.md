@@ -34,6 +34,14 @@ The default output is `.build/debug/kotlin-stdlib.kklib`, next to the debug
 to use an already-built compiler binary, or pass an output base path as the
 first argument.
 
+## TODO hygiene
+
+Detect duplicate task IDs in `TODO.md`:
+
+```bash
+bash Scripts/check_todo_ids.sh
+```
+
 ## Golden update workflow
 
 1. Run golden tests without updating fixtures:

@@ -22,11 +22,10 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let typeKind = sema.types.kind(of: type)
-        guard case .primitive(_, .nonNull) = typeKind else {
-            return exprID
-        }
-        let unboxCallee = ABILoweringPass.primitiveUnboxingCallee(for: typeKind, interner: interner)
+        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+            for: sema.types.kind(of: type),
+            requireNonNull: true
+        )
         guard let unboxCallee else {
             return exprID
         }
@@ -285,7 +284,7 @@ final class LambdaLowerer {
                 let fieldOffset = Int64(captureIndex + 2)
                 let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: sema.types.intType)
                 lambdaBody.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
-                let loadedExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: capture.param.type)
+                let loadedExpr = arena.appendTemporary(type: capture.param.type)
                 lambdaBody.append(.call(
                     symbol: nil,
                     callee: kkArrayGet,
@@ -463,7 +462,7 @@ final class LambdaLowerer {
             let captureType = arena.exprType(captureExpr) ?? sema.types.anyType
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
-            let loadedExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: captureType)
+            let loadedExpr = arena.appendTemporary(type: captureType)
             body.append(.call(
                 symbol: nil,
                 callee: arrayGet,
@@ -490,11 +489,9 @@ final class LambdaLowerer {
         }
 
         let lambdaCanThrow = adapterRequiresThrownChannel(lambdaSymbol: lambdaSymbol, arena: arena)
-        let callResult = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: lambdaReturnType)
+        let callResult = arena.appendTemporary(type: lambdaReturnType)
         let thrownResult = lambdaCanThrow
-            ? arena.appendExpr(
-                .temporary(Int32(clamping: arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            ? arena.appendTemporary(type: sema.types.nullableAnyType
             )
             : nil
         body.append(.call(
@@ -541,7 +538,7 @@ final class LambdaLowerer {
         instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(Int64(2 + captureArguments.count))))
         let classIDExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
-        let closureObj = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: sema.types.intType)
+        let closureObj = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_object_new"),
@@ -553,7 +550,7 @@ final class LambdaLowerer {
         for (captureIndex, captureExpr) in captureArguments.enumerated() {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
-            let setResult = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: sema.types.anyType)
+            let setResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
@@ -566,7 +563,7 @@ final class LambdaLowerer {
 
         let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
         instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
-        let materializedExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: sema.types.make(.functionType(functionType)))
+        let materializedExpr = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
         instructions.append(.call(
             symbol: nil,
             callee: createCallee,
@@ -742,7 +739,7 @@ final class LambdaLowerer {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             methodBody.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
             let captureType = captureBindings[index].param.type
-            let loadedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: captureType)
+            let loadedExpr = arena.appendTemporary(type: captureType)
             methodBody.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
@@ -760,7 +757,7 @@ final class LambdaLowerer {
             return expr
         }
 
-        let callResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: lambdaReturnType)
+        let callResult = arena.appendTemporary(type: lambdaReturnType)
         methodBody.append(.call(
             symbol: lambdaSymbol,
             callee: lambdaName,
@@ -798,9 +795,7 @@ final class LambdaLowerer {
         )
         let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: sema.types.intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-        let wrapperValue = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.make(.classType(ClassType(
+        let wrapperValue = arena.appendTemporary(type: sema.types.make(.classType(ClassType(
                 classSymbol: interfaceSymbol,
                 args: interfaceType.args,
                 nullability: .nonNull
@@ -824,7 +819,7 @@ final class LambdaLowerer {
         )
         let interfaceTypeExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: sema.types.intType)
         instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
-        let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.intType)
+        let registerResult = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_type_register_iface"),
@@ -838,7 +833,7 @@ final class LambdaLowerer {
         let methodSlot = Int64(sema.symbols.nominalLayout(for: interfaceSymbol)?.vtableSlots[samMethod.symbol] ?? 0)
         let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: sema.types.intType)
         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
-        let registerIfaceResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.intType)
+        let registerIfaceResult = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_object_register_itable_iface"),
@@ -851,7 +846,7 @@ final class LambdaLowerer {
         instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
         let methodFnExpr = arena.appendExpr(.symbolRef(methodSymbol), type: sema.types.intType)
         instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(methodSymbol)))
-        let registerMethodResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.intType)
+        let registerMethodResult = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_object_register_itable_method"),
@@ -879,7 +874,7 @@ final class LambdaLowerer {
             }
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-            let unusedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
@@ -1019,9 +1014,7 @@ final class LambdaLowerer {
                 )
                 callArgExprs.append(normalizedParamExpr)
             }
-            let callResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: returnType
+            let callResult = arena.appendTemporary(type: returnType
             )
             body.append(.call(
                 symbol: targetSymbol,
@@ -1210,9 +1203,7 @@ final class LambdaLowerer {
         }
 
         // Emit the tagging call.
-        let taggedExpr = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: callableType
+        let taggedExpr = arena.appendTemporary(type: callableType
         )
         instructions.append(.call(
             symbol: nil,

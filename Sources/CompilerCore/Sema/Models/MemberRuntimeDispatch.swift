@@ -72,9 +72,7 @@ enum MemberRuntimeDispatch {
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let nominalName: String? = {
-            guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-                  let symbol = sema.symbols.symbol(classType.classSymbol)
-            else {
+            guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                 return nil
             }
             return interner.resolve(symbol.name)
@@ -129,9 +127,7 @@ enum MemberRuntimeDispatch {
         interner: StringInterner
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
             return nil
         }
 

@@ -45,9 +45,7 @@ extension KIRLoweringDriver {
             type: sema.types.stringType
         )
         body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
-        let kPropertyExprID = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(
             .call(
@@ -102,9 +100,7 @@ extension KIRLoweringDriver {
 
         // Call provideDelegate(thisRef, kProperty) on the raw delegate.
         let provideDelegateName = interner.intern("provideDelegate")
-        let provideDelegateResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         initInstructions.append(
             .call(

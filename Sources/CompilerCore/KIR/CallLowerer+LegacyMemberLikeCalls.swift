@@ -112,7 +112,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         if args.count == 1,
            interner.resolve(calleeName) == "withDefault"
         {
@@ -194,9 +194,7 @@ extension CallLowerer {
                     arguments: sortedWithArguments,
                     result: result,
                     canThrow: true,
-                    thrownResult: arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.nullableAnyType
+                    thrownResult: arena.appendTemporary(type: sema.types.nullableAnyType
                     )
                 ))
                 return result
@@ -225,9 +223,7 @@ extension CallLowerer {
                     arguments: sortedArrayWithArguments,
                     result: result,
                     canThrow: true,
-                    thrownResult: arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.nullableAnyType
+                    thrownResult: arena.appendTemporary(type: sema.types.nullableAnyType
                     )
                 ))
                 return result
@@ -280,9 +276,7 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let isRangeLikeReceiver = sema.bindings.isRangeExpr(receiverExpr) || {
-                guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-                      let symbol = sema.symbols.symbol(classType.classSymbol)
-                else {
+                guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                     return false
                 }
                 let name = interner.resolve(symbol.name)

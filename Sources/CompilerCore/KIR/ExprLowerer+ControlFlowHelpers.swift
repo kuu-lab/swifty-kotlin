@@ -46,7 +46,7 @@ extension ExprLowerer {
         }
         let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
@@ -71,7 +71,7 @@ extension ExprLowerer {
         }
         let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
         instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-        let setResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: arena.exprType(valueID) ?? sema.types.anyType)
+        let setResult = arena.appendTemporary(type: arena.exprType(valueID) ?? sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
@@ -217,13 +217,9 @@ extension ExprLowerer {
                 // Allocate per-inlined-finally exception slots so that any
                 // throw inside the finally body is captured and rethrown
                 // outward rather than routed to the enclosing try's catch.
-                let exSlot = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
+                let exSlot = arena.appendTemporary(type: sema.types.nullableAnyType
                 )
-                let exTypeSlot = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: intType
+                let exTypeSlot = arena.appendTemporary(type: intType
                 )
                 let nullValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
                 let zeroValue = arena.appendExpr(.intLiteral(0), type: intType)
@@ -284,13 +280,9 @@ extension ExprLowerer {
             type: sema.types.stringType
         )
         instructions.append(.constValue(result: propertyNameExpr, value: .stringLiteral(symbolInfo.name)))
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: arena.exprType(valueExpr) ?? sema.types.anyType
+        let result = arena.appendTemporary(type: arena.exprType(valueExpr) ?? sema.types.anyType
         )
-        let thrownResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.nullableAnyType
+        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
         )
         instructions.append(.call(
             symbol: nil,

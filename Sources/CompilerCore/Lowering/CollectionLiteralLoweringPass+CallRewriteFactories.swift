@@ -76,8 +76,7 @@ extension CollectionLiteralLoweringPass {
                 // listOfNotNull(a, b, c) → create array, populate, call kk_list_of_not_null
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-                let arrayExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let arrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -110,8 +109,7 @@ extension CollectionLiteralLoweringPass {
                     } else {
                         storedArg = arg
                     }
-                    let setResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let setResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -221,8 +219,7 @@ extension CollectionLiteralLoweringPass {
                     thrownResult: nil
                 ))
                 // 2. putAll from source map (result is Unit, discarded)
-                let putAllResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let putAllResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -259,8 +256,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     closureRawID = zeroExpr
                 }
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -311,8 +307,7 @@ extension CollectionLiteralLoweringPass {
             } else {
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-                let arrayExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let arrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -345,8 +340,7 @@ extension CollectionLiteralLoweringPass {
                     } else {
                         storedArg = arg
                     }
-                    let setResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let setResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -410,8 +404,7 @@ extension CollectionLiteralLoweringPass {
                 // mapOf(pair1, pair2, ...) → kk_map_of(keysArray, valuesArray, count)
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-                let keysArrayExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let keysArrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -421,8 +414,7 @@ extension CollectionLiteralLoweringPass {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                let valuesArrayExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let valuesArrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -435,8 +427,7 @@ extension CollectionLiteralLoweringPass {
                 for (i, arg) in arguments.enumerated() {
                     let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
                     loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
-                    let keyExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let keyExpr = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -446,8 +437,7 @@ extension CollectionLiteralLoweringPass {
                         canThrow: false,
                         thrownResult: nil
                     ))
-                    let valueExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let valueExpr = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -457,8 +447,7 @@ extension CollectionLiteralLoweringPass {
                         canThrow: false,
                         thrownResult: nil
                     ))
-                    let setResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let setResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -468,8 +457,7 @@ extension CollectionLiteralLoweringPass {
                         canThrow: false,
                         thrownResult: nil
                     ))
-                    let setResult2 = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let setResult2 = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -498,8 +486,7 @@ extension CollectionLiteralLoweringPass {
             if count == 0 {
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                let emptyArrayExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let emptyArrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -520,8 +507,7 @@ extension CollectionLiteralLoweringPass {
             } else {
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-                let arrayExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let arrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -534,8 +520,7 @@ extension CollectionLiteralLoweringPass {
                 for (i, arg) in arguments.enumerated() {
                     let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
                     loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
-                    let setResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil
+                    let setResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -607,8 +592,7 @@ extension CollectionLiteralLoweringPass {
             case lookup.buildMapName: lookup.kkBuildMapName
             default: callee
             }
-            let builderResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let builderResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,

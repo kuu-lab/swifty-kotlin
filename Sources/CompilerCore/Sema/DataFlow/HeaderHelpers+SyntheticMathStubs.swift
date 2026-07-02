@@ -1,353 +1,750 @@
-/// Synthetic fallback declarations for the official kotlin.math surface used by Sema.
-/// Source stdlib declarations take precedence when imported; these stubs keep
-/// no-stdlib-search compiler tests and standalone front-end analysis resolvable.
+
+/// Synthetic stdlib top-level functions for kotlin.math (STDLIB-052).
+/// These stubs are intentionally minimal and only cover the math entry points
+/// currently needed by the compiler front-end and runtime.
 extension DataFlowSemaPhase {
     func registerSyntheticMathStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinMathPkg = ensurePackage(path: ["kotlin", "math"], symbols: symbols, interner: interner)
-        let double = types.doubleType
-        let float = types.floatType
-        let int = types.intType
-        let long = types.longType
-        let uint = types.uintType
-        let ulong = types.ulongType
+        let kotlinMathPkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("math")],
+            symbols: symbols
+        )
 
-        let unaryFloatingLinks: [(String, String, String)] = [
-            ("acos", "kk_math_acos", "kk_math_acos_float"),
-            ("acosh", "kk_math_acosh", "kk_math_acosh_float"),
-            ("asin", "kk_math_asin", "kk_math_asin_float"),
-            ("asinh", "kk_math_asinh", "kk_math_asinh_float"),
-            ("atan", "kk_math_atan", "kk_math_atan_float"),
-            ("atanh", "kk_math_atanh", "kk_math_atanh_float"),
-            ("cbrt", "kk_math_cbrt", "kk_math_cbrt_float"),
-            ("ceil", "kk_math_ceil", "kk_math_ceil_float"),
-            ("cos", "kk_math_cos", "kk_math_cos_float"),
-            ("cosh", "kk_math_cosh", "kk_math_cosh_float"),
-            ("exp", "kk_math_exp", "kk_math_exp_float"),
-            ("expm1", "kk_math_expm1", "kk_math_expm1_float"),
-            ("floor", "kk_math_floor", "kk_math_floor_float"),
-            ("ln", "kk_math_ln", "kk_math_ln_float"),
-            ("ln1p", "kk_math_ln1p", "kk_math_ln1p_float"),
-            ("log10", "kk_math_log10", "kk_math_log10_float"),
-            ("log2", "kk_math_log2", "kk_math_log2_float"),
-            ("round", "kk_math_round", "kk_math_round_float"),
-            ("sign", "kk_math_sign", "kk_math_sign_float"),
-            ("sin", "kk_math_sin", "kk_math_sin_float"),
-            ("sinh", "kk_math_sinh", "kk_math_sinh_float"),
-            ("sqrt", "kk_math_sqrt", "kk_math_sqrt_float"),
-            ("tan", "kk_math_tan", "kk_math_tan_float"),
-            ("tanh", "kk_math_tanh", "kk_math_tanh_float"),
-            ("truncate", "kk_math_truncate", "kk_math_truncate_float"),
+        registerSyntheticMathTopLevelFunction(
+            named: "abs",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.intType,
+            returnType: types.intType,
+            externalLinkName: "kk_math_abs_int",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "abs",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_abs",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "sqrt",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_sqrt",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "pow",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "x", type: types.doubleType),
+                (name: "y", type: types.doubleType),
+            ],
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_pow",
+            symbols: symbols,
+            interner: interner
+        )
+
+        let remainingFloatingMemberOverloads: [(name: String, parameters: [(name: String, type: TypeID)], returnType: TypeID, linkName: String)] = [
+            ("IEEErem", [(name: "x", type: types.doubleType), (name: "divisor", type: types.doubleType)], types.doubleType, "kk_math_IEEErem"),
+            ("IEEErem", [(name: "x", type: types.floatType), (name: "divisor", type: types.floatType)], types.floatType, "kk_math_IEEErem_float"),
+            ("nextTowards", [(name: "x", type: types.doubleType), (name: "to", type: types.doubleType)], types.doubleType, "kk_math_nextTowards"),
+            ("nextTowards", [(name: "x", type: types.floatType), (name: "to", type: types.floatType)], types.floatType, "kk_math_nextTowards_float"),
+            ("pow", [(name: "x", type: types.floatType), (name: "y", type: types.floatType)], types.floatType, "kk_math_pow_float"),
+            ("pow", [(name: "x", type: types.doubleType), (name: "n", type: types.intType)], types.doubleType, "kk_math_pow_int"),
+            ("pow", [(name: "x", type: types.floatType), (name: "n", type: types.intType)], types.floatType, "kk_math_pow_float_int"),
+            ("withSign", [(name: "x", type: types.doubleType), (name: "sign", type: types.doubleType)], types.doubleType, "kk_math_withSign"),
+            ("withSign", [(name: "x", type: types.doubleType), (name: "sign", type: types.intType)], types.doubleType, "kk_math_withSign_int"),
+            ("withSign", [(name: "x", type: types.floatType), (name: "sign", type: types.floatType)], types.floatType, "kk_math_withSign_float"),
+            ("withSign", [(name: "x", type: types.floatType), (name: "sign", type: types.intType)], types.floatType, "kk_math_withSign_float_int"),
         ]
-        for (name, doubleLink, floatLink) in unaryFloatingLinks {
-            registerSyntheticMathFunction(
-                named: name,
-                packageFQName: kotlinMathPkg,
-                parameters: [(name: "x", type: double)],
-                returnType: double,
-                externalLinkName: doubleLink,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticMathFunction(
-                named: name,
-                packageFQName: kotlinMathPkg,
-                parameters: [(name: "x", type: float)],
-                returnType: float,
-                externalLinkName: floatLink,
-                symbols: symbols,
-                interner: interner
-            )
+        for overload in remainingFloatingMemberOverloads {
+            if overload.name == "pow" {
+                registerSyntheticMathTopLevelFunction(
+                    named: overload.name,
+                    packageFQName: kotlinMathPkg,
+                    parameters: overload.parameters,
+                    returnType: overload.returnType,
+                    externalLinkName: overload.linkName,
+                    symbols: symbols,
+                    interner: interner
+                )
+            }
+            if let receiverParameter = overload.parameters.first {
+                registerSyntheticMathExtensionFunction(
+                    named: overload.name,
+                    packageFQName: kotlinMathPkg,
+                    receiverType: receiverParameter.type,
+                    parameters: Array(overload.parameters.dropFirst()),
+                    returnType: overload.returnType,
+                    externalLinkName: overload.linkName,
+                    symbols: symbols,
+                    interner: interner
+                )
+            }
         }
 
-        for (name, parameterType, returnType, link) in [
-            ("abs", int, int, "kk_math_abs_int"),
-            ("abs", long, long, "kk_math_abs_long"),
-            ("abs", double, double, "kk_math_abs"),
-            ("abs", float, float, "kk_math_abs_float"),
-            ("roundToInt", double, int, "kk_double_roundToInt"),
-            ("roundToInt", float, int, "kk_float_roundToInt"),
-            ("roundToLong", double, long, "kk_double_roundToLong"),
-            ("roundToLong", float, long, "kk_float_roundToLong"),
-            ("ulp", double, double, "kk_double_ulp"),
-            ("ulp", float, float, "kk_float_ulp"),
-            ("nextUp", double, double, "kk_double_nextUp"),
-            ("nextUp", float, float, "kk_float_nextUp"),
-            ("nextDown", double, double, "kk_double_nextDown"),
-            ("nextDown", float, float, "kk_float_nextDown"),
-        ] {
-            registerSyntheticMathFunction(
-                named: name,
-                packageFQName: kotlinMathPkg,
-                parameters: [(name: "x", type: parameterType)],
-                returnType: returnType,
-                externalLinkName: link,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        for (name, parameterType, returnType, link) in [
-            ("max", double, double, "kk_math_max"),
-            ("max", float, float, "kk_math_max_float"),
-            ("max", int, int, "kk_math_max_int"),
-            ("max", long, long, "kk_math_max_long"),
-            ("max", uint, uint, "kk_math_max_uint"),
-            ("max", ulong, ulong, "kk_math_max_ulong"),
-            ("min", double, double, "kk_math_min"),
-            ("min", float, float, "kk_math_min_float"),
-            ("min", int, int, "kk_math_min_int"),
-            ("min", long, long, "kk_math_min_long"),
-            ("min", uint, uint, "kk_math_min_uint"),
-            ("min", ulong, ulong, "kk_math_min_ulong"),
-        ] {
-            registerSyntheticMathFunction(
-                named: name,
-                packageFQName: kotlinMathPkg,
-                parameters: [(name: "a", type: parameterType), (name: "b", type: parameterType)],
-                returnType: returnType,
-                externalLinkName: link,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        for (name, parameterType, returnType, link) in [
-            ("atan2", double, double, "kk_math_atan2"),
-            ("atan2", float, float, "kk_math_atan2_float"),
-            ("hypot", double, double, "kk_math_hypot"),
-            ("hypot", float, float, "kk_math_hypot_float"),
-            ("log", double, double, "kk_math_log"),
-            ("log", float, float, "kk_math_log_float"),
-            ("pow", double, double, "kk_math_pow"),
-            ("pow", float, float, "kk_math_pow_float"),
-        ] {
-            registerSyntheticMathFunction(
-                named: name,
-                packageFQName: kotlinMathPkg,
-                parameters: [(name: "x", type: parameterType), (name: "y", type: parameterType)],
-                returnType: returnType,
-                externalLinkName: link,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        registerSyntheticMathFunction(
-            named: "pow",
+        registerSyntheticMathTopLevelFunction(
+            named: "ceil",
             packageFQName: kotlinMathPkg,
-            parameters: [(name: "x", type: double), (name: "n", type: int)],
-            returnType: double,
-            externalLinkName: "kk_math_pow_int",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticMathFunction(
-            named: "pow",
-            packageFQName: kotlinMathPkg,
-            parameters: [(name: "x", type: float), (name: "n", type: int)],
-            returnType: float,
-            externalLinkName: "kk_math_pow_float_int",
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_ceil",
             symbols: symbols,
             interner: interner
         )
 
-        registerSyntheticMathProperty(
+        registerSyntheticMathTopLevelFunction(
+            named: "floor",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_floor",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "round",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_round",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-500~509: Float overloads for trig/math functions
+        let floatType = types.floatType
+
+        for (name, linkName) in [
+            ("sin", "kk_math_sin_float"), ("cos", "kk_math_cos_float"),
+            ("tan", "kk_math_tan_float"), ("asin", "kk_math_asin_float"),
+            ("acos", "kk_math_acos_float"), ("atan", "kk_math_atan_float"),
+            ("sqrt", "kk_math_sqrt_float"), ("round", "kk_math_round_float"),
+            ("ceil", "kk_math_ceil_float"), ("floor", "kk_math_floor_float"),
+            ("abs", "kk_math_abs_float"),
+            ("exp", "kk_math_exp_float"), ("ln", "kk_math_ln_float"),
+            ("expm1", "kk_math_expm1_float"), ("ln1p", "kk_math_ln1p_float"),
+            ("log2", "kk_math_log2_float"), ("log10", "kk_math_log10_float"),
+            ("sign", "kk_math_sign_float"),
+            // STDLIB-MATH-109: Hyperbolic and cbrt Float overloads
+            ("sinh", "kk_math_sinh_float"), ("cosh", "kk_math_cosh_float"),
+            ("tanh", "kk_math_tanh_float"), ("cbrt", "kk_math_cbrt_float"),
+            // STDLIB-MATH-113: Inverse hyperbolic Float overloads
+            ("acosh", "kk_math_acosh_float"), ("asinh", "kk_math_asinh_float"),
+            ("atanh", "kk_math_atanh_float"),
+        ] {
+            registerSyntheticMathTopLevelFunction(
+                named: name,
+                packageFQName: kotlinMathPkg,
+                parameterName: "x",
+                parameterType: floatType,
+                returnType: floatType,
+                externalLinkName: linkName,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        registerSyntheticMathTopLevelFunction(
+            named: "atan2",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "y", type: floatType),
+                (name: "x", type: floatType),
+            ],
+            returnType: floatType,
+            externalLinkName: "kk_math_atan2_float",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "log",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "x", type: floatType),
+                (name: "base", type: floatType),
+            ],
+            returnType: floatType,
+            externalLinkName: "kk_math_log_float",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "hypot",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "x", type: floatType),
+                (name: "y", type: floatType),
+            ],
+            returnType: floatType,
+            externalLinkName: "kk_math_hypot_float",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-510~511: roundToInt / roundToLong extension functions
+        registerSyntheticMathTopLevelFunction(
+            named: "roundToInt",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: floatType,
+            returnType: types.intType,
+            externalLinkName: "kk_float_roundToInt",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "roundToInt",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.intType,
+            externalLinkName: "kk_double_roundToInt",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "roundToLong",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: floatType,
+            returnType: types.longType,
+            externalLinkName: "kk_float_roundToLong",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "roundToLong",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.longType,
+            externalLinkName: "kk_double_roundToLong",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-512~513: ulp / nextUp / nextDown extension properties
+        registerSyntheticMathTopLevelFunction(
+            named: "ulp",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_double_ulp",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "nextUp",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_double_nextUp",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "nextDown",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_double_nextDown",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "ulp",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: floatType,
+            returnType: floatType,
+            externalLinkName: "kk_float_ulp",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "nextUp",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: floatType,
+            returnType: floatType,
+            externalLinkName: "kk_float_nextUp",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "nextDown",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: floatType,
+            returnType: floatType,
+            externalLinkName: "kk_float_nextDown",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-514: abs(Long), truncate
+
+        registerSyntheticMathTopLevelFunction(
+            named: "abs",
+            packageFQName: kotlinMathPkg,
+            parameterName: "n",
+            parameterType: types.longType,
+            returnType: types.longType,
+            externalLinkName: "kk_math_abs_long",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "truncate",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_truncate",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "truncate",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: floatType,
+            returnType: floatType,
+            externalLinkName: "kk_math_truncate_float",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Trigonometric functions (STDLIB-430) — Double variants
+        registerSyntheticMathTopLevelFunction(
+            named: "sin",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_sin",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "cos",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_cos",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "tan",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_tan",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "asin",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_asin",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "acos",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_acos",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "atan",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_atan",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "atan2",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "y", type: types.doubleType),
+                (name: "x", type: types.doubleType),
+            ],
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_atan2",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-431: exp/ln/log functions
+
+        registerSyntheticMathTopLevelFunction(
+            named: "exp",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_exp",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "expm1",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_expm1",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "ln",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_ln",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "ln1p",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_ln1p",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "log2",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_log2",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "log10",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_log10",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "log",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "x", type: types.doubleType),
+                (name: "base", type: types.doubleType),
+            ],
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_log",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-MATH-109: Hyperbolic functions and cbrt (Double)
+        registerSyntheticMathTopLevelFunction(
+            named: "sinh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_sinh",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "cosh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_cosh",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "tanh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_tanh",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "cbrt",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_cbrt",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-MATH-113: Inverse hyperbolic functions (Double)
+        registerSyntheticMathTopLevelFunction(
+            named: "acosh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_acosh",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "asinh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_asinh",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "atanh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_atanh",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-432: sign/hypot + PI/E constants
+
+        registerSyntheticMathTopLevelFunction(
+            named: "sign",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_sign",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticMathTopLevelFunction(
+            named: "hypot",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "x", type: types.doubleType),
+                (name: "y", type: types.doubleType),
+            ],
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_hypot",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-MATH-006: max/min overload matrix.
+        let minMaxOverloads: [(name: String, type: TypeID, linkName: String)] = [
+            ("max", types.doubleType, "kk_math_max"),
+            ("max", floatType, "kk_math_max_float"),
+            ("max", types.intType, "kk_math_max_int"),
+            ("max", types.longType, "kk_math_max_long"),
+            ("max", types.uintType, "kk_math_max_uint"),
+            ("max", types.ulongType, "kk_math_max_ulong"),
+            ("min", types.doubleType, "kk_math_min"),
+            ("min", floatType, "kk_math_min_float"),
+            ("min", types.intType, "kk_math_min_int"),
+            ("min", types.longType, "kk_math_min_long"),
+            ("min", types.uintType, "kk_math_min_uint"),
+            ("min", types.ulongType, "kk_math_min_ulong"),
+        ]
+        for overload in minMaxOverloads {
+            registerSyntheticMathTopLevelFunction(
+                named: overload.name,
+                packageFQName: kotlinMathPkg,
+                parameters: [
+                    (name: "a", type: overload.type),
+                    (name: "b", type: overload.type),
+                ],
+                returnType: overload.type,
+                externalLinkName: overload.linkName,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        registerSyntheticMathTopLevelProperty(
             named: "PI",
             packageFQName: kotlinMathPkg,
-            returnType: double,
+            returnType: types.doubleType,
             externalLinkName: "kk_math_PI",
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticMathProperty(
+
+        registerSyntheticMathTopLevelProperty(
             named: "E",
             packageFQName: kotlinMathPkg,
-            returnType: double,
+            returnType: types.doubleType,
             externalLinkName: "kk_math_E",
             symbols: symbols,
             interner: interner
         )
 
-        for (name, receiverType, returnType, link) in [
-            ("IEEErem", double, double, "kk_math_IEEErem"),
-            ("IEEErem", float, float, "kk_math_IEEErem_float"),
-            ("nextTowards", double, double, "kk_math_nextTowards"),
-            ("nextTowards", float, float, "kk_math_nextTowards_float"),
-            ("pow", double, double, "kk_math_pow"),
-            ("pow", float, float, "kk_math_pow_float"),
-        ] {
-            registerSyntheticMathFunction(
-                named: name,
-                packageFQName: kotlinMathPkg,
-                receiverType: receiverType,
-                parameters: [(name: "other", type: receiverType)],
-                returnType: returnType,
-                externalLinkName: link,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        registerSyntheticMathFunction(
-            named: "pow",
-            packageFQName: kotlinMathPkg,
-            receiverType: double,
-            parameters: [(name: "n", type: int)],
-            returnType: double,
-            externalLinkName: "kk_math_pow_int",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticMathFunction(
-            named: "pow",
-            packageFQName: kotlinMathPkg,
-            receiverType: float,
-            parameters: [(name: "n", type: int)],
-            returnType: float,
-            externalLinkName: "kk_math_pow_float_int",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticMathFunction(
-            named: "withSign",
-            packageFQName: kotlinMathPkg,
-            receiverType: double,
-            parameters: [(name: "sign", type: double)],
-            returnType: double,
-            externalLinkName: "kk_math_withSign",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticMathFunction(
-            named: "withSign",
-            packageFQName: kotlinMathPkg,
-            receiverType: double,
-            parameters: [(name: "sign", type: int)],
-            returnType: double,
-            externalLinkName: "kk_math_withSign_int",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticMathFunction(
-            named: "withSign",
-            packageFQName: kotlinMathPkg,
-            receiverType: float,
-            parameters: [(name: "sign", type: float)],
-            returnType: float,
-            externalLinkName: "kk_math_withSign_float",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticMathFunction(
-            named: "withSign",
-            packageFQName: kotlinMathPkg,
-            receiverType: float,
-            parameters: [(name: "sign", type: int)],
-            returnType: float,
-            externalLinkName: "kk_math_withSign_float_int",
-            symbols: symbols,
-            interner: interner
-        )
-
-        for (name, receiverType, returnType, link) in [
-            ("absoluteValue", double, double, "kk_math_abs"),
-            ("absoluteValue", float, float, "kk_math_abs_float"),
-            ("absoluteValue", int, int, "kk_math_abs_int"),
-            ("absoluteValue", long, long, "kk_math_abs_long"),
-            ("sign", double, double, "kk_math_sign"),
-            ("sign", float, float, "kk_math_sign_float"),
-            ("sign", int, int, "kk_math_sign_int"),
-            ("sign", long, int, "kk_math_sign_long"),
-            ("ulp", double, double, "kk_double_ulp"),
-            ("ulp", float, float, "kk_float_ulp"),
+        // STDLIB-MATH-004: official kotlin.math extension property surface.
+        for property in [
+            (name: "absoluteValue", receiverType: types.doubleType, returnType: types.doubleType, linkName: "kk_math_abs"),
+            (name: "absoluteValue", receiverType: floatType, returnType: floatType, linkName: "kk_math_abs_float"),
+            (name: "absoluteValue", receiverType: types.intType, returnType: types.intType, linkName: "kk_math_abs_int"),
+            (name: "absoluteValue", receiverType: types.longType, returnType: types.longType, linkName: "kk_math_abs_long"),
+            (name: "sign", receiverType: types.doubleType, returnType: types.doubleType, linkName: "kk_math_sign"),
+            (name: "sign", receiverType: floatType, returnType: floatType, linkName: "kk_math_sign_float"),
+            (name: "sign", receiverType: types.intType, returnType: types.intType, linkName: "kk_math_sign_int"),
+            (name: "sign", receiverType: types.longType, returnType: types.intType, linkName: "kk_math_sign_long"),
+            (name: "ulp", receiverType: types.doubleType, returnType: types.doubleType, linkName: "kk_double_ulp"),
+            (name: "ulp", receiverType: floatType, returnType: floatType, linkName: "kk_float_ulp"),
         ] {
             registerSyntheticMathExtensionProperty(
-                named: name,
+                named: property.name,
                 packageFQName: kotlinMathPkg,
-                receiverType: receiverType,
-                returnType: returnType,
-                externalLinkName: link,
+                receiverType: property.receiverType,
+                returnType: property.returnType,
+                externalLinkName: property.linkName,
                 symbols: symbols,
                 interner: interner
             )
         }
+
     }
 
-    private func registerSyntheticMathFunction(
+    private func registerSyntheticMathTopLevelFunction(
         named name: String,
         packageFQName: [InternedString],
-        receiverType: TypeID? = nil,
+        parameterName: String,
+        parameterType: TypeID,
+        returnType: TypeID,
+        externalLinkName: String,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        registerSyntheticMathTopLevelFunction(
+            named: name,
+            packageFQName: packageFQName,
+            parameters: [(name: parameterName, type: parameterType)],
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    private func registerSyntheticMathTopLevelFunction(
+        named name: String,
+        packageFQName: [InternedString],
         parameters: [(name: String, type: TypeID)],
         returnType: TypeID,
         externalLinkName: String,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes == parameters.map(\.type)
-                && signature.returnType == returnType
-        }) {
-            let existingFlags = symbols.symbol(existing)?.flags ?? []
-            if existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-            }
-            return
-        }
-        if hasSourceOrImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameters.map(\.type),
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: functionSymbol
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: packageFQName,
+            parentSymbol: symbols.lookup(fqName: packageFQName),
+            parameters: syntheticFunctionParameters(parameters),
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            matchReturnType: true,
+            symbols: symbols,
+            interner: interner
         )
     }
 
-    private func registerSyntheticMathProperty(
+    private func registerSyntheticMathExtensionFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        externalLinkName: String,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: packageFQName,
+            parentSymbol: symbols.lookup(fqName: packageFQName),
+            receiverType: receiverType,
+            parameters: syntheticFunctionParameters(parameters),
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            matchReturnType: true,
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    private func registerSyntheticMathTopLevelProperty(
         named name: String,
         packageFQName: [InternedString],
         returnType: TypeID,
@@ -360,14 +757,8 @@ extension DataFlowSemaPhase {
         if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
             symbols.symbol(symbolID)?.kind == .property
         }) {
-            let existingFlags = symbols.symbol(existing)?.flags ?? []
-            if existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-                symbols.setPropertyType(returnType, for: existing)
-            }
-            return
-        }
-        if hasSourceOrImportedLibrarySymbol(fqName: propertyFQName, kind: .property, symbols: symbols) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            symbols.setPropertyType(returnType, for: existing)
             return
         }
 
@@ -401,26 +792,19 @@ extension DataFlowSemaPhase {
             symbols.symbol(symbolID)?.kind == .property
                 && symbols.extensionPropertyReceiverType(for: symbolID) == receiverType
         }) {
-            let existingFlags = symbols.symbol(existing)?.flags ?? []
-            let shouldPatchSynthetic = existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary)
-            if shouldPatchSynthetic {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-                symbols.setPropertyType(returnType, for: existing)
-                if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
-                    symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
-                    symbols.setFunctionSignature(
-                        FunctionSignature(
-                            receiverType: receiverType,
-                            parameterTypes: [],
-                            returnType: returnType
-                        ),
-                        for: getterSymbol
-                    )
-                }
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            symbols.setPropertyType(returnType, for: existing)
+            if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [],
+                        returnType: returnType
+                    ),
+                    for: getterSymbol
+                )
+                symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
             }
-            return
-        }
-        if hasSourceOrImportedLibrarySymbol(fqName: propertyFQName, kind: .property, symbols: symbols) {
             return
         }
 

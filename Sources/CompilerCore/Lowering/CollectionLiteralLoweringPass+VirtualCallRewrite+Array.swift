@@ -25,8 +25,7 @@ extension CollectionLiteralLoweringPass {
 
         // toList on array → kk_array_toList (result is List)
         if callee == lookup.toListName, arguments.isEmpty {
-            let toListResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toListResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -46,8 +45,7 @@ extension CollectionLiteralLoweringPass {
 
         // toMutableList on array → kk_array_toMutableList (result is MutableList)
         if callee == lookup.toMutableListName, arguments.isEmpty {
-            let toMutableListResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let toMutableListResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -123,8 +121,7 @@ extension CollectionLiteralLoweringPass {
 
         // copyOf on array → kk_array_copyOf* (result is Array)
         if callee == lookup.copyOfName, arguments.isEmpty || arguments.count == 1 || arguments.count == 2 || arguments.count == 3 {
-            let copyResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let copyResult = module.arena.appendTemporary(type: nil
             )
             let runtimeCallee: InternedString
             let runtimeArguments: [KIRExprID]
@@ -168,8 +165,7 @@ extension CollectionLiteralLoweringPass {
 
         // copyOfRange on array → kk_array_copyOfRange (result is Array)
         if callee == lookup.copyOfRangeName, arguments.count == 2 {
-            let copyResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let copyResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,

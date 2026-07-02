@@ -58,7 +58,10 @@ extension CallLowerer {
                 instructions.append(.constValue(result: paddingArg, value: .intLiteral(Int64(rawValue))))
             } else {
                 paddingArg = emitNonThrowingCall(
-                    callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
+                    callee: BoxingCalleeTable(interner: interner).unboxCallee(
+                        for: .primitive(.int, .nonNull),
+                        requireNonNull: true
+                    )!,
                     arg: loweredArgIDs[0],
                     resultType: sema.types.intType,
                     arena: arena,

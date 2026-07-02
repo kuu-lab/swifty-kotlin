@@ -10,7 +10,10 @@ extension CollectionLiteralLoweringPass {
         types: TypeSystem,
         interner: StringInterner
     ) -> InternedString? {
-        ABILoweringPass.primitiveBoxingCallee(for: types.kind(of: type), interner: interner)
+        BoxingCalleeTable(interner: interner).boxCallee(
+            for: types.kind(of: type),
+            requireNonNull: false
+        )
     }
 
     func boxedBuildStringTextArgumentIfNeeded(
@@ -102,9 +105,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         let nonNullType = sema.types.makeNonNullable(argumentType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
 
