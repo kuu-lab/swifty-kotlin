@@ -31,10 +31,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
 
             let module = try XCTUnwrap(ctx.kir)
             var allCallees: [String] = []
-            for decl in module.arena.declarations {
-                guard case let .function(function) = decl else {
-                    continue
-                }
+            for function in findAllKIRFunctions(in: module) {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
@@ -71,10 +68,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
 
             let module = try XCTUnwrap(ctx.kir)
             var collectCallArgs: [KIRExprID]?
-            for decl in module.arena.declarations {
-                guard case let .function(function) = decl else {
-                    continue
-                }
+            for function in findAllKIRFunctions(in: module) {
                 for instruction in function.body {
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
                           ctx.interner.resolve(callee) == "kk_flow_collect"
@@ -99,10 +93,9 @@ final class LoweringFlowCodegenTests: XCTestCase {
                 return
             }
 
-            let collectorFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
-                return function.symbol == collectorSymbol ? function : nil
-            }.first
+            let collectorFunction = findAllKIRFunctions(in: module).first { function in
+                function.symbol == collectorSymbol
+            }
             let collectorName = collectorFunction.map { ctx.interner.resolve($0.name) } ?? ""
             XCTAssertTrue(
                 collectorName.hasPrefix("kk_suspend_"),
@@ -164,10 +157,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
             try LoweringPhase().run(ctx)
 
             let module = try XCTUnwrap(ctx.kir)
-            let collectCalls = module.arena.declarations.compactMap { decl -> Int? in
-                guard case let .function(function) = decl else {
-                    return nil
-                }
+            let collectCalls = findAllKIRFunctions(in: module).compactMap { function -> Int? in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
                 let collectCount = callees.filter { $0 == "kk_flow_collect" }.count
                 return collectCount == 0 ? nil : collectCount
@@ -202,10 +192,7 @@ final class LoweringFlowCodegenTests: XCTestCase {
 
             let module = try XCTUnwrap(ctx.kir)
             var allCallees: [String] = []
-            for decl in module.arena.declarations {
-                guard case let .function(function) = decl else {
-                    continue
-                }
+            for function in findAllKIRFunctions(in: module) {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 

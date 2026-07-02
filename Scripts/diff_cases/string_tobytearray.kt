@@ -1,4 +1,4 @@
-// SKIP-DIFF: ByteArray.joinToString / contentEquals not yet stubbed in kswiftc Sema
+// SKIP-DIFF (DEBT-DIFF-005): ByteArray.joinToString / contentEquals not yet stubbed in kswiftc Sema
 fun main() {
     // Basic encodeToByteArray
     val abc = "abc".encodeToByteArray()

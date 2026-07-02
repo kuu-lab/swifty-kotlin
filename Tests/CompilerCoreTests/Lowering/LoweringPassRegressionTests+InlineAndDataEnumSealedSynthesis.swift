@@ -91,7 +91,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -195,11 +195,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
         #expect(functionNames.contains("Color$enumValuesCount"))
         #expect(functionNames.contains("Base$sealedSubtypeCount"))
@@ -216,7 +213,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -272,11 +269,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
 
         // Verify count helper still exists
@@ -356,7 +350,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -450,11 +444,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
         #expect(functionNames.contains("hashCode"), "Missing hashCode, got: \(functionNames)")
 
@@ -485,7 +476,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -578,7 +569,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -678,7 +669,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
@@ -855,11 +846,8 @@ extension LoweringPassRegressionTests {
 
         try LoweringPhase().run(ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else {
-                return nil
-            }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
 
         // Verify toString and equals are synthesized
@@ -909,7 +897,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -981,7 +969,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -1086,7 +1074,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -1181,7 +1169,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]
@@ -1267,7 +1255,7 @@ extension LoweringPassRegressionTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
         let bindings = BindingTable()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         let packageName = interner.intern("test")
         let packagePath = [packageName]

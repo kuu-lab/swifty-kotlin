@@ -153,7 +153,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -196,9 +196,8 @@ extension LoweringPassRegressionTests {
             "Expected direct lambda call to be replaced by closure invoke")
 
         // Verify synthesized declarations were added.
-        let allFunctionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else { return nil }
-            return interner.resolve(function.name)
+        let allFunctionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
         #expect(allFunctionNames.contains(invokeWrapperName),
             "Expected invoke wrapper function to be synthesized")
@@ -381,7 +380,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -401,8 +400,7 @@ extension LoweringPassRegressionTests {
 
         // Find the synthesized invoke wrapper.
         let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
-        let invokeWrapper = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl else { return nil }
+        let invokeWrapper = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
             return interner.resolve(function.name) == invokeWrapperName ? function : nil
         }.first
 
@@ -489,9 +487,8 @@ extension LoweringPassRegressionTests {
         #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        let synthesizedNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else { return nil }
-            return interner.resolve(function.name)
+        let synthesizedNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
         #expect(!synthesizedNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
     }
@@ -565,7 +562,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -678,9 +675,8 @@ extension LoweringPassRegressionTests {
         #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else { return nil }
-            return interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            interner.resolve(function.name)
         }
         #expect(!functionNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
     }
@@ -772,7 +768,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -812,8 +808,7 @@ extension LoweringPassRegressionTests {
             "Expected invoke wrapper to be called")
 
         // Verify the invoke wrapper loads two captures.
-        let invokeWrapper = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl else { return nil }
+        let invokeWrapper = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
             return interner.resolve(function.name) == invokeWrapperName ? function : nil
         }.first
 
@@ -901,7 +896,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -1083,7 +1078,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -1101,8 +1096,7 @@ extension LoweringPassRegressionTests {
         try pass.run(module: module, ctx: ctx)
 
         let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
-        let invokeWrapper = module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl else { return nil }
+        let invokeWrapper = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
             return interner.resolve(function.name) == invokeWrapperName ? function : nil
         }.first
 
@@ -1183,7 +1177,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(

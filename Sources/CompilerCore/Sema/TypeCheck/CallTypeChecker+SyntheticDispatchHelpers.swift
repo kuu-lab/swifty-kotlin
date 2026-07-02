@@ -95,6 +95,39 @@ extension CallTypeChecker {
         }
     }
 
+    func topLevelStdlibSpecialCallKind(
+        calleeName: InternedString,
+        argCount: Int,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext,
+        rejectNonSyntheticShadow: Bool
+    ) -> StdlibSpecialCallKind? {
+        if locals[calleeName] != nil {
+            return nil
+        }
+        if rejectNonSyntheticShadow,
+           isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+        {
+            return nil
+        }
+        let visibleCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        for candidate in visibleCandidates {
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  symbol.flags.contains(.synthetic),
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  signature.receiverType == nil,
+                  signature.parameterTypes.count == argCount
+            else {
+                continue
+            }
+            if let kind = ctx.sema.symbols.stdlibSpecialCallKind(forSymbol: candidate) {
+                return kind
+            }
+        }
+        return nil
+    }
+
     /// Returns true when there is a synthetic symbol visible under `name` whose
     /// fully-qualified name matches `fqComponents`.  Used to guard stdlib
     /// special-call paths so that identically-named user or third-party

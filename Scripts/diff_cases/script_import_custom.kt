@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-002): script-style diff runner parity / timeout tracking
 // カスタム拡張関数
 fun String.isPalindrome(): Boolean {
     return this == this.reversed()

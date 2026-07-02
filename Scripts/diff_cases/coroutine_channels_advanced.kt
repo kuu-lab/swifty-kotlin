@@ -1,4 +1,4 @@
-// SKIP-DIFF: advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
+// SKIP-DIFF (DEBT-DIFF-003): advanced coroutine APIs (CoroutineScope, ReceiveChannel, produce) not yet implemented
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 

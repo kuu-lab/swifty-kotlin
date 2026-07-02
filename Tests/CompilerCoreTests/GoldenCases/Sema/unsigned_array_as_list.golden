@@ -21,7 +21,7 @@ symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthe
 symbol fq=kotlin.ubyteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UByte] ret=kotlin.UByteArray vararg=[1]
 symbol fq=kotlin.uintArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UInt] ret=kotlin.UIntArray vararg=[1]
 symbol fq=kotlin.ushortArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UShort] ret=kotlin.UShortArray vararg=[1]
-file f14 package=golden.sema
+file f15 package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:31#0 int(1) type=Int
 expr e@4:31#1 memberCall recv=e@4:31#0 callee=toUByte args=[] type=UByte

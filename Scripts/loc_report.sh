@@ -16,7 +16,7 @@ Metrics:
   header_helpers_synthetic_total_lines     Physical lines in HeaderHelpers+Synthetic*.swift files
   kir_lowering_todo_fixme_count            TODO/FIXME markers remaining in KIR and Lowering Swift sources
   kk_literal_count                         Occurrences of string literals beginning with "kk_ in Swift/Kotlin sources
-  interner_resolve_literal_comparison_count Occurrences of interner.resolve == "..." in Swift sources
+  interner_resolve_literal_comparison_count Occurrences of interner.resolve(...) == "..." in Swift sources
 USAGE
 }
 
@@ -109,4 +109,4 @@ printf 'kir_lowering_todo_fixme_count\tSources/CompilerCore/{KIR,Lowering}/*.swi
 printf 'kk_literal_count\tSwift/Kotlin sources\t%s\n' \
   "$(count_regex_occurrences '"kk_[^"]*"' "${SWIFT_AND_KOTLIN_FILES[@]}")"
 printf 'interner_resolve_literal_comparison_count\tSwift sources\t%s\n' \
-  "$(count_regex_occurrences 'interner\.resolve[[:space:]]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"
+  "$(count_regex_occurrences 'interner\.resolve[^=]*==[[:space:]]*"[^"]+"' "${SWIFT_FILES[@]}")"

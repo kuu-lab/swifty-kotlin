@@ -322,12 +322,7 @@ extension BuildKIRRegressionTests {
             )
 
             let module = try #require(ctx.kir)
-            let allFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else {
-                    return nil
-                }
-                return function
-            }
+            let allFunctions = findAllKIRFunctions(in: module)
 
             let localSuspendFunction = try #require(allFunctions.first(where: { function in
                 ctx.interner.resolve(function.name) == "localSuspendBridge"

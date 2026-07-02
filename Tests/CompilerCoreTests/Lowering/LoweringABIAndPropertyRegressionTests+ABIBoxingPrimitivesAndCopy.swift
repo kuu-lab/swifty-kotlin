@@ -65,7 +65,7 @@ extension LoweringABIAndPropertyRegressionTests {
             _ = testArena.appendDecl(.function(targetFn))
             let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: testArena)
 
-            let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+            let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
             _ = try runLowering(module: module, interner: interner, moduleName: "ABIBoxAll_\(index)", sema: sema)
 
             let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
@@ -103,7 +103,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(function))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         _ = try runLowering(module: module, interner: interner, moduleName: "ABICopyNullableBox", sema: sema)
 
         let lowered = try findKIRFunction(named: "copyNullableBox", in: module, interner: interner)
