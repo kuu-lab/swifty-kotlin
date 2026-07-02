@@ -94,5 +94,9 @@ final class RuntimeResultTests: XCTestCase {
 
         XCTAssertEqual(kk_result_component1(runtimeNullSentinelInt), runtimeNullSentinelInt)
         XCTAssertEqual(kk_result_component2(runtimeNullSentinelInt), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_result_isSuccess(runtimeNullSentinelInt), 0)
+        XCTAssertEqual(kk_result_isFailure(runtimeNullSentinelInt), 1)
+        XCTAssertEqual(kk_result_getOrNull(runtimeNullSentinelInt), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_result_getOrDefault(runtimeNullSentinelInt, 7), 7)
     }
 }
