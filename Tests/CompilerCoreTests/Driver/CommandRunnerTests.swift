@@ -3,28 +3,68 @@
 import Foundation
 import Testing
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 @Suite
 struct CommandRunnerTests {
+    private static let pathEnvironmentLock = NSLock()
+
     // MARK: - resolveExecutable
 
     @Test
     func testResolveExecutableFindsExistingCommand() {
-        let resolved = CommandRunner.resolveExecutable("ls", fallback: "/nonexistent/ls")
-        #expect(resolved.hasSuffix("/ls"), "Expected resolved path to end with /ls, got: \(resolved)")
-        #expect(resolved != "/nonexistent/ls", "Should have found ls in PATH")
+        Self.withPathEnvironmentLock {
+            let resolved = CommandRunner.resolveExecutable("ls", fallback: "/nonexistent/ls")
+            #expect(resolved.hasSuffix("/ls"), "Expected resolved path to end with /ls, got: \(resolved)")
+            #expect(resolved != "/nonexistent/ls", "Should have found ls in PATH")
+        }
     }
 
     @Test
     func testResolveExecutableFallsBackForMissingCommand() {
-        let fallback = "/this/path/does/not/exist/in/PATH"
-        let resolved = CommandRunner.resolveExecutable("__command_that_definitely_does_not_exist__", fallback: fallback)
-        #expect(resolved == fallback)
+        Self.withPathEnvironmentLock {
+            let fallback = "/this/path/does/not/exist/in/PATH"
+            let resolved = CommandRunner.resolveExecutable("__command_that_definitely_does_not_exist__", fallback: fallback)
+            #expect(resolved == fallback)
+        }
     }
 
     @Test
     func testResolveExecutableReturnsFullPath() {
-        let resolved = CommandRunner.resolveExecutable("echo", fallback: "/bin/echo")
-        #expect(resolved.hasPrefix("/"), "Resolved path should be absolute, got: \(resolved)")
+        Self.withPathEnvironmentLock {
+            let resolved = CommandRunner.resolveExecutable("echo", fallback: "/bin/echo")
+            #expect(resolved.hasPrefix("/"), "Resolved path should be absolute, got: \(resolved)")
+        }
+    }
+
+    @Test
+    func testResolveExecutableSkipsUntrustedPATHDirectory() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let directory = try makeTemporaryToolDirectory(permissions: 0o777, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try Self.withTemporaryPath([directory.path]) {
+            let resolved = CommandRunner.resolveExecutable(toolName, fallback: fallback)
+            #expect(resolved == fallback)
+        }
+    }
+
+    @Test
+    func testResolveExecutableReturnsTrustedPATHDirectoryExecutable() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let directory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try Self.withTemporaryPath([directory.path]) {
+            let fallback = "/this/path/does/not/exist/\(toolName)"
+            let resolved = CommandRunner.resolveExecutable(toolName, fallback: fallback)
+            #expect(resolved == directory.appendingPathComponent(toolName).path)
+        }
     }
 
     // MARK: - run: stdout / exit code
@@ -161,6 +201,48 @@ struct CommandRunnerTests {
             normalized == tmpDir || normalized == resolvedTmp || normalized.hasPrefix("/private"),
             "Expected pwd output to match tmpDir, got: \(normalized)"
         )
+    }
+
+    private static func withPathEnvironmentLock<T>(_ body: () throws -> T) rethrows -> T {
+        pathEnvironmentLock.lock()
+        defer { pathEnvironmentLock.unlock() }
+        return try body()
+    }
+
+    private static func withTemporaryPath<T>(_ directories: [String], body: () throws -> T) throws -> T {
+        try withPathEnvironmentLock {
+            let previousPath = getenv("PATH").map { String(cString: $0) }
+            setenv("PATH", directories.joined(separator: ":"), 1)
+            defer {
+                if let previousPath {
+                    setenv("PATH", previousPath, 1)
+                } else {
+                    unsetenv("PATH")
+                }
+            }
+            return try body()
+        }
+    }
+
+    private func makeTemporaryToolDirectory(permissions: Int16, toolName: String) throws -> URL {
+        let fileManager = FileManager.default
+        let directory = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: permissions)],
+            ofItemAtPath: directory.path
+        )
+
+        let toolURL = directory.appendingPathComponent(toolName)
+        let script = "#!/bin/sh\nexit 0\n"
+        guard fileManager.createFile(atPath: toolURL.path, contents: script.data(using: .utf8)) else {
+            throw NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue)
+        }
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: toolURL.path
+        )
+        return directory
     }
 }
 #endif
