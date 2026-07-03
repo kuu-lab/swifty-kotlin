@@ -239,7 +239,7 @@ final class StableRenderContext {
             collectTypeSymbols(kc.argument, into: &queue)
         case let .intersection(parts):
             for part in parts { collectTypeSymbols(part, into: &queue) }
-        case .error, .unit, .nothing, .any, .primitive:
+        case .error, .unit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }

@@ -1,6 +1,21 @@
 @testable import Runtime
 import XCTest
 
+// STDLIB-ASSERT-001: Edge case coverage for Kotlin assertion APIs.
+//
+// Covers:
+//  - assert(value) / assert(value, lazyMessage)        -> AssertionError
+//  - check(value) / check(value, lazyMessage)          -> IllegalStateException
+//  - require(value) / require(value, lazyMessage)      -> IllegalArgumentException
+//  - error(message)                                    -> IllegalStateException (always)
+//  - lazy message not evaluated when condition is true
+//  - message toString behavior (null sentinel, Int box, Bool box)
+//  - exception type discrimination
+//
+// NOTE: checkNotNull / requireNotNull runtime entry points (kk_check_not_null /
+// kk_require_not_null) are not yet implemented in Sources/Runtime/RuntimePreconditions.swift.
+// Those APIs are tracked as a known gap — see PR body for STDLIB-ASSERT-001.
+
 // Helpers for constructing runtime string boxes to pass as message arguments.
 private func makeRuntimeString(_ value: String) -> Int {
     value.withCString { cstr in

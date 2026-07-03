@@ -19,6 +19,8 @@ extension TypeSystem {
                 return nullabilitySubtype(.nullable, n)
             case let .nothing(n):
                 return nullabilitySubtype(.nullable, n)
+            case let .stringStruct(n):
+                return nullabilitySubtype(.nullable, n)
             case let .primitive(_, n):
                 return nullabilitySubtype(.nullable, n)
             case let .classType(ct):
@@ -62,6 +64,8 @@ extension TypeSystem {
             switch lhs {
             case .any(.nonNull), .any(.platformType), .unit, .nothing(.nonNull):
                 return true
+            case let .stringStruct(nullability):
+                return nullabilitySubtype(nullability, .nonNull)
             case let .primitive(_, nullability):
                 return nullabilitySubtype(nullability, .nonNull)
             case let .classType(classType):
@@ -81,7 +85,7 @@ extension TypeSystem {
 
         // Treat Kotlin String as a subtype of kotlin.CharSequence so that
         // the synthetic CharSequence overloads can reuse the String runtime ABI.
-        if case let .primitive(.string, lhsNullability) = lhs,
+        if case let .stringStruct(lhsNullability) = lhs,
            case let .classType(rhsClass) = rhs,
            let charSequenceSym = charSequenceInterfaceSymbol,
            rhsClass.classSymbol == charSequenceSym
@@ -146,6 +150,23 @@ extension TypeSystem {
             return true
         }
 
+        // String is an aggregate value in the compiler, but it remains a
+        // source-level kotlin.String and implements Comparable<String>.
+        if case let .stringStruct(leftNullability) = lhs,
+           case let .classType(rightClass) = rhs,
+           let comparableSym = comparableInterfaceSymbol,
+           rightClass.classSymbol == comparableSym,
+           rightClass.args.count == 1,
+           nullabilitySubtype(leftNullability, rightClass.nullability)
+        {
+            switch rightClass.args[0] {
+            case let .in(argType), let .invariant(argType):
+                return argType == subtype
+            case .out, .star:
+                return false
+            }
+        }
+
         // primitive <: Number  (Int, Long, Float, Double, Byte, Short are subclasses of kotlin.Number)
         if case let .primitive(leftPrimitive, leftNullability) = lhs,
            case let .classType(rightClass) = rhs,
@@ -170,6 +191,9 @@ extension TypeSystem {
 
         case let (.primitive(leftPrimitive, leftNullability), .primitive(rightPrimitive, rightNullability)):
             return leftPrimitive == rightPrimitive && nullabilitySubtype(leftNullability, rightNullability)
+
+        case let (.stringStruct(leftNullability), .stringStruct(rightNullability)):
+            return nullabilitySubtype(leftNullability, rightNullability)
 
         case let (.classType(leftClass), .classType(rightClass)):
             guard nullabilitySubtype(leftClass.nullability, rightClass.nullability) else {

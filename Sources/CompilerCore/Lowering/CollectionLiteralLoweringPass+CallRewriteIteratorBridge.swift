@@ -103,7 +103,7 @@ extension CollectionLiteralLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-189: Rewrite kk_range_iterator on String → kk_string_iterator
+            // STDLIB-189: Rewrite kk_range_iterator on String -> kk_string_iterator_flat
             if state.stringExprIDs.contains(argID.rawValue) {
                 if let result { state.stringIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(

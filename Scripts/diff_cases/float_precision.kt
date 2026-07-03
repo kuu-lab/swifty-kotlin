@@ -1,6 +1,8 @@
 // STDLIB-NUM-130: Floating-point precision complete implementation
 // Tests: isNaN, isInfinite, isFinite, ulp, nextUp, nextDown, toBits, toRawBits, fromBits
 
+import kotlin.math.*
+
 fun main() {
     // isNaN
     println(Double.NaN.isNaN())                    // true

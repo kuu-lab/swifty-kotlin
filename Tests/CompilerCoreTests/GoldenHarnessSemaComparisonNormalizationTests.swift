@@ -10,6 +10,7 @@ struct GoldenHarnessSemaComparisonNormalizationTests {
         symbol fq=sample.wrap kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=Int
         symbol fq=sample.wrap.$300.value kind=valueParameter vis=private flags=synthetic
         symbol fq=__local_14.tmp kind=local vis=private flags=_ type=Int
+        file f13 package=sample
         expr e0 name(value) type=Int ref=sample.wrap.$300.value
         expr e1 name(it) type=Int ref=s-1008192
         expr e2 name(tmp) type=Int ref=__local_14.tmp
@@ -19,6 +20,7 @@ struct GoldenHarnessSemaComparisonNormalizationTests {
         symbol fq=sample.wrap kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=Int
         symbol fq=sample.wrap.$301.value kind=valueParameter vis=private flags=synthetic
         symbol fq=__local_27.tmp kind=local vis=private flags=_ type=Int
+        file f15 package=sample
         expr e0 name(value) type=Int ref=sample.wrap.$301.value
         expr e1 name(it) type=Int ref=s-1008960
         expr e2 name(tmp) type=Int ref=__local_27.tmp

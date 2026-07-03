@@ -63,6 +63,6 @@ final class StringSubSequenceFunctionTests: XCTestCase {
                 "String.subSequence(startIndex, endIndex) should return String"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_subSequence")
+        XCTAssertEqual(resolvedLink, "kk_string_subSequence_flat")
     }
 }

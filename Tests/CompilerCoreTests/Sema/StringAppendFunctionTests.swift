@@ -122,9 +122,9 @@ struct StringAppendFunctionTests {
             appendSymbols.contains { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
                 return signature.parameterTypes.count == 3
-                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_appendRange_obj"
+                    && sema.symbols.externalLinkName(for: symbolID) == "kk_string_builder_appendRange_obj_flat"
             },
-            "Expected Appendable.append(CharSequence?, Int, Int) to link to kk_string_builder_appendRange_obj"
+            "Expected Appendable.append(CharSequence?, Int, Int) to link to kk_string_builder_appendRange_obj_flat"
         )
     }
 }

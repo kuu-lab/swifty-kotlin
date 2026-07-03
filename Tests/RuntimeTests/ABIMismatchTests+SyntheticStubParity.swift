@@ -1,5 +1,4 @@
-@testable import RuntimeABI
-@testable import Runtime
+import RuntimeABI
 import XCTest
 
 // MARK: - Synthetic Stub / Runtime ABI Consistency (TOOL-046)
@@ -37,8 +36,8 @@ extension ABIMismatchTests {
         "kk_readlnOrNull",
         "kk_sequence_generate",
         "kk_sequence_of",
-        "kk_string_chunked_sequence_transform",
-        "kk_string_hexToUInt",
+        "kk_string_chunked_sequence_transform_flat",
+        "kk_string_hexToUInt_flat",
         "kk_test_assertEquals",
         "kk_test_assertEquals_message",
         "kk_test_assertNull",
@@ -122,17 +121,17 @@ extension ABIMismatchTests {
     // MARK: String radix conversion
     private static let stringRadixStubLinkNames: Set<String> = [
         "kk_string_case_insensitive_order",
-        "kk_string_hexToShort",
-        "kk_string_hexToUByte",
-        "kk_string_hexToUByteArray",
-        "kk_string_hexToUInt",
-        "kk_string_hexToULong",
-        "kk_string_hexToUShort",
-        "kk_string_toIntOrNull_radix",
-        "kk_string_toUByteOrNull_radix",
-        "kk_string_toUIntOrNull_radix",
-        "kk_string_toULongOrNull_radix",
-        "kk_string_toUShortOrNull_radix",
+        "kk_string_hexToShort_flat",
+        "kk_string_hexToUByte_flat",
+        "kk_string_hexToUByteArray_flat",
+        "kk_string_hexToUInt_flat",
+        "kk_string_hexToULong_flat",
+        "kk_string_hexToUShort_flat",
+        "kk_string_toIntOrNull_radix_flat",
+        "kk_string_toUByteOrNull_radix_flat",
+        "kk_string_toUIntOrNull_radix_flat",
+        "kk_string_toULongOrNull_radix_flat",
+        "kk_string_toUShortOrNull_radix_flat",
     ]
 
     // MARK: Char radix conversion
@@ -497,7 +496,7 @@ extension ABIMismatchTests {
     /// This catches the case where a synthetic stub references a runtime function
     /// that doesn't exist or was renamed.
     func testSyntheticStubExternalLinkNamesExistInABISpec() {
-        let allExternNames = Set(RuntimeABIExterns.allExterns.map(\.name))
+        let allExternNames = Set(RuntimeABIExterns.allExterns.map { $0.name })
         let missing = Self.allSyntheticStubLinkNames.subtracting(allExternNames)
         XCTAssertTrue(
             missing.isEmpty,

@@ -125,7 +125,7 @@ extension DataFlowSemaPhase {
         enumSymbol: SymbolID,
         enumFQName: [InternedString]
     ) {
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
 
         func ensureProperty(name: String, returnType: TypeID) {
@@ -261,7 +261,7 @@ extension DataFlowSemaPhase {
             flags: [.reifiedTypeParameter]
         )
         let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let paramName = interner.intern("name")
         let paramFQName = enumValueOfFQName + [paramName]
@@ -367,7 +367,7 @@ extension DataFlowSemaPhase {
         scope: Scope,
         interner: StringInterner
     ) {
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
 
         for (name, returnType) in [("name", stringType), ("ordinal", intType)] {
@@ -401,7 +401,7 @@ extension DataFlowSemaPhase {
         scope: Scope,
         interner: StringInterner
     ) {
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let companionType = types.make(.classType(ClassType(
             classSymbol: companionSymbol,
             args: [],

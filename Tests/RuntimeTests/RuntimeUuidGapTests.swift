@@ -1,6 +1,14 @@
 @testable import Runtime
 import XCTest
 
+/// Gap-coverage tests for kotlin.uuid.Uuid runtime.
+/// Covers the following previously untested behaviors:
+///   • nameUUIDFromBytes: known RFC 4122 test vectors and null raw input
+///   • fromByteArray: null raw input (distinct from wrong-size array)
+///   • Null receiver: all instance methods return defined fallback values
+///   • LEXICAL_ORDER: error path when non-UUID objects are compared
+///   • toLongs on MAX UUID
+///   • parseOrNull / parseHexDashOrNull uppercase input acceptance
 final class RuntimeUuidGapTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -33,10 +41,6 @@ final class RuntimeUuidGapTests: XCTestCase {
         extractRuntimeString(kk_throwable_message(raw))
     }
 
-    private func intFromBits(_ bits: UInt64) -> Int {
-        Int(bitPattern: UInt(truncatingIfNeeded: bits))
-    }
-
     private func makeByteArray(_ bytes: [UInt8]) -> Int {
         let box = RuntimeArrayBox(length: bytes.count)
         for (i, b) in bytes.enumerated() {
@@ -52,6 +56,8 @@ final class RuntimeUuidGapTests: XCTestCase {
 
     // MARK: - nameUUIDFromBytes: known RFC 4122 test vectors
 
+    /// MD5("") with version-3 / IETF-variant bits applied.
+    /// Cross-verified against Java UUID.nameUUIDFromBytes(new byte[0]).toString().
     func testNameUUIDFromBytesEmptyBytesKnownVector() {
         let uuidRaw = kk_uuid_nameUUIDFromBytes(makeByteArray([]))
         XCTAssertEqual(

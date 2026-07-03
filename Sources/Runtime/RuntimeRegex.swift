@@ -135,6 +135,15 @@ private func regexStringFromRaw(_ raw: Int) -> String? {
     return extractString(from: pointer)
 }
 
+private func regexStringFromFlat(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> String {
+    runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+}
+
 private func regexMakeStringRaw(_ value: String) -> Int {
     Int(bitPattern: value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
@@ -240,9 +249,22 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
 
 // MARK: - STDLIB-100: Regex constructor, matches, contains
 
+@_cdecl("kk_regex_create_flat")
+public func kk_regex_create_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexCreate(pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash))
+}
+
 @_cdecl("kk_regex_create")
 public func kk_regex_create(_ patternRaw: Int) -> Int {
-    let pattern = regexStringFromRaw(patternRaw) ?? ""
+    runtimeRegexCreate(pattern: regexStringFromRaw(patternRaw) ?? "")
+}
+
+private func runtimeRegexCreate(pattern: String) -> Int {
     guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
         // Invalid user pattern — substitute a never-match regex (see RegexNeverMatch).
         return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: pattern))
@@ -250,9 +272,21 @@ public func kk_regex_create(_ patternRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern))
 }
 
-@_cdecl("kk_string_matches_regex")
-public func kk_string_matches_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("kk_string_matches_regex_flat")
+public func kk_string_matches_regex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ regexRaw: Int
+) -> Int {
+    runtimeStringMatchesRegex(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        regexRaw
+    )
+}
+
+private func runtimeStringMatchesRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
@@ -261,9 +295,21 @@ public func kk_string_matches_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
     return kk_box_bool(fullMatch ? 1 : 0)
 }
 
-@_cdecl("kk_string_contains_regex")
-public func kk_string_contains_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("kk_string_contains_regex_flat")
+public func kk_string_contains_regex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ regexRaw: Int
+) -> Int {
+    runtimeStringContainsRegex(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        regexRaw
+    )
+}
+
+private func runtimeStringContainsRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
@@ -273,9 +319,26 @@ public func kk_string_contains_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
 
 // MARK: - STDLIB-101: Regex.find / Regex.findAll
 
+@_cdecl("kk_regex_find_flat")
+public func kk_regex_find_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexFind(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
 @_cdecl("kk_regex_find")
-public func kk_regex_find(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+public func kk_regex_find(_ regexRaw: Int, _ inputRaw: Int) -> Int {
+    runtimeRegexFind(regexRaw, input: regexStringFromRaw(inputRaw) ?? "")
+}
+
+private func runtimeRegexFind(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeNullSentinelInt }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
@@ -286,9 +349,21 @@ public func kk_regex_find(_ regexRaw: Int, _ strRaw: Int) -> Int {
     return registerRuntimeObject(matchResult)
 }
 
-@_cdecl("kk_regex_findAll")
-public func kk_regex_findAll(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("kk_regex_findAll_flat")
+public func kk_regex_findAll_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexFindAll(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexFindAll(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeListRaw([]) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
@@ -313,9 +388,21 @@ public func kk_string_replace_regex(_ strRaw: Int, _ regexRaw: Int, _ replacemen
     return regexMakeStringRaw(result)
 }
 
-@_cdecl("kk_string_split_regex")
-public func kk_string_split_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+@_cdecl("kk_string_split_regex_flat")
+public func kk_string_split_regex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ regexRaw: Int
+) -> Int {
+    runtimeStringSplitRegex(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        regexRaw
+    )
+}
+
+private func runtimeStringSplitRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringListRaw([rawStr]) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
@@ -373,9 +460,26 @@ public func kk_regex_replace_lambda(
 
 // MARK: - STDLIB-350: Regex.matchEntire
 
+@_cdecl("kk_regex_matchEntire_flat")
+public func kk_regex_matchEntire_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexMatchEntire(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
 @_cdecl("kk_regex_matchEntire")
-public func kk_regex_matchEntire(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
+public func kk_regex_matchEntire(_ regexRaw: Int, _ inputRaw: Int) -> Int {
+    runtimeRegexMatchEntire(regexRaw, input: regexStringFromRaw(inputRaw) ?? "")
+}
+
+private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeNullSentinelInt }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
@@ -445,7 +549,38 @@ private func createRegexBox(
 
 @_cdecl("kk_regex_create_with_option")
 public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int) -> Int {
-    let pattern = regexStringFromRaw(patternRaw) ?? ""
+    runtimeRegexCreateWithOption(pattern: regexStringFromRaw(patternRaw) ?? "", optionRaw: optionRaw)
+}
+
+@_cdecl("kk_regex_create_with_option_flat")
+public func kk_regex_create_with_option_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionRaw: Int
+) -> Int {
+    runtimeRegexCreateWithOption(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionRaw: optionRaw
+    )
+}
+
+@_cdecl("kk_string_toRegex_with_option_flat")
+public func kk_string_toRegex_with_option_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionRaw: Int
+) -> Int {
+    runtimeRegexCreateWithOption(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionRaw: optionRaw
+    )
+}
+
+private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int) -> Int {
     let ordinal = Int(kk_unbox_int(optionRaw))
     let box = createRegexBox(
         pattern: pattern,
@@ -456,12 +591,44 @@ public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int) -> 
     return registerRuntimeObject(box)
 }
 
+/// Creates a Regex from a raw pattern pointer and a `Set<RegexOption>`.
+@_cdecl("kk_regex_create_with_options")
+public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int) -> Int {
+    runtimeRegexCreateWithOptions(pattern: regexStringFromRaw(patternRaw) ?? "", optionsSetRaw: optionsSetRaw)
+}
+
 /// Creates a Regex from a pattern and a `Set<RegexOption>`.
 /// Iterates the set elements, unboxes each as an ordinal, and combines the
 /// corresponding `NSRegularExpression.Options`.
-@_cdecl("kk_regex_create_with_options")
-public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int) -> Int {
-    let pattern = regexStringFromRaw(patternRaw) ?? ""
+@_cdecl("kk_regex_create_with_options_flat")
+public func kk_regex_create_with_options_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionsSetRaw: Int
+) -> Int {
+    runtimeRegexCreateWithOptions(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionsSetRaw: optionsSetRaw
+    )
+}
+
+@_cdecl("kk_string_toRegex_with_options_flat")
+public func kk_string_toRegex_with_options_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionsSetRaw: Int
+) -> Int {
+    runtimeRegexCreateWithOptions(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionsSetRaw: optionsSetRaw
+    )
+}
+
+private func runtimeRegexCreateWithOptions(pattern: String, optionsSetRaw: Int) -> Int {
     var combined: NSRegularExpression.Options = []
     var isLiteral = false
     var storedOrdinals: Set<Int> = []
@@ -477,9 +644,21 @@ public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int
     return registerRuntimeObject(box)
 }
 
-@_cdecl("kk_regex_containsMatchIn")
-public func kk_regex_containsMatchIn(_ regexRaw: Int, _ inputRaw: Int) -> Int {
-    let rawInput = regexStringFromRaw(inputRaw) ?? ""
+@_cdecl("kk_regex_containsMatchIn_flat")
+public func kk_regex_containsMatchIn_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexContainsMatchIn(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexContainsMatchIn(_ regexRaw: Int, input rawInput: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let input = regexBox.normalizeIfNeeded(rawInput)
     let range = NSRange(input.startIndex..., in: input)
@@ -489,9 +668,14 @@ public func kk_regex_containsMatchIn(_ regexRaw: Int, _ inputRaw: Int) -> Int {
 
 // MARK: - STDLIB-103: String.toRegex() / Regex.pattern
 
-@_cdecl("kk_string_toRegex")
-public func kk_string_toRegex(_ strRaw: Int) -> Int {
-    kk_regex_create(strRaw)
+@_cdecl("kk_string_toRegex_flat")
+public func kk_string_toRegex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexCreate(pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash))
 }
 
 // MARK: - STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
@@ -564,10 +748,28 @@ private func matchGroupBoxFromRaw(_ raw: Int) -> RuntimeMatchGroupBox? {
 /// MatchGroupCollection.get(name: String) -> MatchGroup?
 @_cdecl("kk_match_group_collection_get")
 public func kk_match_group_collection_get(_ collectionRaw: Int, _ nameRaw: Int) -> Int {
+    runtimeMatchGroupCollectionGet(collectionRaw, name: regexStringFromRaw(nameRaw))
+}
+
+@_cdecl("kk_match_group_collection_get_flat")
+public func kk_match_group_collection_get_flat(
+    _ collectionRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeMatchGroupCollectionGet(
+        collectionRaw,
+        name: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeMatchGroupCollectionGet(_ collectionRaw: Int, name: String?) -> Int {
     guard let collection = matchGroupCollectionBoxFromRaw(collectionRaw) else {
         return runtimeNullSentinelInt
     }
-    guard let name = regexStringFromRaw(nameRaw) else {
+    guard let name else {
         return runtimeNullSentinelInt
     }
     guard let groupIndex = collection.namedGroups[name],
@@ -756,9 +958,21 @@ private func makeMatchResultWithOffset(
 /// Regex.Companion.fromLiteral(literal: String) -> Regex
 /// Creates a Regex that matches the literal string (all special chars are escaped).
 /// The first argument is the Companion object receiver (ignored; companion singleton).
-@_cdecl("kk_regex_from_literal")
-public func kk_regex_from_literal(_ companionRef: Int, _ literalRaw: Int) -> Int {
-    let literal = regexStringFromRaw(literalRaw) ?? ""
+@_cdecl("kk_regex_from_literal_flat")
+public func kk_regex_from_literal_flat(
+    _ companionRef: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    _ = companionRef
+    return runtimeRegexFromLiteral(
+        regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexFromLiteral(_ literal: String) -> Int {
     let escapedPattern = NSRegularExpression.escapedPattern(for: literal)
     guard let regex = try? NSRegularExpression(pattern: escapedPattern, options: []) else {
         return registerRuntimeObject(RuntimeRegexBox(regex: RegexNeverMatch.expression, pattern: literal))
@@ -822,9 +1036,21 @@ public func kk_regex_group_names(_ regexRaw: Int) -> Int {
 ///   directly. `.ignoreMetacharacters` is stripped from the anchored options
 ///   (it is never set in practice, but removing it defensively ensures the
 ///   `\A(?:...)\z` wrapper is always parsed as regex syntax, not literal text.
-@_cdecl("kk_regex_matches")
-public func kk_regex_matches(_ regexRaw: Int, _ inputRaw: Int) -> Int {
-    let rawInput = regexStringFromRaw(inputRaw) ?? ""
+@_cdecl("kk_regex_matches_flat")
+public func kk_regex_matches_flat(
+    _ regexRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeRegexMatches(
+        regexRaw,
+        input: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let input = regexBox.normalizeIfNeeded(rawInput)
     // Use the effective (compiled) pattern stored in the NSRegularExpression. For

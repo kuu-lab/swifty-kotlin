@@ -4,6 +4,12 @@
 
 import Foundation
 
+@_cdecl("kk_char_sequence_length")
+public func kk_char_sequence_length(_ raw: Int) -> Int {
+    // Match the flat String aggregate length field used by String.length lowering.
+    runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
+}
+
 // MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull
 
 @_cdecl("kk_string_first")
@@ -160,6 +166,32 @@ public func kk_string_ifEmpty(
     return result
 }
 
+// MARK: - Flat ABI wrappers
+
+@_cdecl("kk_string_ifBlank_flat")
+public func kk_string_ifBlank_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ fnPtr: Int, _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_ifBlank(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_ifEmpty_flat")
+public func kk_string_ifEmpty_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ fnPtr: Int, _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_ifEmpty(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_get")
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -170,6 +202,42 @@ public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMut
             message: "StringIndexOutOfBoundsException: index=\(indexRaw), length=\(scalars.count)"
         )
         return 0
+    }
+    return Int(scalars[indexRaw].value)
+}
+
+@_cdecl("kk_string_get_flat")
+public func kk_string_get_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ indexRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
+    guard indexRaw >= 0, indexRaw < scalars.count else {
+        runtimeSetThrown(
+            outThrown,
+            message: "StringIndexOutOfBoundsException: index=\(indexRaw), length=\(scalars.count)"
+        )
+        return 0
+    }
+    return Int(scalars[indexRaw].value)
+}
+
+@_cdecl("kk_string_getOrNull_flat")
+public func kk_string_getOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ indexRaw: Int
+) -> Int {
+    let scalars = Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
+    guard indexRaw >= 0, indexRaw < scalars.count else {
+        return runtimeNullSentinelInt
     }
     return Int(scalars[indexRaw].value)
 }
@@ -197,6 +265,25 @@ public func kk_string_compareToIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ igno
     case .orderedSame:
         return 0
     }
+}
+
+@_cdecl("kk_string_compareToIgnoreCase_flat")
+public func kk_string_compareToIgnoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    kk_string_compareToIgnoreCase(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash),
+        ignoreCaseRaw
+    )
 }
 
 // MARK: - STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals

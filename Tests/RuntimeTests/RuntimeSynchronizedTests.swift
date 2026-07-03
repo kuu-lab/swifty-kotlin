@@ -51,7 +51,7 @@ private var synchronizedNestedClosureRaw: Int {
 
 @_cdecl("runtime_synchronized_success_lambda")
 private func runtime_synchronized_success_lambda(
-    _ closureRaw: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
@@ -60,7 +60,7 @@ private func runtime_synchronized_success_lambda(
 
 @_cdecl("runtime_synchronized_failure_lambda")
 private func runtime_synchronized_failure_lambda(
-    _ closureRaw: Int,
+    _: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = runtimeAllocateThrowable(message: "synchronized failure")

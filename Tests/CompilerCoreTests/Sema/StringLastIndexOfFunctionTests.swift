@@ -3,9 +3,9 @@ import Testing
 
 /// STDLIB-TEXT-FN-034: Validates that `CharSequence.lastIndexOf` resolves through
 /// Sema for the (Char, startIndex, ignoreCase) overload and gets wired to the
-/// runtime entry point `kk_string_lastIndexOf_char`. The previously-existing
-/// String/String overloads remain wired to `kk_string_lastIndexOf` and
-/// `kk_string_lastIndexOf_ignoreCase` respectively.
+/// runtime entry point `kk_string_lastIndexOf_char_flat`. The previously-existing
+/// String/String overloads remain wired to `kk_string_lastIndexOf_flat` and
+/// `kk_string_lastIndexOf_ignoreCase_flat` respectively.
 @Suite
 struct StringLastIndexOfFunctionTests {
     @Test func testLastIndexOfCharResolvesInSource() throws {

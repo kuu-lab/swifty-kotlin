@@ -45,10 +45,11 @@ extension NativeEmitter.FunctionEmissionState {
             else {
                 return
             }
+            let (lhsValue, rhsValue) = rawComparableValues(lhs: lhs, rhs: rhs)
             let condition = bindings.buildICmpEqual(
                 builder,
-                lhs: resolveValue(lhs),
-                rhs: resolveValue(rhs),
+                lhs: lhsValue,
+                rhs: rhsValue,
                 name: "if_cmp_\(instructionIndex)"
             )
             _ = bindings.buildCondBr(
@@ -242,8 +243,7 @@ extension NativeEmitter.FunctionEmissionState {
                 return
             }
 
-            let lhsValue = resolveValue(lhs)
-            let rhsValue = resolveValue(rhs)
+            let (lhsValue, rhsValue) = rawComparableValues(lhs: lhs, rhs: rhs)
             let condition = bindings.buildICmpEqual(builder, lhs: lhsValue, rhs: rhsValue, name: "ret_if_cmp_\(instructionIndex)")
             _ = bindings.buildCondBr(builder, condition: condition, thenBlock: trueBlock, elseBlock: falseBlock)
 

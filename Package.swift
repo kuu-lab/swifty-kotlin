@@ -25,9 +25,6 @@ let package = Package(
         )
     ],
     targets: [
-        .systemLibrary(
-            name: "CLLVM"
-        ),
         .target(
             name: "RuntimeABI"
         ),
@@ -40,7 +37,7 @@ let package = Package(
         ),
         .target(
             name: "CompilerBackend",
-            dependencies: ["CLLVM", "CompilerCore", "RuntimeABI"]
+            dependencies: ["CompilerCore", "RuntimeABI"]
         ),
         .target(
             name: "GoldenHarnessSupport",

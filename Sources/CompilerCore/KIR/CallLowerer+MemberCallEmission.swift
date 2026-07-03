@@ -99,8 +99,8 @@ extension CallLowerer {
         }
         // String.length: extension needs receiver even when chosenCallee is nil
         // (e.g. mapIndexed { _, v -> v.length } where type inference may not bind).
-        // Always prepend receiver for "length" — codegen maps to kk_string_length when
-        // receiver is String; other types would be a type error at use site.
+        // Always prepend receiver for "length"; codegen extracts the aggregate length
+        // field when the receiver is String. Other types would be a type error at use site.
         if calleeText == "length" {
             arguments.insert(loweredReceiverID, at: 0)
             return
@@ -261,6 +261,13 @@ extension CallLowerer {
            finalArguments.count == 1
         {
             finalArguments.insert(receiver.loweredID, at: 0)
+        }
+        if loweredCallee == interner.intern("kk_char_digitToChar_radix"),
+           finalArguments.count == 1
+        {
+            let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
+            instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
+            finalArguments.append(radixExpr)
         }
         if loweredCallee == interner.intern("kk_worker_execute"),
            finalArguments.count == 4,
@@ -498,7 +505,8 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if loweredCallee == interner.intern("kk_string_zipTransform"),
+        if (loweredCallee == interner.intern("kk_string_zipTransform")
+            || loweredCallee == interner.intern("kk_string_zipTransform_flat")),
            finalArguments.count == 3
         {
             // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
@@ -513,6 +521,81 @@ extension CallLowerer {
             )
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
+        }
+        if (loweredCallee == interner.intern("kk_string_zipWithNextTransform")
+            || loweredCallee == interner.intern("kk_string_zipWithNextTransform_flat")),
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[1] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
+        if loweredCallee == interner.intern("kk_string_replaceFirstChar_flat"),
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[1] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
+        let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
+        case "kk_string_filter",
+             "kk_string_map",
+             "kk_string_count",
+             "kk_string_any",
+             "kk_string_all",
+             "kk_string_none",
+             "kk_string_mapIndexed",
+             "kk_string_mapNotNull",
+             "kk_string_firstNotNullOf",
+             "kk_string_firstNotNullOfOrNull",
+             "kk_string_reduceRightIndexed",
+             "kk_string_reduceRightIndexedOrNull",
+             "kk_string_reduceRightOrNull",
+             "kk_string_reduce",
+             "kk_string_reduceIndexedOrNull",
+             "kk_string_reduceOrNull",
+             "kk_string_sumBy",
+             "kk_string_sumByDouble",
+             "kk_string_filterIndexed",
+             "kk_string_filterNot",
+             "kk_string_indexOfFirst",
+             "kk_string_indexOfLast",
+             "kk_string_takeWhile",
+             "kk_string_takeLastWhile",
+             "kk_string_dropWhile",
+             "kk_string_onEach",
+             "kk_string_onEachIndexed",
+             "kk_string_find",
+             "kk_string_findLast",
+             "kk_string_singleOrNull_predicate",
+             "kk_string_partition":
+            true
+        default:
+            false
+        }
+        if isStringRuntimeHOFCallee,
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
         if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
@@ -873,6 +956,27 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
+        let atomicReferenceUpdateRuntimeNames: Set = [
+            interner.intern("kk_atomic_ref_getAndUpdate"),
+            interner.intern("kk_atomic_ref_updateAndGet"),
+            interner.intern("kk_atomic_ref_array_fetchAndUpdateAt"),
+            interner.intern("kk_atomic_ref_array_updateAt"),
+            interner.intern("kk_atomic_ref_array_updateAndFetchAt"),
+        ]
+        if atomicReferenceUpdateRuntimeNames.contains(loweredCallee),
+           let transformID = finalArguments.last,
+           let transformArgExprID = sourceArgExprs.last,
+           let adaptedTransform = makeAtomicReferenceUpdateFunctionValue(
+               loweredArgID: transformID,
+               argExprID: transformArgExprID,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            finalArguments[finalArguments.count - 1] = adaptedTransform
+        }
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
         // Virtual dispatch is only correct when no remapping occurred.
@@ -1077,8 +1181,9 @@ extension CallLowerer {
             interner.intern("kk_sequence_flatMapTo"),
             interner.intern("kk_sequence_ifEmpty"),
             interner.intern("kk_string_ifBlank"),
+            interner.intern("kk_string_ifBlank_flat"),
             interner.intern("kk_string_ifEmpty"),
-            interner.intern("kk_string_chunked_sequence_transform"),
+            interner.intern("kk_string_ifEmpty_flat"),
             interner.intern("kk_sequence_first"),
             interner.intern("kk_sequence_random"),
             interner.intern("kk_sequence_last"),
@@ -1088,8 +1193,8 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_firstNotNullOf"),
-            interner.intern("kk_string_firstNotNullOfOrNull"),
+            interner.intern("kk_string_firstNotNullOf_flat"),
+            interner.intern("kk_string_firstNotNullOfOrNull_flat"),
             interner.intern("kk_string_reduce"),
             interner.intern("kk_string_reduceOrNull"),
             interner.intern("kk_string_reduceRightIndexed"),

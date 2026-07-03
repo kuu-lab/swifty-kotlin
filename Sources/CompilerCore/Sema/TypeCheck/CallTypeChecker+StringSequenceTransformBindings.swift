@@ -53,7 +53,7 @@ extension CallTypeChecker {
             interner.intern("text"),
             calleeName,
         ]).first(where: { candidate in
-            isSyntheticStringMemberCandidate(
+            return isSyntheticStringMemberCandidate(
                 candidate,
                 named: calleeName,
                 receiverType: receiverType,
@@ -153,7 +153,7 @@ extension CallTypeChecker {
             interner.intern("text"),
             calleeName,
         ]).first(where: { candidate in
-            isSyntheticStringMemberCandidate(
+            return isSyntheticStringMemberCandidate(
                 candidate,
                 named: calleeName,
                 receiverType: receiverType,

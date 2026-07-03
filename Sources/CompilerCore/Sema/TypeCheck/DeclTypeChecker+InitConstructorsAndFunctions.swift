@@ -219,6 +219,9 @@ extension DeclTypeChecker {
             symbol,
             ctx: ctx.with(currentDeclSymbol: symbol)
         )
+        if function.modifiers.contains(.external), function.body == .unit {
+            return
+        }
 
         var locals: LocalBindings = [:]
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {

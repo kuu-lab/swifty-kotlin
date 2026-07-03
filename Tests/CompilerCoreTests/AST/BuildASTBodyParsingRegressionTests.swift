@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import XCTest
 
 // MARK: - BuildAST BodyParsing Regression Tests
 
@@ -485,6 +486,39 @@ struct BuildASTBodyParsingRegressionTests {
 
             #expect(function.annotations.count == 1)
             #expect(function.annotations[0].name == "JvmStatic")
+        }
+    }
+
+    func testAnnotationAfterBodylessExternalFunctionStartsNextDeclaration() throws {
+        let source = """
+        package anno.ast
+
+        @RuntimeName("first")
+        external fun first(value: Boolean)
+
+        @RuntimeName("second")
+        external fun second(value: Boolean)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runFrontend(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let file = try XCTUnwrap(ast.sortedFiles.first)
+            let functions = file.topLevelDecls.compactMap { declID -> FunDecl? in
+                guard let decl = ast.arena.decl(declID),
+                      case let .funDecl(function) = decl
+                else {
+                    return nil
+                }
+                return function
+            }
+
+            XCTAssertEqual(functions.count, 2)
+            XCTAssertEqual(functions.map { ctx.interner.resolve($0.name) }, ["first", "second"])
+            XCTAssertEqual(functions.map { $0.annotations.first?.name }, ["RuntimeName", "RuntimeName"])
+            XCTAssertEqual(functions.map { $0.annotations.first?.arguments.first }, ["\"\"first\"\"", "\"\"second\"\""])
         }
     }
 }

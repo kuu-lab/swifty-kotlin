@@ -6,7 +6,7 @@ import Testing
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toLongOrNull` links to the
-///   runtime symbol `kk_string_toLongOrNull` declared in
+///   runtime symbol `kk_string_toLongOrNull_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Long?`.

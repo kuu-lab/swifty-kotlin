@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-002: Validates that `CharSequence.any(predicate)` resolves
 /// through Sema for `String` / `CharSequence` receivers, dispatching to the
-/// runtime link name `kk_string_any`.
+/// runtime link name `kk_string_any_flat` for String receivers.
 @Suite
 struct StringAnyFunctionTests {
     @Test func testAnyWithPredicateResolvesInSource() throws {

@@ -39,7 +39,7 @@ struct StringToIntOrNullFunctionTests {
                 ctx.interner.intern("toIntOrNull"),
             ]
             let allSatisfy = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull"
+                sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull_flat"
             }
             #expect(allSatisfy)
         }
@@ -80,7 +80,7 @@ struct StringToIntOrNullFunctionTests {
                 ctx.interner.intern("toIntOrNull"),
             ]
             let allSatisfy = sema.symbols.lookupAll(fqName: fqName).contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull_radix"
+                sema.symbols.externalLinkName(for: candidate) == "kk_string_toIntOrNull_radix_flat"
             }
             #expect(allSatisfy)
         }

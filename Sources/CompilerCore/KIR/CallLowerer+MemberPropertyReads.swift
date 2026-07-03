@@ -248,7 +248,7 @@ extension CallLowerer {
         let helperName = interner.intern(entryName + helperSuffix)
         let resultType = sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
-                ? sema.types.make(.primitive(.string, .nonNull))
+                ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
