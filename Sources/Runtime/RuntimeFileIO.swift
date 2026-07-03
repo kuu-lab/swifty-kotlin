@@ -53,8 +53,14 @@ private func resourceRootDirectory() -> URL {
 }
 
 private func existingResourceURL(named name: String) -> URL? {
-    let url = resourceRootDirectory().appendingPathComponent(name)
-    return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    guard !name.isEmpty else { return nil }
+    let root = resourceRootDirectory().standardizedFileURL
+    let resolved = root.appendingPathComponent(name).standardizedFileURL
+    let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+    guard resolved.path == root.path || resolved.path.hasPrefix(rootPath) else {
+        return nil
+    }
+    return FileManager.default.fileExists(atPath: resolved.path) ? resolved : nil
 }
 
 /// Split file content into lines, matching Kotlin behaviour:
