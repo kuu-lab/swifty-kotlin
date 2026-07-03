@@ -36,6 +36,41 @@ extension BuildASTPhase {
         let diagnostics: DiagnosticEngine?
         var index: Int
 
+        /// Maximum recursion/nesting depth allowed while parsing an expression.
+        /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
+        /// unbounded native stack growth on deeply nested untrusted source (a
+        /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
+        static let maxRecursionDepth = 512
+
+        /// Current expression-parser recursion depth. Incremented on entry to the
+        /// mutually recursive expression parsing functions and decremented on exit.
+        var recursionDepth = 0
+
+        /// Ensures the depth-limit diagnostic is emitted at most once per parse.
+        private var depthLimitReported = false
+
+        /// Increments the recursion counter and reports whether parsing may continue.
+        /// Returns `false` (emitting a diagnostic once) once the maximum depth is
+        /// exceeded so callers abort gracefully instead of overflowing the stack.
+        /// Callers must pair this with `defer { leaveRecursion() }`.
+        func enterRecursion() -> Bool {
+            recursionDepth += 1
+            guard recursionDepth > Self.maxRecursionDepth else { return true }
+            if !depthLimitReported {
+                depthLimitReported = true
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0012",
+                    "Expression nesting is too deep (exceeded maximum depth of \(Self.maxRecursionDepth)).",
+                    range: current()?.range
+                )
+            }
+            return false
+        }
+
+        func leaveRecursion() {
+            recursionDepth -= 1
+        }
+
         init(
             tokens: ArraySlice<Token>,
             interner: StringInterner,
@@ -67,6 +102,8 @@ extension BuildASTPhase {
         }
 
         func parseExpression(minPrecedence: Int) -> ExprID? {
+            defer { leaveRecursion() }
+            guard enterRecursion() else { return nil }
             guard var lhs = parsePrefixUnary() else { return nil }
             while true {
                 if let next = tryParseIsCheck(lhs: lhs, minPrecedence: minPrecedence) { lhs = next; continue }
@@ -161,6 +198,8 @@ extension BuildASTPhase {
         }
 
         private func parsePrefixUnary() -> ExprID? {
+            defer { leaveRecursion() }
+            guard enterRecursion() else { return nil }
             guard let token = current() else {
                 return nil
             }

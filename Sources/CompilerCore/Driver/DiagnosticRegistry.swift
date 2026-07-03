@@ -179,6 +179,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Malformed statement."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0012",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expression nesting exceeds the maximum supported depth."
+        ),
     ]
 
     // MARK: - Semantic analysis pass (SEMA)
