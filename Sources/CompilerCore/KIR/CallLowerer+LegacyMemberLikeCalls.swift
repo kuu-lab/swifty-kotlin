@@ -4167,7 +4167,7 @@ extension CallLowerer {
             if let qualifier = interfaceQualifier {
                 // Find the interface symbol that matches the qualifier
                 if let currentReceiverType = sema.bindings.exprTypes[receiverExpr],
-                   case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(currentReceiverType)) {
+                   let classType = resolveClassType(currentReceiverType, sema: sema) {
                     let classSymbol = classType.classSymbol
                     let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
                     let qualifierStr = interner.resolve(qualifier)

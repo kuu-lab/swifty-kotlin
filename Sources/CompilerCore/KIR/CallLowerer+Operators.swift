@@ -686,8 +686,7 @@ extension CallLowerer {
         ) ?? sema.bindings.callBindings[exprID]
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        let receiverLooksLikeArray: Bool = if case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-                                              let symbol = sema.symbols.symbol(classType.classSymbol)
+        let receiverLooksLikeArray: Bool = if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)
         {
             [
                 "Array", "IntArray", "LongArray", "UIntArray", "DoubleArray", "FloatArray", "BooleanArray", "CharArray",

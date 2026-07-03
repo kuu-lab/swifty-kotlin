@@ -416,8 +416,7 @@ extension CollectionLiteralLoweringPass {
         } == "kk_list_minus_element"
         let returnsList = result.flatMap { module.arena.exprType($0) }.map { resultType in
             guard let sema = ctx.sema,
-                  case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(resultType)),
-                  let resultSymbol = sema.symbols.symbol(classType.classSymbol)
+                  let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
             else { return false }
             return ctx.interner.resolve(resultSymbol.name) == "List"
         } ?? false

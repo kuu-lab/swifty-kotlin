@@ -1256,8 +1256,7 @@ final class CallLowerer {
     ) -> (receiver: KIRExprID, callee: InternedString)? {
         guard let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
               let receiverType = arena.exprType(implicitReceiver),
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
+              let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
         else {
             return nil
         }
@@ -1411,8 +1410,7 @@ final class CallLowerer {
 
         let argumentType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
         let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
-        let runtimeCallee: InternedString? = if case let .classType(classType) = sema.types.kind(of: nonNullArgumentType),
-                                                let symbol = sema.symbols.symbol(classType.classSymbol)
+        let runtimeCallee: InternedString? = if let (_, symbol) = resolveClassTypeSymbol(nonNullArgumentType, sema: sema)
         {
             switch symbol.name {
             case knownNames.list, knownNames.mutableList:

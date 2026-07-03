@@ -443,8 +443,7 @@ final class ControlFlowLowerer {
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
         // Only resolve for user-defined class types, not primitives or built-in ranges.
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let classSymbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               !classSymbol.flags.contains(.synthetic)
         else {
             return nil

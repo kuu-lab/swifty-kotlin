@@ -322,7 +322,7 @@ extension CallTypeChecker {
 
         guard let signature = sema.symbols.functionSignature(for: fallbackCallee),
               signature.classTypeParameterCount > 0,
-              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+              let receiverClassType = resolveClassType(receiverType, sema: sema)
         else {
             return nil
         }
@@ -2602,12 +2602,11 @@ extension CallTypeChecker {
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let classType = resolveClassType(receiverType, sema: sema)
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
         else {
             return sema.types.anyType
         }
-        if let symbol = sema.symbols.symbol(classType.classSymbol),
-           knownNames.isMapLikeSymbol(symbol),
+        if knownNames.isMapLikeSymbol(symbol),
            classType.args.count == 2
         {
             let keyType = switch classType.args[0] {

@@ -309,46 +309,24 @@ extension DataFlowSemaPhase {
             return
         }
 
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(companionSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        let hasDefaults = Array(repeating: false, count: parameters.count)
         let varargFlags = isVararg.count == parameters.count
             ? isVararg
             : Array(repeating: false, count: parameters.count)
 
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map(\.type),
-                returnType: returnType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: hasDefaults,
-                valueParameterIsVararg: varargFlags
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: companionFQName,
+            parentSymbol: companionSymbol,
+            parameters: syntheticFunctionParameters(
+                parameters,
+                hasDefaultValues: Array(repeating: false, count: parameters.count),
+                isVararg: varargFlags
             ),
-            for: memberSymbol
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            matchReturnType: true,
+            symbols: symbols,
+            interner: interner
         )
     }
 }

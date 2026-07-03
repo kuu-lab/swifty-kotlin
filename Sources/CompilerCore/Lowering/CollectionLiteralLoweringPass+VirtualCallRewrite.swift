@@ -1768,9 +1768,7 @@ extension CollectionLiteralLoweringPass {
         else {
             return false
         }
-        let nonNullType = sema.types.makeNonNullable(typeID)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, symbol) = resolveClassTypeSymbol(typeID, sema: sema),
               let simpleName = symbol.fqName.last
         else {
             return false

@@ -367,7 +367,11 @@ extension CollectionLiteralLoweringPass {
         if let result,
            let resultTypeID = module.arena.exprType(result),
            let types = ctx.sema?.types,
-           let unboxCallee = primitiveUnboxCalleeForType(resultTypeID, types: types, interner: ctx.interner)
+           let unboxCallee = BoxingCalleeTable(interner: ctx.interner).unboxCallee(
+               for: resultTypeID,
+               types: types,
+               requireNonNull: true
+           )
         {
             let tempBoxed = module.arena.appendTemporary(type: nil
             )
@@ -379,14 +383,12 @@ extension CollectionLiteralLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-            loweredBody.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: unboxCallee,
-                arguments: [tempBoxed],
+                arg: tempBoxed,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &loweredBody
+            )
         } else {
             loweredBody.append(.call(
                 symbol: nil,
@@ -397,16 +399,5 @@ extension CollectionLiteralLoweringPass {
                 thrownResult: nil
             ))
         }
-    }
-
-    private func primitiveUnboxCalleeForType(
-        _ typeID: TypeID,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> InternedString? {
-        BoxingCalleeTable(interner: interner).unboxCallee(
-            for: types.kind(of: typeID),
-            requireNonNull: true
-        )
     }
 }

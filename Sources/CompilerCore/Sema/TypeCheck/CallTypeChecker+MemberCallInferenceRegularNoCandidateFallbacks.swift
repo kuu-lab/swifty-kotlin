@@ -2004,8 +2004,7 @@ extension CallTypeChecker {
                 return resultType
             }
             let knownNames = KnownCompilerNames(interner: interner)
-            if case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-               let symbol = sema.symbols.symbol(classType.classSymbol),
+            if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
                knownNames.isMapLikeSymbol(symbol)
             {
                 let resultType = nonNullReceiverType
