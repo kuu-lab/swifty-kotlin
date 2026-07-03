@@ -84,7 +84,7 @@ private func atomicIntBox(from raw: Int) -> AtomicIntBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicIntBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicIntBox.self)
 }
 
 @_cdecl("kk_atomic_int_create")
@@ -280,7 +280,7 @@ private func atomicLongBox(from raw: Int) -> AtomicLongBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicLongBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicLongBox.self)
 }
 
 @_cdecl("kk_atomic_long_create")
@@ -463,7 +463,7 @@ private func atomicBoolBox(from raw: Int) -> AtomicBooleanBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicBooleanBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicBooleanBox.self)
 }
 
 @_cdecl("kk_atomic_bool_create")
@@ -611,7 +611,7 @@ private func atomicRefBox(from raw: Int) -> AtomicRefBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicRefBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicRefBox.self)
 }
 
 @_cdecl("kk_atomic_ref_create")
@@ -786,7 +786,7 @@ private func atomicIntArrayBox(from raw: Int) -> AtomicIntArrayBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicIntArrayBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicIntArrayBox.self)
 }
 
 // (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicIntArray / AtomicLongArray サポート)
@@ -1107,7 +1107,7 @@ private func atomicLongArrayBox(from raw: Int) -> AtomicLongArrayBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicLongArrayBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicLongArrayBox.self)
 }
 
 @_cdecl("kk_atomic_long_array_create")
@@ -1421,7 +1421,7 @@ private func atomicRefArrayBox(from raw: Int) -> AtomicRefArrayBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicRefArrayBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicRefArrayBox.self)
 }
 
 private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
