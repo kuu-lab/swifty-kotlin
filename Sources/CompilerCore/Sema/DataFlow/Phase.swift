@@ -36,13 +36,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner,
             bundledIndex: bundledIndex
         )
-        diagnoseSyntheticBundledDeclarationOverlaps(
-            bundledIndex: bundledIndex,
-            symbols: symbols,
-            types: types,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner
-        )
+        // Keep overlap diagnostics as an explicit guard test helper. Emitting
+        // them during normal Sema pollutes user diagnostics for unaffected code.
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
