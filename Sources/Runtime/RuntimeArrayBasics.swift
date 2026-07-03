@@ -122,7 +122,7 @@ public func kk_pair_to_string(_ pairRaw: Int) -> UnsafeMutableRawPointer {
     let str = "(\(firstStr), \(secondStr))"
     let utf8 = Array(str.utf8)
     return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
+        kk_string_from_utf8(buf.baseAddress!, Int32(clamping: buf.count))
     }
 }
 
@@ -177,7 +177,7 @@ public func kk_triple_to_string(_ tripleRaw: Int) -> UnsafeMutableRawPointer {
     let str = "(\(firstStr), \(secondStr), \(thirdStr))"
     let utf8 = Array(str.utf8)
     return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
+        kk_string_from_utf8(buf.baseAddress!, Int32(clamping: buf.count))
     }
 }
 
