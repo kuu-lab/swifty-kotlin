@@ -196,14 +196,9 @@ public func kk_list_map(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outTh
     guard let list = runtimeListBox(from: listRaw) else {
         invalidContainerPanic(#function, "list")
     }
-    var mapped: [Int] = []
-    mapped.reserveCapacity(list.elements.count)
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        mapped.append(maybeUnbox(result))
-    }
+    var thrown = 0
+    let mapped = applyMapStep(list.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
+    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     return registerRuntimeObject(RuntimeListBox(elements: mapped))
 }
 
@@ -212,13 +207,9 @@ public func kk_list_filter(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ ou
     guard let list = runtimeListBox(from: listRaw) else {
         invalidContainerPanic(#function, "list")
     }
-    var filtered: [Int] = []
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if runtimeCollectionBool(result) { filtered.append(elem) }
-    }
+    var thrown = 0
+    let filtered = applyFilterStep(list.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
+    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     return registerRuntimeObject(RuntimeListBox(elements: filtered))
 }
 
@@ -227,13 +218,9 @@ public func kk_list_filterNot(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _
     guard let list = runtimeListBox(from: listRaw) else {
         invalidContainerPanic(#function, "list")
     }
-    var filtered: [Int] = []
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if !runtimeCollectionBool(result) { filtered.append(elem) }
-    }
+    var thrown = 0
+    let filtered = applyFilterNotStep(list.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
+    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     return registerRuntimeObject(RuntimeListBox(elements: filtered))
 }
 
@@ -242,15 +229,9 @@ public func kk_list_mapNotNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
     guard let list = runtimeListBox(from: listRaw) else {
         invalidContainerPanic(#function, "list")
     }
-    var mapped: [Int] = []
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if let normalized = runtimeMapNotNullResultValue(result) {
-            mapped.append(normalized)
-        }
-    }
+    var thrown = 0
+    let mapped = applyMapNotNullStep(list.elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
+    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     return registerRuntimeObject(RuntimeListBox(elements: mapped))
 }
 

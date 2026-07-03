@@ -152,30 +152,35 @@ public func kk_list_lastIndex(_ listRaw: Int) -> Int {
     return list.elements.count - 1
 }
 
+@inline(__always)
+private func runtimeListComponent(_ listRaw: Int, index: Int) -> Int {
+    kk_list_get(listRaw, index)
+}
+
 // STDLIB-183: List destructuring component1() ~ component5()
 @_cdecl("kk_list_component1")
 public func kk_list_component1(_ listRaw: Int) -> Int {
-    kk_list_get(listRaw, 0)
+    runtimeListComponent(listRaw, index: 0)
 }
 
 @_cdecl("kk_list_component2")
 public func kk_list_component2(_ listRaw: Int) -> Int {
-    kk_list_get(listRaw, 1)
+    runtimeListComponent(listRaw, index: 1)
 }
 
 @_cdecl("kk_list_component3")
 public func kk_list_component3(_ listRaw: Int) -> Int {
-    kk_list_get(listRaw, 2)
+    runtimeListComponent(listRaw, index: 2)
 }
 
 @_cdecl("kk_list_component4")
 public func kk_list_component4(_ listRaw: Int) -> Int {
-    kk_list_get(listRaw, 3)
+    runtimeListComponent(listRaw, index: 3)
 }
 
 @_cdecl("kk_list_component5")
 public func kk_list_component5(_ listRaw: Int) -> Int {
-    kk_list_get(listRaw, 4)
+    runtimeListComponent(listRaw, index: 4)
 }
 
 @_cdecl("kk_list_contains")

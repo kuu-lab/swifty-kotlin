@@ -809,19 +809,27 @@ public func kk_match_result_range(_ matchRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeRangeBox(first: g.rangeStart, last: g.rangeEnd, step: 1))
 }
 
+private func matchResultComponent(_ matchRaw: Int, groupIndex: Int) -> Int {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw) else {
+        return regexMakeStringRaw("")
+    }
+    if groupIndex == 0 {
+        return regexMakeStringRaw(matchResult.value)
+    }
+    let value = groupIndex < matchResult.groupValues.count ? matchResult.groupValues[groupIndex] : ""
+    return regexMakeStringRaw(value)
+}
+
 /// MatchResult.component1() — the entire match value (destructuring).
 @_cdecl("kk_match_result_component1")
 public func kk_match_result_component1(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return regexMakeStringRaw("") }
-    return regexMakeStringRaw(matchResult.value)
+    matchResultComponent(matchRaw, groupIndex: 0)
 }
 
 /// MatchResult.component2() — the first capture group value (destructuring).
 @_cdecl("kk_match_result_component2")
 public func kk_match_result_component2(_ matchRaw: Int) -> Int {
-    guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return regexMakeStringRaw("") }
-    let firstGroup = matchResult.groupValues.count > 1 ? matchResult.groupValues[1] : ""
-    return regexMakeStringRaw(firstGroup)
+    matchResultComponent(matchRaw, groupIndex: 1)
 }
 
 /// MatchResult.next() — returns the next MatchResult in the input, or null.
