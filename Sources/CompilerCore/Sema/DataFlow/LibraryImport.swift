@@ -457,7 +457,17 @@ extension DataFlowSemaPhase {
 
         let inlinePath = URL(fileURLWithPath: inlineDir)
             .appendingPathComponent(record.mangledName + ".kirbin")
+            .standardized
             .path
+        let inlineDirResolved = URL(fileURLWithPath: inlineDir).standardized.path
+        guard inlinePath.hasPrefix(inlineDirResolved + "/") else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0019",
+                "Inline KIR path for '\(record.mangledName)' escapes inline directory",
+                range: nil
+            )
+            return
+        }
         guard let inlineFunction = parseImportedInlineFunction(
             path: inlinePath,
             importedSymbol: symbol,
