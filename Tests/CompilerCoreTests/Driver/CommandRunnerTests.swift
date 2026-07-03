@@ -9,7 +9,11 @@ struct CommandRunnerTests {
 
     @Test
     func testResolveExecutableFindsExistingCommand() {
-        let resolved = CommandRunner.resolveExecutable("ls", fallback: "/nonexistent/ls")
+        let resolved = CommandRunner.resolveExecutable(
+            "ls",
+            fallback: "/nonexistent/ls",
+            pathEnvironment: Self.systemPath
+        )
         #expect(resolved.hasSuffix("/ls"), "Expected resolved path to end with /ls, got: \(resolved)")
         #expect(resolved != "/nonexistent/ls", "Should have found ls in PATH")
     }
@@ -17,14 +21,72 @@ struct CommandRunnerTests {
     @Test
     func testResolveExecutableFallsBackForMissingCommand() {
         let fallback = "/this/path/does/not/exist/in/PATH"
-        let resolved = CommandRunner.resolveExecutable("__command_that_definitely_does_not_exist__", fallback: fallback)
+        let resolved = CommandRunner.resolveExecutable(
+            "__command_that_definitely_does_not_exist__",
+            fallback: fallback,
+            pathEnvironment: Self.systemPath
+        )
         #expect(resolved == fallback)
     }
 
     @Test
     func testResolveExecutableReturnsFullPath() {
-        let resolved = CommandRunner.resolveExecutable("echo", fallback: "/bin/echo")
+        let resolved = CommandRunner.resolveExecutable(
+            "echo",
+            fallback: "/bin/echo",
+            pathEnvironment: Self.systemPath
+        )
         #expect(resolved.hasPrefix("/"), "Resolved path should be absolute, got: \(resolved)")
+    }
+
+    @Test
+    func testResolveExecutableSkipsUntrustedPATHDirectory() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let directory = try makeTemporaryToolDirectory(permissions: 0o777, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: directory.path
+        )
+        #expect(resolved == fallback)
+    }
+
+    @Test
+    func testResolveExecutableReturnsTrustedPATHDirectoryExecutable() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let directory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: directory.path
+        )
+        #expect(resolved == directory.appendingPathComponent(toolName).path)
+    }
+
+    @Test
+    func testResolveExecutableAcceptsSymlinkedTrustedPATHDirectory() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let trustedDirectory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        let symlinkDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try makeSymbolicLink(at: symlinkDirectory, pointingTo: trustedDirectory)
+        defer {
+            try? FileManager.default.removeItem(at: symlinkDirectory)
+            try? FileManager.default.removeItem(at: trustedDirectory)
+        }
+
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: symlinkDirectory.path
+        )
+        #expect(resolved == symlinkDirectory.appendingPathComponent(toolName).path)
     }
 
     // MARK: - run: stdout / exit code
@@ -162,5 +224,32 @@ struct CommandRunnerTests {
             "Expected pwd output to match tmpDir, got: \(normalized)"
         )
     }
+
+    private func makeTemporaryToolDirectory(permissions: Int16, toolName: String) throws -> URL {
+        let fileManager = FileManager.default
+        let directory = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: permissions)],
+            ofItemAtPath: directory.path
+        )
+
+        let toolURL = directory.appendingPathComponent(toolName)
+        let script = "#!/bin/sh\nexit 0\n"
+        guard fileManager.createFile(atPath: toolURL.path, contents: script.data(using: .utf8)) else {
+            throw NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue)
+        }
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: toolURL.path
+        )
+        return directory
+    }
+
+    private func makeSymbolicLink(at linkURL: URL, pointingTo destinationURL: URL) throws {
+        try FileManager.default.createSymbolicLink(atPath: linkURL.path, withDestinationPath: destinationURL.path)
+    }
+
+    private static let systemPath = "/usr/bin:/bin"
 }
 #endif

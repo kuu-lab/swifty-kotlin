@@ -55,17 +55,74 @@ package enum CommandRunner {
     private static let drainTimeoutSeconds: TimeInterval = 20
     private static let terminationGracePeriodSeconds: TimeInterval = 1
 
+    /// Resolves an executable by scanning `$PATH`, but only trusts directories
+    /// that cannot be tampered with by another local user. This prevents a
+    /// PATH-hijack where a malicious `name` planted in an attacker-controlled
+    /// directory earlier in `$PATH` would be executed with the victim's
+    /// privileges. Empty, relative, group/other-writable, or foreign-owned PATH
+    /// entries are skipped; if no trusted match is found, `fallback` is returned.
     package static func resolveExecutable(_ name: String, fallback: String) -> String {
+        resolveExecutable(
+            name,
+            fallback: fallback,
+            pathEnvironment: ProcessInfo.processInfo.environment["PATH"] ?? ""
+        )
+    }
+
+    package static func resolveExecutable(
+        _ name: String,
+        fallback: String,
+        pathEnvironment: String
+    ) -> String {
         let fileManager = FileManager.default
-        if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
-            for directory in pathEnv.split(separator: ":") {
-                let candidate = String(directory) + "/" + name
-                if fileManager.isExecutableFile(atPath: candidate) {
-                    return candidate
-                }
+        for directory in pathEnvironment.split(separator: ":", omittingEmptySubsequences: false) {
+            let directoryPath = String(directory)
+            // An empty entry resolves to the current working directory and a
+            // relative entry can be influenced by the process's CWD; neither
+            // is trustworthy, so require an absolute path.
+            guard directoryPath.hasPrefix("/") else { continue }
+            guard isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
+            let candidate = directoryPath + "/" + name
+            if fileManager.isExecutableFile(atPath: candidate) {
+                return candidate
             }
         }
         return fallback
+    }
+
+    /// A directory is trusted for executable resolution only when it exists, is
+    /// a directory, is not writable by group or others, and is owned by `root`
+    /// or the current user. This rejects directories another local user could
+    /// use to plant a malicious binary.
+    private static func isTrustedDirectory(_ path: String, fileManager: FileManager) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return false
+        }
+        // Resolve symlinks so we inspect the target directory's attributes
+        // rather than the link's (symlinks always report 0o777 permissions,
+        // e.g. /bin -> /usr/bin on modern Debian/Ubuntu).
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        guard let attributes = try? fileManager.attributesOfItem(atPath: resolvedPath) else {
+            return false
+        }
+        guard let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value else {
+            return false
+        }
+        let groupWrite: UInt16 = 0o020
+        let otherWrite: UInt16 = 0o002
+        if permissions & (groupWrite | otherWrite) != 0 {
+            return false
+        }
+        // Fail closed: if ownership can't be determined, treat the directory as
+        // untrusted rather than assuming it is safe.
+        guard let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value else {
+            return false
+        }
+        if owner != 0 && owner != getuid() {
+            return false
+        }
+        return true
     }
 
     /// Runs a command and records its wall-clock time as a sub-phase in the
