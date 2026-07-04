@@ -22,7 +22,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         let nameCallee = ctx.interner.intern("name")
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
 
         module.arena.transformFunctions { function in
             var newBody: [KIRInstruction] = []
@@ -59,8 +59,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                 }
                 let classSymbol: SymbolID? = {
                     if let argType = module.arena.exprType(receiver),
-                       case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
-                       let sym = sema.symbols.symbol(classType.classSymbol),
+                       let (classType, sym) = resolveClassTypeSymbol(argType, sema: sema),
                        sym.kind == .enumClass
                     {
                         return classType.classSymbol
@@ -98,9 +97,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     if let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
                         sema.symbols.symbol(id).map { $0.kind == .function } ?? false
                     }) {
-                        let targetResult = result ?? module.arena.appendExpr(
-                            .temporary(Int32(module.arena.expressions.count)),
-                            type: stringType
+                        let targetResult = result ?? module.arena.appendTemporary(type: stringType
                         )
                         newBody.append(.call(
                             symbol: helperSymbol,
@@ -133,7 +130,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         printlnCallee: InternedString,
         kkPrintlnAnyCallee: InternedString
     ) -> [KIRInstruction]? {
-        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction,
+        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction,
               callee == printlnCallee || callee == kkPrintlnAnyCallee,
               arguments.count == 1,
               let classSymbol = enumClassSymbol(
@@ -155,9 +152,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
-        let helperResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: stringType
+        let helperResult = arena.appendTemporary(type: stringType
         )
         return [
             .call(
@@ -202,8 +197,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             break
         }
         if let argType = arena.exprType(exprID),
-           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
-           let sym = sema.symbols.symbol(classType.classSymbol),
+           let (classType, sym) = resolveClassTypeSymbol(argType, sema: sema),
            sym.kind == .enumClass
         {
             return classType.classSymbol

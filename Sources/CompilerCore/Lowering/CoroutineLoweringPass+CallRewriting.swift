@@ -77,9 +77,7 @@ extension CoroutineLoweringPass {
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),
             type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: continuationType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: continuationType
         )
 
         var wrapperBody: [KIRInstruction] = [
@@ -113,9 +111,7 @@ extension CoroutineLoweringPass {
             .symbolRef(entryPointSymbol),
             type: rewrite.intType
         )
-        let callResult = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: function.returnType
+        let callResult = rewrite.module.arena.appendTemporary(type: function.returnType
         )
         wrapperBody.append(
             .call(
@@ -400,13 +396,9 @@ extension CoroutineLoweringPass {
 
         let entryTarget: LoweredSuspendFunction
         var rewritten: [KIRInstruction] = []
-        let continuationFunctionID = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
         )
 
         if extraArgs.isEmpty {
@@ -474,13 +466,9 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        let continuationFunctionID = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let continuationTemp = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
+        let continuationTemp = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
         )
 
         var loweredArguments = call.arguments
@@ -549,13 +537,9 @@ extension CoroutineLoweringPass {
 
         let entryTarget: LoweredSuspendFunction
         var rewritten: [KIRInstruction] = []
-        let continuationFunctionID = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let continuationFunctionID = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
         )
 
         if extraArgs.isEmpty {
@@ -654,13 +638,9 @@ extension CoroutineLoweringPass {
             hasLauncherArg: call.arguments.count == 3,
             using: rewrite
         )
-        let entryPointExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let continuationExpr = call.result ?? rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.anyType
+        let continuationExpr = call.result ?? rewrite.module.arena.appendTemporary(type: rewrite.anyType
         )
 
         var rewritten: [KIRInstruction] = [
@@ -719,13 +699,9 @@ extension CoroutineLoweringPass {
             hasLauncherArg: call.arguments.count == 3,
             using: rewrite
         )
-        let entryPointExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.anyType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.anyType
         )
 
         var rewritten: [KIRInstruction] = [
@@ -788,13 +764,9 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        let entryPointExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.intType
+        let entryPointExpr = rewrite.module.arena.appendTemporary(type: rewrite.intType
         )
-        let continuationExpr = rewrite.module.arena.appendExpr(
-            .temporary(Int32(rewrite.module.arena.expressions.count)),
-            type: rewrite.anyType
+        let continuationExpr = rewrite.module.arena.appendTemporary(type: rewrite.anyType
         )
         let unitExpr = rewrite.module.arena.appendExpr(
             .unit,

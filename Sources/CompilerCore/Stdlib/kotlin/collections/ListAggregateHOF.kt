@@ -32,7 +32,7 @@ public fun <T, R> List<T>.foldRight(initial: R, operation: (T, R) -> R): R {
 }
 
 public fun <T> List<T>.reduce(operation: (T, T) -> T): T {
-    if (isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
     var accumulator = this[0]
     var i = 1
     while (i < size) {
@@ -43,7 +43,7 @@ public fun <T> List<T>.reduce(operation: (T, T) -> T): T {
 }
 
 public fun <T> List<T>.reduceOrNull(operation: (T, T) -> T): T? {
-    if (isEmpty()) return null
+    if (size == 0) return null
     var accumulator = this[0]
     var i = 1
     while (i < size) {

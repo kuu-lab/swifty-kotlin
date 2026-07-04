@@ -5,7 +5,22 @@ func runtimeContinuationState(from continuation: Int) -> RuntimeContinuationStat
     guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
         return nil
     }
-    return Unmanaged<RuntimeContinuationState>.fromOpaque(continuationPtr).takeUnretainedValue()
+    return tryCast(continuationPtr, to: RuntimeContinuationState.self)
+}
+
+func runtimeCoroutineScope(from scopeHandle: Int) -> RuntimeCoroutineScope? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: scopeHandle) else {
+        return nil
+    }
+    return tryCast(ptr, to: RuntimeCoroutineScope.self)
+}
+
+// RuntimeAsyncTask handles use checked cast only.
+func runtimeAsyncTask(from handle: Int) -> RuntimeAsyncTask? {
+    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return nil
+    }
+    return tryCast(handlePtr, to: RuntimeAsyncTask.self)
 }
 
 func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {

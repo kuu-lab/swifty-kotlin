@@ -9,20 +9,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        if symbols.lookup(fqName: kotlinPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("kotlin"),
-                fqName: kotlinPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
-        let kotlinRandomPkg = ensureSyntheticPackage(
-            path: [interner.intern("kotlin"), interner.intern("random")],
+        let kotlinRandomPkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("random")],
             symbols: symbols
         )
 
@@ -1059,27 +1047,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(propertyType, for: propertySymbol)
     }
 
-    private func ensureSyntheticPackage(
-        path: [InternedString],
-        symbols: SymbolTable
-    ) -> [InternedString] {
-        var fqName: [InternedString] = []
-        for part in path {
-            fqName.append(part)
-            if symbols.lookup(fqName: fqName) == nil {
-                _ = symbols.define(
-                    kind: .package,
-                    name: part,
-                    fqName: fqName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-        }
-        return fqName
-    }
-
     private func makePrimitiveArrayType(
         named name: String,
         symbols: SymbolTable,
@@ -1106,8 +1073,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> TypeID {
-        let rangesPkg = ensureSyntheticPackage(
-            path: [interner.intern("kotlin"), interner.intern("ranges")],
+        let rangesPkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("ranges")],
             symbols: symbols
         )
         let symbol = ensureClassSymbol(

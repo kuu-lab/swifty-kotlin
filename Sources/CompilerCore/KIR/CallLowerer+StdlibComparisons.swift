@@ -209,7 +209,7 @@ extension CallLowerer {
         func selectCandidate(lhs: KIRExprID, rhs: KIRExprID, conditionExpr: KIRExprID) -> KIRExprID {
             let useRightLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
-            let resultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let resultExpr = arena.appendTemporary(type: resultType)
 
             instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: useRightLabel))
             instructions.append(.copy(from: lhs, to: resultExpr))
@@ -281,7 +281,7 @@ extension CallLowerer {
         for argIndex in comparisonArgIndices.dropFirst() {
             let candidateExpr = loweredArgIDs[argIndex]
             if case let .floatingPoint(runtimeCallee) = comparisonStrategy {
-                let newCurrent = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                let newCurrent = arena.appendTemporary(type: resultType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: runtimeCallee,
@@ -296,17 +296,13 @@ extension CallLowerer {
             let conditionExpr: KIRExprID
             switch comparisonStrategy {
             case .primitive:
-                conditionExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boolType
+                conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(op: primitiveOp, lhs: candidateExpr, rhs: currentExpr, result: conditionExpr))
             case .floatingPoint:
                 fatalError("unreachable: floatingPoint handled above via early continue")
             case .genericComparable:
-                let compareResultExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: intType
+                let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -316,9 +312,7 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                conditionExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boolType
+                conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(
                     op: primitiveOp,
@@ -327,9 +321,7 @@ extension CallLowerer {
                     result: conditionExpr
                 ))
             case let .comparator(comparatorArgIndex, trampolineCallee):
-                let compareResultExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: intType
+                let compareResultExpr = arena.appendTemporary(type: intType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -339,9 +331,7 @@ extension CallLowerer {
                     canThrow: true,
                     thrownResult: nil
                 ))
-                conditionExpr = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boolType
+                conditionExpr = arena.appendTemporary(type: boolType
                 )
                 instructions.append(.binary(
                     op: primitiveOp,
@@ -375,9 +365,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: type),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return interner.resolve(symbol.name) == "Comparator"
@@ -463,7 +451,7 @@ extension CallLowerer {
         )
 
         if let floatingPointRuntimeCallee {
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern(floatingPointRuntimeCallee),
@@ -478,7 +466,7 @@ extension CallLowerer {
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
 
-        let conditionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.binary(
             op: comparisonOp,
             lhs: lhsExpr,
@@ -488,7 +476,7 @@ extension CallLowerer {
 
         let useRightLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
 
         instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: useRightLabel))
         instructions.append(.copy(from: lhsExpr, to: result))
@@ -546,7 +534,7 @@ extension CallLowerer {
 
         if let floatingPointRuntimeCallee {
             let calleeID = interner.intern(floatingPointRuntimeCallee)
-            let tmp = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let tmp = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: nil,
                 callee: calleeID,
@@ -555,7 +543,7 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: nil,
                 callee: calleeID,
@@ -570,12 +558,12 @@ extension CallLowerer {
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
 
-        let cond1 = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let cond1 = arena.appendTemporary(type: boolType)
         instructions.append(.binary(op: comparisonOp, lhs: aExpr, rhs: bExpr, result: cond1))
 
         let useBLabel = driver.ctx.makeLoopLabel()
         let afterFirstLabel = driver.ctx.makeLoopLabel()
-        let tmp = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let tmp = arena.appendTemporary(type: resultType)
 
         instructions.append(.jumpIfEqual(lhs: cond1, rhs: falseExpr, target: useBLabel))
         instructions.append(.copy(from: aExpr, to: tmp))
@@ -584,12 +572,12 @@ extension CallLowerer {
         instructions.append(.copy(from: bExpr, to: tmp))
         instructions.append(.label(afterFirstLabel))
 
-        let cond2 = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let cond2 = arena.appendTemporary(type: boolType)
         instructions.append(.binary(op: comparisonOp, lhs: tmp, rhs: cExpr, result: cond2))
 
         let useCLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
 
         instructions.append(.jumpIfEqual(lhs: cond2, rhs: falseExpr, target: useCLabel))
         instructions.append(.copy(from: tmp, to: result))

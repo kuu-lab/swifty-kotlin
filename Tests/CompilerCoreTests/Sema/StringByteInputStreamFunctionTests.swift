@@ -4,8 +4,8 @@ import Testing
 
 /// Verifies the STDLIB-IO-FN-011 synthetic stub for `String.byteInputStream(charset)`.
 /// Two overloads are exposed from `kotlin.io`:
-/// - `String.byteInputStream(): ByteArrayInputStream` → `kk_string_byteInputStream`
-/// - `String.byteInputStream(charset: Charset): ByteArrayInputStream` → `kk_string_byteInputStream_charset`
+/// - `String.byteInputStream(): ByteArrayInputStream` → `kk_string_byteInputStream_flat`
+/// - `String.byteInputStream(charset: Charset): ByteArrayInputStream` → `kk_string_byteInputStream_charset_flat`
 ///
 /// Both return `java.io.ByteArrayInputStream`, which is registered as an
 /// `InputStream` subtype so that resource-management surfaces (`.use {}`) work
@@ -38,7 +38,7 @@ struct StringByteInputStreamFunctionTests {
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream"
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_flat"
             )
 
             // The chosen overload must be the zero-parameter, kotlin.io extension.
@@ -89,7 +89,7 @@ struct StringByteInputStreamFunctionTests {
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_charset"
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_byteInputStream_charset_flat"
             )
 
             // Signature should accept a single Charset parameter.
@@ -179,7 +179,7 @@ struct StringByteInputStreamFunctionTests {
 
             let externalLinks = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
             #expect(
-                externalLinks == ["kk_string_byteInputStream", "kk_string_byteInputStream_charset"]
+                externalLinks == ["kk_string_byteInputStream_flat", "kk_string_byteInputStream_charset_flat"]
             )
 
             // Both overloads must declare String as their extension receiver.

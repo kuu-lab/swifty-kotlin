@@ -235,9 +235,8 @@ extension CompanionObjectTests {
         )
 
         let module = try #require(ctx.kir)
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else { return nil }
-            return ctx.interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            ctx.interner.resolve(function.name)
         }
 
         #expect(

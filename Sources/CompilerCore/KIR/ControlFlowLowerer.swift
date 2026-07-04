@@ -95,7 +95,7 @@ final class ControlFlowLowerer {
             interner: interner
         )
 
-        let iteratorID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let iteratorID = arena.appendTemporary(type: sema.types.anyType)
         if let customIter = customIterator {
             let calleeName: InternedString = if let linkName = sema.symbols.externalLinkName(for: customIter.iteratorSymbol),
                                                 !linkName.isEmpty
@@ -131,7 +131,7 @@ final class ControlFlowLowerer {
         let breakLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(continueLabel))
 
-        let hasNextID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let hasNextID = arena.appendTemporary(type: boolType)
         if let customIter = customIterator {
             let hasNextCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: customIter.hasNextSymbol),
                                                    !linkName.isEmpty
@@ -171,7 +171,7 @@ final class ControlFlowLowerer {
         let loopVarType = sema.bindings.flowElementType(forExpr: exprID)
             ?? loopVariableSymbol.flatMap { sema.symbols.propertyType(for: $0) }
             ?? sema.types.anyType
-        let nextValueID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: loopVarType)
+        let nextValueID = arena.appendTemporary(type: loopVarType)
         if let customIter = customIterator {
             let nextCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: customIter.nextSymbol),
                                                 !linkName.isEmpty
@@ -256,7 +256,7 @@ final class ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let iteratorID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: loopBinding.iteratorType)
+        let iteratorID = arena.appendTemporary(type: loopBinding.iteratorType)
         instructions.append(.call(
             symbol: loopBinding.iteratorCall.chosenCallee,
             callee: resolvedLoopCallee(for: loopBinding.iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
@@ -270,7 +270,7 @@ final class ControlFlowLowerer {
         let breakLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(continueLabel))
 
-        let hasNextID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let hasNextID = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: loopBinding.hasNextCall.chosenCallee,
             callee: resolvedLoopCallee(for: loopBinding.hasNextCall, sema: sema, interner: interner, fallback: "hasNext"),
@@ -285,7 +285,7 @@ final class ControlFlowLowerer {
 
         let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
         let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
-        let nextValueID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: loopBinding.elementType)
+        let nextValueID = arena.appendTemporary(type: loopBinding.elementType)
         instructions.append(.call(
             symbol: loopBinding.nextCall.chosenCallee,
             callee: resolvedLoopCallee(for: loopBinding.nextCall, sema: sema, interner: interner, fallback: "next"),
@@ -354,7 +354,7 @@ final class ControlFlowLowerer {
             instructions: &instructions
         )
         // Create the channel iterator.
-        let iteratorID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let iteratorID = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_channel_iterator"),
@@ -369,7 +369,7 @@ final class ControlFlowLowerer {
         instructions.append(.label(continueLabel))
 
         // Call hasNext (blocks until value or close).
-        let hasNextID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let hasNextID = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_channel_iterator_hasNext"),
@@ -384,7 +384,7 @@ final class ControlFlowLowerer {
 
         let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
         let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
-        let nextValueID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let nextValueID = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_channel_iterator_next"),
@@ -443,8 +443,7 @@ final class ControlFlowLowerer {
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
         // Only resolve for user-defined class types, not primitives or built-in ranges.
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let classSymbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               !classSymbol.flags.contains(.synthetic)
         else {
             return nil
@@ -524,8 +523,7 @@ final class ControlFlowLowerer {
 
     private func isChannelType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol) else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return knownNames.isChannelSymbol(symbol)
@@ -656,7 +654,7 @@ final class ControlFlowLowerer {
         )
         let elseLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.errorType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.errorType)
         let falseVal = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseVal, value: .boolLiteral(false)))
         instructions.append(.jumpIfEqual(lhs: conditionID, rhs: falseVal, target: elseLabel))
@@ -718,8 +716,8 @@ final class ControlFlowLowerer {
         let boundType = sema.bindings.exprTypes[exprID]
         let boolType = sema.types.make(.primitive(.boolean, .nonNull))
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let exceptionSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.nullableAnyType)
-        let exceptionTypeSlot = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+        let exceptionTypeSlot = arena.appendTemporary(type: intType)
         let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
         let zeroTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
         instructions.append(.constValue(result: nullExceptionValue, value: .null))
@@ -727,7 +725,7 @@ final class ControlFlowLowerer {
         instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
         instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
 
-        let tryResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.errorType)
+        let tryResult = arena.appendTemporary(type: boundType ?? sema.types.errorType)
 
         let catchDispatchLabel = driver.ctx.makeLoopLabel()
         let finallyLabel = driver.ctx.makeLoopLabel()
@@ -789,7 +787,7 @@ final class ControlFlowLowerer {
                 let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
                 instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
 
-                let matchResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                let matchResult = arena.appendTemporary(type: boolType)
                 if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
                     // Cancellation check only needs falseValue for the jump;
                     // trueValue/sharedUnknownToken are not used.
@@ -829,7 +827,7 @@ final class ControlFlowLowerer {
 
             var previousCatchParamValue: KIRExprID?
             if clause.paramName != nil, binding.parameterSymbol != .invalid {
-                let paramID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: binding.parameterType)
+                let paramID = arena.appendTemporary(type: binding.parameterType)
                 instructions.append(.copy(from: exceptionSlot, to: paramID))
                 previousCatchParamValue = driver.ctx.localValue(for: binding.parameterSymbol)
                 driver.ctx.setLocalValue(paramID, for: binding.parameterSymbol)
@@ -916,7 +914,7 @@ final class ControlFlowLowerer {
                 if !isCatchAllType(binding.parameterType, sema: sema, interner: interner) {
                     // Safe to force-unwrap: hasTypedCatch guarantees falseValue is set
                     let fv = falseValue!
-                    let matchResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                    let matchResult = arena.appendTemporary(type: boolType)
                     if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
                         // Cancellation check only needs falseValue for the jump;
                         // trueValue/sharedUnknownToken are not used.
@@ -954,7 +952,7 @@ final class ControlFlowLowerer {
 
                 var previousCatchParamValue: KIRExprID?
                 if clause.paramName != nil, binding.parameterSymbol != .invalid {
-                    let paramID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: binding.parameterType)
+                    let paramID = arena.appendTemporary(type: binding.parameterType)
                     instructions.append(.copy(from: exceptionSlot, to: paramID))
                     previousCatchParamValue = driver.ctx.localValue(for: binding.parameterSymbol)
                     driver.ctx.setLocalValue(paramID, for: binding.parameterSymbol)
@@ -1046,13 +1044,9 @@ final class ControlFlowLowerer {
                 // finally body.  Using the outer exceptionSlot would destroy
                 // the pending exception when a finally call succeeds (writes
                 // null to the slot), silently swallowing the in-flight error.
-                let finallyExSlot = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
+                let finallyExSlot = arena.appendTemporary(type: sema.types.nullableAnyType
                 )
-                let finallyExTypeSlot = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: intType
+                let finallyExTypeSlot = arena.appendTemporary(type: intType
                 )
                 let finallyNullValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
                 let finallyZeroValue = arena.appendExpr(.intLiteral(0), type: intType)
@@ -1098,7 +1092,7 @@ final class ControlFlowLowerer {
         instructions.append(.jump(endLabel))
 
         instructions.append(.label(rethrowLabel))
-        let cancellationCheckResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let cancellationCheckResult = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_throwable_is_cancellation"),
@@ -1148,8 +1142,8 @@ final class ControlFlowLowerer {
         // Per-catch: only the encoded type token is unique to each clause.
         let encodedToken = RuntimeTypeCheckToken.encode(type: catchType, sema: sema, interner: interner)
         let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
-        let typeMatches = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
-        let typeUnknown = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let typeMatches = arena.appendTemporary(type: boolType)
+        let typeUnknown = arena.appendTemporary(type: boolType)
 
         let exactMatchLabel = driver.ctx.makeLoopLabel()
         let doneLabel = driver.ctx.makeLoopLabel()
@@ -1175,7 +1169,7 @@ final class ControlFlowLowerer {
         ))
 
         // Runtime fallback: handles UNKNOWN tokens and known subtype/supertype matches.
-        let runtimeResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let runtimeResult = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_op_is"),
@@ -1355,7 +1349,7 @@ final class ControlFlowLowerer {
             interner: interner
         )
 
-        let iteratorID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let iteratorID = arena.appendTemporary(type: sema.types.anyType)
         if let customIter = customIterator {
             let calleeName: InternedString = if let linkName = sema.symbols.externalLinkName(for: customIter.iteratorSymbol),
                                                 !linkName.isEmpty
@@ -1389,7 +1383,7 @@ final class ControlFlowLowerer {
         let breakLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(continueLabel))
 
-        let hasNextID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let hasNextID = arena.appendTemporary(type: boolType)
         if let customIter = customIterator {
             let hasNextCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: customIter.hasNextSymbol),
                                                    !linkName.isEmpty
@@ -1423,7 +1417,7 @@ final class ControlFlowLowerer {
         instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
 
         // Get next element
-        let nextValueID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let nextValueID = arena.appendTemporary(type: sema.types.anyType)
         if let customIter = customIterator {
             let nextCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: customIter.nextSymbol),
                                                 !linkName.isEmpty
@@ -1465,8 +1459,7 @@ final class ControlFlowLowerer {
         // for destructuring we need special handling: component1 = key (from next),
         // component2 = kk_map_get(map, key).
         let isMapIteration: Bool = {
-            guard case let .classType(ct) = sema.types.kind(of: sema.types.makeNonNullable(iterableType)),
-                  let sym = sema.symbols.symbol(ct.classSymbol)
+            guard let (_, sym) = resolveClassTypeSymbol(iterableType, sema: sema)
             else { return false }
             let mapName = interner.intern("Map")
             let mutableMapName = interner.intern("MutableMap")
@@ -1487,7 +1480,7 @@ final class ControlFlowLowerer {
                 name,
             ])
             let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
-            let componentResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: componentType)
+            let componentResult = arena.appendTemporary(type: componentType)
 
             if isMapIteration, componentIndex == 1 {
                 // Map destructuring component1 = key, which is the iterator next value
@@ -1586,7 +1579,7 @@ final class ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let iteratorID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: loopBinding.iteratorType)
+        let iteratorID = arena.appendTemporary(type: loopBinding.iteratorType)
         instructions.append(.call(
             symbol: loopBinding.iteratorCall.chosenCallee,
             callee: resolvedLoopCallee(for: loopBinding.iteratorCall, sema: sema, interner: interner, fallback: "iterator"),
@@ -1600,7 +1593,7 @@ final class ControlFlowLowerer {
         let breakLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(continueLabel))
 
-        let hasNextID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let hasNextID = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: loopBinding.hasNextCall.chosenCallee,
             callee: resolvedLoopCallee(for: loopBinding.hasNextCall, sema: sema, interner: interner, fallback: "hasNext"),
@@ -1613,7 +1606,7 @@ final class ControlFlowLowerer {
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
         instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
 
-        let nextValueID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: loopBinding.elementType)
+        let nextValueID = arena.appendTemporary(type: loopBinding.elementType)
         instructions.append(.call(
             symbol: loopBinding.nextCall.chosenCallee,
             callee: resolvedLoopCallee(for: loopBinding.nextCall, sema: sema, interner: interner, fallback: "next"),
@@ -1636,7 +1629,7 @@ final class ControlFlowLowerer {
                 name,
             ])
             let componentType = candidates.first.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
-            let componentResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: componentType)
+            let componentResult = arena.appendTemporary(type: componentType)
 
             let memberCandidates = TypeCheckHelpers().collectMemberFunctionCandidates(
                 named: componentName,

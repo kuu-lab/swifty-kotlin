@@ -56,7 +56,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinTextPkg,
             parameters: [("pattern", stringType)],
             returnType: regexType,
-            externalLinkName: "kk_regex_create",
+            externalLinkName: "kk_regex_create_flat",
             symbols: symbols,
             interner: interner
         )
@@ -64,7 +64,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-101: Regex.find / Regex.findAll ---
         registerRegexMemberFunction(
             named: "find",
-            externalLinkName: "kk_regex_find",
+            externalLinkName: "kk_regex_find_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
@@ -75,7 +75,7 @@ extension DataFlowSemaPhase {
 
         registerRegexMemberFunction(
             named: "findAll",
-            externalLinkName: "kk_regex_findAll",
+            externalLinkName: "kk_regex_findAll_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
@@ -240,7 +240,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-350: Regex.matchEntire ---
         registerRegexMemberFunction(
             named: "matchEntire",
-            externalLinkName: "kk_regex_matchEntire",
+            externalLinkName: "kk_regex_matchEntire_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
@@ -288,7 +288,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinTextPkg,
             parameters: [("pattern", stringType), ("option", regexOptionType)],
             returnType: regexType,
-            externalLinkName: "kk_regex_create_with_option",
+            externalLinkName: "kk_regex_create_with_option_flat",
             symbols: symbols,
             interner: interner
         )
@@ -306,7 +306,7 @@ extension DataFlowSemaPhase {
                 packageFQName: kotlinTextPkg,
                 parameters: [("pattern", stringType), ("options", setRegexOptionType)],
                 returnType: regexType,
-                externalLinkName: "kk_regex_create_with_options",
+                externalLinkName: "kk_regex_create_with_options_flat",
                 symbols: symbols,
                 interner: interner
             )
@@ -315,7 +315,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options) ---
         registerSyntheticStringExtensionFunction(
             named: "toRegex",
-            externalLinkName: "kk_string_toRegex_with_option",
+            externalLinkName: "kk_string_toRegex_with_option_flat",
             receiverType: stringType,
             parameters: [("option", regexOptionType, false, false)],
             returnType: regexType,
@@ -329,7 +329,7 @@ extension DataFlowSemaPhase {
         ) {
             registerSyntheticStringExtensionFunction(
                 named: "toRegex",
-                externalLinkName: "kk_string_toRegex_with_options",
+                externalLinkName: "kk_string_toRegex_with_options_flat",
                 receiverType: stringType,
                 parameters: [("options", setRegexOptionType, false, false)],
                 returnType: regexType,
@@ -343,7 +343,7 @@ extension DataFlowSemaPhase {
         let boolType = types.make(.primitive(.boolean, .nonNull))
         registerRegexMemberFunction(
             named: "containsMatchIn",
-            externalLinkName: "kk_regex_containsMatchIn",
+            externalLinkName: "kk_regex_containsMatchIn_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
@@ -355,7 +355,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-REGEX-098: Regex.matches(input) ---
         registerRegexMemberFunction(
             named: "matches",
-            externalLinkName: "kk_regex_matches",
+            externalLinkName: "kk_regex_matches_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
@@ -387,7 +387,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-REGEX-094: Regex.matches(input: String) -> Boolean ---
         registerRegexMemberFunction(
             named: "matches",
-            externalLinkName: "kk_regex_matches",
+            externalLinkName: "kk_regex_matches_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
@@ -420,7 +420,7 @@ extension DataFlowSemaPhase {
         )
         registerRegexCompanionMethod(
             named: "fromLiteral",
-            externalLinkName: "kk_regex_from_literal",
+            externalLinkName: "kk_regex_from_literal_flat",
             companionFQName: regexCompanionFQName,
             parameters: [("literal", stringType)],
             returnType: regexType,

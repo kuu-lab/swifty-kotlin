@@ -244,6 +244,10 @@ final class DeclTypeChecker {
         }
 
         switch sema.types.kind(of: finalPropertyType) {
+        case let .stringStruct(nullability):
+            if nullability == .nullable {
+                emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
+            }
         case let .primitive(primitive, nullability):
             if nullability == .nullable {
                 diagnostics.error(

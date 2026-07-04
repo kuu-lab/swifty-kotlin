@@ -232,8 +232,6 @@ struct MathAPITargetInventoryTests {
         Set(targetSignatures.map(declarationName))
     }
 
-    private static let propertyNames: Set<String> = ["absoluteValue", "E", "PI", "sign", "ulp"]
-
     private static func unaryFloatingSignatures(_ names: [String]) -> [String] {
         names.flatMap { name in
             ["fun \(name)(Double): Double", "fun \(name)(Float): Float"]

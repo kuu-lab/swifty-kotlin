@@ -2,10 +2,10 @@ symbol fq=golden.sema.varargMinInt kind=function vis=public flags=_ sig=recv=_ p
 symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int vararg=[0,1]
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.other kind=valueParameter vis=private flags=synthetic
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.varargMinInt fun varargMinInt sym=golden.sema.varargMinInt
 expr e@3:33 int(5) type=Int
 expr e@3:36 int(2) type=Int
 expr e@3:39 int(8) type=Int
 expr e@3:42 int(1) type=Int
-expr e@3:27#1 call callee=e@3:27#0 args=[_:e@3:33,_:e@3:36,_:e@3:39,_:e@3:42] type=Int call=kotlin.comparisons.minOf#6
+expr e@3:27 call callee=e@3:27#1 args=[_:e@3:33,_:e@3:36,_:e@3:39,_:e@3:42] type=Int call=kotlin.comparisons.minOf#6

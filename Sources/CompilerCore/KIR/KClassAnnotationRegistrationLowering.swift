@@ -30,7 +30,7 @@ func emitKClassAnnotationRegistration(
         let argCountExpr = arena.appendExpr(.intLiteral(argCount), type: intType)
         instructions.append(.constValue(result: argCountExpr, value: .intLiteral(argCount)))
 
-        let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_kclass_register_single_annotation"),

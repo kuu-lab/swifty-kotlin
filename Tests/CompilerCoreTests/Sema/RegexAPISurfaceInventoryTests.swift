@@ -69,8 +69,8 @@ struct RegexAPISurfaceInventoryTests {
             interner: interner
         )
         #expect(
-            links.contains("kk_regex_create"),
-            "Regex(pattern) constructor must link to kk_regex_create"
+            links.contains("kk_regex_create_flat"),
+            "Regex(pattern) constructor must link to kk_regex_create_flat"
         )
     }
 
@@ -83,8 +83,8 @@ struct RegexAPISurfaceInventoryTests {
             interner: interner
         )
         #expect(
-            links.contains("kk_regex_create_with_option"),
-            "Regex(pattern, option) constructor must link to kk_regex_create_with_option"
+            links.contains("kk_regex_create_with_option_flat"),
+            "Regex(pattern, option) constructor must link to kk_regex_create_with_option_flat"
         )
     }
 
@@ -97,8 +97,8 @@ struct RegexAPISurfaceInventoryTests {
             interner: interner
         )
         #expect(
-            links.contains("kk_regex_create_with_options"),
-            "Regex(pattern, options) constructor must link to kk_regex_create_with_options"
+            links.contains("kk_regex_create_with_options_flat"),
+            "Regex(pattern, options) constructor must link to kk_regex_create_with_options_flat"
         )
     }
 
@@ -110,9 +110,9 @@ struct RegexAPISurfaceInventoryTests {
             interner: interner
         )
         let required: Set<String> = [
-            "kk_regex_create",
-            "kk_regex_create_with_option",
-            "kk_regex_create_with_options",
+            "kk_regex_create_flat",
+            "kk_regex_create_with_option_flat",
+            "kk_regex_create_with_options_flat",
         ]
         #expect(
             required.isSubset(of: links),
@@ -153,7 +153,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_matches", "Regex.matches must link to kk_regex_matches")
+        #expect(link == "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches")
     }
 
     @Test func testRegexContainsMatchInIsRegistered() throws {
@@ -163,7 +163,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_containsMatchIn",
+        #expect(link == "kk_regex_containsMatchIn_flat",
                        "Regex.containsMatchIn must link to kk_regex_containsMatchIn")
     }
 
@@ -174,7 +174,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_find", "Regex.find must link to kk_regex_find")
+        #expect(link == "kk_regex_find_flat", "Regex.find must link to kk_regex_find")
     }
 
     @Test func testRegexFindAllIsRegistered() throws {
@@ -184,7 +184,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_findAll", "Regex.findAll must link to kk_regex_findAll")
+        #expect(link == "kk_regex_findAll_flat", "Regex.findAll must link to kk_regex_findAll")
     }
 
     @Test func testRegexMatchEntireIsRegistered() throws {
@@ -194,7 +194,7 @@ struct RegexAPISurfaceInventoryTests {
             sema: sema,
             interner: interner
         )
-        #expect(link == "kk_regex_matchEntire",
+        #expect(link == "kk_regex_matchEntire_flat",
                        "Regex.matchEntire must link to kk_regex_matchEntire")
     }
 
@@ -252,7 +252,7 @@ struct RegexAPISurfaceInventoryTests {
         #expect(!(syms.isEmpty), "Regex.Companion.fromLiteral must be registered")
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            links.contains("kk_regex_from_literal"),
+            links.contains("kk_regex_from_literal_flat"),
             Comment(rawValue: "Regex.fromLiteral must link to kk_regex_from_literal; found: \(links)")
         )
     }
@@ -428,7 +428,7 @@ struct RegexAPISurfaceInventoryTests {
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         #expect(
-            links.contains("kk_string_split_regex"),
+            links.contains("kk_string_split_regex_flat"),
             Comment(rawValue: "kotlin.text.split(Regex) must link to kk_string_split_regex; found: \(links)")
         )
     }
@@ -484,7 +484,7 @@ struct RegexAPISurfaceInventoryTests {
             let callExpr = try #require(twoArgCall, "Expected Regex(pattern, option) call")
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_create_with_option_flat"
             )
         }
     }
@@ -510,7 +510,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matches_flat"
             )
         }
     }
@@ -536,7 +536,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_containsMatchIn_flat"
             )
         }
     }
@@ -563,7 +563,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_find_flat"
             )
         }
     }
@@ -590,7 +590,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_matchEntire_flat"
             )
         }
     }
@@ -616,7 +616,7 @@ struct RegexAPISurfaceInventoryTests {
 
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_regex_from_literal_flat"
             )
         }
     }
@@ -712,22 +712,22 @@ struct RegexAPISurfaceInventoryTests {
         // nil linkName means we only check symbol existence, not the link.
         let mandatoryLinks: [([String], String)] = [
             // Constructors (top-level in kotlin.text)
-            (["kotlin", "text", "Regex"], "kk_regex_create"),
-            (["kotlin", "text", "Regex"], "kk_regex_create_with_option"),
-            (["kotlin", "text", "Regex"], "kk_regex_create_with_options"),
+            (["kotlin", "text", "Regex"], "kk_regex_create_flat"),
+            (["kotlin", "text", "Regex"], "kk_regex_create_with_option_flat"),
+            (["kotlin", "text", "Regex"], "kk_regex_create_with_options_flat"),
             // Member functions
-            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches"),
-            (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn"),
-            (["kotlin", "text", "Regex", "find"], "kk_regex_find"),
-            (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll"),
-            (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire"),
+            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches_flat"),
+            (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn_flat"),
+            (["kotlin", "text", "Regex", "find"], "kk_regex_find_flat"),
+            (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll_flat"),
+            (["kotlin", "text", "Regex", "matchEntire"], "kk_regex_matchEntire_flat"),
             (["kotlin", "text", "Regex", "replace"], "kk_regex_replace_lambda"),
             // Properties
             (["kotlin", "text", "Regex", "pattern"], "kk_regex_pattern"),
             (["kotlin", "text", "Regex", "options"], "kk_regex_options"),
             (["kotlin", "text", "Regex", "groupNames"], "kk_regex_group_names"),
             // Companion
-            (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal"),
+            (["kotlin", "text", "Regex", "Companion", "fromLiteral"], "kk_regex_from_literal_flat"),
             // MatchResult
             (["kotlin", "text", "MatchResult", "value"], "kk_match_result_value"),
             (["kotlin", "text", "MatchResult", "range"], "kk_match_result_range"),
@@ -743,8 +743,13 @@ struct RegexAPISurfaceInventoryTests {
             (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get"),
             (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get_at"),
             // String extensions
+            (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
+            (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
             (["kotlin", "text", "replaceFirst"], "kk_string_replaceFirst_regex"),
-            (["kotlin", "text", "split"], "kk_string_split_regex"),
+            (["kotlin", "text", "split"], "kk_string_split_regex_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_option_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_options_flat"),
         ]
 
         for (fqPath, expectedLink) in mandatoryLinks {

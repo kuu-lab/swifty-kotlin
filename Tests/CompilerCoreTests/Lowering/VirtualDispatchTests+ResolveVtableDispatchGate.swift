@@ -11,12 +11,7 @@ extension VirtualDispatchTests {
     /// lowering falls back to static `.call` dispatch.
     func testResolveVtableDispatchReturnsNilWhileGENVTABLEDisabled() {
         let fixture = makeVtableFixture()
-        let sema = SemaModule(
-            symbols: fixture.symbols,
-            types: fixture.types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)
@@ -73,12 +68,7 @@ extension VirtualDispatchTests {
             for: classSym
         )
 
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)
@@ -105,12 +95,7 @@ extension VirtualDispatchTests {
             "GEN-VTABLE-DISABLE (DEBT-KIR-001): re-enable after codegen emits KTypeInfo vtables and class ctor uses kk_alloc"
         )
         let fixture = makeVtableFixture()
-        let sema = SemaModule(
-            symbols: fixture.symbols,
-            types: fixture.types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)
@@ -191,12 +176,7 @@ extension VirtualDispatchTests {
             for: classSym
         )
 
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)

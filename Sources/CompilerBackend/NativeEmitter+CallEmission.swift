@@ -254,6 +254,9 @@ extension NativeEmitter.FunctionEmissionState {
             arguments: callArguments,
             name: "call_\(instructionIndex)"
         )
+        if let result, let callValue {
+            rawResultValues[result.rawValue] = callValue
+        }
         storeResult(result, callValue)
         if calleeName == "kk_coroutine_continuation_new",
            let coroutineRegisterRootFunction
@@ -484,6 +487,9 @@ extension NativeEmitter.FunctionEmissionState {
             arguments: callArguments,
             name: "vcall_\(instructionIndex)"
         )
+        if let result, let vCallValue {
+            rawResultValues[result.rawValue] = vCallValue
+        }
         _ = bindings.buildBr(builder, destination: mergeBlock)
 
         // Fallback path: trap on dispatch failure (GEN-002).

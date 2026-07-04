@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-011: Validates that `String.concat(str)` resolves through
 /// Sema for plain String receivers as well as literal / expression contexts.
-/// The runtime link involved is `kk_string_concat`.
+/// The runtime link involved is `kk_string_concat_flat`.
 @Suite
 struct StringConcatFunctionTests {
     @Test func testStringConcatResolvesInSource() throws {
@@ -52,7 +52,7 @@ struct StringConcatFunctionTests {
                 "String.concat(str) should return String"
             )
         }
-        #expect(resolvedLink == "kk_string_concat")
+        #expect(resolvedLink == "kk_string_concat_flat")
     }
 
     @Test func testStringConcatCallBindingResolvesToRuntimeLink() throws {
@@ -78,7 +78,7 @@ struct StringConcatFunctionTests {
                 "Expected a call binding for the concat invocation"
             )
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_concat",
+                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_concat_flat",
                 "String.concat(str) member call must resolve to kk_string_concat"
             )
         }

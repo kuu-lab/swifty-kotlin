@@ -6,7 +6,6 @@
 /// - contextOf<A>(): A
 /// - fun <T, R> T.let(block: (T) -> R): R
 /// - fun <T> T.also(block: (T) -> Unit): T
-/// - fun <T> T.apply(block: T.() -> Unit): T
 /// - T.takeIf(predicate: (T) -> Boolean): T?
 /// - T.takeUnless(predicate: (T) -> Boolean): T?
 /// Inline-expanded by CallLowerer; no runtime call.
@@ -33,7 +32,6 @@ extension DataFlowSemaPhase {
         registerContextOfHelperStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerLetStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerAlsoStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerApplyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
     }
 
     /// `with<T, R>(receiver: T, block: T.() -> R): R` (STDLIB-061)
@@ -791,84 +789,6 @@ extension DataFlowSemaPhase {
                 classTypeParameterCount: 0
             ),
             for: alsoSymbol
-        )
-    }
-
-    /// `fun <T> T.apply(block: T.() -> Unit): T` (STDLIB-400)
-    /// Inline extension function on T; the block has T as implicit receiver (`this`)
-    /// and the call itself returns the original receiver.
-    private func registerApplyStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinPkg: [InternedString]
-    ) {
-        let applyName = interner.intern("apply")
-        let applyFQName = kotlinPkg + [applyName]
-
-        if symbols.lookup(fqName: applyFQName) != nil {
-            return
-        }
-
-        let tName = interner.intern("T")
-        let tFQName = applyFQName + [tName]
-
-        let tSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tName,
-            fqName: tFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-
-        let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
-
-        let blockType = types.make(.functionType(FunctionType(
-            receiver: tType,
-            params: [],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
-        let blockName = interner.intern("block")
-        let blockSymbol = symbols.define(
-            kind: .valueParameter,
-            name: blockName,
-            fqName: applyFQName + [blockName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-
-        let applySymbol = symbols.define(
-            kind: .function,
-            name: applyName,
-            fqName: applyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            symbols.setParentSymbol(packageSymbol, for: applySymbol)
-        }
-        symbols.setParentSymbol(applySymbol, for: tSymbol)
-        symbols.setParentSymbol(applySymbol, for: blockSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: tType,
-                parameterTypes: [blockType],
-                returnType: tType,
-                isSuspend: false,
-                valueParameterSymbols: [blockSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [tSymbol],
-                classTypeParameterCount: 0
-            ),
-            for: applySymbol
         )
     }
 }

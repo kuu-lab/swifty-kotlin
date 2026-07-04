@@ -359,8 +359,7 @@ extension ListSyntheticMemberLinkTests {
 
             let transformType = try #require(signature.parameterTypes.first)
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
-                  case let .classType(transformReturnClassType) = sema.types.kind(of: sema.types.makeNonNullable(functionType.returnType)),
-                  let transformReturnSymbol = sema.symbols.symbol(transformReturnClassType.classSymbol)
+                  let (_, transformReturnSymbol) = resolveClassTypeSymbol(functionType.returnType, sema: sema)
             else {
                 Issue.record("Expected List.flatMap transform to return Collection<R>"); return
             }
@@ -402,8 +401,7 @@ extension ListSyntheticMemberLinkTests {
             let transformReturnTypeNames = symbols.compactMap { symbolID -> String? in
                 guard let parameterType = sema.symbols.functionSignature(for: symbolID)?.parameterTypes.first,
                       case let .functionType(functionType) = sema.types.kind(of: parameterType),
-                      case let .classType(returnClassType) = sema.types.kind(of: sema.types.makeNonNullable(functionType.returnType)),
-                      let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
+                      let (_, returnSymbol) = resolveClassTypeSymbol(functionType.returnType, sema: sema)
                 else { return nil }
                 return ctx.interner.resolve(returnSymbol.name)
             }
@@ -1483,7 +1481,8 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("List"),
             ]
 
-            for memberName in ["sumOf", "forEachIndexed", "mapIndexed", "filterIndexed"] {
+            // forEachIndexed remains synthetic; mapIndexed / filterIndexed / sumOf are bundled source.
+            for memberName in ["forEachIndexed"] {
                 let symbolID = try #require(sema.symbols.lookup(fqName: listFQName + [ctx.interner.intern(memberName)]))
                 let flags = try #require(sema.symbols.symbol(symbolID)?.flags)
                 #expect(flags.contains(.inlineFunction), "Expected \(memberName) to be inline")
@@ -2051,8 +2050,7 @@ extension ListSyntheticMemberLinkTests {
 
             let transformType = try #require(signature.parameterTypes.first)
             guard case let .functionType(functionType) = sema.types.kind(of: transformType),
-                  case let .classType(transformReturnClassType) = sema.types.kind(of: sema.types.makeNonNullable(functionType.returnType)),
-                  let transformReturnSymbol = sema.symbols.symbol(transformReturnClassType.classSymbol)
+                  let (_, transformReturnSymbol) = resolveClassTypeSymbol(functionType.returnType, sema: sema)
             else {
                 Issue.record("Expected List.flatMapIndexed transform to return Collection<R>"); return
             }

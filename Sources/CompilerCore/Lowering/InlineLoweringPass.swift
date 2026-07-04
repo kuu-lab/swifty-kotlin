@@ -17,6 +17,11 @@ final class InlineLoweringPass: LoweringPass {
     /// such as TailrecLoweringPass which shares the 9000 base).
     private var inlineLabelCounter: Int32 = 9000
 
+    private struct InlineTypeSubstitution {
+        let substitution: [TypeVarID: TypeID]
+        let typeVarBySymbol: [SymbolID: TypeVarID]
+    }
+
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()
         if module.features.contains(.hasInlineFunction) { return true }
@@ -372,6 +377,17 @@ final class InlineLoweringPass: LoweringPass {
             parameterValues: parameterValues,
             ctx: ctx
         )
+        let inlineTypeSubstitution = buildInlineTypeSubstitution(
+            inlineTarget: inlineTarget,
+            arguments: arguments,
+            module: module,
+            ctx: ctx
+        )
+        let substitutedInlineReturnType = substituteInlineType(
+            inlineTarget.returnType,
+            using: inlineTypeSubstitution,
+            ctx: ctx
+        )
 
         // Build a set of parameter symbols that have function types so we can
         // detect calls to lambda parameters inside the inline body.
@@ -399,6 +415,7 @@ final class InlineLoweringPass: LoweringPass {
         }()
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]
+        var unitResultAliasExprs: Set<KIRExprID> = []
         var lowered: [KIRInstruction] = []
         lowered.reserveCapacity(inlineTarget.body.count)
         var returnedExpr: KIRExprID?
@@ -421,10 +438,7 @@ final class InlineLoweringPass: LoweringPass {
                 return false
             }
             if hasValueReturn {
-                inlineMergeResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: inlineTarget.returnType
-                )
+                inlineMergeResult = module.arena.appendTemporary(type: substitutedInlineReturnType)
             }
         } else {
             inlineExitLabel = -1
@@ -517,12 +531,12 @@ final class InlineLoweringPass: LoweringPass {
                     let resolvedCaptureArgs = captureArgs.map { resolveAlias(of: $0, aliases: localExprMap) }
                     module.arena.registerLambdaCaptureArgs(symbol, captureArgs: resolvedCaptureArgs)
                 }
-                let loweredResult = cloneExpr(result, in: module.arena)
+                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 localExprMap[result] = loweredResult
                 lowered.append(.constValue(result: loweredResult, value: value))
 
             case let .binary(op, lhs, rhs, result):
-                let loweredResult = cloneExpr(result, in: module.arena)
+                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 localExprMap[result] = loweredResult
                 lowered.append(
                     .binary(
@@ -577,6 +591,7 @@ final class InlineLoweringPass: LoweringPass {
                                 let unitExpr = module.arena.appendExpr(.unit, type: nil)
                                 lowered.append(.constValue(result: unitExpr, value: .unit))
                                 localExprMap[result] = unitExpr
+                                unitResultAliasExprs.insert(unitExpr)
                             }
                         }
                         break
@@ -615,6 +630,7 @@ final class InlineLoweringPass: LoweringPass {
                                 let unitExpr = module.arena.appendExpr(.unit, type: nil)
                                 lowered.append(.constValue(result: unitExpr, value: .unit))
                                 localExprMap[result] = unitExpr
+                                unitResultAliasExprs.insert(unitExpr)
                             }
                         }
                         break
@@ -622,12 +638,12 @@ final class InlineLoweringPass: LoweringPass {
                 }
 
                 let loweredResult = result.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
+                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                     localExprMap[expr] = cloned
                     return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
+                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                     localExprMap[expr] = cloned
                     return cloned
                 }
@@ -645,12 +661,12 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
                 let loweredResult = result.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
+                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                     localExprMap[expr] = cloned
                     return cloned
                 }
                 let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
-                    let cloned = cloneExpr(expr, in: module.arena)
+                    let cloned = cloneExpr(expr, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                     localExprMap[expr] = cloned
                     return cloned
                 }
@@ -684,10 +700,35 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .copy(from, to):
+                let resolvedFrom = resolveAlias(of: from, aliases: localExprMap)
+                var resolvedTo = resolveAlias(of: to, aliases: localExprMap)
+                if let fromType = module.arena.exprType(resolvedFrom),
+                   shouldRetypeInlineCopyTarget(
+                       currentType: module.arena.exprType(resolvedTo),
+                       fromType: fromType,
+                       inlineReturnType: substitutedInlineReturnType,
+                       isUnitPlaceholder: unitResultAliasExprs.contains(resolvedTo),
+                       ctx: ctx
+                   )
+                {
+                    let replacement = module.arena.appendExpr(
+                        module.arena.expr(resolvedTo) ?? .temporary(Int32(module.arena.expressions.count)),
+                        type: fromType
+                    )
+                    let aliasKeysToUpdate = localExprMap.compactMap { key, value in
+                        value == resolvedTo ? key : nil
+                    }
+                    for key in aliasKeysToUpdate {
+                        localExprMap[key] = replacement
+                    }
+                    localExprMap[to] = replacement
+                    unitResultAliasExprs.remove(resolvedTo)
+                    resolvedTo = replacement
+                }
                 lowered.append(
                     .copy(
-                        from: resolveAlias(of: from, aliases: localExprMap),
-                        to: resolveAlias(of: to, aliases: localExprMap)
+                        from: resolvedFrom,
+                        to: resolvedTo
                     )
                 )
 
@@ -700,7 +741,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .loadGlobal(result, symbol):
-                let loweredResult = cloneExpr(result, in: module.arena)
+                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 localExprMap[result] = loweredResult
                 lowered.append(.loadGlobal(result: loweredResult, symbol: symbol))
 
@@ -710,7 +751,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .unary(op, operand, result):
-                let loweredResult = cloneExpr(result, in: module.arena)
+                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 localExprMap[result] = loweredResult
                 lowered.append(
                     .unary(
@@ -721,7 +762,7 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .nullAssert(operand, result):
-                let loweredResult = cloneExpr(result, in: module.arena)
+                let loweredResult = cloneExpr(result, in: module.arena, typeSubstitution: inlineTypeSubstitution, ctx: ctx)
                 localExprMap[result] = loweredResult
                 lowered.append(
                     .nullAssert(
@@ -857,9 +898,7 @@ final class InlineLoweringPass: LoweringPass {
                 // Uses the lambda's declared return type so later passes see
                 // a properly typed merge expression.
                 let returnType = lambdaFunction.returnType
-                let mergeID = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: returnType
+                let mergeID = module.arena.appendTemporary(type: returnType
                 )
                 mergeResult = mergeID
             }
@@ -1267,11 +1306,205 @@ final class InlineLoweringPass: LoweringPass {
         return current
     }
 
-    private func cloneExpr(_ source: KIRExprID, in arena: KIRArena) -> KIRExprID {
+    private func buildInlineTypeSubstitution(
+        inlineTarget: KIRFunction,
+        arguments: [KIRExprID],
+        module: KIRModule,
+        ctx: KIRContext
+    ) -> InlineTypeSubstitution? {
+        guard let sema = ctx.sema,
+              let signature = sema.symbols.functionSignature(for: inlineTarget.symbol),
+              !signature.typeParameterSymbols.isEmpty
+        else {
+            return nil
+        }
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (parameter, argument) in zip(inlineTarget.params, arguments) {
+            guard let argumentType = module.arena.exprType(argument) else {
+                continue
+            }
+            collectInlineTypeSubstitution(
+                expected: parameter.type,
+                actual: argumentType,
+                sema: sema,
+                typeVarBySymbol: typeVarBySymbol,
+                substitution: &substitution
+            )
+        }
+        guard !substitution.isEmpty else {
+            return nil
+        }
+        return InlineTypeSubstitution(substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+    }
+
+    private func collectInlineTypeSubstitution(
+        expected: TypeID,
+        actual: TypeID,
+        sema: SemaModule,
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        substitution: inout [TypeVarID: TypeID]
+    ) {
+        switch sema.types.kind(of: expected) {
+        case let .typeParam(typeParam):
+            guard let typeVar = typeVarBySymbol[typeParam.symbol],
+                  substitution[typeVar] == nil
+            else {
+                return
+            }
+            substitution[typeVar] = actual
+
+        case let .classType(expectedClass):
+            guard case let .classType(actualClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)),
+                  expectedClass.classSymbol == actualClass.classSymbol
+            else {
+                return
+            }
+            for (expectedArg, actualArg) in zip(expectedClass.args, actualClass.args) {
+                guard let expectedInner = inlineTypeArgPayload(expectedArg),
+                      let actualInner = inlineTypeArgPayload(actualArg)
+                else {
+                    continue
+                }
+                collectInlineTypeSubstitution(
+                    expected: expectedInner,
+                    actual: actualInner,
+                    sema: sema,
+                    typeVarBySymbol: typeVarBySymbol,
+                    substitution: &substitution
+                )
+            }
+
+        case let .functionType(expectedFunction):
+            guard case let .functionType(actualFunction) = sema.types.kind(of: sema.types.makeNonNullable(actual)) else {
+                return
+            }
+            if let expectedReceiver = expectedFunction.receiver,
+               let actualReceiver = actualFunction.receiver
+            {
+                collectInlineTypeSubstitution(
+                    expected: expectedReceiver,
+                    actual: actualReceiver,
+                    sema: sema,
+                    typeVarBySymbol: typeVarBySymbol,
+                    substitution: &substitution
+                )
+            }
+            for (expectedParam, actualParam) in zip(expectedFunction.params, actualFunction.params) {
+                collectInlineTypeSubstitution(
+                    expected: expectedParam,
+                    actual: actualParam,
+                    sema: sema,
+                    typeVarBySymbol: typeVarBySymbol,
+                    substitution: &substitution
+                )
+            }
+            collectInlineTypeSubstitution(
+                expected: expectedFunction.returnType,
+                actual: actualFunction.returnType,
+                sema: sema,
+                typeVarBySymbol: typeVarBySymbol,
+                substitution: &substitution
+            )
+
+        case let .kClassType(expectedKClass):
+            guard case let .kClassType(actualKClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)) else {
+                return
+            }
+            collectInlineTypeSubstitution(
+                expected: expectedKClass.argument,
+                actual: actualKClass.argument,
+                sema: sema,
+                typeVarBySymbol: typeVarBySymbol,
+                substitution: &substitution
+            )
+
+        default:
+            return
+        }
+    }
+
+    private func inlineTypeArgPayload(_ arg: TypeArg) -> TypeID? {
+        switch arg {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return nil
+        }
+    }
+
+    private func substituteInlineType(
+        _ type: TypeID?,
+        using inlineTypeSubstitution: InlineTypeSubstitution?,
+        ctx: KIRContext
+    ) -> TypeID? {
+        guard let type,
+              let inlineTypeSubstitution,
+              let sema = ctx.sema
+        else {
+            return type
+        }
+        return sema.types.substituteTypeParameters(
+            in: type,
+            substitution: inlineTypeSubstitution.substitution,
+            typeVarBySymbol: inlineTypeSubstitution.typeVarBySymbol
+        )
+    }
+
+    private func isInlineUnitType(_ type: TypeID, ctx: KIRContext) -> Bool {
+        guard let sema = ctx.sema else {
+            return false
+        }
+        if type == sema.types.unitType {
+            return true
+        }
+        if case .unit = sema.types.kind(of: type) {
+            return true
+        }
+        return false
+    }
+
+    private func shouldRetypeInlineCopyTarget(
+        currentType: TypeID?,
+        fromType: TypeID,
+        inlineReturnType: TypeID?,
+        isUnitPlaceholder: Bool,
+        ctx: KIRContext
+    ) -> Bool {
+        if isUnitPlaceholder {
+            return !isInlineUnitType(fromType, ctx: ctx)
+        }
+        guard let inlineReturnType,
+              fromType == inlineReturnType,
+              currentType != fromType
+        else {
+            return false
+        }
+        if let currentType {
+            return isInlineUnitType(currentType, ctx: ctx) || currentType != inlineReturnType
+        }
+        return true
+    }
+
+    private func cloneExpr(
+        _ source: KIRExprID,
+        in arena: KIRArena,
+        typeSubstitution: InlineTypeSubstitution?,
+        ctx: KIRContext
+    ) -> KIRExprID {
         let fallback = KIRExprKind.temporary(Int32(arena.expressions.count))
         return arena.appendExpr(
             arena.expr(source) ?? fallback,
-            type: arena.exprType(source)
+            type: substituteInlineType(arena.exprType(source), using: typeSubstitution, ctx: ctx)
         )
+    }
+
+    private func cloneExpr(_ source: KIRExprID, in arena: KIRArena) -> KIRExprID {
+        let type = arena.exprType(source)
+        guard let expr = arena.expr(source) else {
+            return arena.appendTemporary(type: type)
+        }
+        return arena.appendExpr(expr, type: type)
     }
 }

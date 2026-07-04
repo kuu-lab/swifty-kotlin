@@ -145,7 +145,7 @@ extension BuildKIRRegressionTests {
             interner: interner
         )
         ctx.ast = module
-        ctx.sema = SemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
+        ctx.sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         return (ctx, (eUnaryPlus, eUnaryMinus, eUnaryNot, eNe, eLt, eLe, eGt, eGe, eAnd, eOr))
     }
@@ -362,12 +362,7 @@ extension BuildKIRRegressionTests {
             interner: interner
         )
         ctx.ast = astModule
-        ctx.sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: bindings,
-            diagnostics: diagnostics
-        )
+        ctx.sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         return (ctx, pickSymbol, mainSymbol, typeParameterSymbol, intType)
     }

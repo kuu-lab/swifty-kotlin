@@ -368,7 +368,7 @@ final class TailrecLoweringPass: LoweringPass {
             }
             let arg = arguments[i]
             let argType = arena.exprType(arg)
-            let temp = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: argType)
+            let temp = arena.appendTemporary(type: argType)
             result.append(.copy(from: arg, to: temp))
             temporaries.append(temp)
         }

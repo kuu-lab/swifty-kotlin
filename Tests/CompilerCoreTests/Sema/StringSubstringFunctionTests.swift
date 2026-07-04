@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-073: Validates that `CharSequence.substring(startIndex, endIndex)`
 /// resolves through Sema for String receivers across multiple call sites and
-/// links to the runtime helper `kk_string_substring` (see
+/// links to the runtime helper `kk_string_substring_flat` (see
 /// `Sources/Runtime/RuntimeStringStdlib.swift`).
 @Suite
 struct StringSubstringFunctionTests {
@@ -58,7 +58,7 @@ struct StringSubstringFunctionTests {
                 "String.substring(startIndex, endIndex) should return String"
             )
         }
-        #expect(resolvedLink == "kk_string_substring")
+        #expect(resolvedLink == "kk_string_substring_flat")
     }
 
     @Test func testSubstringOneArgOverloadResolvesToRuntimeLink() throws {
@@ -82,6 +82,6 @@ struct StringSubstringFunctionTests {
                 "String.substring(startIndex) should return String"
             )
         }
-        #expect(resolvedLink == "kk_string_substring")
+        #expect(resolvedLink == "kk_string_substring_flat")
     }
 }

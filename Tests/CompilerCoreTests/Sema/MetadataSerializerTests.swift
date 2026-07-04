@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import XCTest
 
 @Suite
 struct MetadataSerializerTests {
@@ -354,6 +355,85 @@ struct MetadataSerializerTests {
         )
 
         #expect(record.isValueClass)
+    func testBuildRecordsCanExportSyntheticNominalAnchorsOnly() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+
+        _ = symbols.define(
+            kind: .interface,
+            name: interner.intern("CharSequence"),
+            fqName: [kotlin, interner.intern("CharSequence")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        let range = symbols.define(
+            kind: .class,
+            name: interner.intern("IntRange"),
+            fqName: [kotlin, interner.intern("ranges"), interner.intern("IntRange")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        let first = symbols.define(
+            kind: .property,
+            name: interner.intern("first"),
+            fqName: [kotlin, interner.intern("ranges"), interner.intern("IntRange"), interner.intern("first")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setNominalLayout(
+            NominalLayout(
+                objectHeaderWords: 2,
+                instanceFieldCount: 1,
+                instanceSizeWords: 3,
+                fieldOffsets: [first: 2],
+                vtableSlots: [first: 0],
+                itableSlots: [:],
+                superClass: nil
+            ),
+            for: range
+        )
+        let function = symbols.define(
+            kind: .function,
+            name: interner.intern("syntheticFunction"),
+            fqName: [kotlin, interner.intern("syntheticFunction")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: [],
+                returnType: types.unitType,
+                isSuspend: false
+            ),
+            for: function
+        )
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [:],
+            includeSynthetic: false,
+            includeSyntheticNominalAnchors: true
+        )
+
+        XCTAssertEqual(records.map(\.fqName), ["kotlin.CharSequence", "kotlin.ranges.IntRange"])
+        XCTAssertEqual(records.map(\.kind), [.interface, .class])
+        XCTAssertTrue(records.allSatisfy { !$0.mangledName.isEmpty })
+        XCTAssertTrue(records.allSatisfy { $0.declaredInstanceSizeWords == nil })
+        XCTAssertTrue(records.allSatisfy { $0.fieldOffsets == nil })
+        XCTAssertTrue(records.allSatisfy { $0.vtableSlots == nil })
+    }
+
         #expect(record.valueClassUnderlyingTypeSig == nil)
     }
 

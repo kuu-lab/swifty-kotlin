@@ -4,7 +4,7 @@ import Testing
 
 /// Verifies CharSequence?.isNullOrBlank() (STDLIB-TEXT-FN-032) resolves cleanly
 /// in Sema and lowers through the nullable-receiver fallback to the runtime
-/// helper `kk_string_isNullOrBlank`.
+/// helper `kk_string_isNullOrBlank_flat`.
 @Suite
 struct StringIsNullOrBlankFunctionTests {
     private func allMemberCallExprIDs(
@@ -78,7 +78,7 @@ struct StringIsNullOrBlankFunctionTests {
     }
 
     /// The compiler should lower nullable-receiver isNullOrBlank() to the runtime helper
-    /// `kk_string_isNullOrBlank`, classified as non-throwing.
+    /// `kk_string_isNullOrBlank_flat`, classified as non-throwing.
     @Test func testIsNullOrBlankLowersToRuntimeHelperNonThrowing() throws {
         let source = """
         fun main() {
@@ -97,8 +97,8 @@ struct StringIsNullOrBlankFunctionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let isNullOrBlankFlags = try #require(
-                throwFlags["kk_string_isNullOrBlank"],
-                "Expected kk_string_isNullOrBlank calls to appear in main()"
+                throwFlags["kk_string_isNullOrBlank_flat"],
+                "Expected kk_string_isNullOrBlank_flat calls to appear in main()"
             )
             #expect(isNullOrBlankFlags.count == 2)
             #expect(isNullOrBlankFlags.allSatisfy { $0 == false })

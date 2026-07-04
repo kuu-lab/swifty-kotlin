@@ -3,6 +3,7 @@
 > **ステータス**: Section A（完全到達不能 102 個）と Section C（参照ゼロ Swift 関数 6 個）は **削除済み**。
 > 参照元ファイル（`RuntimeLogging.swift`, `RuntimeFlowErrorHandling.swift` 等）も既に存在しない。
 > Section B（テストのみ参照 127 個）はトリアージ完了（2026-06-23 実施）。RF-DEAD-002 結果参照。
+> Section D（テストのみ参照 Swift シンボル）はトリアージ完了（2026-07-02 実施）。DEADCODE-013 結果参照。
 > 本ドキュメントは監査の履歴記録として保持する。
 
 TODO.md の Phase RF9（RF-DEAD-001〜004）の根拠インベントリ。検出手法と全リストを記録する。
@@ -282,3 +283,34 @@ kk_write_barrier
 - `GoldenHarnessWorkerMain` — `Sources/GoldenHarnessWorker/main.swift` の実行ターゲットエントリポイント
 - `kk_match_result_destructured_component1`〜`9` — `HeaderHelpers+SyntheticRegexStubs.swift:448` の文字列補間で emit される
 - `_kswiftkRuntimeAutolinkAnchor`（`LinkPhase.swift`）— Foundation/Dispatch シンボルを強制リンクするためのアンカー（意図的な未呼び出し）
+
+## D. テストのみ参照 Swift シンボル → DEADCODE-013 ✅ トリアージ済み
+
+2026-07-02 に `TODO.md` の DEADCODE-013 候補を現 HEAD で再確認した。下記の製品コード上のテスト専用シンボルは削除、または Tests 側へ移動した。
+
+| 判定 | シンボル | 処置 |
+|---|---|---|
+| 削除 | `KotlinParser.canStartTypeArguments(after:)` overloads | 製品コードから削除。テストは製品コードも使う `canStartTypeArgumentsInternal(hasAnchorToken:)` と parse 経路で維持 |
+| 削除 | `SymbolTable.setTypeParameterUpperBound` | 単数 setter を削除。テスト/呼び出し側は `setTypeParameterUpperBounds` に統一 |
+| 削除 | `RuntimeMetadataCodec` | JSON wrapper を削除。テストは `JSONEncoder` / `JSONDecoder` で metadata model の Codable round-trip を直接検証 |
+| 削除 | `RuntimeMemoryLeakReport` / `runtimeDetectMemoryLeak` | Runtime API として未配線の leak detector を削除。公開 memory metrics テストのみ残す |
+| 削除 | `RuntimeJobHandle.completeCancellationIfNeeded` | テスト専用 terminal transition helper を削除。テストは cancellation 後の `complete(with:)` 経路で terminal state を検証 |
+| 削除 | `RuntimeABIExterns.externDecl` | テスト内の `allExterns` 辞書 lookup に置換。製品側 lookup cache は削除 |
+| Tests へ移動 | `RuntimeReflectionMetadataDecoder` | Reflection metadata round-trip 検証用 decoder として `RuntimeReflectionMetadataEmitterTests` 内の private helper に移動 |
+
+現 HEAD では、DEADCODE-013 の元リストのうち以下は既に存在しない、または名称が変わっており、追加処置なしとした。
+
+```
+PhaseTimer.exportTSV / exportJSON
+KotlinLanguageVersion / CompilerVersion
+BlockScope / validateExpectActualLinks / hasContractReturnsNotNull
+smartCastTypeForWhenSubjectCase
+DataFlow.invalidateVariable / DataFlow.narrowToNonNull
+IncrementalCompilationCache.clearCache
+SemaCacheContext.invalidateScope
+FileFingerprint.mtimeUnchanged
+DependencyGraph.clearFile
+compilerPluginMetadata
+```
+
+なお `KotlinParser.canStartTypeArgumentsInternal(hasAnchorToken:)` は parser 本体（declaration parsing）から使用されるため dead ではない。`RuntimeABIExterns.allExterns` は ABI parity の canonical extern view として残した。

@@ -208,9 +208,7 @@ extension ControlFlowTypeChecker {
     }
 
     private func isDataClassType(_ type: TypeID, sema: SemaModule) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: type),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return symbol.flags.contains(.dataType)

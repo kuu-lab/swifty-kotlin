@@ -34,7 +34,8 @@ struct RuntimeABIExternalLinkValidationTests {
                 compilerCore.appendingPathComponent("Sema"),
             ]
         )
-        let missing = linkNames
+        let resolvedLinkNames = Set(linkNames)
+        let missing = resolvedLinkNames
             .subtracting(runtimeABINames)
             .subtracting(allowedCompilerExternalLinks)
             .sorted()
@@ -76,9 +77,12 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_op_urem",
             "kk_op_usub",
             "kk_program_main",
+            "kk_string_length",
+            "kk_string_struct_get_length",
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
+            "__string_struct_get_length",
         ]
     }
 

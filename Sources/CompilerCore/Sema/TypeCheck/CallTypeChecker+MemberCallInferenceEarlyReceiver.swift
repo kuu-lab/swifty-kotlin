@@ -215,8 +215,7 @@ extension CallTypeChecker {
         }
         if interner.resolve(calleeName) == "callRecursive",
            args.count == 1,
-           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(effectiveCallRecursiveReceiverType)),
-           let receiverSymbol = sema.symbols.symbol(classType.classSymbol),
+           let (classType, receiverSymbol) = resolveClassTypeSymbol(effectiveCallRecursiveReceiverType, sema: sema),
            receiverSymbol.fqName.count == 2,
            interner.resolve(receiverSymbol.fqName[0]) == "kotlin",
            interner.resolve(receiverSymbol.fqName[1]) == "DeepRecursiveFunction"

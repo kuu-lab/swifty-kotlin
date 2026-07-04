@@ -1,6 +1,22 @@
 @testable import Runtime
 import XCTest
 
+/// Edge-case tests for STDLIB-REFLECT-067 — KClass<T> properties and introspection
+/// available on common / Kotlin/Native targets.
+///
+/// Coverage:
+///   - simpleName: top-level, nested, inner, anonymous (null), local, generic, stdlib
+///   - qualifiedName: same set + package-prefixed, null for anonymous objects on Native
+///   - isInstance(value): basic true/false, null value (always false), unregistered type
+///   - ::class / X::class class-literal syntax (KIR emission via StandaloneClassReferenceTests
+///     already covers most paths; here we verify the runtime box identity/equality)
+///   - KClass equality + hash: same typeToken → same box (interned), different → different
+///   - enum class via ::class flags
+///   - interface class-literal
+///   - generic class (type arguments erased — KClass<List<Int>> == KClass<List<String>>)
+///   - Any::class, Unit::class, Nothing::class special handling
+///   - cast / safeCast helpers (isInstance-based semantics)
+///   - member / field / constructor counts from registered metadata
 final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
 
     override func setUp() {

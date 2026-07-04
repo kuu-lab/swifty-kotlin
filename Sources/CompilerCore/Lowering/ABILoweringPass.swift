@@ -1,44 +1,54 @@
 
-struct BoxingCalleeNames {
-    let int: InternedString
-    let bool: InternedString
-    let long: InternedString
-    let float: InternedString
-    let double: InternedString
-    let char: InternedString
-}
-
-struct UnboxingCalleeNames {
-    let int: InternedString
-    let bool: InternedString
-    let long: InternedString
-    let float: InternedString
-    let double: InternedString
-    let char: InternedString
-}
-
 final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
 
+    static let primitiveBoxingCalleeNamesByPrimitive = BoxingCalleeTable.primitiveBoxingCalleeNamesByPrimitive
+    static let primitiveUnboxingCalleeNamesByPrimitive = BoxingCalleeTable.primitiveUnboxingCalleeNamesByPrimitive
+
+    static let primitiveBoxingCalleeNames = BoxingCalleeTable.primitiveBoxingCalleeNames
+    static let primitiveUnboxingCalleeNames = BoxingCalleeTable.primitiveUnboxingCalleeNames
+
+    static func primitiveBoxingCalleeName(for primitive: PrimitiveType) -> String? {
+        BoxingCalleeTable.boxCalleeName(for: primitive)
+    }
+
+    static func primitiveUnboxingCalleeName(for primitive: PrimitiveType) -> String? {
+        BoxingCalleeTable.unboxCalleeName(for: primitive)
+    }
+
+    static func primitiveBoxingCalleeName(for kind: TypeKind) -> String? {
+        BoxingCalleeTable.boxCalleeName(for: kind)
+    }
+
+    static func primitiveUnboxingCalleeName(for kind: TypeKind) -> String? {
+        BoxingCalleeTable.unboxCalleeName(for: kind)
+    }
+
+    static func primitiveBoxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
+        guard let callee = BoxingCalleeTable(interner: interner).boxCallee(for: primitive) else {
+            preconditionFailure("No boxing callee registered for \(primitive)")
+        }
+        return callee
+    }
+
+    static func primitiveUnboxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
+        guard let callee = BoxingCalleeTable(interner: interner).unboxCallee(for: primitive) else {
+            preconditionFailure("No unboxing callee registered for \(primitive)")
+        }
+        return callee
+    }
+
+    static func primitiveBoxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {
+        BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
+    }
+
+    static func primitiveUnboxingCallee(for kind: TypeKind, interner: StringInterner) -> InternedString? {
+        BoxingCalleeTable(interner: interner).unboxCallee(for: kind, requireNonNull: false)
+    }
+
     func run(module: KIRModule, ctx: KIRContext) throws {
         let nonThrowingCalleeSet = nonThrowingCallees(interner: ctx.interner)
-
-        let boxCallees = BoxingCalleeNames(
-            int: ctx.interner.intern("kk_box_int"),
-            bool: ctx.interner.intern("kk_box_bool"),
-            long: ctx.interner.intern("kk_box_long"),
-            float: ctx.interner.intern("kk_box_float"),
-            double: ctx.interner.intern("kk_box_double"),
-            char: ctx.interner.intern("kk_box_char")
-        )
-        let unboxCallees = UnboxingCalleeNames(
-            int: ctx.interner.intern("kk_unbox_int"),
-            bool: ctx.interner.intern("kk_unbox_bool"),
-            long: ctx.interner.intern("kk_unbox_long"),
-            float: ctx.interner.intern("kk_unbox_float"),
-            double: ctx.interner.intern("kk_unbox_double"),
-            char: ctx.interner.intern("kk_unbox_char")
-        )
+        let boxingCalleeTable = BoxingCalleeTable(interner: ctx.interner)
 
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
@@ -142,7 +152,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             module: module,
                             types: types,
                             symbols: symbols,
-                            boxCallees: boxCallees,
+                            boxingCalleeTable: boxingCalleeTable,
                             callee: vcCallee,
                             interner: ctx.interner,
                             newBody: &newBody
@@ -158,12 +168,10 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         module: module,
                         types: types,
                         symbols: symbols,
-                        unboxCallees: unboxCallees
+                        boxingCalleeTable: boxingCalleeTable
                     )
                     if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
-                        let tempResult = module.arena.appendExpr(
-                            .temporary(Int32(module.arena.expressions.count)),
-                            type: vcReturnType
+                        let tempResult = module.arena.appendTemporary(type: vcReturnType
                         )
                         newBody.append(.virtualCall(
                             symbol: vcSymbol,
@@ -184,14 +192,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                                 idx += 1
                             }
                         }
-                        newBody.append(.call(
-                            symbol: nil,
+                        emitNonThrowingCall(
                             callee: vcUnboxCallee,
-                            arguments: [tempResult],
+                            arg: tempResult,
                             result: vcResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                            into: &newBody
+                        )
                     } else {
                         newBody.append(.virtualCall(
                             symbol: vcSymbol,
@@ -215,7 +221,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                        functionReturnKind: functionReturnKind,
                        returnType: function.returnType,
                        module: module, types: types, symbols: symbols,
-                       boxCallees: boxCallees
+                       boxingCalleeTable: boxingCalleeTable
                    )
                 {
                     newBody.append(contentsOf: rewritten)
@@ -233,8 +239,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                    let rewritten = rewriteCopyBoxingOrUnboxing(
                        from: from, to: to,
                        module: module, types: types, symbols: symbols,
-                       boxCallees: boxCallees,
-                       unboxCallees: unboxCallees
+                       boxingCalleeTable: boxingCalleeTable
                    )
                 {
                     newBody.append(rewritten)
@@ -253,12 +258,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     let newLhs = unboxBinaryOperandIfNeeded(
                         operand: lhs, resultExpr: result,
                         module: module, types: types, symbols: symbols,
-                        unboxCallees: unboxCallees, newBody: &newBody
+                        boxingCalleeTable: boxingCalleeTable, newBody: &newBody
                     )
                     let newRhs = unboxBinaryOperandIfNeeded(
                         operand: rhs, resultExpr: result,
                         module: module, types: types, symbols: symbols,
-                        unboxCallees: unboxCallees, newBody: &newBody
+                        boxingCalleeTable: boxingCalleeTable, newBody: &newBody
                     )
                     newBody.append(.binary(op: op, lhs: newLhs, rhs: newRhs, result: result))
                     idx += 1
@@ -331,7 +336,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         module: module,
                         types: types,
                         symbols: symbols,
-                        boxCallees: boxCallees,
+                        boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
                         newBody: &newBody
@@ -351,7 +356,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         boxedArguments[i] = unboxBinaryOperandIfNeeded(
                             operand: boxedArguments[i], resultExpr: result,
                             module: module, types: types, symbols: symbols,
-                            unboxCallees: unboxCallees, newBody: &newBody
+                            boxingCalleeTable: boxingCalleeTable, newBody: &newBody
                         )
                     }
                 }
@@ -381,7 +386,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             boxedArguments[i],
                             hint: primitiveHint,
                             module: module, types: types, symbols: symbols,
-                            unboxCallees: unboxCallees, newBody: &newBody
+                            boxingCalleeTable: boxingCalleeTable, newBody: &newBody
                         )
                     }
                 }
@@ -394,7 +399,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     module: module,
                     types: types,
                     symbols: symbols,
-                    unboxCallees: unboxCallees
+                    boxingCalleeTable: boxingCalleeTable
                 )
 
                 // Fallback: collection element accessors may return a boxed primitive.
@@ -411,16 +416,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     )
                     if let unboxCallee = unboxingCallee(
                         sourceKind: TypeKind.any(.nullable), targetKind: resultKind,
-                        unboxCallees: unboxCallees, types: types, symbols: symbols
+                        boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
                     ) {
                         effectiveUnbox = (unboxCallee, resultType)
                     }
                 }
 
                 if let (resolvedUnboxCallee, resolvedReturnType) = effectiveUnbox, let result {
-                    let tempResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: resolvedReturnType
+                    let tempResult = module.arena.appendTemporary(type: resolvedReturnType
                     )
                     newBody.append(.call(
                         symbol: effectiveCallSymbol,
@@ -440,14 +443,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             idx += 1
                         }
                     }
-                    newBody.append(.call(
-                        symbol: nil,
+                    emitNonThrowingCall(
                         callee: resolvedUnboxCallee,
-                        arguments: [tempResult],
+                        arg: tempResult,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        into: &newBody
+                    )
                 } else {
                     newBody.append(.call(
                         symbol: effectiveCallSymbol,
@@ -476,7 +477,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
-        boxCallees: BoxingCalleeNames
+        boxingCalleeTable: BoxingCalleeTable
     ) -> [KIRInstruction]? {
         guard let functionReturnKind,
               isAnyOrNullableAny(functionReturnKind) || isNonValueClassReference(functionReturnKind, symbols: symbols),
@@ -489,19 +490,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         )
         guard let boxCallee = boxCalleeForPrimitive(
             resolvedValueKind,
-            boxCallees: boxCallees
+            boxingCalleeTable: boxingCalleeTable
         ) else {
             return nil
         }
-        let boxedResult = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: returnType
+        var instructions: [KIRInstruction] = []
+        let boxedResult = emitNonThrowingCall(
+            callee: boxCallee,
+            arg: value,
+            resultType: returnType,
+            arena: module.arena,
+            into: &instructions
         )
-        return [
-            .call(symbol: nil, callee: boxCallee, arguments: [value],
-                  result: boxedResult, canThrow: false, thrownResult: nil),
-            .returnValue(boxedResult),
-        ]
+        instructions.append(.returnValue(boxedResult))
+        return instructions
     }
 
     private func rewriteCopyBoxingOrUnboxing(
@@ -509,8 +511,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
-        boxCallees: BoxingCalleeNames,
-        unboxCallees: UnboxingCalleeNames
+        boxingCalleeTable: BoxingCalleeTable
     ) -> KIRInstruction? {
         guard let fromType = intrinsicArgType(from, arena: module.arena, types: types),
               let toType = module.arena.exprType(to)
@@ -525,7 +526,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             || isNonValueClassReference(rawToKind, symbols: symbols),
             let boxCallee = boxCalleeForPrimitive(
                 fromKind,
-                boxCallees: boxCallees
+                boxingCalleeTable: boxingCalleeTable
             )
         {
             return .call(symbol: nil, callee: boxCallee, arguments: [from],
@@ -534,7 +535,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         if needsUnboxing(sourceKind: fromKind, targetKind: toKind, symbols: symbols),
            let unboxCallee = unboxingCallee(
                sourceKind: fromKind, targetKind: toKind,
-               unboxCallees: unboxCallees,
+               boxingCalleeTable: boxingCalleeTable,
                types: types, symbols: symbols
            )
         {

@@ -18,8 +18,7 @@ extension CollectionLiteralLoweringPass {
             let count = arguments.count
             let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
             loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-            let arrayExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let arrayExpr = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -32,8 +31,7 @@ extension CollectionLiteralLoweringPass {
             for (i, arg) in arguments.enumerated() {
                 let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
                 loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
-                let setResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let setResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -105,7 +103,7 @@ extension CollectionLiteralLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-189: Rewrite kk_range_iterator on String → kk_string_iterator
+            // STDLIB-189: Rewrite kk_range_iterator on String -> kk_string_iterator_flat
             if state.stringExprIDs.contains(argID.rawValue) {
                 if let result { state.stringIteratorExprIDs.insert(result.rawValue) }
                 loweredBody.append(.call(
@@ -369,11 +367,13 @@ extension CollectionLiteralLoweringPass {
         if let result,
            let resultTypeID = module.arena.exprType(result),
            let types = ctx.sema?.types,
-           let unboxCallee = primitiveUnboxCalleeForType(resultTypeID, types: types, interner: ctx.interner)
+           let unboxCallee = BoxingCalleeTable(interner: ctx.interner).unboxCallee(
+               for: resultTypeID,
+               types: types,
+               requireNonNull: true
+           )
         {
-            let tempBoxed = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: nil
+            let tempBoxed = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -383,14 +383,12 @@ extension CollectionLiteralLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-            loweredBody.append(.call(
-                symbol: nil,
+            emitNonThrowingCall(
                 callee: unboxCallee,
-                arguments: [tempBoxed],
+                arg: tempBoxed,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                into: &loweredBody
+            )
         } else {
             loweredBody.append(.call(
                 symbol: nil,
@@ -400,30 +398,6 @@ extension CollectionLiteralLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-        }
-    }
-
-    private func primitiveUnboxCalleeForType(
-        _ typeID: TypeID,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> InternedString? {
-        switch types.kind(of: typeID) {
-        case .primitive(.int, .nonNull), .primitive(.uint, .nonNull),
-             .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
-            return interner.intern("kk_unbox_int")
-        case .primitive(.long, .nonNull), .primitive(.ulong, .nonNull):
-            return interner.intern("kk_unbox_long")
-        case .primitive(.boolean, .nonNull):
-            return interner.intern("kk_unbox_bool")
-        case .primitive(.float, .nonNull):
-            return interner.intern("kk_unbox_float")
-        case .primitive(.double, .nonNull):
-            return interner.intern("kk_unbox_double")
-        case .primitive(.char, .nonNull):
-            return interner.intern("kk_unbox_char")
-        default:
-            return nil
         }
     }
 }

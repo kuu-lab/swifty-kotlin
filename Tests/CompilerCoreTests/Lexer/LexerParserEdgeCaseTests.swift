@@ -159,13 +159,7 @@ struct LexerParserEdgeCaseTests {
         #expect(!(warningCodes.isEmpty))
 
         let parserForTypeArgs = KotlinParser(tokens: parsed.tokens, interner: parsed.interner, diagnostics: DiagnosticEngine())
-        _ = parserForTypeArgs.parseFile()
-        let trailingToken = parsed.tokens.first(where: { token in
-            if case .keyword(.class) = token.kind { return true }
-            return false
-        }) ?? makeToken(kind: .keyword(.class))
-        _ = parserForTypeArgs.canStartTypeArguments(after: trailingToken)
-        _ = parserForTypeArgs.canStartTypeArguments(after: NodeID(rawValue: -1))
+        #expect(!parserForTypeArgs.canStartTypeArgumentsInternal(hasAnchorToken: false))
     }
 
     @Test
@@ -195,7 +189,6 @@ struct LexerParserEdgeCaseTests {
     func testParserCanStartTypeArgumentsLookaheadVariants() {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
-        let anchor = makeToken(kind: .keyword(.fun))
 
         let parserA = KotlinParser(
             tokens: [
@@ -207,7 +200,7 @@ struct LexerParserEdgeCaseTests {
             interner: interner,
             diagnostics: diagnostics
         )
-        #expect(parserA.canStartTypeArguments(after: anchor))
+        #expect(parserA.canStartTypeArgumentsInternal(hasAnchorToken: true))
 
         let parserB = KotlinParser(
             tokens: [
@@ -225,7 +218,7 @@ struct LexerParserEdgeCaseTests {
             interner: interner,
             diagnostics: diagnostics
         )
-        #expect(parserB.canStartTypeArguments(after: anchor))
+        #expect(parserB.canStartTypeArgumentsInternal(hasAnchorToken: true))
 
         let parserB2 = KotlinParser(
             tokens: [
@@ -244,7 +237,7 @@ struct LexerParserEdgeCaseTests {
             interner: interner,
             diagnostics: diagnostics
         )
-        #expect(!(parserB2.canStartTypeArguments(after: anchor)))
+        #expect(!parserB2.canStartTypeArgumentsInternal(hasAnchorToken: true))
 
         let parserC = KotlinParser(
             tokens: [
@@ -255,7 +248,7 @@ struct LexerParserEdgeCaseTests {
             interner: interner,
             diagnostics: diagnostics
         )
-        #expect(!(parserC.canStartTypeArguments(after: anchor)))
+        #expect(!parserC.canStartTypeArgumentsInternal(hasAnchorToken: true))
 
         let parserD = KotlinParser(
             tokens: [
@@ -268,7 +261,7 @@ struct LexerParserEdgeCaseTests {
             interner: interner,
             diagnostics: diagnostics
         )
-        #expect(!(parserD.canStartTypeArguments(after: anchor)))
+        #expect(!parserD.canStartTypeArgumentsInternal(hasAnchorToken: true))
 
         let parserE = KotlinParser(
             tokens: [

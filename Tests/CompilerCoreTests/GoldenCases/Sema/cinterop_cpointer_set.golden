@@ -9,9 +9,9 @@ symbol fq=storeAt kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.ci
 symbol fq=storeAt.$0.index kind=valueParameter vis=private flags=_
 symbol fq=storeAt.$0.ptr kind=valueParameter vis=private flags=_
 symbol fq=storeAt.$0.value kind=valueParameter vis=private flags=_
-file f14 package=_
+file f0 package=_
   decl storeAt fun storeAt sym=storeAt
-expr e@6:5#3 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>> ref=storeAt.$0.ptr
+expr e@6:5 name(ptr) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>> ref=storeAt.$0.ptr
 expr e@6:9 name(index) type=Int ref=storeAt.$0.index
-expr e@6:18#2 name(value) type=kotlinx.cinterop.ByteVarOf<Int> ref=storeAt.$0.value
-expr e@6:5#5 indexedAssign receiver=e@6:5#3 indices=[e@6:9] value=e@6:18#2 type=Unit call=kotlinx.cinterop.set targs=[kotlinx.cinterop.ByteVarOf<Int>]
+expr e@6:18 name(value) type=kotlinx.cinterop.ByteVarOf<Int> ref=storeAt.$0.value
+expr e@6:5#1 indexedAssign receiver=e@6:5 indices=[e@6:9] value=e@6:18 type=Unit call=kotlinx.cinterop.set targs=[kotlinx.cinterop.ByteVarOf<Int>]

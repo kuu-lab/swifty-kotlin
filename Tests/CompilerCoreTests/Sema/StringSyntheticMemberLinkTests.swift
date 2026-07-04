@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import XCTest
 
 /// Verifies that the new String stdlib extension stubs added in the PR
 /// (STDLIB-006, STDLIB-009) are registered in the symbol table with the
@@ -19,15 +20,24 @@ struct StringSyntheticMemberLinkTests {
         return Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
     }
 
-    private func stringExtensionSymbols(
+    private func externalLink(
         for member: String,
+        receiverType: TypeID,
+        parameterCount: Int,
         sema: SemaModule,
         interner: StringInterner
-    ) -> [SymbolID] {
+    ) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
-        return sema.symbols.lookupAll(fqName: fq).filter { symbolID in
-            sema.symbols.functionSignature(for: symbolID)?.receiverType == sema.types.stringType
+        guard let sym = sema.symbols.lookupAll(fqName: fq).first(where: { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes.count == parameterCount
+        }) else {
+            return nil
         }
+        return sema.symbols.externalLinkName(for: sym)
     }
 
     private func makeSema() throws -> (SemaModule, StringInterner) {
@@ -57,19 +67,19 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "trim": "kk_string_trim",
-            "split": "kk_string_split",
-            "replace": "kk_string_replace",
-            "startsWith": "kk_string_startsWith",
-            "endsWith": "kk_string_endsWith",
+            "trim": "kk_string_trim_flat",
+            "split": "kk_string_split_flat",
+            "replace": "kk_string_replace_flat",
+            "startsWith": "kk_string_startsWith_flat",
+            "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
             "toDouble": "kk_string_toDouble",
-            "hexToShort": "kk_string_hexToShort",
-            "hexToUByte": "kk_string_hexToUByte",
-            "hexToUByteArray": "kk_string_hexToUByteArray",
-            "hexToUInt": "kk_string_hexToUInt",
-            "hexToULong": "kk_string_hexToULong",
-            "hexToUShort": "kk_string_hexToUShort",
+            "hexToShort": "kk_string_hexToShort_flat",
+            "hexToUByte": "kk_string_hexToUByte_flat",
+            "hexToUByteArray": "kk_string_hexToUByteArray_flat",
+            "hexToUInt": "kk_string_hexToUInt_flat",
+            "hexToULong": "kk_string_hexToULong_flat",
+            "hexToUShort": "kk_string_hexToUShort_flat",
         ]
 
         for (member, expectedLink) in expected {
@@ -108,43 +118,43 @@ struct StringSyntheticMemberLinkTests {
         )
         #expect(
             externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter"),
-            "String.replaceAfter(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfter"
+                .contains("kk_string_replaceAfter_flat"),
+            "String.replaceAfter(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_flat"
         )
         #expect(
             externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter_char"),
-            "String.replaceAfter(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_char"
+                .contains("kk_string_replaceAfter_char_flat"),
+            "String.replaceAfter(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_char_flat"
         )
         #expect(
             externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast"),
-            "String.replaceAfterLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast"
+                .contains("kk_string_replaceAfterLast_flat"),
+            "String.replaceAfterLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_flat"
         )
         #expect(
             externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast_char"),
-            "String.replaceAfterLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_char"
+                .contains("kk_string_replaceAfterLast_char_flat"),
+            "String.replaceAfterLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_char_flat"
         )
         #expect(
             externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore"),
-            "String.replaceBefore(String, replacement, missingDelimiterValue) should link to kk_string_replaceBefore"
+                .contains("kk_string_replaceBefore_flat"),
+            "String.replaceBefore(String, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_flat"
         )
         #expect(
             externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore_char"),
-            "String.replaceBefore(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_char"
+                .contains("kk_string_replaceBefore_char_flat"),
+            "String.replaceBefore(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_char_flat"
         )
         #expect(
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast"),
-            "String.replaceBeforeLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast"
+                .contains("kk_string_replaceBeforeLast_flat"),
+            "String.replaceBeforeLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_flat"
         )
         #expect(
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast_char"),
-            "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
+                .contains("kk_string_replaceBeforeLast_char_flat"),
+            "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char_flat"
         )
         // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
         #expect(
@@ -155,18 +165,18 @@ struct StringSyntheticMemberLinkTests {
         // STDLIB-TEXT-FN-055: replace overloads
         #expect(
             externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char"),
-            "String.replace(Char, Char) should link to kk_string_replace_char"
+                .contains("kk_string_replace_char_flat"),
+            "String.replace(Char, Char) should link to kk_string_replace_char_flat"
         )
         #expect(
             externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_ignoreCase"),
-            "String.replace(String, String, ignoreCase) should link to kk_string_replace_ignoreCase"
+                .contains("kk_string_replace_ignoreCase_flat"),
+            "String.replace(String, String, ignoreCase) should link to kk_string_replace_ignoreCase_flat"
         )
         #expect(
             externalLinks(for: "replace", sema: sema, interner: interner)
-                .contains("kk_string_replace_char_ignoreCase"),
-            "String.replace(Char, Char, ignoreCase) should link to kk_string_replace_char_ignoreCase"
+                .contains("kk_string_replace_char_ignoreCase_flat"),
+            "String.replace(Char, Char, ignoreCase) should link to kk_string_replace_char_ignoreCase_flat"
         )
     }
 
@@ -225,12 +235,12 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "normalize", sema: sema, interner: interner) == "kk_string_normalize",
-            "String.normalize should link to kk_string_normalize"
+            externalLink(for: "normalize", sema: sema, interner: interner) == "kk_string_normalize_flat",
+            "String.normalize should link to kk_string_normalize_flat"
         )
         #expect(
-            externalLink(for: "isNormalized", sema: sema, interner: interner) == "kk_string_isNormalized",
-            "String.isNormalized should link to kk_string_isNormalized"
+            externalLink(for: "isNormalized", sema: sema, interner: interner) == "kk_string_isNormalized_flat",
+            "String.isNormalized should link to kk_string_isNormalized_flat"
         )
     }
 
@@ -252,13 +262,13 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "toIntOrNull", sema: sema, interner: interner) == "kk_string_toIntOrNull",
-            "String.toIntOrNull should link to kk_string_toIntOrNull"
+            externalLink(for: "toIntOrNull", sema: sema, interner: interner) == "kk_string_toIntOrNull_flat",
+            "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
         )
         #expect(
             externalLinks(for: "toIntOrNull", sema: sema, interner: interner)
-                .contains("kk_string_toIntOrNull_radix"),
-            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix"
+                .contains("kk_string_toIntOrNull_radix_flat"),
+            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix_flat"
         )
         #expect(
             externalLink(for: "toUByteOrNull", sema: sema, interner: interner) == "kk_string_toUByteOrNull",
@@ -352,8 +362,8 @@ struct StringSyntheticMemberLinkTests {
 
         let expected: [String: String] = [
             "toList": "kk_string_toList",
-            "toCharArray": "kk_string_toCharArray",
-            "toTypedArray": "kk_string_toTypedArray",
+            "toCharArray": "kk_string_toCharArray_flat",
+            "toTypedArray": "kk_string_toTypedArray_flat",
         ]
         for (member, expectedLink) in expected {
             #expect(
@@ -377,14 +387,53 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testStringCollectionAndSequenceResultStubsUseFlatExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let expected: [(member: String, parameterCount: Int, link: String)] = [
+            ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
+            ("toCollection", 1, "kk_string_toCollection_flat"),
+            ("asIterable", 0, "kk_string_asIterable_flat"),
+            ("lines", 0, "kk_string_lines_flat"),
+            ("lineSequence", 0, "kk_string_lineSequence_flat"),
+            ("toByteArray", 0, "kk_string_toByteArray_flat"),
+            ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),
+            ("toByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
+            ("encodeToByteArray", 0, "kk_string_encodeToByteArray_flat"),
+            ("encodeToByteArray", 1, "kk_string_encodeToByteArray_charset_flat"),
+            ("encodeToByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
+            ("chunked", 1, "kk_string_chunked_flat"),
+            ("windowed", 1, "kk_string_windowed_default_flat"),
+            ("windowed", 2, "kk_string_windowed_flat"),
+            ("windowed", 3, "kk_string_windowed_partial_flat"),
+            ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
+            ("asSequence", 0, "kk_string_asSequence_flat"),
+            ("withIndex", 0, "kk_string_withIndex_flat"),
+        ]
+
+        for item in expected {
+            XCTAssertEqual(
+                externalLink(
+                    for: item.member,
+                    receiverType: sema.types.stringType,
+                    parameterCount: item.parameterCount,
+                    sema: sema,
+                    interner: interner
+                ),
+                item.link,
+                "String.\(item.member)/\(item.parameterCount) should link to \(item.link)"
+            )
+        }
+    }
+
     @Test func testNewSlicingStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "drop": "kk_string_drop",
-            "take": "kk_string_take",
-            "dropLast": "kk_string_dropLast",
-            "takeLast": "kk_string_takeLast",
+            "drop": "kk_string_drop_flat",
+            "take": "kk_string_take_flat",
+            "dropLast": "kk_string_dropLast_flat",
+            "takeLast": "kk_string_takeLast_flat",
         ]
         for (member, expectedLink) in expected {
             #expect(
@@ -505,9 +554,9 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         let expected: [String: Set<String>] = [
-            "trim": ["kk_string_trim", "kk_string_trim_predicate"],
-            "trimStart": ["kk_string_trimStart", "kk_string_trimStart_predicate"],
-            "trimEnd": ["kk_string_trimEnd", "kk_string_trimEnd_predicate"],
+            "trim": ["kk_string_trim_flat", "kk_string_trim_predicate_flat"],
+            "trimStart": ["kk_string_trimStart_flat", "kk_string_trimStart_predicate_flat"],
+            "trimEnd": ["kk_string_trimEnd_flat", "kk_string_trimEnd_predicate_flat"],
         ]
 
         for (member, expectedLinks) in expected {
@@ -535,9 +584,9 @@ struct StringSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedLinks: [String: String] = [
-                "trim": "kk_string_trim_predicate",
-                "trimStart": "kk_string_trimStart_predicate",
-                "trimEnd": "kk_string_trimEnd_predicate",
+                "trim": "kk_string_trim_predicate_flat",
+                "trimStart": "kk_string_trimStart_predicate_flat",
+                "trimEnd": "kk_string_trimEnd_predicate_flat",
             ]
 
             for (memberName, externalLinkName) in expectedLinks {
@@ -563,11 +612,10 @@ struct StringSyntheticMemberLinkTests {
             val lower = s.lowercase()
             val upper = s.uppercase()
             val cap = s.capitalize()
-            val first = s.replaceFirstChar { 'X' }
             val rep = s.repeat(3)
             val rev = s.reversed()
-            val rfc = s.replaceFirstChar { it }
-            return lower + upper + cap + rep + rev + rfc
+            val first = s.replaceFirstChar { it.uppercase() }
+            return lower + upper + cap + rep + rev + first
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -621,8 +669,8 @@ struct StringSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedLinks: [String: String] = [
-                "normalize": "kk_string_normalize",
-                "isNormalized": "kk_string_isNormalized",
+                "normalize": "kk_string_normalize_flat",
+                "isNormalized": "kk_string_isNormalized_flat",
             ]
 
             for (memberName, externalLinkName) in expectedLinks {
@@ -1018,8 +1066,8 @@ struct StringSyntheticMemberLinkTests {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            #expect(links.filter { $0 == "kk_string_replaceAfter" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceAfter_char" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfter_flat" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfter_char_flat" }.count == 2)
         }
     }
 
@@ -1059,8 +1107,8 @@ struct StringSyntheticMemberLinkTests {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            #expect(links.filter { $0 == "kk_string_replaceAfterLast" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceAfterLast_char" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfterLast_flat" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceAfterLast_char_flat" }.count == 2)
         }
     }
 
@@ -1100,8 +1148,8 @@ struct StringSyntheticMemberLinkTests {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            #expect(links.filter { $0 == "kk_string_replaceBefore" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceBefore_char" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceBefore_flat" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceBefore_char_flat" }.count == 2)
         }
     }
 
@@ -1141,8 +1189,8 @@ struct StringSyntheticMemberLinkTests {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            #expect(links.filter { $0 == "kk_string_replaceBeforeLast" }.count == 2)
-            #expect(links.filter { $0 == "kk_string_replaceBeforeLast_char" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceBeforeLast_flat" }.count == 2)
+            #expect(links.filter { $0 == "kk_string_replaceBeforeLast_char_flat" }.count == 2)
         }
     }
 
@@ -1465,7 +1513,7 @@ struct StringSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let appendRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_appendRange_obj"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_appendRange_obj_flat"
             }
             #expect(appendRangeBindings.count == 2)
         }
@@ -1532,7 +1580,7 @@ struct StringSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let insertRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insertRange_obj"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insertRange_obj_flat"
             }
             #expect(insertRangeBindings.count == 2)
         }
@@ -1565,7 +1613,7 @@ struct StringSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let setRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setRange"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setRange_flat"
             }
             #expect(setRangeBindings.count == 2)
         }
@@ -1633,7 +1681,7 @@ struct StringSyntheticMemberLinkTests {
             }
 
             #expect(
-                externalLinks == ["kk_string_zipWithNext", "kk_string_zipWithNextTransform"]
+                externalLinks == ["kk_string_zipWithNext_flat", "kk_string_zipWithNextTransform_flat"]
             )
         }
     }
@@ -1660,7 +1708,7 @@ struct StringSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let firstNotNullOfBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOf"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOf_flat"
             }
             #expect(firstNotNullOfBindings.count == 2)
         }
@@ -1688,7 +1736,7 @@ struct StringSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOfOrNull"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOfOrNull_flat"
             }
             #expect(bindings.count == 2)
         }
@@ -1914,7 +1962,7 @@ struct StringSyntheticMemberLinkTests {
 
             let chosenCalleeCandidate = callExprIDs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }.first
             let chosenCallee = try #require(chosenCalleeCandidate)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_withIndex")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_withIndex_flat")
         }
     }
 
@@ -1952,7 +2000,7 @@ struct StringSyntheticMemberLinkTests {
             }
 
             #expect(
-                externalLinks == ["kk_string_zip", "kk_string_zipTransform"]
+                externalLinks == ["kk_string_zip_flat", "kk_string_zipTransform_flat"]
             )
         }
     }

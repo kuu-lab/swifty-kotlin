@@ -115,12 +115,7 @@ private struct InlineLambdaTestContext {
             files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainDeclID])],
             arena: arena
         )
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: bindings,
-            diagnostics: diagnostics
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
         let ctx = CompilationContext(
             options: CompilerOptions(
                 moduleName: moduleName,

@@ -1,5 +1,5 @@
 
-struct TypeInferenceContext {
+struct TypeInferenceContext: CustomStringConvertible {
     let ast: ASTModule
     let sema: SemaModule
     let semaCtx: SemaModule
@@ -176,7 +176,7 @@ struct TypeInferenceContext {
     /// `@DslMarker`.
     func collectDslMarkerAnnotations(for typeID: TypeID) -> Set<String> {
         let nonNull = sema.types.makeNonNullable(typeID)
-        guard case let .classType(classType) = sema.types.kind(of: nonNull) else {
+        guard let classType = resolveClassType(nonNull, sema: sema) else {
             return []
         }
         let classSymbol = classType.classSymbol
@@ -265,5 +265,9 @@ struct TypeInferenceContext {
         )))
         let parentDslMarkers = collectDslMarkerAnnotations(for: parentType)
         return !activeDslMarkerAnnotations.isDisjoint(with: parentDslMarkers)
+    }
+
+    var description: String {
+        return "\(useNewInference) \(useUnrestrictedBuilderInference) \(useProperTypeInferenceConstraintsProcessing)"
     }
 }

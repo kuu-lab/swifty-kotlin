@@ -93,10 +93,9 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
 
                 let kir = try XCTUnwrap(appCtx.kir)
                 let mainFunction = try XCTUnwrap(
-                    kir.arena.declarations.compactMap { decl -> KIRFunction? in
-                        guard case let .function(function) = decl else { return nil }
-                        return appCtx.interner.resolve(function.name) == "main" ? function : nil
-                    }.first,
+                    findAllKIRFunctions(in: kir).first { function in
+                        appCtx.interner.resolve(function.name) == "main"
+                    },
                     "Expected lowered main function"
                 )
 

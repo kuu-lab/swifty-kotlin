@@ -189,15 +189,13 @@ extension CallLowerer {
         {
             let chosenLinkName = chosenBase64Callee.flatMap { sema.symbols.externalLinkName(for: $0) }
             let returnsList = boundType.map { resultType in
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(resultType)),
-                      let resultSymbol = sema.symbols.symbol(classType.classSymbol)
+                guard let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
                 else { return false }
                 return interner.resolve(resultSymbol.name) == "List"
             } ?? false
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let receiverIsIterable = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                      let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+                guard let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
                 else { return false }
                 return receiverSymbol.fqName == [
                     interner.intern("kotlin"),
@@ -270,7 +268,7 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "contains" {
-                    let listExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nil)
+                    let listExpr = arena.appendTemporary(type: nil)
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_array_toList"),
@@ -337,9 +335,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_array_foldIndexed"
                         || runtimeCallee == "kk_array_flatMap"
                     let thrownResult = canThrow
-                        ? arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
+                        ? arena.appendTemporary(type: sema.types.nullableAnyType
                         )
                         : nil
                     instructions.append(.call(
@@ -1044,9 +1040,7 @@ extension CallLowerer {
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
                         canThrow: true,
-                        thrownResult: arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
+                        thrownResult: arena.appendTemporary(type: sema.types.nullableAnyType
                         )
                     ))
                     return result

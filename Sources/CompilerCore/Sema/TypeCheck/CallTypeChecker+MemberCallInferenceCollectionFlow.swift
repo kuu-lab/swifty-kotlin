@@ -285,9 +285,7 @@ extension CallTypeChecker {
         {
             let knownNames = KnownCompilerNames(interner: interner)
             let receiverClassName: InternedString? = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                      let symbol = sema.symbols.symbol(classType.classSymbol)
-                else {
+                guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
                     return nil
                 }
                 return symbol.name
@@ -383,9 +381,7 @@ extension CallTypeChecker {
 
         let isGroupingReceiver: Bool = {
             let knownNames = KnownCompilerNames(interner: interner)
-            guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                  let symbol = sema.symbols.symbol(classType.classSymbol)
-            else {
+            guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
                 return false
             }
             return knownNames.isGroupingSymbol(symbol)
@@ -533,9 +529,7 @@ extension CallTypeChecker {
         {
             let knownNames = KnownCompilerNames(interner: interner)
             let isGenericArrayReceiver: Bool = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-                      let symbol = sema.symbols.symbol(classType.classSymbol)
-                else {
+                guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
                     return false
                 }
                 return symbol.name == knownNames.array && classType.args.count == 1
@@ -615,7 +609,7 @@ extension CallTypeChecker {
                 locals: &locals
             )
             let collectionMapTypes: (key: TypeID, value: TypeID) = {
-                guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                guard let classType = resolveClassType(receiverType, sema: sema),
                       classType.args.count >= 2
                 else {
                     return (sema.types.anyType, sema.types.anyType)
@@ -1099,9 +1093,8 @@ extension CallTypeChecker {
                             let nonNullBodyType = sema.types.makeNonNullable(lambdaBodyType)
                             let keyType: TypeID
                             let valueType: TypeID
-                            if case let .classType(pairClass) = sema.types.kind(of: nonNullBodyType),
+                            if let (pairClass, pairSym) = resolveClassTypeSymbol(nonNullBodyType, sema: sema),
                                pairClass.args.count == 2,
-                               let pairSym = sema.symbols.symbol(pairClass.classSymbol),
                                pairSym.name == interner.intern("Pair")
                             {
                                 keyType = switch pairClass.args[0] {
@@ -1135,7 +1128,7 @@ extension CallTypeChecker {
                         } else {
                             sema.types.anyType
                         }
-                        let keyType: TypeID = if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                        let keyType: TypeID = if let classType = resolveClassType(receiverType, sema: sema),
                                                  classType.args.count >= 2
                         {
                             switch classType.args[0] {
@@ -1162,7 +1155,7 @@ extension CallTypeChecker {
                         } else {
                             sema.types.anyType
                         }
-                        let valueType: TypeID = if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                        let valueType: TypeID = if let classType = resolveClassType(receiverType, sema: sema),
                                                    classType.args.count >= 2
                         {
                             switch classType.args[1] {
@@ -1242,8 +1235,7 @@ extension CallTypeChecker {
                         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                     }
                     let expectedGroupingValueType: TypeID = if let expectedType,
-                                                               case let .classType(expectedClassType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-                                                               let expectedSymbol = sema.symbols.symbol(expectedClassType.classSymbol),
+                                                               let (expectedClassType, expectedSymbol) = resolveClassTypeSymbol(expectedType, sema: sema),
                                                                knownNames.isMapLikeSymbol(expectedSymbol),
                                                                expectedClassType.args.count >= 2
                     {
@@ -1833,7 +1825,7 @@ extension CallTypeChecker {
                 let destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
                 // Extract K/V from destination MutableMap<K, V> for stronger lambda return type inference
                 let lambdaReturnType: TypeID
-                if case let .classType(destClassType) = sema.types.kind(of: sema.types.makeNonNullable(destType)),
+                if let destClassType = resolveClassType(destType, sema: sema),
                    destClassType.args.count >= 2
                 {
                     // For associateWithTo: lambda returns V (value type, args[1])
@@ -1914,7 +1906,7 @@ extension CallTypeChecker {
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
                 let destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-                let reduceToKeyType: TypeID = if case let .classType(ct) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                let reduceToKeyType: TypeID = if let ct = resolveClassType(receiverType, sema: sema),
                                                  ct.args.count >= 2,
                                                  case let .invariant(k) = ct.args[1]
                 {
@@ -1922,7 +1914,7 @@ extension CallTypeChecker {
                 } else {
                     sema.types.anyType
                 }
-                let reduceToAccumulatorType: TypeID = if case let .classType(destCt) = sema.types.kind(of: sema.types.makeNonNullable(destType)),
+                let reduceToAccumulatorType: TypeID = if let destCt = resolveClassType(destType, sema: sema),
                                                          destCt.args.count >= 2
                 {
                     switch destCt.args[1] {

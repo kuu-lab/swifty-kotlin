@@ -16,4 +16,5 @@ firebase-debug.log
 
 # IDE / editor local
 .idea/
+.vscode/
 .windsurf/

@@ -11,7 +11,9 @@ extension DataFlowSemaPhase {
         listFQName: [InternedString],
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
+        listTypeParamType: TypeID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let receiverType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
@@ -123,6 +125,20 @@ extension DataFlowSemaPhase {
             ) {
                 let memberName = interner.intern(name)
                 let memberFQName = listFQName + [memberName]
+                if shouldSkipSyntheticStub(
+                    bundledIndex: bundledIndex,
+                    ownerFQName: listFQName,
+                    name: memberName,
+                    arity: 1
+                ) {
+                    skipStats?.recordSkip(
+                        ownerFQName: listFQName,
+                        name: memberName,
+                        arity: 1,
+                        interner: interner
+                    )
+                    return
+                }
                 guard symbols.lookup(fqName: memberFQName) == nil else { return }
 
                 let selectorReturnType: TypeID
@@ -895,7 +911,19 @@ extension DataFlowSemaPhase {
 
         let sumOfName = interner.intern("sumOf")
         let sumOfFQName = listFQName + [sumOfName]
-        if symbols.lookup(fqName: sumOfFQName) == nil {
+        if shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: listFQName,
+            name: sumOfName,
+            arity: 1
+        ) {
+            skipStats?.recordSkip(
+                ownerFQName: listFQName,
+                name: sumOfName,
+                arity: 1,
+                interner: interner
+            )
+        } else if symbols.lookup(fqName: sumOfFQName) == nil {
             let transformType = types.make(.functionType(FunctionType(
                 params: [listTypeParamType],
                 returnType: types.intType,

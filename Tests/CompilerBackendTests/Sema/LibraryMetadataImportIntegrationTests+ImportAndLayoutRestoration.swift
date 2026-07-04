@@ -102,6 +102,56 @@ extension LibraryMetadataImportIntegrationTests {
         }
     }
 
+    func testLibraryImportRestoresUnsignedPrimitiveTypeSignatures() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtUnsigned",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=4
+        function _ fq=ext.uByteOrNull schema=v1 arity=0 suspend=0 sig=F0<Q<UB>>
+        function _ fq=ext.uShortOrNull schema=v1 arity=0 suspend=0 sig=F0<Q<US>>
+        function _ fq=ext.uIntOrNull schema=v1 arity=0 suspend=0 sig=F0<Q<UI>>
+        function _ fq=ext.uLongOrNull schema=v1 arity=0 suspend=0 sig=F0<Q<UJ>>
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "UnsignedImport",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let ext = ctx.interner.intern("ext")
+            let namesAndTypes: [(String, TypeID)] = [
+                ("uByteOrNull", sema.types.makeNullable(sema.types.ubyteType)),
+                ("uShortOrNull", sema.types.makeNullable(sema.types.ushortType)),
+                ("uIntOrNull", sema.types.makeNullable(sema.types.uintType)),
+                ("uLongOrNull", sema.types.makeNullable(sema.types.ulongType)),
+            ]
+
+            for (name, expectedType) in namesAndTypes {
+                let functionName = ctx.interner.intern(name)
+                let functionSymbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: [ext, functionName]).first)
+                let signature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
+                XCTAssertEqual(signature.returnType, expectedType)
+            }
+        }
+    }
+
     func testLibraryImportRestoresExplicitNominalLayoutSlotsAndOffsets() throws {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)

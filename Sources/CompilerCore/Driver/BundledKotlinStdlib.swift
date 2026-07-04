@@ -44,7 +44,7 @@ public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
 }
 
 public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
-    if (isEmpty()) return null
+    if (length == 0) return null
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -58,7 +58,7 @@ public fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
 }
 
 public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
-    if (isEmpty()) return null
+    if (length == 0) return null
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -216,7 +216,7 @@ private fun trimBlankEdges(lines: List<String>): List<String> {
 
 public fun String.trimIndent(): String {
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     var minIndent = -1
     for (line in lines) {
         if (!line.isBlankLine()) {
@@ -241,7 +241,7 @@ public fun String.trimIndent(): String {
 
 public fun String.trimMargin(marginPrefix: String = "|"): String {
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
@@ -285,7 +285,7 @@ public fun String.indent(n: Int): String {
 
 public fun String.prependIndent(indent: String = "    "): String {
     val lines = splitIntoLines()
-    if (lines.isEmpty()) return this
+    if (lines.size == 0) return this
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
@@ -299,7 +299,7 @@ public fun String.prependIndent(indent: String = "    "): String {
 
 public fun String.replaceIndent(newIndent: String = ""): String {
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     var minIndent = -1
     for (line in lines) {
         if (!line.isBlankLine()) {
@@ -328,7 +328,7 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
         throw IllegalArgumentException("marginPrefix must be non-blank string.")
     }
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
@@ -355,18 +355,11 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
     //   kk_duration_toString            (overriding Any.toString() requires a class member,
     //                                    not an extension function; stays native)
     //   kk_duration_parse*              (complex parsing logic, stays native)
+    //
+    // MIGRATION-TIME-001: absoluteValue, isNegative, isPositive, isInfinite have been
+    // moved to Stdlib/kotlin/time/Duration.kt (auto-loaded by LoadSourcesPhase).
     static let kotlinTimeSource = """
 package kotlin.time
-
-public val Duration.absoluteValue: Duration
-    get() = this.__kk_duration_absoluteValue()
-
-public fun Duration.isNegative(): Boolean = this.__kk_duration_isNegative()
-
-public fun Duration.isPositive(): Boolean = this.__kk_duration_isPositive()
-
-public fun Duration.isInfinite(): Boolean = this.__kk_duration_isInfinite()
-
 
 val Duration.inWholeMilliseconds: Long get() = inWholeNanoseconds / 1_000_000L
 

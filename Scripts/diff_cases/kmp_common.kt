@@ -1,4 +1,4 @@
-// SKIP-DIFF: expect/actual cases require kotlinc multiplatform flags that the current diff harness does not pass.
+// SKIP-DIFF (DEBT-DIFF-001): expect/actual cases require kotlinc multiplatform flags that the current diff harness does not pass.
 package diff.kmp
 
 expect fun <T> identity(value: T): T

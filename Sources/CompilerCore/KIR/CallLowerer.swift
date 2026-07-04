@@ -45,42 +45,51 @@ final class CallLowerer {
         guard let argumentType = arena.exprType(argument) else {
             return argument
         }
-        let boxCallee: String? = switch sema.types.kind(of: argumentType) {
-        case .primitive(.int, .nonNull),
-             .primitive(.uint, .nonNull),
-             .primitive(.ubyte, .nonNull),
-             .primitive(.ushort, .nonNull):
-            "kk_box_int"
-        case .primitive(.boolean, .nonNull):
-            "kk_box_bool"
-        case .primitive(.long, .nonNull),
-             .primitive(.ulong, .nonNull):
-            "kk_box_long"
-        case .primitive(.float, .nonNull):
-            "kk_box_float"
-        case .primitive(.double, .nonNull):
-            "kk_box_double"
-        case .primitive(.char, .nonNull):
-            "kk_box_char"
-        default:
-            nil
-        }
+        let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+            for: sema.types.kind(of: argumentType),
+            requireNonNull: true
+        )
         guard let boxCallee else {
             return argument
         }
-        let boxedArgument = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.anyType
+        let boxedArgument = emitNonThrowingCall(
+            callee: boxCallee,
+            arg: argument,
+            resultType: sema.types.anyType,
+            arena: arena,
+            into: &instructions
         )
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern(boxCallee),
-            arguments: [argument],
-            result: boxedArgument,
-            canThrow: false,
-            thrownResult: nil
-        ))
         return boxedArgument
+    }
+
+    private func buildStringAppendRuntimeCall(
+        for argument: KIRExprID,
+        flatCallee: String,
+        objectCallee: String,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> (callee: String, arguments: [KIRExprID]) {
+        if let argumentType = arena.exprType(argument),
+           sema.types.nullability(of: argumentType) == .nonNull,
+           sema.types.isSubtype(argumentType, sema.types.stringType)
+        {
+            return (flatCallee, [argument])
+        }
+
+        return (
+            objectCallee,
+            [
+                boxBuildStringTextArgumentIfNeeded(
+                    argument,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ),
+            ]
+        )
     }
 
     /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
@@ -101,8 +110,8 @@ final class CallLowerer {
         // Use non-nullable receiver type for temporaries so Long receivers get
         // Long-typed bounds instead of always Int.
         let boundType = sema.types.makeNonNullable(receiverType)
-        let firstExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
-        let lastExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let firstExpr = arena.appendTemporary(type: boundType)
+        let lastExpr = arena.appendTemporary(type: boundType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_range_first"),
@@ -194,7 +203,7 @@ final class CallLowerer {
             let nameExpr = arena.appendExpr(.stringLiteral(propertyName), type: intType)
             instructions.append(.constValue(result: nameExpr, value: .stringLiteral(propertyName)))
 
-            let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_json_register_data_class_field_name"),
@@ -490,9 +499,7 @@ final class CallLowerer {
 
             driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
 
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 instructions.append(.call(
@@ -549,9 +556,7 @@ final class CallLowerer {
                 instructions: &instructions
             )
 
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 instructions.append(.call(
@@ -588,9 +593,7 @@ final class CallLowerer {
                 instructions: &instructions
             )
 
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
+            let result = arena.appendTemporary(type: boundType
             )
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 instructions.append(.call(
@@ -661,7 +664,7 @@ final class CallLowerer {
            let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
            case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
         {
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: chosen,
                 callee: interner.intern("kk_sequence_generate_noarg"),
@@ -679,9 +682,7 @@ final class CallLowerer {
            functionType.params.isEmpty,
            let seedCallableInfo = driver.ctx.callableValueInfo(for: loweredArgIDs[0])
         {
-            let seedResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.makeNonNullable(functionType.returnType)
+            let seedResult = arena.appendTemporary(type: sema.types.makeNonNullable(functionType.returnType)
             )
             instructions.append(.call(
                 symbol: seedCallableInfo.symbol,
@@ -691,7 +692,7 @@ final class CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: chosen,
                 callee: interner.intern("kk_sequence_generate"),
@@ -708,13 +709,13 @@ final class CallLowerer {
             case .buildString, .buildStringBuilder:
                 switch (sourceName, loweredArgIDs.count) {
                 case ("append", 1):
-                    "kk_string_builder_append"
+                    "kk_string_builder_append_flat"
                 case ("appendLine", 0):
                     "kk_string_builder_append_line_noarg"
                 case ("appendLine", 1):
-                    "kk_string_builder_append_line"
+                    "kk_string_builder_append_line_flat"
                 case ("appendRange", 3):
-                    "kk_string_builder_append_range"
+                    "kk_string_builder_append_range_flat"
                 default:
                     nil
                 }
@@ -746,27 +747,41 @@ final class CallLowerer {
             }
             if let builderRuntimeCallee {
                 let runtimeArguments: [KIRExprID]
+                let runtimeCallee: String
                 switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
-                case ("append", 1), ("appendLine", 1):
-                    runtimeArguments = [
-                        boxBuildStringTextArgumentIfNeeded(
-                            loweredArgIDs[0],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        ),
-                    ]
+                case ("append", 1):
+                    let appendCall = buildStringAppendRuntimeCall(
+                        for: loweredArgIDs[0],
+                        flatCallee: "kk_string_builder_append_flat",
+                        objectCallee: "kk_string_builder_append",
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    runtimeCallee = appendCall.callee
+                    runtimeArguments = appendCall.arguments
+                case ("appendLine", 1):
+                    let appendCall = buildStringAppendRuntimeCall(
+                        for: loweredArgIDs[0],
+                        flatCallee: "kk_string_builder_append_line_flat",
+                        objectCallee: "kk_string_builder_append_line",
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    runtimeCallee = appendCall.callee
+                    runtimeArguments = appendCall.arguments
                 default:
+                    runtimeCallee = builderRuntimeCallee
                     runtimeArguments = loweredArgIDs
                 }
-                let result = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: boundType ?? sema.types.anyType
+                let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern(builderRuntimeCallee),
+                    callee: interner.intern(runtimeCallee),
                     arguments: runtimeArguments,
                     result: result,
                     canThrow: false,
@@ -812,9 +827,7 @@ final class CallLowerer {
                interner: interner
            )
         {
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType ?? sema.types.anyType
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
             )
             let sbCalleeName = interner.resolve(implicitStringBuilderCall.callee)
             let sbCanThrow = isThrowingStringBuilderRuntimeFunction(sbCalleeName)
@@ -828,7 +841,7 @@ final class CallLowerer {
             ))
             return result
         }
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             if let chosen,
                sema.symbols.externalLinkName(for: chosen) == "kk_comparator_from_multi_selectors_vararg" ||
@@ -903,7 +916,7 @@ final class CallLowerer {
             }
             let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
             instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-            let allocatedObj = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: allocType)
+            let allocatedObj = arena.appendTemporary(type: allocType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_object_new"),
@@ -928,7 +941,7 @@ final class CallLowerer {
                     )
                     let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
                     instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-                    let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                    let registerResult = arena.appendTemporary(type: intType)
                     let superKind = sema.symbols.symbol(superSymbol)?.kind
                     let registerCallee: InternedString = if superKind == .interface {
                         interner.intern("kk_type_register_iface")
@@ -961,7 +974,7 @@ final class CallLowerer {
                         instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
                         let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
                         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
-                        let registerIfaceResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                        let registerIfaceResult = arena.appendTemporary(type: intType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_object_register_itable_iface"),
@@ -994,7 +1007,7 @@ final class CallLowerer {
                             instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
                             let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
                             instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
-                            let registerMethodResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                            let registerMethodResult = arena.appendTemporary(type: intType)
                             instructions.append(.call(
                                 symbol: nil,
                                 callee: interner.intern("kk_object_register_itable_method"),
@@ -1159,9 +1172,7 @@ final class CallLowerer {
             }
             let callCanThrow = needsThrownChannel(calleeName: loweredCalleeName, interner: interner)
             let thrownResult = callCanThrow
-                ? arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
+                ? arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 : nil
             // When calling a callable value (function-type local/parameter),
@@ -1245,8 +1256,7 @@ final class CallLowerer {
     ) -> (receiver: KIRExprID, callee: InternedString)? {
         guard let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
               let receiverType = arena.exprType(implicitReceiver),
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
+              let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
         else {
             return nil
         }
@@ -1306,7 +1316,7 @@ final class CallLowerer {
         case ("appendLine", 1):
             "kk_string_builder_append_line_obj"
         case ("appendRange", 3):
-            "kk_string_builder_appendRange_obj"
+            "kk_string_builder_appendRange_obj_flat"
         case ("toString", 0):
             "kk_string_builder_toString"
         case ("clear", 0):
@@ -1324,9 +1334,9 @@ final class CallLowerer {
         case ("deleteRange", 2):
             "kk_string_builder_deleteRange"
         case ("insertRange", 4):
-            "kk_string_builder_insertRange_obj"
+            "kk_string_builder_insertRange_obj_flat"
         case ("setRange", 3):
-            "kk_string_builder_setRange"
+            "kk_string_builder_setRange_flat"
         case ("set", 2):
             // STDLIB-TEXT-FN-064: operator fun set(index, value) desugars to setCharAt
             "kk_string_builder_setCharAt"
@@ -1353,6 +1363,7 @@ final class CallLowerer {
     func isThrowingStringBuilderRuntimeFunction(_ name: String) -> Bool {
         switch name {
         case "kk_string_builder_insert_obj",
+             "kk_string_builder_insert_obj_flat",
              "kk_string_builder_insert_char",
              "kk_string_builder_insert_bool",
              "kk_string_builder_insert_float",
@@ -1362,8 +1373,11 @@ final class CallLowerer {
              "kk_string_builder_deleteCharAt",
              "kk_string_builder_deleteAt",
              "kk_string_builder_insertRange_obj",
+             "kk_string_builder_insertRange_obj_flat",
              "kk_string_builder_setRange",
+             "kk_string_builder_setRange_flat",
              "kk_string_builder_replace_obj",
+             "kk_string_builder_replace_obj_flat",
              "kk_string_builder_setCharAt",
              "kk_string_builder_get":
             return true
@@ -1396,8 +1410,7 @@ final class CallLowerer {
 
         let argumentType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
         let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
-        let runtimeCallee: InternedString? = if case let .classType(classType) = sema.types.kind(of: nonNullArgumentType),
-                                                let symbol = sema.symbols.symbol(classType.classSymbol)
+        let runtimeCallee: InternedString? = if let (_, symbol) = resolveClassTypeSymbol(nonNullArgumentType, sema: sema)
         {
             switch symbol.name {
             case knownNames.list, knownNames.mutableList:
@@ -1411,7 +1424,7 @@ final class CallLowerer {
             case interner.intern("CharRange"), interner.intern("CharProgression"):
                 interner.intern("kk_char_range_toList")
             case knownNames.string:
-                interner.intern("kk_string_toList")
+                interner.intern("kk_string_toList_flat")
             default:
                 interner.intern("kk_sequence_to_list")
             }
@@ -1422,7 +1435,7 @@ final class CallLowerer {
             return loweredArgIDs[0]
         }
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: runtimeCallee,
@@ -1570,7 +1583,7 @@ final class CallLowerer {
             return nil
         }
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType) else {
+        guard let classType = resolveClassType(nonNullReceiverType, sema: sema) else {
             return nil
         }
         var ownerQueue: [SymbolID] = [classType.classSymbol]
@@ -1736,7 +1749,7 @@ final class CallLowerer {
             return nil
         }
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let result = arena.appendTemporary(type: boundType)
         instructions.append(.call(
             symbol: nil,
             callee: runtimeCallee,
