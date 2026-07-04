@@ -1254,7 +1254,7 @@ extension DataFlowSemaPhase {
 
         let memberName = interner.intern(name)
         let memberFQName = sequenceFQName + [memberName]
-        let parameterTypes = parameters.map(\.type)
+        let requestedParameterTypes = parameters.map(\.type)
         let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
             ownerKind: .sequence,
             memberName: name,
@@ -1267,7 +1267,7 @@ extension DataFlowSemaPhase {
                 return false
             }
             return signature.receiverType == receiverType
-                && signature.parameterTypes == parameterTypes
+                && signature.parameterTypes == requestedParameterTypes
                 && signature.returnType == returnType
         }) {
             symbols.setExternalLinkName(resolvedExternalLinkName, for: existing)
