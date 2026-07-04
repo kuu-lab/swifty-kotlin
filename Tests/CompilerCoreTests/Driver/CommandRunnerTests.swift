@@ -73,10 +73,11 @@ struct CommandRunnerTests {
     func testResolveExecutableAcceptsSymlinkedTrustedPATHDirectory() throws {
         let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
         let trustedDirectory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
-        let symlinkDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let symlinkParent = try makeTemporaryDirectory(permissions: 0o755)
+        let symlinkDirectory = symlinkParent.appendingPathComponent(UUID().uuidString)
         try makeSymbolicLink(at: symlinkDirectory, pointingTo: trustedDirectory)
         defer {
-            try? FileManager.default.removeItem(at: symlinkDirectory)
+            try? FileManager.default.removeItem(at: symlinkParent)
             try? FileManager.default.removeItem(at: trustedDirectory)
         }
 
@@ -87,6 +88,27 @@ struct CommandRunnerTests {
             pathEnvironment: symlinkDirectory.path
         )
         #expect(resolved == symlinkDirectory.appendingPathComponent(toolName).path)
+    }
+
+    @Test
+    func testResolveExecutableRejectsSymlinkedPATHDirectoryInUntrustedParent() throws {
+        let toolName = "kswiftk_fake_tool_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let trustedDirectory = try makeTemporaryToolDirectory(permissions: 0o755, toolName: toolName)
+        let untrustedParent = try makeTemporaryDirectory(permissions: 0o777)
+        let symlinkDirectory = untrustedParent.appendingPathComponent(UUID().uuidString)
+        try makeSymbolicLink(at: symlinkDirectory, pointingTo: trustedDirectory)
+        defer {
+            try? FileManager.default.removeItem(at: untrustedParent)
+            try? FileManager.default.removeItem(at: trustedDirectory)
+        }
+
+        let fallback = "/this/path/does/not/exist/\(toolName)"
+        let resolved = CommandRunner.resolveExecutable(
+            toolName,
+            fallback: fallback,
+            pathEnvironment: symlinkDirectory.path
+        )
+        #expect(resolved == fallback)
     }
 
     // MARK: - run: stdout / exit code
@@ -227,12 +249,7 @@ struct CommandRunnerTests {
 
     private func makeTemporaryToolDirectory(permissions: Int16, toolName: String) throws -> URL {
         let fileManager = FileManager.default
-        let directory = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        try fileManager.setAttributes(
-            [.posixPermissions: NSNumber(value: permissions)],
-            ofItemAtPath: directory.path
-        )
+        let directory = try makeTemporaryDirectory(permissions: permissions)
 
         let toolURL = directory.appendingPathComponent(toolName)
         let script = "#!/bin/sh\nexit 0\n"
@@ -242,6 +259,17 @@ struct CommandRunnerTests {
         try fileManager.setAttributes(
             [.posixPermissions: NSNumber(value: Int16(0o755))],
             ofItemAtPath: toolURL.path
+        )
+        return directory
+    }
+
+    private func makeTemporaryDirectory(permissions: Int16) throws -> URL {
+        let fileManager = FileManager.default
+        let directory = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: permissions)],
+            ofItemAtPath: directory.path
         )
         return directory
     }
