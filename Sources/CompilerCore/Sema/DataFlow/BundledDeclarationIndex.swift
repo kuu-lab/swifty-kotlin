@@ -149,10 +149,19 @@ struct BundledDeclarationIndex: Sendable {
         interner: StringInterner
     ) -> Bool {
         let ownerFQName = key.ownerFQName.map { interner.resolve($0) }
-        guard ownerFQName == ["kotlin", "collections", "List"] else {
-            return false
+        if ownerFQName == ["kotlin", "collections", "List"] {
+            return isRuntimeBackedListSyntheticRetainedOverlap(key, interner: interner)
         }
+        if ownerFQName == ["kotlin", "sequences", "Sequence"] {
+            return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
+        }
+        return false
+    }
 
+    private static func isRuntimeBackedListSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
         // These List HOF/search/sort sources are bundled as migration targets, but
         // call sites still route through kk_list_* ABI stubs until RF-STDLIB wiring
         // removes the compatibility bridge.
@@ -170,6 +179,23 @@ struct BundledDeclarationIndex: Sendable {
         case "shuffled":
             return key.arity == 0 || key.arity == 1
         case "sortedBy", "sortedByDescending", "sortedWith":
+            return key.arity == 1
+        default:
+            return false
+        }
+    }
+
+    private static func isRuntimeBackedSequenceSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // Sequence aggregate HOFs are bundled as migration targets, but call sites
+        // still route through kk_sequence_* ABI stubs until RF-STDLIB wiring
+        // removes the compatibility bridge.
+        switch interner.resolve(key.name) {
+        case "fold", "scan":
+            return key.arity == 2
+        case "reduce", "sumOf", "maxByOrNull", "minByOrNull":
             return key.arity == 1
         default:
             return false

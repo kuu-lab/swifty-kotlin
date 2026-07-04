@@ -84,7 +84,13 @@ struct StringSyntheticMemberLinkTests {
 
         for (member, expectedLink) in expected {
             #expect(
-                externalLink(for: member, sema: sema, interner: interner) == expectedLink,
+                externalLink(
+                    for: member,
+                    receiverType: sema.types.stringType,
+                    parameterCount: 0,
+                    sema: sema,
+                    interner: interner
+                ) == expectedLink,
                 "String.\(member) should link to \(expectedLink)"
             )
         }
@@ -262,7 +268,13 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "toIntOrNull", sema: sema, interner: interner) == "kk_string_toIntOrNull_flat",
+            externalLink(
+                for: "toIntOrNull",
+                receiverType: sema.types.stringType,
+                parameterCount: 0,
+                sema: sema,
+                interner: interner
+            ) == "kk_string_toIntOrNull_flat",
             "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
         )
         #expect(
@@ -307,7 +319,13 @@ struct StringSyntheticMemberLinkTests {
             "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
         )
         #expect(
-            externalLink(for: "toDoubleOrNull", sema: sema, interner: interner) == "kk_string_toDoubleOrNull",
+            externalLink(
+                for: "toDoubleOrNull",
+                receiverType: sema.types.stringType,
+                parameterCount: 0,
+                sema: sema,
+                interner: interner
+            ) == "kk_string_toDoubleOrNull",
             "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
         )
         #expect(
@@ -465,7 +483,13 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "chunkedSequence", sema: sema, interner: interner) == "kk_string_chunked_sequence",
+            externalLink(
+                for: "chunkedSequence",
+                receiverType: sema.types.stringType,
+                parameterCount: 1,
+                sema: sema,
+                interner: interner
+            ) == "kk_string_chunked_sequence",
             "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
         )
         #expect(
@@ -479,7 +503,13 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "windowedSequence", sema: sema, interner: interner) == "kk_string_windowedSequence_partial",
+            externalLink(
+                for: "windowedSequence",
+                receiverType: sema.types.stringType,
+                parameterCount: 3,
+                sema: sema,
+                interner: interner
+            ) == "kk_string_windowedSequence_partial",
             "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial"
         )
         #expect(
