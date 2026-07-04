@@ -18,21 +18,23 @@ struct ASTEquivalenceRegressionTests {
         return ctx.ast!.declarationCount - 1
     }
 
-    private var bundledStdlibClassDeclarationCount: Int {
-        let ctx: CompilationContext = makeContextFromSource("fun __probe__() {}")
-        try! runFrontend(ctx)
-        let ast = ctx.ast!
-        return ast.arena.declarations().compactMap { decl -> ClassDecl? in
-            guard case let .classDecl(classDecl) = decl else { return nil }
-            return classDecl
-        }.count
-    }
-
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
         let ctx: CompilationContext = makeContextFromSource(source)
         try runFrontend(ctx)
         let ast = try #require(ctx.ast)
         return (ast, ctx)
+    }
+
+    private func isBundledStdlibSource(_ fileID: FileID, in ctx: CompilationContext) -> Bool {
+        ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+    }
+
+    private func userClassDecls(in ast: ASTModule, ctx: CompilationContext) -> [ClassDecl] {
+        ast.arena.declarations().compactMap { decl -> ClassDecl? in
+            guard case let .classDecl(classDecl) = decl else { return nil }
+            guard !isBundledStdlibSource(classDecl.range.start.file, in: ctx) else { return nil }
+            return classDecl
+        }
     }
 
     private func assertValidSourceRange(
@@ -112,17 +114,12 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, ctx) = try buildAST(from: source)
 
-        // classDecl + funDecl(main) + bundled stdlib declarations (including KsSymbolName)
+        // classDecl + funDecl(main) + bundled stdlib declarations
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
-        let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
-            guard case let .classDecl(c) = decl else { return nil }
-            return c
-        }
-        #expect(classDecls.count == 1 + bundledStdlibClassDeclarationCount)
-        let counterClass = try #require(classDecls.first {
-            ctx.interner.resolve($0.name) == "Counter"
-        })
+        let classDecls = userClassDecls(in: ast, ctx: ctx)
+        #expect(classDecls.count == 1)
+        let counterClass = classDecls[0]
         assertValidSourceRange(counterClass.range, label: "Counter class")
 
         // Should have member decls: property(count), fun(increment), fun(get)
