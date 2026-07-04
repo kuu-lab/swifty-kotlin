@@ -637,14 +637,17 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
         urlRequest.addValue(value, forHTTPHeaderField: name)
     }
 
-    // Use a per-client session instead of URLSession.shared so redirect policy,
-    // timeouts, and credential storage are scoped to this client rather than the
-    // process-wide shared configuration.
+    // Create a fresh client-scoped session for this send instead of
+    // URLSession.shared so mutable redirect policy, timeouts, and credential
+    // storage cannot leak across clients or sends. Reusing sessions would need
+    // invalidation whenever those settings change.
     let sessionConfig = URLSessionConfiguration.ephemeral
     sessionConfig.httpShouldSetCookies = false
     sessionConfig.httpCookieStorage = nil
     sessionConfig.urlCredentialStorage = nil
     if config.connectTimeoutMillis > 0 {
+        // URLSession has no TCP-connect-only timeout; map the Java-style
+        // connect timeout to the closest available request-phase bound.
         sessionConfig.timeoutIntervalForRequest = Double(config.connectTimeoutMillis) / 1000
     }
     // Only cap total resource time when both timeouts are bounded; a value of 0
