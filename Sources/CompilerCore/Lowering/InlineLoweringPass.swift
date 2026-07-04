@@ -1501,10 +1501,10 @@ final class InlineLoweringPass: LoweringPass {
     }
 
     private func cloneExpr(_ source: KIRExprID, in arena: KIRArena) -> KIRExprID {
-        let fallback = KIRExprKind.temporary(Int32(arena.expressions.count))
-        return arena.appendExpr(
-            arena.expr(source) ?? fallback,
-            type: arena.exprType(source)
-        )
+        let type = arena.exprType(source)
+        guard let expr = arena.expr(source) else {
+            return arena.appendTemporary(type: type)
+        }
+        return arena.appendExpr(expr, type: type)
     }
 }
