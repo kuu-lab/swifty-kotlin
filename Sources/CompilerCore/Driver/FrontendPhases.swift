@@ -143,13 +143,14 @@ final class LoadSourcesPhase: CompilerPhase {
         }
         relativePaths.sort()
 
+        var bundledSources: [(path: String, contents: Data)] = []
         for relativePath in relativePaths {
             guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
             let bundledPath = "__bundled_\(relativePath).kt"
             guard !sourceManager.containsFile(path: bundledPath) else { continue }
             let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
             guard let data = fm.contents(atPath: fullPath) else { continue }
-            _ = sourceManager.addFile(path: bundledPath, contents: data)
+            bundledSources.append((path: bundledPath, contents: data))
         }
 
         let residualSources: [(path: String, source: String)] = [
@@ -158,9 +159,13 @@ final class LoadSourcesPhase: CompilerPhase {
             ("__bundled_kotlin_sequences_stdlib.kt", BundledKotlinStdlib.kotlinSequencesSource),
             ("__bundled_kotlin_time_stdlib.kt", BundledKotlinStdlib.kotlinTimeSource),
         ]
-        for (path, source) in residualSources.sorted(by: { $0.path < $1.path }) {
+        for (path, source) in residualSources {
             guard !sourceManager.containsFile(path: path) else { continue }
-            _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
+            bundledSources.append((path: path, contents: Data(source.utf8)))
+        }
+
+        for source in bundledSources.sorted(by: { $0.path < $1.path }) {
+            _ = sourceManager.addFile(path: source.path, contents: source.contents)
         }
     }
 
