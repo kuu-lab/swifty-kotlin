@@ -18,6 +18,16 @@ struct ASTEquivalenceRegressionTests {
         return ctx.ast!.declarationCount - 1
     }
 
+    private var bundledStdlibClassDeclarationCount: Int {
+        let ctx: CompilationContext = makeContextFromSource("fun __probe__() {}")
+        try! runFrontend(ctx)
+        let ast = ctx.ast!
+        return ast.arena.declarations().compactMap { decl -> ClassDecl? in
+            guard case let .classDecl(classDecl) = decl else { return nil }
+            return classDecl
+        }.count
+    }
+
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
         let ctx: CompilationContext = makeContextFromSource(source)
         try runFrontend(ctx)
@@ -100,17 +110,19 @@ struct ASTEquivalenceRegressionTests {
         }
         fun main() = Counter(0).get()
         """
-        let (ast, _) = try buildAST(from: source)
+        let (ast, ctx) = try buildAST(from: source)
 
-        // classDecl + funDecl(main) + 24 bundled stdlib functions (7 collections + 13 text)
+        // classDecl + funDecl(main) + bundled stdlib declarations (including KsSymbolName)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
         let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
             guard case let .classDecl(c) = decl else { return nil }
             return c
         }
-        #expect(classDecls.count == 1)
-        let counterClass = classDecls[0]
+        #expect(classDecls.count == 1 + bundledStdlibClassDeclarationCount)
+        let counterClass = try #require(classDecls.first {
+            ctx.interner.resolve($0.name) == "Counter"
+        })
         assertValidSourceRange(counterClass.range, label: "Counter class")
 
         // Should have member decls: property(count), fun(increment), fun(get)
