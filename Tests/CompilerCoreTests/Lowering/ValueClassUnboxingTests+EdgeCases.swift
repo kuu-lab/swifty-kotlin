@@ -28,7 +28,7 @@ extension ValueClassUnboxingTests {
         let underlyingType = sema.symbols.valueClassUnderlyingType(for: nameSymbol.id)
         #expect(underlyingType != nil, "value class with String payload should record an underlying type")
         if let underlyingType {
-            if case .primitive(.string, _) = sema.types.kind(of: underlyingType) {
+            if case .stringStruct = sema.types.kind(of: underlyingType) {
                 // Expected
             } else {
                 Issue.record("Expected underlying type to be String, got \(sema.types.kind(of: underlyingType))")

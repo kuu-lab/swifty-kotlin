@@ -149,6 +149,10 @@ private let runtimeSupportedFormatConversions: Set<Character> = [
 ]
 
 private func runtimeFormatString(_ template: String, arguments: [Int], locale: Locale? = nil) -> String {
+    runtimeFormatString(template, values: arguments.map { RuntimeValue(raw: $0) }, locale: locale)
+}
+
+private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) -> String {
     let characters = Array(template)
     var cursor = 0
     var implicitArgumentIndex = 0
@@ -175,7 +179,7 @@ private func runtimeFormatString(_ template: String, arguments: [Int], locale: L
             }
             let argument = arguments.indices.contains(argumentIndex)
                 ? arguments[argumentIndex]
-                : runtimeNullSentinelInt
+                : RuntimeValue(raw: runtimeNullSentinelInt)
             result += runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
             cursor = next
         case .invalid:
@@ -259,54 +263,54 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
 }
 
 private func runtimeRenderFormattedArgument(
-    _ argument: Int,
+    _ value: RuntimeValue,
     specifier: RuntimeFormatSpecifier,
     locale: Locale?
 ) -> String {
     switch specifier.normalizedConversion {
     case "s":
-        let value = runtimeFormatStringValue(argument, specifier: specifier, locale: locale)
-        return runtimeApplyStringWidth(value, specifier: specifier)
+        let rendered = runtimeFormatStringValue(value, specifier: specifier, locale: locale)
+        return runtimeApplyStringWidth(rendered, specifier: specifier)
     case "b":
-        let value = runtimeFormatBooleanValue(argument)
+        let value = runtimeFormatBooleanValue(value)
         let normalized = specifier.conversion.isUppercase
             ? runtimeFormatUppercase(value, locale: locale)
             : value
         return runtimeApplyStringWidth(normalized, specifier: specifier)
     case "d", "i":
-        let value = Int64(runtimeFormatIntegerValue(argument))
+        let value = Int64(runtimeFormatIntegerValue(value))
         if let locale {
             return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
         }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "x", "o":
-        let value = UInt64(bitPattern: Int64(runtimeFormatIntegerValue(argument)))
+        let value = UInt64(bitPattern: Int64(runtimeFormatIntegerValue(value)))
         if let locale {
             return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
         }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "f", "e", "g":
-        let value = runtimeFormatDoubleValue(argument)
+        let value = runtimeFormatDoubleValue(value)
         if let locale {
             return String(format: specifier.cStyleToken, locale: locale, arguments: [value])
         }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "c":
-        let value = runtimeFormatCharacterValue(argument)
+        let value = runtimeFormatCharacterValue(value)
         let normalized = specifier.conversion.isUppercase
             ? runtimeFormatUppercase(value, locale: locale)
             : value
         return runtimeApplyStringWidth(normalized, specifier: specifier)
     default:
         return runtimeApplyStringWidth(
-            runtimeFormatStringValue(argument, specifier: specifier, locale: locale),
+            runtimeFormatStringValue(value, specifier: specifier, locale: locale),
             specifier: specifier
         )
     }
 }
 
 private func runtimeFormatStringValue(
-    _ argument: Int,
+    _ argument: RuntimeValue,
     specifier: RuntimeFormatSpecifier,
     locale: Locale?
 ) -> String {
@@ -327,7 +331,11 @@ private func runtimeFormatUppercase(_ value: String, locale: Locale?) -> String 
     return value.uppercased()
 }
 
-private func runtimeFormatBooleanValue(_ argument: Int) -> String {
+private func runtimeFormatBooleanValue(_ value: RuntimeValue) -> String {
+    if value.tag == RuntimeValue.stringTag {
+        return runtimeElementToString(value).isEmpty ? "false" : "true"
+    }
+    let argument = value.payload0
     if argument == runtimeNullSentinelInt {
         return "false"
     }
@@ -347,11 +355,18 @@ private func runtimeFormatBooleanValue(_ argument: Int) -> String {
     }
 }
 
-private func runtimeFormatIntegerValue(_ argument: Int) -> Int {
-    maybeUnbox(argument)
+private func runtimeFormatIntegerValue(_ value: RuntimeValue) -> Int {
+    if value.tag == RuntimeValue.stringTag {
+        return Int(runtimeElementToString(value)) ?? 0
+    }
+    return maybeUnbox(value.payload0)
 }
 
-private func runtimeFormatDoubleValue(_ argument: Int) -> Double {
+private func runtimeFormatDoubleValue(_ value: RuntimeValue) -> Double {
+    if value.tag == RuntimeValue.stringTag {
+        return Double(runtimeElementToString(value)) ?? 0
+    }
+    let argument = value.payload0
     if argument == runtimeNullSentinelInt {
         return 0
     }
@@ -386,8 +401,8 @@ private func runtimeFormatDoubleValue(_ argument: Int) -> Double {
     return Double(bitPattern: UInt64(bitPattern: Int64(argument)))
 }
 
-private func runtimeFormatCharacterValue(_ argument: Int) -> String {
-    let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(argument))
+private func runtimeFormatCharacterValue(_ value: RuntimeValue) -> String {
+    let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(value))
     guard let scalar = UnicodeScalar(scalarValue) else {
         return "?"
     }
@@ -410,10 +425,33 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
 @_cdecl("kk_string_format")
 public func kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments))
+    return runtimeMakeStringRaw(runtimeFormatString(template, values: arguments))
+}
+
+@_cdecl("kk_string_format_flat")
+public func kk_string_format_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ argsArrayRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
+        ?? []
+    return runtimeRegisterFlatString(
+        runtimeFormatString(template, values: arguments),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("kk_string_format_locale")
@@ -429,10 +467,43 @@ public func kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsAr
     }
 
     let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments, locale: locale))
+    return runtimeMakeStringRaw(runtimeFormatString(template, values: arguments, locale: locale))
+}
+
+@_cdecl("kk_string_format_locale_flat")
+public func kk_string_format_locale_flat(
+    _ localeRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ argsArrayRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let locale: Locale?
+    if localeRaw == runtimeNullSentinelInt {
+        locale = nil
+    } else {
+        guard let box = runtimeLocaleBox(from: localeRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_format_locale_flat received invalid Locale handle")
+        }
+        locale = box.locale
+    }
+    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+        ?? runtimeListBox(from: argsArrayRaw)?.values
+        ?? []
+    return runtimeRegisterFlatString(
+        runtimeFormatString(template, values: arguments, locale: locale),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 // MARK: - Public @_cdecl functions: Indent operations
@@ -511,6 +582,110 @@ public func kk_string_replaceIndentByMargin(
     return runtimeMakeStringRaw(
         runtimeReplaceIndentByMargin(source, newIndent: newIndent, marginPrefix: marginPrefix)
     )
+}
+
+// MARK: - Flat ABI wrappers
+
+@_cdecl("kk_string_trimIndent_flat")
+public func kk_string_trimIndent_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_trimIndent(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_trimMargin_default_flat")
+public func kk_string_trimMargin_default_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_trimMargin_default(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_trimMargin_flat")
+public func kk_string_trimMargin_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ marginPrefixData: UnsafePointer<UInt8>?, _ marginPrefixLength: Int, _ marginPrefixByteCount: Int, _ marginPrefixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    var thrown = 0
+    let raw = kk_string_trimMargin(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(marginPrefixData, marginPrefixLength, marginPrefixByteCount, marginPrefixHash),
+        &thrown
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_prependIndent_default_flat")
+public func kk_string_prependIndent_default_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_prependIndent_default(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_prependIndent_flat")
+public func kk_string_prependIndent_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ indentData: UnsafePointer<UInt8>?, _ indentLength: Int, _ indentByteCount: Int, _ indentHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_prependIndent(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(indentData, indentLength, indentByteCount, indentHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceIndent_default_flat")
+public func kk_string_replaceIndent_default_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceIndent_default(kk_string_from_flat(data, length, byteCount, hash))
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceIndent_flat")
+public func kk_string_replaceIndent_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ newIndentData: UnsafePointer<UInt8>?, _ newIndentLength: Int, _ newIndentByteCount: Int, _ newIndentHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceIndent(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(newIndentData, newIndentLength, newIndentByteCount, newIndentHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceIndentByMargin_flat")
+public func kk_string_replaceIndentByMargin_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ newIndentData: UnsafePointer<UInt8>?, _ newIndentLength: Int, _ newIndentByteCount: Int, _ newIndentHash: Int,
+    _ marginPrefixData: UnsafePointer<UInt8>?, _ marginPrefixLength: Int, _ marginPrefixByteCount: Int, _ marginPrefixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    var thrown = 0
+    let raw = kk_string_replaceIndentByMargin(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(newIndentData, newIndentLength, newIndentByteCount, newIndentHash),
+        kk_string_from_flat(marginPrefixData, marginPrefixLength, marginPrefixByteCount, marginPrefixHash),
+        &thrown
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
 // MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source

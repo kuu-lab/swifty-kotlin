@@ -2,7 +2,8 @@
 @testable import CompilerCore
 import Testing
 
-@Suite struct BoxingIntegrationTests {
+@Suite @MainActor
+struct BoxingIntegrationTests {
     @Test func testPairTripleBoxingSurgicalFix() throws {
         let source = """
         fun test() {

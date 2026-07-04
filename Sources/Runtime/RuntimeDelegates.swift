@@ -553,8 +553,7 @@ public func kk_delegate_get_value(_ handle: Int, _: Int, _ property: Int, _ outT
     if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
         let propName = kk_kproperty_stub_name(property)
         for i in 0..<mapBox.keys.count {
-            // swiftlint:disable:next for_where
-            if runtimeStringFromRaw(mapBox.keys[i]) == runtimeStringFromRaw(propName) {
+            if runtimeRawStringsEqual(mapBox.keys[i], propName) {
                 return mapBox.values[i]
             }
         }
@@ -621,8 +620,7 @@ public func kk_delegate_set_value(
     if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
         let propName = kk_kproperty_stub_name(property)
         for i in 0..<mapBox.keys.count {
-            // swiftlint:disable:next for_where
-            if runtimeStringFromRaw(mapBox.keys[i]) == runtimeStringFromRaw(propName) {
+            if runtimeRawStringsEqual(mapBox.keys[i], propName) {
                 mapBox.values[i] = newValue
                 return newValue
             }
@@ -633,4 +631,25 @@ public func kk_delegate_set_value(
         return newValue
     }
     return newValue
+}
+
+private func runtimeRawStringsEqual(_ lhsRaw: Int, _ rhsRaw: Int) -> Bool {
+    if rhsRaw == runtimeNullSentinelInt {
+        return false
+    }
+    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhsRaw),
+          let lhs = extractString(from: lhsPtr)
+    else {
+        fatalError(
+            "KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid string pointer in runtimeRawStringsEqual (lhsRaw=0x\(String(lhsRaw, radix: 16)))"
+        )
+    }
+    guard let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhsRaw),
+          let rhs = extractString(from: rhsPtr)
+    else {
+        fatalError(
+            "KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid string pointer in runtimeRawStringsEqual (rhsRaw=0x\(String(rhsRaw, radix: 16)))"
+        )
+    }
+    return lhs == rhs
 }

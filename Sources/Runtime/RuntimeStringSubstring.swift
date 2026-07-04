@@ -557,3 +557,335 @@ public func kk_string_removeRange_range(
     return kk_string_removeRange(strRaw, range.first, range.last + 1, outThrown)
 }
 
+// MARK: - Flat ABI wrappers
+
+@_cdecl("kk_string_substringBefore_flat")
+public func kk_string_substringBefore_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringBefore(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringBefore_char_flat")
+public func kk_string_substringBefore_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringBefore_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringBeforeLast_flat")
+public func kk_string_substringBeforeLast_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringBeforeLast(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringBeforeLast_char_flat")
+public func kk_string_substringBeforeLast_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringBeforeLast_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringAfter_flat")
+public func kk_string_substringAfter_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringAfter(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringAfter_char_flat")
+public func kk_string_substringAfter_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringAfter_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringAfterLast_flat")
+public func kk_string_substringAfterLast_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringAfterLast(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringAfterLast_char_flat")
+public func kk_string_substringAfterLast_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_substringAfterLast_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceAfter_flat")
+public func kk_string_replaceAfter_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceAfter(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceAfter_char_flat")
+public func kk_string_replaceAfter_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceAfter_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceAfterLast_flat")
+public func kk_string_replaceAfterLast_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceAfterLast(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceAfterLast_char_flat")
+public func kk_string_replaceAfterLast_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceAfterLast_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceBefore_flat")
+public func kk_string_replaceBefore_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceBefore(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceBefore_char_flat")
+public func kk_string_replaceBefore_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceBefore_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceBeforeLast_flat")
+public func kk_string_replaceBeforeLast_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceBeforeLast(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash),
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceBeforeLast_char_flat")
+public func kk_string_replaceBeforeLast_char_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?, _ missingLength: Int, _ missingByteCount: Int, _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceBeforeLast_char(
+        kk_string_from_flat(data, length, byteCount, hash),
+        delimiterRaw,
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        kk_string_from_flat(missingData, missingLength, missingByteCount, missingHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceFirst_flat")
+public func kk_string_replaceFirst_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ oldData: UnsafePointer<UInt8>?, _ oldLength: Int, _ oldByteCount: Int, _ oldHash: Int,
+    _ newData: UnsafePointer<UInt8>?, _ newLength: Int, _ newByteCount: Int, _ newHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceFirst(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(oldData, oldLength, oldByteCount, oldHash),
+        kk_string_from_flat(newData, newLength, newByteCount, newHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeRange_flat")
+public func kk_string_removeRange_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ startRaw: Int, _ endRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeRange(kk_string_from_flat(data, length, byteCount, hash), startRaw, endRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeRange_range_flat")
+public func kk_string_removeRange_range_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ rangeRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeRange_range(kk_string_from_flat(data, length, byteCount, hash), rangeRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_replaceRange_flat")
+public func kk_string_replaceRange_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ rangeRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?, _ replacementLength: Int, _ replacementByteCount: Int, _ replacementHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_replaceRange(
+        kk_string_from_flat(data, length, byteCount, hash),
+        rangeRaw,
+        kk_string_from_flat(replacementData, replacementLength, replacementByteCount, replacementHash),
+        outThrown
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+

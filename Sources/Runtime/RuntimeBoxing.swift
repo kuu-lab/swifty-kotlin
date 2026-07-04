@@ -202,8 +202,7 @@ public func kk_unbox_double(_ obj: Int) -> Int {
 @_cdecl("kk_box_char")
 public func kk_box_char(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }
-    // If the value is already a registered runtime object (e.g. an already-boxed
-    // RuntimeCharBox returned by kk_string_singleOrNull), pass it through
+    // If the value is already a registered runtime object, pass it through
     // without double-boxing.
     if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
         let isObjectPointer = runtimeStorage.withGCLock { state in

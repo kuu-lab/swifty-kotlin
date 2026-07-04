@@ -205,7 +205,7 @@ extension DeclTypeChecker {
             return nil
         }
         guard let ownerSymbol = sema.symbols.parentSymbol(for: memberSymbol),
-              case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+              let receiverClass = resolveClassType(receiverType, sema: sema)
         else {
             return signature
         }

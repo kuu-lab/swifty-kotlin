@@ -453,14 +453,14 @@ extension KIRLoweringDriver {
         let propertyName = sema.symbols.symbol(propSym)?.name ?? interner.intern("")
         let propertyNameExpr = arena.appendExpr(
             .stringLiteral(propertyName),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: propertyNameExpr, value: .stringLiteral(propertyName)))
         let propertyType = sema.symbols.propertyType(for: propSym) ?? sema.types.anyType
         let typeName = interner.intern(sema.types.renderType(propertyType))
         let typeExpr = arena.appendExpr(
             .stringLiteral(typeName),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: typeExpr, value: .stringLiteral(typeName)))
         let stubExpr = arena.appendTemporary(type: sema.types.anyType)

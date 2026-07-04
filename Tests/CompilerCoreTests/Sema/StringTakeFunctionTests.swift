@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-078: Validates that `CharSequence.take(n)` resolves through
 /// Sema for `String` receivers. The synthetic extension links to
-/// `kk_string_take`, which trims the receiver to its first `n` scalars and
+/// `kk_string_take_flat`, which trims the receiver to its first `n` scalars and
 /// throws `IllegalArgumentException` when `n` is negative.
 @Suite
 struct StringTakeFunctionTests {

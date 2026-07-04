@@ -2,7 +2,7 @@
 import Testing
 
 /// STDLIB-TEXT-FN-080: Validates that `CharSequence.takeLast(n)` resolves through Sema for
-/// `String` receivers. The synthetic stub links to `kk_string_takeLast`.
+/// `String` receivers. The synthetic stub links to `kk_string_takeLast_flat`.
 @Suite
 struct StringTakeLastFunctionTests {
     @Test func testTakeLastWithLiteralCount() throws {

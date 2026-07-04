@@ -80,6 +80,12 @@ extension BuildKIRRegressionTests {
             #expect(callNames.contains("kk_array_set"))
             #expect(callNames.contains("kk_function_create_1"))
 
+            let adapterFunction = try #require(findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+            })
+            let adapterCallNames = extractCallees(from: adapterFunction.body, interner: ctx.interner)
+            #expect(adapterCallNames.contains("kk_unbox_int"))
+
             let generatedLambdaFunctions = findAllKIRFunctions(in: module).filter { function in
                 ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
             }
@@ -218,6 +224,44 @@ extension BuildKIRRegressionTests {
                 Issue.record("Expected reordered second parameter argument.")
                 return
             }
+        }
+    }
+
+    @Test func testBuildKIRNestedEscapingFunctionTypeComparesArithmeticBeforeReturn() throws {
+        let source = """
+        fun main() {
+            val f: (Int) -> (String) -> Boolean = { m -> { s -> s.length * m > 10 } }
+            println(f(2)("hello"))
+            println(f(2)("hi"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let innerLambda = try #require(findAllKIRFunctions(in: module).first { function in
+                guard ctx.interner.resolve(function.name).hasPrefix("kk_lambda_") else {
+                    return false
+                }
+                let callNames = extractCallees(from: function.body, interner: ctx.interner)
+                return callNames.contains("kk_op_mul") && callNames.contains("kk_op_gt")
+            })
+            let innerCallNames = extractCallees(from: innerLambda.body, interner: ctx.interner)
+            #expect(innerCallNames.contains("__string_struct_get_length"))
+            #expect(innerCallNames.contains("kk_op_mul"))
+            #expect(innerCallNames.contains("kk_op_gt"))
+
+            let adapterFunction = try #require(findAllKIRFunctions(in: module).first { function in
+                ctx.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+            })
+            let adapterCallNames = extractCallees(from: adapterFunction.body, interner: ctx.interner)
+            #expect(
+                adapterCallNames.contains { name in
+                    name.hasPrefix("kk_closure_invoke_") || name.hasPrefix("kk_lambda_")
+                }
+            )
         }
     }
 

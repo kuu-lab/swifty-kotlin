@@ -1,5 +1,4 @@
-@testable import RuntimeABI
-@testable import Runtime
+import RuntimeABI
 import XCTest
 
 private let runtimeABIExternDeclsByName = Dictionary(
@@ -16,14 +15,14 @@ extension ABIMismatchTests {
     }
 
     private func sharedABINames() -> [String] {
-        let specNames = RuntimeABISpec.allFunctions.map(\.name)
-        let externNameSet = Set(RuntimeABIExterns.allExterns.map(\.name))
+        let specNames = RuntimeABISpec.allFunctions.map { $0.name }
+        let externNameSet = Set(RuntimeABIExterns.allExterns.map { $0.name })
         return specNames.filter { externNameSet.contains($0) }
     }
 
     func testExternCountMatchesSpec() {
-        let specNames = RuntimeABISpec.allFunctions.map(\.name)
-        let externNames = RuntimeABIExterns.allExterns.map(\.name)
+        let specNames = RuntimeABISpec.allFunctions.map { $0.name }
+        let externNames = RuntimeABIExterns.allExterns.map { $0.name }
         var externNameCounts: [String: Int] = [:]
         for name in externNames {
             externNameCounts[name, default: 0] += 1
@@ -149,8 +148,8 @@ extension ABIMismatchTests {
             "kk_comparator_nulls_last",
             "kk_comparator_nulls_last_trampoline",
         ]
-        let specNames = Set(RuntimeABISpec.allFunctions.map(\.name))
-        let externNames = Set(RuntimeABIExterns.allExterns.map(\.name))
+        let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
+        let externNames = Set(RuntimeABIExterns.allExterns.map { $0.name })
         for name in requiredComparatorSymbols {
             XCTAssertTrue(
                 specNames.contains(name),

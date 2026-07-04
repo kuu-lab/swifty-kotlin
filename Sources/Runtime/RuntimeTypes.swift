@@ -61,6 +61,65 @@ final class RuntimeStringBox {
     }
 }
 
+struct RuntimeValue {
+    static let rawTag = 0
+    static let stringTag = 1
+    static let charTag = 2
+
+    var tag: Int
+    var payload0: Int
+    var payload1: Int
+    var payload2: Int
+    var payload3: Int
+
+    init(raw: Int) {
+        self.tag = Self.rawTag
+        self.payload0 = raw
+        self.payload1 = 0
+        self.payload2 = 0
+        self.payload3 = 0
+    }
+
+    init(stringData data: Int, length: Int, byteCount: Int, hash: Int) {
+        self.tag = Self.stringTag
+        self.payload0 = data
+        self.payload1 = length
+        self.payload2 = byteCount
+        self.payload3 = hash
+    }
+
+    init(charScalar value: Int) {
+        self.tag = Self.charTag
+        self.payload0 = value
+        self.payload1 = 0
+        self.payload2 = 0
+        self.payload3 = 0
+    }
+
+    var legacyRawValue: Int {
+        guard tag == Self.stringTag else {
+            return payload0
+        }
+        guard let data = UnsafePointer<UInt8>(bitPattern: payload0) else {
+            return 0
+        }
+        let string = runtimeStringFromFlatFields(
+            data: data,
+            length: payload1,
+            byteCount: payload2,
+            hash: payload3
+        )
+        return registerRuntimeObject(RuntimeStringBox(string))
+    }
+
+    var childReferenceRawValue: Int? {
+        guard tag == Self.rawTag, payload0 != 0 else {
+            return nil
+        }
+        return payload0
+    }
+}
+
 class RuntimeThrowableBox {
     let message: String
     var cause: Int
@@ -135,10 +194,28 @@ final class RuntimeCancellationBox: RuntimeThrowableBox {
 }
 
 class RuntimeArrayBox {
-    var elements: [Int]
+    private var storage: [RuntimeValue]
+
+    var values: [RuntimeValue] {
+        get {
+            storage
+        }
+        set {
+            storage = newValue
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            storage.map(\.legacyRawValue)
+        }
+        set {
+            storage = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
 
     init(length: Int) {
-        elements = Array(repeating: 0, count: max(0, length))
+        storage = Array(repeating: RuntimeValue(raw: 0), count: max(0, length))
     }
 }
 
@@ -152,12 +229,20 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 }
 
 final class RuntimePairBox {
-    let first: Int
-    let second: Int
+    let firstValue: RuntimeValue
+    let secondValue: RuntimeValue
+
+    var first: Int { firstValue.legacyRawValue }
+    var second: Int { secondValue.legacyRawValue }
 
     init(first: Int, second: Int) {
-        self.first = first
-        self.second = second
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+    }
+
+    init(firstValue: RuntimeValue, secondValue: RuntimeValue) {
+        self.firstValue = firstValue
+        self.secondValue = secondValue
     }
 }
 
@@ -251,7 +336,7 @@ final class RuntimeFunctionValueBox {
 /// Stores elements directly or as a lightweight view over another list/array.
 final class RuntimeListBox {
     private enum Storage {
-        case direct([Int])
+        case direct([RuntimeValue])
         case reversedViewOf(RuntimeListBox)
         case arrayViewOf(RuntimeArrayBox)
     }
@@ -259,7 +344,11 @@ final class RuntimeListBox {
     private var storage: Storage
 
     init(elements: [Int]) {
-        storage = .direct(elements)
+        storage = .direct(elements.map { RuntimeValue(raw: $0) })
+    }
+
+    init(values: [RuntimeValue]) {
+        storage = .direct(values)
     }
 
     init(reversedViewOf base: RuntimeListBox) {
@@ -270,15 +359,15 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base)
     }
 
-    var elements: [Int] {
+    var values: [RuntimeValue] {
         get {
             switch storage {
-            case .direct(let elements):
-                return elements
+            case .direct(let values):
+                return values
             case .reversedViewOf(let base):
-                return Array(base.elements.reversed())
+                return Array(base.values.reversed())
             case .arrayViewOf(let base):
-                return base.elements
+                return base.values
             }
         }
         set {
@@ -286,47 +375,132 @@ final class RuntimeListBox {
             case .direct:
                 storage = .direct(newValue)
             case .reversedViewOf(let base):
-                base.elements = Array(newValue.reversed())
+                base.values = Array(newValue.reversed())
             case .arrayViewOf(let base):
-                base.elements = newValue
+                base.values = newValue
             }
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            values.map(\.legacyRawValue)
+        }
+        set {
+            values = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 }
 
 /// Runtime box for `setOf(...)` / `mutableSetOf(...)`.
-/// Stores unique elements in insertion order as an array of `Int`.
+/// Stores unique elements in insertion order as runtime values.
 final class RuntimeSetBox {
-    var elements: [Int]
+    private var storage: [RuntimeValue]
+
+    var values: [RuntimeValue] {
+        get {
+            storage
+        }
+        set {
+            storage = newValue
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            storage.map(\.legacyRawValue)
+        }
+        set {
+            storage = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
 
     init(elements: [Int]) {
-        self.elements = elements
+        self.storage = elements.map { RuntimeValue(raw: $0) }
+    }
+
+    init(values: [RuntimeValue]) {
+        self.storage = values
     }
 }
 
 /// Runtime box for `mapOf(...)` / `mutableMapOf(...)`.
-/// Stores keys and values as parallel arrays of `Int` (opaque intptr_t values).
+/// Stores keys and values as parallel runtime-value arrays.
 final class RuntimeMapBox {
-    var keys: [Int]
-    var values: [Int]
+    private var keyStorage: [RuntimeValue]
+    private var valueStorage: [RuntimeValue]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
 
+    var keyValues: [RuntimeValue] {
+        get {
+            keyStorage
+        }
+        set {
+            keyStorage = newValue
+        }
+    }
+
+    var entryValues: [RuntimeValue] {
+        get {
+            valueStorage
+        }
+        set {
+            valueStorage = newValue
+        }
+    }
+
+    var keys: [Int] {
+        get {
+            keyStorage.map(\.legacyRawValue)
+        }
+        set {
+            keyStorage = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
+
+    var values: [Int] {
+        get {
+            valueStorage.map(\.legacyRawValue)
+        }
+        set {
+            valueStorage = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
+
     init(keys: [Int], values: [Int], defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
-        self.keys = keys
-        self.values = values
+        self.keyStorage = keys.map { RuntimeValue(raw: $0) }
+        self.valueStorage = values.map { RuntimeValue(raw: $0) }
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
     }
 }
 
 /// Runtime box for `ArrayDeque<T>`.
-/// Stores elements in a mutable array of `Int`.
+/// Stores elements in a mutable runtime-value array.
 final class RuntimeArrayDequeBox {
-    var elements: [Int]
+    private var storage: [RuntimeValue]
+
+    var values: [RuntimeValue] {
+        get {
+            storage
+        }
+        set {
+            storage = newValue
+        }
+    }
+
+    var elements: [Int] {
+        get {
+            storage.map(\.legacyRawValue)
+        }
+        set {
+            storage = newValue.map { RuntimeValue(raw: $0) }
+        }
+    }
 
     init(elements: [Int]) {
-        self.elements = elements
+        self.storage = elements.map { RuntimeValue(raw: $0) }
     }
 }
 
@@ -343,11 +517,11 @@ final class RuntimeIndexingIterableBox {
 /// Iterator for `withIndex()` result. Each call to `next()` yields an
 /// `IndexedValue<E>` pair (index, element) represented as `RuntimePairBox`.
 final class RuntimeIndexingIteratorBox {
-    let elements: [Int]
+    let values: [RuntimeValue]
     var index: Int
 
-    init(elements: [Int]) {
-        self.elements = elements
+    init(values: [RuntimeValue]) {
+        self.values = values
         index = 0
     }
 }
@@ -375,15 +549,13 @@ final class RuntimeStringIteratorBox {
 }
 
 /// Lazy iterable view for `String.asIterable()` (STDLIB-317).
-/// Stores only the string raw handle; characters are yielded on demand when
+/// Stores the immutable string payload; characters are yielded on demand when
 /// the iterable is consumed (e.g. via `iterator()`, `toList()`, or `for-in`).
-/// In the current runtime the iterable delegates to the existing `kk_string_toList`
-/// materialisation at consumption time, keeping the creation itself O(1).
 final class RuntimeStringIterableBox {
-    let strRaw: Int
+    let source: String
 
-    init(strRaw: Int) {
-        self.strRaw = strRaw
+    init(source: String) {
+        self.source = source
     }
 }
 
@@ -407,7 +579,8 @@ final class RuntimeMapIteratorBox {
 /// for map/filter transformations. Lazy semantics: no evaluation until terminal.
 enum SequenceStepKind {
     case source(elements: [Int])
-    case stringSource(strRaw: Int)
+    case valueSource(values: [RuntimeValue])
+    case stringSource(source: String)
     case mapStep(fnPtr: Int, closureRaw: Int)
     case filterStep(fnPtr: Int, closureRaw: Int)
     case filterNotStep(fnPtr: Int, closureRaw: Int)
@@ -2049,11 +2222,13 @@ final class RuntimeBufferedWriterBox {
 // Only types that store `Int` child handles need to conform.
 
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimePairBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second] }
+    var childRefs: [Int] {
+        [firstValue, secondValue].compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
@@ -2061,17 +2236,20 @@ extension RuntimeTripleBox: RuntimeChildReferenceProviding {
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimeSetBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimeMapBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { keys + values }
+    var childRefs: [Int] {
+        keyValues.compactMap(\.childReferenceRawValue)
+            + entryValues.compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }

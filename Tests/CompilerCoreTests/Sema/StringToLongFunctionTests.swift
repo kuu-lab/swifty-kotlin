@@ -6,7 +6,7 @@ import Testing
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toLong` links to the
-///   runtime symbol `kk_string_toLong` declared in
+///   runtime symbol `kk_string_toLong_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - A call expression `value.toLong()` resolves through sema to that bridge
 ///   and produces no diagnostics.

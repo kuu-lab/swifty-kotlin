@@ -272,7 +272,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_double",
@@ -281,7 +281,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_to_float",
@@ -290,7 +290,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_to_double",
@@ -299,7 +299,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_float",
@@ -308,7 +308,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_double",
@@ -317,7 +317,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_float",
@@ -326,7 +326,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_double",
@@ -335,7 +335,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         // UByte / UShort cross-unsigned conversions
         RuntimeABIFunctionSpec(
@@ -345,7 +345,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_ubyte",
@@ -354,7 +354,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "NumericConversion",
-            isThrowing: false
+            isThrowing: true
         ),
         // SPEC-NUM-0007: unsigned toByte / toShort conversions
         RuntimeABIFunctionSpec(

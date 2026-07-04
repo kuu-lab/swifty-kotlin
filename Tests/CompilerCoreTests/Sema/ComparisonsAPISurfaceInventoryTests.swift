@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import XCTest
 
 // MARK: - STDLIB-COMP-001: kotlin.comparisons API Surface Inventory
 //

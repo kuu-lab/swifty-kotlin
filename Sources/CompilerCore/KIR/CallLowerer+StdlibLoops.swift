@@ -111,15 +111,13 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
-        let nextIndexExpr = arena.appendTemporary(type: intType)
-        instructions.append(.call(
-            symbol: nil,
+        let nextIndexExpr = emitNonThrowingCall(
             callee: unboxIntCallee,
-            arguments: [nextIndexBoxedExpr],
-            result: nextIndexExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: nextIndexBoxedExpr,
+            resultType: intType,
+            arena: arena,
+            into: &instructions
+        )
         instructions.append(.copy(from: nextIndexExpr, to: indexExpr))
         instructions.append(.jump(conditionLabel))
         instructions.append(.label(exitLabel))

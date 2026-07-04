@@ -189,6 +189,18 @@ public func kk_string_toULongOrNull_radix(
     return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
+@_cdecl("kk_string_toULongOrNull_radix_flat")
+public func kk_string_toULongOrNull_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_toULongOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
+}
+
 private let runtimeDecimalFloatingLiteralPattern =
     #"^[+-]?((([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?)|([0-9]+[eE][+-]?[0-9]+))[fFdD]?$"#
 private let runtimeHexFloatingLiteralPattern =
@@ -248,6 +260,17 @@ public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
     return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
 }
 
+@_cdecl("kk_string_toDouble_flat")
+public func kk_string_toDouble_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_toDouble(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+}
+
 @_cdecl("kk_string_toDoubleOrNull")
 public func kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -260,6 +283,16 @@ public func kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
         return runtimeNullSentinelInt
     }
     return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
+}
+
+@_cdecl("kk_string_toDoubleOrNull_flat")
+public func kk_string_toDoubleOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    kk_string_toDoubleOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
 // MARK: - STDLIB-420 String.toLong / toLongOrNull / toFloat / toFloatOrNull
@@ -532,6 +565,24 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     return registerRuntimeObject(box)
 }
 
+@_cdecl("kk_string_toBigDecimal_flat")
+public func kk_string_toBigDecimal_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    outThrown?.pointee = 0
+    guard isValidBigDecimalFormat(str) else {
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
+        return 0
+    }
+    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    return registerRuntimeObject(box)
+}
+
 @_cdecl("kk_string_toBigDecimalOrNull")
 public func kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
@@ -548,16 +599,57 @@ public func kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
+@_cdecl("kk_string_toBigDecimalOrNull_flat")
+public func kk_string_toBigDecimalOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard isValidBigDecimalFormat(str) else {
+        return runtimeNullSentinelInt
+    }
+    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    return registerRuntimeObject(box)
+}
+
 @_cdecl("kk_string_toBigInteger")
 public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     return kk_biginteger_fromString(strRaw, outThrown)
 }
 
+@_cdecl("kk_string_toBigInteger_flat")
+public func kk_string_toBigInteger_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    outThrown?.pointee = 0
+    return kk_biginteger_fromString(runtimeMakeStringRaw(str), outThrown)
+}
+
 @_cdecl("kk_string_toBigIntegerOrNull")
 public func kk_string_toBigIntegerOrNull(_ strRaw: Int) -> Int {
     var thrown = 0
     let raw = kk_biginteger_fromString(strRaw, &thrown)
+    return thrown == 0 ? raw : runtimeNullSentinelInt
+}
+
+@_cdecl("kk_string_toBigIntegerOrNull_flat")
+public func kk_string_toBigIntegerOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    var thrown = 0
+    let raw = kk_biginteger_fromString(runtimeMakeStringRaw(str), &thrown)
     return thrown == 0 ? raw : runtimeNullSentinelInt
 }
 
