@@ -665,7 +665,7 @@ extension CallTypeChecker {
                 }
                 let sourceFQName = [
                     interner.intern("kotlin"),
-                    interner.intern("sequences"),
+                    interner.intern("collections"),
                     calleeName,
                 ]
                 guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
@@ -1331,9 +1331,6 @@ extension CallTypeChecker {
                     }
                     _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     resultType = initialType
-                    if isSequenceReceiver {
-                        sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
-                    }
                 }
 
             case "foldIndexed":
@@ -1565,9 +1562,6 @@ extension CallTypeChecker {
                     }
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     resultType = collectionElementType
-                    if isSequenceReceiver {
-                        sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
-                    }
                 }
 
             case "reduceOrNull":
@@ -1652,7 +1646,6 @@ extension CallTypeChecker {
                         interner: interner,
                         elementType: initialType
                     )
-                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType, initialType]
                 } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                     resultType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,

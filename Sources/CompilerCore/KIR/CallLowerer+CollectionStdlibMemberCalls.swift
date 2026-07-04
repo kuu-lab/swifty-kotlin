@@ -23,9 +23,6 @@ extension CallLowerer {
     ) -> KIRExprID? {
         let calleeText = interner.resolve(calleeName)
         if [
-            "fold",
-            "reduce",
-            "scan",
             "associate",
             "associateBy",
             "groupBy",

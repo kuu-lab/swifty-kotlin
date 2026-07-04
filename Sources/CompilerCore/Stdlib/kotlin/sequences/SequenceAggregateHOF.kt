@@ -1,15 +1,21 @@
-package kotlin.sequences
+package kotlin.collections
 
 // MIGRATION-SEQ-004
 // Sequence aggregate HOFs migrated to Kotlin source.
+// Placed in kotlin.collections package for Map/MutableMap/List/MutableList resolution.
+// Uses "for in" iteration to avoid polluting toList() overload resolution
+// (this.toList() in kotlin.collections would make Collection.toList() resolve to
+// kk_sequence_to_list instead of kk_collection_toList in Sema dispatch).
 //
 // Migration source:
 //   Sources/Runtime/RuntimeSequence.swift
 //   Sources/Runtime/RuntimeSequenceAssociation.swift
 //   Sources/Runtime/RuntimeSequenceFoldScan.swift
 //
-// Implementations prefer `for` loops where the current lowering path supports
-// them; reduce uses toList() to avoid nullable generic accumulator handling.
+// Migrated: fold, reduce, scan, sumOf, maxByOrNull, minByOrNull,
+//           associate, associateBy, groupBy
+// scan/fold/reduce still resolve to runtime ABI stubs at call sites until
+// source-backed iteration parity is complete (see MIGRATION-SEQ-004b notes).
 
 public fun <T, R> Sequence<T>.fold(initial: R, operation: (R, T) -> R): R {
     var accumulator = initial
@@ -20,19 +26,25 @@ public fun <T, R> Sequence<T>.fold(initial: R, operation: (R, T) -> R): R {
 }
 
 public fun <T> Sequence<T>.reduce(operation: (T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
+    var accumulator: T? = null
+    var first = true
+    for (elem in this) {
+        if (first) { accumulator = elem; first = false }
+        else { accumulator = operation(accumulator!!, elem) }
     }
-    return accumulator
+    if (first) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    return accumulator!!
 }
 
-public fun <T, R> Sequence<T>.scan(initial: R, operation: (R, T) -> R): Sequence<R> {
-    return this.runningFold(initial, operation)
+public fun <T, R> Sequence<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    for (elem in this) {
+        accumulator = operation(accumulator, elem)
+        result.add(accumulator)
+    }
+    return result
 }
 
 // Sema exposes the public call result as Map<K, V>; the source body returns the
@@ -112,7 +124,7 @@ public fun <T, R : Comparable<R>> Sequence<T>.maxByOrNull(selector: (T) -> R): T
     var bestKey: R? = null
     for (elem in this) {
         val key = selector(elem)
-        if (bestKey == null || key.compareTo(bestKey!!) > 0) { bestElem = elem; bestKey = key }
+        if (bestKey == null || key > bestKey!!) { bestElem = elem; bestKey = key }
     }
     return bestElem
 }
@@ -122,7 +134,7 @@ public fun <T, R : Comparable<R>> Sequence<T>.minByOrNull(selector: (T) -> R): T
     var bestKey: R? = null
     for (elem in this) {
         val key = selector(elem)
-        if (bestKey == null || key.compareTo(bestKey!!) < 0) { bestElem = elem; bestKey = key }
+        if (bestKey == null || key < bestKey!!) { bestElem = elem; bestKey = key }
     }
     return bestElem
 }
