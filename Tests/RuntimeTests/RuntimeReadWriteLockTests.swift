@@ -9,42 +9,18 @@ nonisolated(unsafe) private var runtimeReadWriteLockReadEnteredSemaphore = Dispa
 nonisolated(unsafe) private var runtimeReadWriteLockReadReleaseSemaphore = DispatchSemaphore(value: 0)
 nonisolated(unsafe) private var runtimeReadWriteLockWriterEnteredSemaphore = DispatchSemaphore(value: 0)
 
-private var runtimeReadWriteLockActiveReaders: Int {
-    get {
-        runtimeReadWriteLockStateLock.lock()
-        defer { runtimeReadWriteLockStateLock.unlock() }
-        return _runtimeReadWriteLockActiveReaders
-    }
-    set {
-        runtimeReadWriteLockStateLock.lock()
-        defer { runtimeReadWriteLockStateLock.unlock() }
-        _runtimeReadWriteLockActiveReaders = newValue
-    }
-}
 
-private var runtimeReadWriteLockMaxReaders: Int {
-    get {
-        runtimeReadWriteLockStateLock.lock()
-        defer { runtimeReadWriteLockStateLock.unlock() }
-        return _runtimeReadWriteLockMaxReaders
-    }
-    set {
-        runtimeReadWriteLockStateLock.lock()
-        defer { runtimeReadWriteLockStateLock.unlock() }
-        _runtimeReadWriteLockMaxReaders = newValue
-    }
-}
 
 @_cdecl("runtime_read_write_lock_passthrough")
 private func runtime_read_write_lock_passthrough(
-    _ closureRaw: Int
+    _: Int
 ) -> Int {
     return 123
 }
 
 @_cdecl("runtime_read_write_lock_reader")
 private func runtime_read_write_lock_reader(
-    _ closureRaw: Int
+    _: Int
 ) -> Int {
     runtimeReadWriteLockStateLock.lock()
     _runtimeReadWriteLockActiveReaders += 1
@@ -64,7 +40,7 @@ private func runtime_read_write_lock_reader(
 
 @_cdecl("runtime_read_write_lock_writer")
 private func runtime_read_write_lock_writer(
-    _ closureRaw: Int
+    _: Int
 ) -> Int {
     runtimeReadWriteLockWriterEnteredSemaphore.signal()
     return 99

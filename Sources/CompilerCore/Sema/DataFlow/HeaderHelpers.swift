@@ -6,6 +6,34 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
+    func hasImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        // Imported stdlib declarations own the public Kotlin surface; synthetic
+        // fallback stubs should not reintroduce direct runtime links there.
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else {
+                return false
+            }
+            return symbol.kind == kind && symbol.flags.contains(.importedLibrary)
+        }
+    }
+
+    func hasSourceOrImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID), symbol.kind == kind else {
+                return false
+            }
+            return symbol.flags.contains(.importedLibrary) || !symbol.flags.contains(.synthetic)
+        }
+    }
+
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
         case let .classDecl(classDecl):
@@ -442,6 +470,16 @@ extension DataFlowSemaPhase {
                 return
             }
         }
+        if newKind == .property,
+           !newFlags.contains(.synthetic)
+        {
+            let existingNonPackage = existing.filter { $0.kind != .package }
+            if !existingNonPackage.isEmpty,
+               existingNonPackage.allSatisfy({ $0.kind == .property && $0.flags.contains(.synthetic) })
+            {
+                return
+            }
+        }
         if hasDeclarationConflict(
             newKind: newKind,
             existing: existing,
@@ -495,7 +533,7 @@ extension DataFlowSemaPhase {
         }
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         guard !hasUserDeclaredFunction(
             fqName: toStringFQName,
             receiverType: ownerType,

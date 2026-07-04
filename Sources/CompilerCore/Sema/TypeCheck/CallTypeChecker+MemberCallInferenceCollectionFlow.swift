@@ -89,6 +89,10 @@ extension CallTypeChecker {
         }
         if !isSequenceReceiver {
             activeCollectionHOFNames.remove("flatMapIndexed")
+            // List.zip already resolves through its registered synthetic member
+            // stub (kk_list_zip) via normal overload resolution, which sets
+            // chosenCallee. Only Sequence needs this generic fast path.
+            activeCollectionHOFNames.remove("zip")
         } else {
             activeCollectionHOFNames.remove("mapIndexedNotNull")
             activeCollectionHOFNames.remove("dropLastWhile")

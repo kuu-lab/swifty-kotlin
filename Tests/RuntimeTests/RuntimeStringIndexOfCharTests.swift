@@ -2,63 +2,81 @@
 import XCTest
 
 /// STDLIB-TEXT-FN-020: Verifies the dedicated Char-overload runtime entry
-/// `kk_string_indexOf_char` behaves consistently with Kotlin's
+/// `kk_string_indexOf_char_flat` behaves consistently with Kotlin's
 /// `CharSequence.indexOf(char: Char, startIndex: Int = 0, ignoreCase: Boolean = false)`.
 final class RuntimeStringIndexOfCharTests: XCTestCase {
-    private func makeRuntimeStringRaw(_ value: String) -> Int {
-        value.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-                Int(bitPattern: kk_string_from_utf8(pointer, Int32(value.utf8.count)))
-            }
-        }
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        return body(data.map { UnsafePointer($0) }, length, byteCount, hash)
     }
 
     private func charRaw(_ char: Character) -> Int {
         kk_box_char(Int(char.unicodeScalars.first!.value))
     }
 
+    private func indexOfChar(
+        _ value: String,
+        _ char: Character,
+        startIndex: Int,
+        ignoreCase: Int
+    ) -> Int {
+        withFlatString(value) { data, length, byteCount, hash in
+            kk_string_indexOf_char_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                charRaw(char),
+                startIndex,
+                ignoreCase
+            )
+        }
+    }
+
     func testIndexOfCharBasicMatchAtStart() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("h"), 0, 0), 0)
+        XCTAssertEqual(indexOfChar("hello", "h", startIndex: 0, ignoreCase: 0), 0)
     }
 
     func testIndexOfCharBasicMatchInMiddle() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("l"), 0, 0), 2)
+        XCTAssertEqual(indexOfChar("hello", "l", startIndex: 0, ignoreCase: 0), 2)
     }
 
     func testIndexOfCharNotFoundReturnsNegativeOne() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("z"), 0, 0), -1)
+        XCTAssertEqual(indexOfChar("hello", "z", startIndex: 0, ignoreCase: 0), -1)
     }
 
     func testIndexOfCharRespectsStartIndex() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("l"), 3, 0), 3)
+        XCTAssertEqual(indexOfChar("hello", "l", startIndex: 3, ignoreCase: 0), 3)
     }
 
     func testIndexOfCharStartIndexBeyondLengthReturnsNegativeOne() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("l"), 10, 0), -1)
+        XCTAssertEqual(indexOfChar("hello", "l", startIndex: 10, ignoreCase: 0), -1)
     }
 
     func testIndexOfCharIgnoreCaseFindsUppercase() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("L"), 0, 1), 2)
+        XCTAssertEqual(indexOfChar("hello", "L", startIndex: 0, ignoreCase: 1), 2)
     }
 
     func testIndexOfCharCaseSensitiveDoesNotFindUppercase() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("L"), 0, 0), -1)
+        XCTAssertEqual(indexOfChar("hello", "L", startIndex: 0, ignoreCase: 0), -1)
     }
 
     func testIndexOfCharNegativeStartIndexIsClamped() {
-        let strRaw = makeRuntimeStringRaw("hello")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("h"), -5, 0), 0)
+        XCTAssertEqual(indexOfChar("hello", "h", startIndex: -5, ignoreCase: 0), 0)
     }
 
     func testIndexOfCharOnEmptyStringReturnsNegativeOne() {
-        let strRaw = makeRuntimeStringRaw("")
-        XCTAssertEqual(kk_string_indexOf_char(strRaw, charRaw("a"), 0, 0), -1)
+        XCTAssertEqual(indexOfChar("", "a", startIndex: 0, ignoreCase: 0), -1)
     }
 }

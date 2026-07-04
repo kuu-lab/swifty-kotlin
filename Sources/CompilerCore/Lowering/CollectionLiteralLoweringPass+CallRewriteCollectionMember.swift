@@ -24,7 +24,10 @@ extension CollectionLiteralLoweringPass {
         // --- Rewrite collection member calls ---
         // Member calls are lowered as call(callee=memberName, args=[receiver, ...])
         // any()/none()/first()/last() with no predicate: args=[receiver], pass fnPtr=0, closure=0
-        if callee == lookup.anyName || callee == lookup.noneName || callee == lookup.firstName || callee == lookup.lastName {
+        if callee == lookup.anyName || callee == lookup.noneName
+            || callee == lookup.firstName || callee == lookup.lastName
+            || callee == lookup.endExclusiveName
+        {
             if arguments.count == 1 {
                 let receiverID = arguments[0]
                 if state.listExprIDs.contains(receiverID.rawValue) {

@@ -6,7 +6,7 @@ import Testing
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toShort` links to the runtime
-///   symbol `kk_string_toShort` declared in
+///   symbol `kk_string_toShort_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+ABIParity.swift`.
 /// - The extension resolves cleanly from source code on both a parameter
 ///   receiver and a string-literal receiver (Short is widened to Int in ABI).

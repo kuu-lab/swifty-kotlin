@@ -62,6 +62,36 @@ final class CallLowerer {
         return boxedArgument
     }
 
+    private func buildStringAppendRuntimeCall(
+        for argument: KIRExprID,
+        flatCallee: String,
+        objectCallee: String,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> (callee: String, arguments: [KIRExprID]) {
+        if let argumentType = arena.exprType(argument),
+           sema.types.nullability(of: argumentType) == .nonNull,
+           sema.types.isSubtype(argumentType, sema.types.stringType)
+        {
+            return (flatCallee, [argument])
+        }
+
+        return (
+            objectCallee,
+            [
+                boxBuildStringTextArgumentIfNeeded(
+                    argument,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ),
+            ]
+        )
+    }
+
     /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
     /// Decomposes a range argument into first/last bounds and emits a call to
     /// kk_{int,long,uint,ulong}_coerceIn. Used by both normal and safe-call member lowering
@@ -679,13 +709,13 @@ final class CallLowerer {
             case .buildString, .buildStringBuilder:
                 switch (sourceName, loweredArgIDs.count) {
                 case ("append", 1):
-                    "kk_string_builder_append"
+                    "kk_string_builder_append_flat"
                 case ("appendLine", 0):
                     "kk_string_builder_append_line_noarg"
                 case ("appendLine", 1):
-                    "kk_string_builder_append_line"
+                    "kk_string_builder_append_line_flat"
                 case ("appendRange", 3):
-                    "kk_string_builder_append_range"
+                    "kk_string_builder_append_range_flat"
                 default:
                     nil
                 }
@@ -717,25 +747,41 @@ final class CallLowerer {
             }
             if let builderRuntimeCallee {
                 let runtimeArguments: [KIRExprID]
+                let runtimeCallee: String
                 switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
-                case ("append", 1), ("appendLine", 1):
-                    runtimeArguments = [
-                        boxBuildStringTextArgumentIfNeeded(
-                            loweredArgIDs[0],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        ),
-                    ]
+                case ("append", 1):
+                    let appendCall = buildStringAppendRuntimeCall(
+                        for: loweredArgIDs[0],
+                        flatCallee: "kk_string_builder_append_flat",
+                        objectCallee: "kk_string_builder_append",
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    runtimeCallee = appendCall.callee
+                    runtimeArguments = appendCall.arguments
+                case ("appendLine", 1):
+                    let appendCall = buildStringAppendRuntimeCall(
+                        for: loweredArgIDs[0],
+                        flatCallee: "kk_string_builder_append_line_flat",
+                        objectCallee: "kk_string_builder_append_line",
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    runtimeCallee = appendCall.callee
+                    runtimeArguments = appendCall.arguments
                 default:
+                    runtimeCallee = builderRuntimeCallee
                     runtimeArguments = loweredArgIDs
                 }
                 let result = arena.appendTemporary(type: boundType ?? sema.types.anyType
                 )
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern(builderRuntimeCallee),
+                    callee: interner.intern(runtimeCallee),
                     arguments: runtimeArguments,
                     result: result,
                     canThrow: false,
@@ -1270,7 +1316,7 @@ final class CallLowerer {
         case ("appendLine", 1):
             "kk_string_builder_append_line_obj"
         case ("appendRange", 3):
-            "kk_string_builder_appendRange_obj"
+            "kk_string_builder_appendRange_obj_flat"
         case ("toString", 0):
             "kk_string_builder_toString"
         case ("clear", 0):
@@ -1288,9 +1334,9 @@ final class CallLowerer {
         case ("deleteRange", 2):
             "kk_string_builder_deleteRange"
         case ("insertRange", 4):
-            "kk_string_builder_insertRange_obj"
+            "kk_string_builder_insertRange_obj_flat"
         case ("setRange", 3):
-            "kk_string_builder_setRange"
+            "kk_string_builder_setRange_flat"
         case ("set", 2):
             // STDLIB-TEXT-FN-064: operator fun set(index, value) desugars to setCharAt
             "kk_string_builder_setCharAt"
@@ -1317,6 +1363,7 @@ final class CallLowerer {
     func isThrowingStringBuilderRuntimeFunction(_ name: String) -> Bool {
         switch name {
         case "kk_string_builder_insert_obj",
+             "kk_string_builder_insert_obj_flat",
              "kk_string_builder_insert_char",
              "kk_string_builder_insert_bool",
              "kk_string_builder_insert_float",
@@ -1326,8 +1373,11 @@ final class CallLowerer {
              "kk_string_builder_deleteCharAt",
              "kk_string_builder_deleteAt",
              "kk_string_builder_insertRange_obj",
+             "kk_string_builder_insertRange_obj_flat",
              "kk_string_builder_setRange",
+             "kk_string_builder_setRange_flat",
              "kk_string_builder_replace_obj",
+             "kk_string_builder_replace_obj_flat",
              "kk_string_builder_setCharAt",
              "kk_string_builder_get":
             return true
@@ -1374,7 +1424,7 @@ final class CallLowerer {
             case interner.intern("CharRange"), interner.intern("CharProgression"):
                 interner.intern("kk_char_range_toList")
             case knownNames.string:
-                interner.intern("kk_string_toList")
+                interner.intern("kk_string_toList_flat")
             default:
                 interner.intern("kk_sequence_to_list")
             }

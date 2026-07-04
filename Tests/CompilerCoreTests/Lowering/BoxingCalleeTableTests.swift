@@ -25,8 +25,6 @@ struct BoxingCalleeTableTests {
             #expect(ABILoweringPass.primitiveBoxingCalleeName(for: primitive) == boxName)
             #expect(ABILoweringPass.primitiveUnboxingCalleeName(for: primitive) == unboxName)
         }
-        #expect(BoxingCalleeTable.boxCalleeName(for: .string) == nil)
-        #expect(BoxingCalleeTable.unboxCalleeName(for: .string) == nil)
     }
 
     @Test
@@ -51,7 +49,7 @@ struct BoxingCalleeTableTests {
             Issue.record("Nullable Int should not satisfy requireNonNull unboxing lookup: \(interner.resolve(callee))")
         }
 
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.make(.stringStruct(.nonNull))
         if let callee = table.boxCallee(for: stringType, types: types, requireNonNull: true) {
             Issue.record("String is not primitive-boxed by the runtime table: \(interner.resolve(callee))")
         }

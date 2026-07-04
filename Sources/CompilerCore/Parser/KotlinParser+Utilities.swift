@@ -370,6 +370,8 @@ enum ParserBoundaryPolicy {
         switch token.kind {
         case .symbol(.rBrace):
             return true
+        case .symbol(.at):
+            return !inBlock && hasLeadingNewline
         case let .keyword(kw) where declarationBoundaryKeywords.contains(kw):
             return !inBlock && hasLeadingNewline
         default:

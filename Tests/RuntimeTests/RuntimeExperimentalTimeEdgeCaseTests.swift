@@ -2,6 +2,13 @@ import Dispatch
 @testable import Runtime
 import XCTest
 
+// MARK: - kotlin.time experimental API edge case coverage (STDLIB-TIME-EXP-001)
+//
+// Covers: TimeSource.Monotonic, TimeMark, markNow(), elapsedNow(), plus/minus Duration,
+// hasPassedNow/hasNotPassedNow, ComparableTimeMark (compare/minus-mark), Clock interface
+// stubs (kk_time_source_mark_now), POSIX-backed monotonic clock variants, duration
+// overflow/saturation, toString on elapsed duration, and monotonicity invariants.
+
 final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -15,11 +22,16 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - kk_time_source_mark_now (generic Clock interface stub)
 
+    /// kk_time_source_mark_now is the generic Clock.markNow() entry point.
+    /// It must return a non-zero handle backed by a valid TimeMark.
     func testGenericTimeSourceMarkNowReturnsValidHandle() {
         let mark = kk_time_source_mark_now(0)
         XCTAssertNotEqual(mark, 0, "kk_time_source_mark_now must return a non-zero handle")
     }
 
+    /// The generic entry point and the Monotonic-specific one must agree on source semantics:
+    /// both are backed by DispatchTime.now().uptimeNanoseconds, so two consecutive marks
+    /// from either entry point should be non-decreasing.
     func testGenericAndMonotonicMarkNowAreNonDecreasing() {
         let generic = kk_time_source_mark_now(0)
         let monotonic = kk_time_source_monotonic_mark_now(0)
@@ -38,6 +50,16 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testPosixClockMonotonicMarkNowReturnsValidHandle() {
         let mark = kk_clock_monotonic_mark_now()
         XCTAssertNotEqual(mark, 0, "kk_clock_monotonic_mark_now must return a non-zero handle")
+    }
+
+    /// kk_clock_monotonic_mark_now is backed by POSIX CLOCK_MONOTONIC, which does NOT share
+    /// the same epoch as DispatchTime.now().uptimeNanoseconds used by kk_time_mark_elapsed_now.
+    /// So we cannot call kk_time_mark_elapsed_now on a POSIX mark and expect a meaningful result.
+    /// Instead we verify the mark handle itself is valid (non-zero).
+    func testPosixClockMonotonicMarkNowReturnsNonZeroHandle() {
+        let mark = kk_clock_monotonic_mark_now()
+        XCTAssertNotEqual(mark, 0,
+            "POSIX monotonic mark must yield a non-zero handle")
     }
 
     func testPosixClockMonotonicMarkNowIsNonDecreasingAcrossReads() {
@@ -102,6 +124,9 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - Duration arithmetic on TimeMark: consistency
 
+    /// (mark + d).elapsedNow() should be approximately (mark.elapsedNow() - d).
+    /// We verify the sign relationship: a mark shifted +1 second should have elapsed
+    /// roughly 1 second less than the original mark.
     func testPlusOnSecondReducesElapsedByThatDuration() {
         let mark = kk_time_source_monotonic_mark_now(0)
         // Shift 1 second forward
@@ -142,6 +167,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - hasPassedNow / hasNotPassedNow transitions
 
+    /// A mark set 1 second in the past must have already passed.
     func testPastMarkHasPassedNow() {
         let mark = kk_time_source_monotonic_mark_now(0)
         let pastMark = kk_time_mark_minus_duration(mark, kk_duration_from_seconds(1))
@@ -151,6 +177,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
             "A mark 1s in the past must report hasNotPassedNow() == false")
     }
 
+    /// A mark set 10 seconds in the future must NOT have passed yet.
     func testFutureMarkHasNotPassedNow() {
         let mark = kk_time_source_monotonic_mark_now(0)
         let futureMark = kk_time_mark_plus_duration(mark, kk_duration_from_seconds(10))
@@ -160,6 +187,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
             "A mark 10s in the future must report hasPassedNow() == false")
     }
 
+    /// hasPassedNow and hasNotPassedNow must be mutually exclusive for any mark.
     func testHasPassedAndHasNotPassedAreMutuallyExclusive() {
         let mark = kk_time_source_monotonic_mark_now(0)
         let pastMark = kk_time_mark_minus_duration(mark, kk_duration_from_milliseconds(100))
@@ -232,6 +260,8 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - Duration overflow / saturation in TimeMark arithmetic
 
+    /// Adding Duration.INFINITE (represented as Int64.max nanoseconds) should saturate,
+    /// not crash or wrap around.
     func testPlusDurationSaturatesAtInt64Max() {
         let mark = kk_time_source_monotonic_mark_now(0)
         let infiniteDuration = kk_duration_from_nanoseconds(Int(Int64.max))
@@ -245,6 +275,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_duration_inWholeNanoseconds(elapsed)  // must not crash
     }
 
+    /// Subtracting Duration.INFINITE should saturate to Int64.min, not crash.
     func testMinusDurationSaturatesAtInt64Min() {
         let mark = kk_time_source_monotonic_mark_now(0)
         let infiniteDuration = kk_duration_from_nanoseconds(Int(Int64.max))
@@ -257,6 +288,7 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
         _ = kk_time_mark_elapsed_now(saturatedMark)  // must not crash
     }
 
+    /// minus-mark on saturated marks: saturation must not produce NaN-like garbage.
     func testMinusMarkOnSaturatedMarksDoesNotCrash() {
         let a = kk_time_source_monotonic_mark_now(0)
         let inf = kk_duration_from_nanoseconds(Int(Int64.max))
@@ -270,6 +302,8 @@ final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - TimeMark elapsedNow toString
 
+    /// The Duration returned by elapsedNow() must produce a non-empty string with
+    /// a valid time-unit suffix when passed to kk_duration_toString.
     func testElapsedNowDurationToStringHasValidSuffix() {
         let mark = kk_time_source_monotonic_mark_now(0)
         // Shift the mark 50ms into the past so elapsedNow is clearly positive.

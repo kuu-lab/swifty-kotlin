@@ -376,11 +376,11 @@ public func kk_sequence_flatMapTo(
         if thrown != 0 {
             return handleCollectionLambdaThrow(thrown, outThrown)
         }
-        guard let flattenedElements = runtimeIterableElements(from: flattened) else {
+        guard let flattenedValues = runtimeIterableValues(from: flattened) else {
             invalidContainerPanic(#function, "iterable")
         }
-        for flattenedElement in flattenedElements {
-            runtimeAppendToMutableCollection(destRaw, flattenedElement)
+        for flattenedValue in flattenedValues {
+            runtimeAppendToMutableCollection(destRaw, flattenedValue)
         }
     }
     return destRaw
@@ -454,11 +454,11 @@ public func kk_sequence_flatMapIndexedTo(
         if thrown != 0 {
             return handleCollectionLambdaThrow(thrown, outThrown)
         }
-        guard let flattenedElements = runtimeIterableElements(from: flattened) else {
+        guard let flattenedValues = runtimeIterableValues(from: flattened) else {
             invalidContainerPanic(#function, "iterable")
         }
-        for flattenedElement in flattenedElements {
-            runtimeAppendToMutableCollection(destRaw, flattenedElement)
+        for flattenedValue in flattenedValues {
+            runtimeAppendToMutableCollection(destRaw, flattenedValue)
         }
     }
     return destRaw

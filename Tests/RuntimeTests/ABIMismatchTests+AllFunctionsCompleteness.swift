@@ -17,7 +17,7 @@ extension ABIMismatchTests {
     /// (sub-arrays listed alphabetically one per line) — without it,
     /// double-concatenation would silently inflate the runtime surface.
     func testRuntimeABISpecAllFunctionsHaveNoDuplicateNames() {
-        let names = RuntimeABISpec.allFunctions.map(\.name)
+        let names = RuntimeABISpec.allFunctions.map { $0.name }
         let duplicates = Dictionary(grouping: names, by: { $0 })
             .filter { $0.value.count > 1 }
             .keys

@@ -1,5 +1,7 @@
 package kotlin.text
 
+import kswiftk.internal.*
+
 // String case conversion and locale functions migrated from Swift Runtime.
 // MIGRATION-TEXT-005
 
@@ -10,7 +12,7 @@ package kotlin.text
  * such as Latin capital I with dot are preserved.
  */
 public fun String.lowercase(): String {
-    if (isEmpty()) return this
+    if (__string_struct_get_length(this) == 0) return this
     val sb = StringBuilder()
     var i = 0
     while (i < length) {
@@ -27,7 +29,7 @@ public fun String.lowercase(): String {
  * such as sharp-s to "SS" are preserved.
  */
 public fun String.uppercase(): String {
-    if (isEmpty()) return this
+    if (__string_struct_get_length(this) == 0) return this
     val sb = StringBuilder()
     var i = 0
     while (i < length) {
@@ -43,7 +45,7 @@ public fun String.uppercase(): String {
  * Deprecated by Kotlin, but still provided for compatibility.
  */
 public fun String.capitalize(): String {
-    if (isEmpty()) return this
+    if (__string_struct_get_length(this) == 0) return this
     val sb = StringBuilder()
     sb.append(this[0].uppercase())
     var i = 1
@@ -62,7 +64,7 @@ public fun String.capitalize(): String {
  * returning overload; migrate that surface when function-type overloads support it.
  */
 public fun String.replaceFirstChar(transform: (Char) -> Char): String {
-    if (isEmpty()) return this
+    if (__string_struct_get_length(this) == 0) return this
     val sb = StringBuilder()
     sb.append(transform(this[0]))
     var i = 1

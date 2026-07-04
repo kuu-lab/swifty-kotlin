@@ -28,6 +28,12 @@ final class LLVMCAPIBindings {
     typealias LLVMSetLinkageFn = @convention(c) (LLVMValueRef?, UInt32) -> Void
     typealias LLVMInt8TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
     typealias LLVMInt64TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
+    typealias LLVMStructTypeInContextFn = @convention(c) (
+        LLVMContextRef?,
+        UnsafeMutablePointer<LLVMTypeRef?>?,
+        UInt32,
+        LLVMBool
+    ) -> LLVMTypeRef?
     typealias LLVMPointerTypeFn = @convention(c) (LLVMTypeRef?, UInt32) -> LLVMTypeRef?
     typealias LLVMFunctionTypeFn = @convention(c) (LLVMTypeRef?, UnsafeMutablePointer<LLVMTypeRef?>?, UInt32, LLVMBool) -> LLVMTypeRef?
     typealias LLVMAddFunctionFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?, LLVMTypeRef?) -> LLVMValueRef?
@@ -42,6 +48,7 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildRetFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?) -> LLVMValueRef?
     typealias LLVMBuildBrFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
     typealias LLVMBuildCondBrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMBasicBlockRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
+    typealias LLVMBuildUnreachableFn = @convention(c) (LLVMBuilderRef?) -> LLVMValueRef?
     typealias LLVMBuildAddFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildSubFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildMulFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -64,6 +71,10 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildLoad2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildLoadFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildSelectFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildExtractValueFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildInsertValueFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMTypeOfFn = @convention(c) (LLVMValueRef?) -> LLVMTypeRef?
+    typealias LLVMGetTypeKindFn = @convention(c) (LLVMTypeRef?) -> Int32
     typealias LLVMBuildGlobalStringPtrFn = @convention(c) (LLVMBuilderRef?, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildPtrToIntFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildIntToPtrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -86,6 +97,12 @@ final class LLVMCAPIBindings {
     typealias LLVMSetInitializerFn = @convention(c) (LLVMValueRef?, LLVMValueRef?) -> Void
     typealias LLVMConstIntFn = @convention(c) (LLVMTypeRef?, UInt64, LLVMBool) -> LLVMValueRef?
     typealias LLVMConstPointerNullFn = @convention(c) (LLVMTypeRef?) -> LLVMValueRef?
+    typealias LLVMConstStructInContextFn = @convention(c) (
+        LLVMContextRef?,
+        UnsafeMutablePointer<LLVMValueRef?>?,
+        UInt32,
+        LLVMBool
+    ) -> LLVMValueRef?
     // LLVMConstStringInContext(Context, Str, Length, DontNullTerminate) -> [N x i8] constant
     typealias LLVMConstStringInContextFn = @convention(c) (LLVMContextRef?, UnsafePointer<CChar>?, UInt32, LLVMBool) -> LLVMValueRef?
     // LLVMArrayType(ElementType, ElementCount) -> [N x ElementType]
@@ -234,6 +251,7 @@ final class LLVMCAPIBindings {
     let setLinkageFn: LLVMSetLinkageFn
     let int8TypeInContextFn: LLVMInt8TypeInContextFn
     let int64TypeFn: LLVMInt64TypeInContextFn
+    let structTypeInContextFn: LLVMStructTypeInContextFn?
     let pointerTypeFn: LLVMPointerTypeFn
     let functionTypeFn: LLVMFunctionTypeFn
     let addFunctionFn: LLVMAddFunctionFn
@@ -248,6 +266,7 @@ final class LLVMCAPIBindings {
     let buildRetFn: LLVMBuildRetFn
     let buildBrFn: LLVMBuildBrFn
     let buildCondBrFn: LLVMBuildCondBrFn
+    let buildUnreachableFn: LLVMBuildUnreachableFn
     let buildAddFn: LLVMBuildAddFn
     let buildSubFn: LLVMBuildSubFn
     let buildMulFn: LLVMBuildMulFn
@@ -270,6 +289,10 @@ final class LLVMCAPIBindings {
     let buildLoad2Fn: LLVMBuildLoad2Fn?
     let buildLoadFn: LLVMBuildLoadFn?
     let buildSelectFn: LLVMBuildSelectFn?
+    let buildExtractValueFn: LLVMBuildExtractValueFn?
+    let typeOfFn: LLVMTypeOfFn?
+    let getTypeKindFn: LLVMGetTypeKindFn?
+    let buildInsertValueFn: LLVMBuildInsertValueFn?
     let buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?
     let buildPtrToIntFn: LLVMBuildPtrToIntFn?
     let buildIntToPtrFn: LLVMBuildIntToPtrFn?
@@ -277,6 +300,7 @@ final class LLVMCAPIBindings {
     let buildCallFn: LLVMBuildCallFn?
     let constIntFn: LLVMConstIntFn
     let constPointerNullFn: LLVMConstPointerNullFn?
+    let constStructInContextFn: LLVMConstStructInContextFn?
     let constStringInContextFn: LLVMConstStringInContextFn?
     let arrayTypeFn: LLVMArrayTypeFn?
     let setGlobalConstantFn: LLVMSetGlobalConstantFn?
@@ -331,6 +355,7 @@ final class LLVMCAPIBindings {
         setLinkageFn: @escaping LLVMSetLinkageFn,
         int8TypeInContextFn: @escaping LLVMInt8TypeInContextFn,
         int64TypeFn: @escaping LLVMInt64TypeInContextFn,
+        structTypeInContextFn: LLVMStructTypeInContextFn? = nil,
         pointerTypeFn: @escaping LLVMPointerTypeFn,
         functionTypeFn: @escaping LLVMFunctionTypeFn,
         addFunctionFn: @escaping LLVMAddFunctionFn,
@@ -345,6 +370,7 @@ final class LLVMCAPIBindings {
         buildRetFn: @escaping LLVMBuildRetFn,
         buildBrFn: @escaping LLVMBuildBrFn,
         buildCondBrFn: @escaping LLVMBuildCondBrFn,
+        buildUnreachableFn: @escaping LLVMBuildUnreachableFn,
         buildAddFn: @escaping LLVMBuildAddFn,
         buildSubFn: @escaping LLVMBuildSubFn,
         buildMulFn: @escaping LLVMBuildMulFn,
@@ -367,6 +393,10 @@ final class LLVMCAPIBindings {
         buildLoad2Fn: LLVMBuildLoad2Fn?,
         buildLoadFn: LLVMBuildLoadFn?,
         buildSelectFn: LLVMBuildSelectFn?,
+        buildExtractValueFn: LLVMBuildExtractValueFn? = nil,
+        buildInsertValueFn: LLVMBuildInsertValueFn? = nil,
+        typeOfFn: LLVMTypeOfFn? = nil,
+        getTypeKindFn: LLVMGetTypeKindFn? = nil,
         buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?,
         buildPtrToIntFn: LLVMBuildPtrToIntFn?,
         buildIntToPtrFn: LLVMBuildIntToPtrFn?,
@@ -374,6 +404,7 @@ final class LLVMCAPIBindings {
         buildCallFn: LLVMBuildCallFn?,
         constIntFn: @escaping LLVMConstIntFn,
         constPointerNullFn: LLVMConstPointerNullFn?,
+        constStructInContextFn: LLVMConstStructInContextFn? = nil,
         constStringInContextFn: LLVMConstStringInContextFn? = nil,
         arrayTypeFn: LLVMArrayTypeFn? = nil,
         setGlobalConstantFn: LLVMSetGlobalConstantFn? = nil,
@@ -429,6 +460,7 @@ final class LLVMCAPIBindings {
         self.setLinkageFn = setLinkageFn
         self.int8TypeInContextFn = int8TypeInContextFn
         self.int64TypeFn = int64TypeFn
+        self.structTypeInContextFn = structTypeInContextFn
         self.pointerTypeFn = pointerTypeFn
         self.functionTypeFn = functionTypeFn
         self.addFunctionFn = addFunctionFn
@@ -443,6 +475,7 @@ final class LLVMCAPIBindings {
         self.buildRetFn = buildRetFn
         self.buildBrFn = buildBrFn
         self.buildCondBrFn = buildCondBrFn
+        self.buildUnreachableFn = buildUnreachableFn
         self.buildAddFn = buildAddFn
         self.buildSubFn = buildSubFn
         self.buildMulFn = buildMulFn
@@ -465,6 +498,10 @@ final class LLVMCAPIBindings {
         self.buildLoad2Fn = buildLoad2Fn
         self.buildLoadFn = buildLoadFn
         self.buildSelectFn = buildSelectFn
+        self.buildExtractValueFn = buildExtractValueFn
+        self.buildInsertValueFn = buildInsertValueFn
+        self.typeOfFn = typeOfFn
+        self.getTypeKindFn = getTypeKindFn
         self.buildGlobalStringPtrFn = buildGlobalStringPtrFn
         self.buildPtrToIntFn = buildPtrToIntFn
         self.buildIntToPtrFn = buildIntToPtrFn
@@ -472,6 +509,7 @@ final class LLVMCAPIBindings {
         self.buildCallFn = buildCallFn
         self.constIntFn = constIntFn
         self.constPointerNullFn = constPointerNullFn
+        self.constStructInContextFn = constStructInContextFn
         self.constStringInContextFn = constStringInContextFn
         self.arrayTypeFn = arrayTypeFn
         self.setGlobalConstantFn = setGlobalConstantFn

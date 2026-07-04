@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-027: Validates that `CharSequence.isBlank()` resolves through Sema
 /// for `String` / `CharSequence` receivers, dispatching to the runtime link
-/// name `kk_string_isBlank`.
+/// name `kk_string_isBlank_flat`.
 @Suite
 struct StringIsBlankFunctionTests {
     @Test func testIsBlankFunctionResolvesInSource() throws {
@@ -44,7 +44,7 @@ struct StringIsBlankFunctionTests {
             "Expected kotlin.text.isBlank to be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_isBlank",
+            sema.symbols.externalLinkName(for: symbol) == "kk_string_isBlank_flat",
             "Expected isBlank extension to link to kk_string_isBlank"
         )
     }

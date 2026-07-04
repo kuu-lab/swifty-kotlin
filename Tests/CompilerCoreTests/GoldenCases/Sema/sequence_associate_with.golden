@@ -6,11 +6,11 @@ symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Map<kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[kotlin.collections.Map.K] ret=kotlin.collections.Map.V?
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.length.$get kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf kind=function vis=public flags=synthetic sig=recv=_ params=[kotlin.sequences.sequenceOf.T] ret=kotlin.sequences.Sequence<out kotlin.sequences.sequenceOf.T> vararg=[1]
 symbol fq=kotlin.sequences.sequenceOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.sequenceOf.elements kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=testAssociateWithInts kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=testAssociateWithStrings kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f0 package=_
@@ -43,7 +43,7 @@ expr e@9:34 string(bb) type=String
 expr e@9:40 string(ccc) type=String
 expr e@9:18 call callee=e@9:18#1 args=[_:e@9:29,_:e@9:34,_:e@9:40] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.sequenceOf targs=[String]
 expr e@9:63 name(it) type=String ref=s-1
-expr e@9:63#1 memberCall recv=e@9:63 callee=length args=[] type=Int call=kotlin.text.length
+expr e@9:63#1 memberCall recv=e@9:63 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@9:61 lambda params=[] body=e@9:63#1 label=associateWith type=(String) -> Any
 expr e@9:18#2 memberCall recv=e@9:18 callee=associateWith args=[_:e@9:61] type=kotlin.collections.Map<String, Int>
 expr e@9:5 localDecl result mutable=0 type=_ init=e@9:18#2 type=Unit ref=__local_1.result
