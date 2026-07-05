@@ -33,11 +33,12 @@
 Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.internal.*` または `__*` ブリッジに委譲する移行パターンを、残りの stdlib 領域にも適用する。現在の読み込み対象は `Sources/CompilerCore/Stdlib/` 配下の auto-discovered `.kt` と `BundledKotlinStdlib` の residual source。ルート `Stdlib/` 配下は legacy inventory であり、コンパイラの implicit stdlib としては読み込まれない。
 
 ### 移行方針
-- 純ロジック（イテレーション・変換・比較等）は **Kotlin のみ** で実装する
-- OS/ハードウェアアクセスが必要な箇所は `__` prefix ブリッジ経由で RuntimeABI に委譲する
-- 既存の `kk_*` ABI 関数は bridge として存続し、Kotlin 層からのみ呼ばれる形にする
+- M1–M17 は「`.kt` 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」を共通の完了条件にする。`.kt` ファイルの存在だけでは完了扱いにしない
+- 純ロジック（イテレーション・変換・比較等）は **Kotlin のみ** で実装し、対応する `HeaderHelpers+Synthetic*` の public stub 登録を同一 PR で削除する
+- OS/ハードウェアアクセス、ストレージ直アクセス、時刻・乱数・I/O・Foundation 依存など Kotlin だけで持つべきでない箇所は `@KsSymbolName("__kk_*")` 経由の internal bridge に降格する
+- 既存の public `kk_*` runtime/spec エントリは、Kotlin 化できるものは削除し、bridge 残留が必要なものだけ `__kk_*` へ改名して RuntimeABI / 呼び出し側を更新する
 - String 同様に boxed 表現を flat/aggregate 表現に段階的に移行する
-- 完了条件は「`.kt` が implicit stdlib として読み込まれる」「同シグネチャの合成 public stub が二重登録されない」「KIR が public `kk_*` へ直接 dispatch せず Kotlin 層または private bridge 経由になる」「不要になった runtime/spec エントリが削除または bridge 降格される」の 4 点で判定する
+- 完了判定は、対象 API が implicit stdlib として読み込まれる `.kt` から解決され、同シグネチャの合成 public stub と KIR/TypeCheck の public `kk_*` 直接 dispatch が残らず、runtime/spec 側も削除または `__` bridge 降格済みであることを rg とゲートで確認する
 
 ### Phase M1: kotlin.text 残りの String 操作
 > 移行元: `Sources/Runtime/RuntimeStringStdlib.swift` (211 @_cdecl)
@@ -125,7 +126,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
 - [ ] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する
 - [ ] RF-STDLIB-007: golden / `diff_kotlinc.sh` ハーネスが implicit stdlib ソース込みで決定的に動くよう正規化する（fileID 順序・診断ソートの安定性）
-- [ ] RF-STDLIB-008: M1–M17 の完了条件を「.kt 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」に統一し、本ファイル M セクション冒頭の移行方針を更新する
+- [x] RF-STDLIB-008: M1–M17 の完了条件を「.kt 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」に統一し、本ファイル M セクション冒頭の移行方針を更新する
 
 ### Phase RF3: 合成スタブ削減（RF2 完了後に本格化。(a) 群のみ即着手可）
 > 背景: `HeaderHelpers+Synthetic*` 約100ファイル/~9万行。ボイラープレート率 60–70%。登録呼び出しは `registerSyntheticDelegateStubs` に 85+ 連鎖。
