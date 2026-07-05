@@ -1,11 +1,13 @@
 
 /// Synthetic stdlib stubs for kotlin.uuid.Uuid.
-/// Registers the Uuid class, companion factories/properties (random, parse, parseOrNull, parseHex, parseHexOrNull, parseHexDash, parseHexDashOrNull, NIL, SIZE_BITS, SIZE_BYTES, LEXICAL_ORDER),
-/// and instance methods (toString, toHexString, toLongs, toByteArray).
+/// Registers the Uuid class, remaining companion factories/properties
+/// (parseOrNull, parseHex, parseHexOrNull, parseHexDash, parseHexDashOrNull,
+/// NIL, SIZE_BITS, SIZE_BYTES, LEXICAL_ORDER), and remaining instance methods
+/// (toHexString, version, variant, mostSignificantBits, leastSignificantBits).
 ///
 /// NOTE: Kotlin source exists at Stdlib/kotlin/uuid/Uuid.kt (MIGRATION-UUID-001).
-/// These stubs remain active and set external link names on the class members so that
-/// every call site dispatches directly to the kk_uuid_* runtime functions.
+/// Uuid.random, Uuid.parse, toString, toLongs, and toByteArray are now declared
+/// there; HeaderHelpers+UuidSourceMigration attaches their kk_uuid_* link names.
 extension DataFlowSemaPhase {
     func registerSyntheticUuidStubs(
         symbols: SymbolTable,
@@ -56,27 +58,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- Uuid.random() companion factory ---
-        registerUuidCompanionMethod(
-            named: "random",
-            externalLinkName: "kk_uuid_random",
-            returnType: uuidType,
-            parameters: [],
-            companionFQName: companionFQName,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- Uuid.parse(string: String) companion factory ---
-        registerUuidCompanionMethod(
-            named: "parse",
-            externalLinkName: "kk_uuid_parse",
-            returnType: uuidType,
-            parameters: [(name: "uuidString", type: stringType)],
-            companionFQName: companionFQName,
-            symbols: symbols,
-            interner: interner
-        )
+        // MIGRATION-UUID-001: Uuid.random() and Uuid.parse(String) are declared
+        // in Stdlib/kotlin/uuid/Uuid.kt and bridged to kk_uuid_random/parse.
 
         // --- Uuid.parseOrNull(uuidString: String) companion factory ---
         registerUuidCompanionMethod(
@@ -171,17 +154,8 @@ extension DataFlowSemaPhase {
 
         // --- Instance methods ---
 
-        // toString() -> String
-        registerUuidInstanceMethod(
-            named: "toString",
-            externalLinkName: "kk_uuid_toString",
-            returnType: stringType,
-            parameters: [],
-            ownerSymbol: uuidSymbol,
-            ownerType: uuidType,
-            symbols: symbols,
-            interner: interner
-        )
+        // MIGRATION-UUID-001: toString(), toLongs(), and toByteArray() are
+        // declared in Stdlib/kotlin/uuid/Uuid.kt and bridged to kk_uuid_*.
 
         // toHexString() -> String
         registerUuidInstanceMethod(
@@ -195,35 +169,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // toLongs() -> Pair<Long, Long>
-        // Return type is Pair (erased), resolved at call site to Pair<Long, Long>
-        let pairFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Pair")]
-        let pairSymbol = symbols.lookup(fqName: pairFQName) ?? symbols.lookupByShortName(interner.intern("Pair")).first
-        let pairReturnType: TypeID
-        if let pairSym = pairSymbol {
-            pairReturnType = types.make(.classType(ClassType(
-                classSymbol: pairSym,
-                args: [.invariant(longType), .invariant(longType)],
-                nullability: .nonNull
-            )))
-        } else {
-            // Fallback: use Any if Pair is not yet registered
-            pairReturnType = types.anyType
-        }
-
-        registerUuidInstanceMethod(
-            named: "toLongs",
-            externalLinkName: "kk_uuid_toLongs",
-            returnType: pairReturnType,
-            parameters: [],
-            ownerSymbol: uuidSymbol,
-            ownerType: uuidType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // toByteArray() -> ByteArray
-        // ByteArray is represented as intType in the compiler (same as IntArray)
+        // Resolve ByteArray for the remaining factories and extension functions.
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
         let byteArrayType: TypeID
         if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
@@ -235,17 +181,6 @@ extension DataFlowSemaPhase {
         } else {
             byteArrayType = types.intType
         }
-
-        registerUuidInstanceMethod(
-            named: "toByteArray",
-            externalLinkName: "kk_uuid_toByteArray",
-            returnType: byteArrayType,
-            parameters: [],
-            ownerSymbol: uuidSymbol,
-            ownerType: uuidType,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerUuidInstanceMethod(
             named: "version",

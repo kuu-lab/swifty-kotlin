@@ -126,7 +126,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                     declID: declID, file: file, ast: ast,
                     symbols: symbols, types: types, bindings: bindings,
                     scope: fileScope, sourceManager: ctx.sourceManager,
-                    diagnostics: ctx.diagnostics, interner: ctx.interner
+                    diagnostics: ctx.diagnostics, interner: ctx.interner,
+                    ctx: ctx
                 )
             }
         }

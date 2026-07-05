@@ -99,7 +99,7 @@ struct AnonymousObjectLocalTypingTests {
 
             let sema = try #require(ctx.sema)
             let ast = try #require(ctx.ast)
-            guard let declID = firstObjectDeclID(in: ast)
+            guard let declID = firstUserObjectLiteralDeclID(in: ast, sourceManager: ctx.sourceManager)
             else {
                 Issue.record("Expected object literal declaration.")
                 return
@@ -215,12 +215,24 @@ struct AnonymousObjectLocalTypingTests {
         return receiver
     }
 
-    private func firstObjectDeclID(in ast: ASTModule) -> DeclID? {
-        for (index, decl) in ast.arena.declarations().enumerated() {
-            guard case .objectDecl = decl else {
+    private func firstUserObjectLiteralDeclID(
+        in ast: ASTModule,
+        sourceManager: SourceManager
+    ) -> DeclID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .objectLiteral(_, declID, _) = expr,
+                  let declID
+            else {
                 continue
             }
-            return DeclID(rawValue: Int32(index))
+            guard let range = ast.arena.exprRange(exprID),
+                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            else {
+                continue
+            }
+            return declID
         }
         return nil
     }

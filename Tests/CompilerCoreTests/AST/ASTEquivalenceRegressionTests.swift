@@ -25,6 +25,10 @@ struct ASTEquivalenceRegressionTests {
         return (ast, ctx)
     }
 
+    private func isUserSourceRange(_ range: SourceRange, in ctx: CompilationContext) -> Bool {
+        !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+    }
+
     private func isBundledStdlibSource(_ fileID: FileID, in ctx: CompilationContext) -> Bool {
         ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
     }
