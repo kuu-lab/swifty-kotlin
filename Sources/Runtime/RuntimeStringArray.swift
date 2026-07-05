@@ -790,35 +790,6 @@ public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     return winner
 }
 
-/// Returns the `simpleName` of a `KClass<T>` metadata object.
-/// Delegates to `kk_type_token_simple_name` using the stored token and hint.
-@_cdecl("kk_kclass_simple_name")
-public func kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
-    guard let box = runtimeKClassBox(from: kclassRaw) else {
-        return runtimeNullSentinelInt
-    }
-    return kk_type_token_simple_name(box.typeToken, box.nameHint)
-}
-
-/// Returns the `qualifiedName` of a `KClass<T>` metadata object.
-/// When binary metadata has been registered via `kk_kclass_register_metadata`,
-/// returns the fully-qualified name (e.g. "com.example.Foo"). Otherwise
-/// falls back to `kk_type_token_qualified_name` which returns the simple name.
-@_cdecl("kk_kclass_qualified_name")
-public func kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
-    guard let box = runtimeKClassBox(from: kclassRaw) else {
-        return runtimeNullSentinelInt
-    }
-    // Try the metadata registry first for proper qualified names.
-    if let metadata = box.metadata {
-        let utf8 = Array(metadata.qualifiedName.utf8)
-        return utf8.withUnsafeBufferPointer { buf in
-            Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-        }
-    }
-    return kk_type_token_qualified_name(box.typeToken, box.nameHint)
-}
-
 // MARK: - REFL-004: KClass Binary Metadata Accessors
 
 /// Registers runtime reflection metadata for a type identified by `typeToken`.
@@ -1086,30 +1057,6 @@ public func kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: [nameRaw]))
 }
 
-/// Returns the supertype name as a runtime string pointer, or null sentinel if none.
-@_cdecl("kk_kclass_supertype_name")
-public func kk_kclass_supertype_name(_ kclassRaw: Int) -> Int {
-    guard let box = runtimeKClassBox(from: kclassRaw),
-          let metadata = box.metadata,
-          let superName = metadata.supertypeName else {
-        return runtimeNullSentinelInt
-    }
-    let utf8 = Array(superName.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-/// Returns the number of declared members, or -1 if unknown.
-@_cdecl("kk_kclass_members_count")
-public func kk_kclass_members_count(_ kclassRaw: Int) -> Int {
-    guard let box = runtimeKClassBox(from: kclassRaw),
-          let metadata = box.metadata else {
-        return -1
-    }
-    return metadata.memberCount
-}
-
 // MARK: - REFL-005: KClass.isInstance, members, constructors
 
 /// Checks if a value is an instance of the type represented by this KClass.
@@ -1297,14 +1244,7 @@ public func kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
 
 // MARK: - REFL-005: KType and typeOf<T>()
 
-/// Creates a KType runtime object from a KClass classifier, type argument
-/// projections, and nullability flag.
-/// Parameters:
-/// - classifierRaw: opaque handle to a KClass box (or 0 for no classifier)
-/// - argsRaw: opaque handle to a runtime list of KTypeProjection handles (or 0 for empty)
-/// - isNullable: 1 if the type is marked nullable, 0 otherwise
-@_cdecl("kk_ktype_create")
-public func kk_ktype_create(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
+private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     var argumentRaws: [Int] = []
     if argsRaw != 0 && argsRaw != runtimeNullSentinelInt,
        let ptr = UnsafeMutableRawPointer(bitPattern: argsRaw) {
@@ -1364,38 +1304,13 @@ public func kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) ->
     return registerRuntimeObject(box)
 }
 
-/// Returns the type raw handle from a KTypeProjection, or null sentinel for STAR.
-@_cdecl("kk_ktypeprojection_type")
-public func kk_ktypeprojection_type(_ projRaw: Int) -> Int {
-    guard let box = runtimeKTypeProjectionBox(from: projRaw) else {
-        return runtimeNullSentinelInt
-    }
-    if box.variance == nil {
-        return runtimeNullSentinelInt // STAR projection has no type
-    }
-    return box.typeRaw
-}
-
-/// Returns the variance ordinal from a KTypeProjection.
-/// 0=IN, 1=OUT, 2=INVARIANT, -1=STAR (null variance).
-@_cdecl("kk_ktypeprojection_variance")
-public func kk_ktypeprojection_variance(_ projRaw: Int) -> Int {
-    guard let box = runtimeKTypeProjectionBox(from: projRaw) else {
-        return -1
-    }
-    guard let variance = box.variance else {
-        return -1 // STAR
-    }
-    return variance.rawValue
-}
-
 /// Implements `typeOf<T>()` — creates a KType for the given type token.
 /// This is the reified inline function entry point. The compiler emits the
 /// type token and nullability at the call site.
 @_cdecl("kk_typeof")
 public func kk_typeof(_ typeToken: Int, _ nameHint: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     let classifierRaw = kk_kclass_create(typeToken, nameHint)
-    return kk_ktype_create(classifierRaw, argsRaw, isNullable)
+    return runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
 }
 
 // MARK: - KType / KTypeProjection Box Helpers
@@ -1411,20 +1326,6 @@ private func runtimeKTypeBox(from raw: Int) -> RuntimeKTypeBox? {
             return nil
         }
         return tryCast(ptr, to: RuntimeKTypeBox.self)
-    }
-}
-
-private func runtimeKTypeProjectionBox(from raw: Int) -> RuntimeKTypeProjectionBox? {
-    guard raw != 0, raw != runtimeNullSentinelInt,
-          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
-    else {
-        return nil
-    }
-    return runtimeStorage.withGCLock { state in
-        guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
-            return nil
-        }
-        return tryCast(ptr, to: RuntimeKTypeProjectionBox.self)
     }
 }
 

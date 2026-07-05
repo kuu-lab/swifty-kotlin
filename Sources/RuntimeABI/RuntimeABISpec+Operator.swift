@@ -74,24 +74,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kclass_simple_name",
-            parameters: [
-                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kclass_qualified_name",
-            parameters: [
-                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
         // REFL-004: KClass binary metadata registration and accessors
         RuntimeABIFunctionSpec(
             name: "kk_kclass_register_metadata",
@@ -199,82 +181,7 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kclass_supertype_name",
-            parameters: [
-                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kclass_members_count",
-            parameters: [
-                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
         // STDLIB-REFLECT-065: Annotation reflection
-        RuntimeABIFunctionSpec(
-            name: "kk_annotation_create",
-            parameters: [
-                RuntimeABIParameter(name: "fqNameRaw", type: .intptr),
-                RuntimeABIParameter(name: "argsListRaw", type: .intptr),
-                RuntimeABIParameter(name: "annotationClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_annotation_get_class",
-            parameters: [
-                RuntimeABIParameter(name: "annotationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_annotation_get_fqname",
-            parameters: [
-                RuntimeABIParameter(name: "annotationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_annotation_get_value",
-            parameters: [
-                RuntimeABIParameter(name: "annotationRaw", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_annotation_get_arg_count",
-            parameters: [
-                RuntimeABIParameter(name: "annotationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_annotation_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "annotationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_kclass_get_annotations",
             parameters: [
@@ -422,17 +329,6 @@ public extension RuntimeABISpec {
         ),
         // REFL-005: KType and typeOf<T>()
         RuntimeABIFunctionSpec(
-            name: "kk_ktype_create",
-            parameters: [
-                RuntimeABIParameter(name: "classifierRaw", type: .intptr),
-                RuntimeABIParameter(name: "argsRaw", type: .intptr),
-                RuntimeABIParameter(name: "isNullable", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_ktype_classifier",
             parameters: [
                 RuntimeABIParameter(name: "ktypeRaw", type: .intptr),
@@ -459,39 +355,11 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        // STDLIB-REFLECT-066: KType.toString()
-        RuntimeABIFunctionSpec(
-            name: "kk_ktype_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "ktypeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_ktypeprojection_create",
             parameters: [
                 RuntimeABIParameter(name: "typeRaw", type: .intptr),
                 RuntimeABIParameter(name: "varianceOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ktypeprojection_type",
-            parameters: [
-                RuntimeABIParameter(name: "projRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ktypeprojection_variance",
-            parameters: [
-                RuntimeABIParameter(name: "projRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "TypeCheck",

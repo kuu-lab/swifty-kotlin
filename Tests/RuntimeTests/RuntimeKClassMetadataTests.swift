@@ -257,68 +257,6 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         XCTAssertEqual(kk_kclass_is_abstract(kclass), 1)
     }
 
-    func testKClassMembersCountReturnsCorrectValue() {
-        let typeToken = 208
-        let qualifiedName = makeRuntimeString("MemberTest")
-        let simpleName = makeRuntimeString("MemberTest")
-        _ = kk_kclass_register_metadata(
-            typeToken, qualifiedName, simpleName,
-            0, 0, 3, 10, 1 // 3 fields, 10 members, 1 constructor
-        )
-        let kclass = kk_kclass_create(typeToken, 0)
-        XCTAssertEqual(kk_kclass_members_count(kclass), 10)
-    }
-
-    func testKClassMembersCountReturnsMinusOneWhenNoMetadata() {
-        let kclass = kk_kclass_create(9999, 0)
-        XCTAssertEqual(kk_kclass_members_count(kclass), -1)
-    }
-
-    func testKClassSupertypeNameReturnsName() {
-        let typeToken = 209
-        let qualifiedName = makeRuntimeString("Child")
-        let simpleName = makeRuntimeString("Child")
-        let superName = makeRuntimeString("Parent")
-        _ = kk_kclass_register_metadata(
-            typeToken, qualifiedName, simpleName,
-            superName, 0, 0, 0, 0
-        )
-        let kclass = kk_kclass_create(typeToken, 0)
-        let resultRaw = kk_kclass_supertype_name(kclass)
-        let resultStr = extractString(from: UnsafeMutableRawPointer(bitPattern: resultRaw))
-        XCTAssertEqual(resultStr, "Parent")
-    }
-
-    func testKClassSupertypeNameReturnsNullSentinelWhenNone() {
-        let typeToken = 210
-        let qualifiedName = makeRuntimeString("Root")
-        let simpleName = makeRuntimeString("Root")
-        _ = kk_kclass_register_metadata(
-            typeToken, qualifiedName, simpleName,
-            0, 0, 0, 0, 0
-        )
-        let kclass = kk_kclass_create(typeToken, 0)
-        let resultRaw = kk_kclass_supertype_name(kclass)
-        XCTAssertEqual(resultRaw, runtimeNullSentinelInt)
-    }
-
-    // MARK: - Qualified Name With Metadata
-
-    func testQualifiedNameUsesMetadataWhenAvailable() {
-        let typeToken = 211
-        let qualifiedName = makeRuntimeString("com.example.pkg.MyClass")
-        let simpleName = makeRuntimeString("MyClass")
-        _ = kk_kclass_register_metadata(
-            typeToken, qualifiedName, simpleName,
-            0, 0, 0, 0, 0
-        )
-        let nameHint = makeRuntimeString("MyClass")
-        let kclass = kk_kclass_create(typeToken, nameHint)
-        let resultRaw = kk_kclass_qualified_name(kclass)
-        let resultStr = extractString(from: UnsafeMutableRawPointer(bitPattern: resultRaw))
-        XCTAssertEqual(resultStr, "com.example.pkg.MyClass")
-    }
-
     // MARK: - Accessor Returns 0/False Without Metadata
 
     func testAccessorsReturnDefaultsWithoutMetadata() {
@@ -330,8 +268,6 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         XCTAssertEqual(kk_kclass_is_object(kclass), 0)
         XCTAssertEqual(kk_kclass_is_enum(kclass), 0)
         XCTAssertEqual(kk_kclass_is_abstract(kclass), 0)
-        XCTAssertEqual(kk_kclass_members_count(kclass), -1)
-        XCTAssertEqual(kk_kclass_supertype_name(kclass), runtimeNullSentinelInt)
     }
 
     // MARK: - Multiple Flags

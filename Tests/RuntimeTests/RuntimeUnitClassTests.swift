@@ -33,25 +33,9 @@ final class RuntimeUnitClassTests: XCTestCase {
         XCTAssertEqual(handle1, handle2, "Unit::class must return the same interned KClass handle")
     }
 
-    // MARK: - simpleName == "Unit"
-
-    func testUnitClassSimpleNameIsUnit() {
-        let kclass = kk_kclass_create(unitTypeToken, 0)
-        let nameRaw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(runtimeStringValue(nameRaw), "Unit")
-    }
-
     func testUnitTokenSimpleNameIsUnit() {
         let nameRaw = kk_type_token_simple_name(unitTypeToken, 0)
         XCTAssertEqual(runtimeStringValue(nameRaw), "Unit")
-    }
-
-    // MARK: - qualifiedName == "kotlin.Unit"
-
-    func testUnitClassQualifiedNameIsKotlinUnit() {
-        let kclass = kk_kclass_create(unitTypeToken, 0)
-        let nameRaw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(runtimeStringValue(nameRaw), "kotlin.Unit")
     }
 
     func testUnitTokenQualifiedNameIsKotlinUnit() {
