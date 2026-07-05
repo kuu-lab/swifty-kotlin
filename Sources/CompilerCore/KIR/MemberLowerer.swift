@@ -290,6 +290,18 @@ final class MemberLowerer {
               case let .funDecl(function) = decl,
               let symbol = sema.bindings.declSymbols[declID]
         else { return }
+        // Functions with an external link name are bridged to a runtime
+        // function; call sites are redirected via the external link name
+        // (see CallLowerer), so the source body is never executed. Do NOT
+        // emit a KIRFunction declaration for them at all: NativeEmitter
+        // unconditionally registers every emitted KIRFunction in
+        // `internalFunctions[symbol]`, and call-site codegen prefers that
+        // internal definition over the redirected external callee name.
+        // Emitting even a stub body here would shadow the real runtime
+        // function and cause calls to silently invoke the stub instead.
+        if let externalLink = sema.symbols.externalLinkName(for: symbol), !externalLink.isEmpty {
+            return
+        }
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
         driver.ctx.setCurrentFunctionSymbol(symbol)
@@ -341,49 +353,34 @@ final class MemberLowerer {
         let returnType = signature?.returnType ?? sema.types.unitType
         var body: [KIRInstruction] = [.beginBlock]
         bindFunctionParameterLocals(params: params, body: &body, arena: arena)
-        // Functions with an external link name are bridged to a runtime
-        // function; call sites are redirected so the source body is never
-        // executed. Emit a stub body to avoid lowering placeholder
-        // expressions that may reference unlinked symbols.
-        if let externalLink = sema.symbols.externalLinkName(for: symbol),
-           !externalLink.isEmpty
-        {
-            if returnType == sema.types.unitType {
-                body.append(.returnUnit)
-            } else {
-                let zero = arena.appendExpr(.intLiteral(0), type: returnType)
-                body.append(.returnValue(zero))
+        switch function.body {
+        case let .block(exprIDs, _):
+            var terminatedByReturn = false
+            for exprID in exprIDs {
+                if let expr = ast.arena.expr(exprID), case let .returnExpr(value, _, _) = expr {
+                    if let value {
+                        let lowered = driver.lowerExpr(value, ast: ast, sema: sema, arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers, instructions: &body)
+                        body.append(.returnValue(lowered))
+                    } else {
+                        body.append(.returnUnit)
+                    }
+                    terminatedByReturn = true
+                    break
+                }
+                let lowered = driver.lowerExpr(exprID, ast: ast, sema: sema, arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers, instructions: &body)
+                if driver.controlFlowLowerer.isTerminatedExpr(lowered, arena: arena, sema: sema) {
+                    terminatedByReturn = true
+                    break
+                }
             }
-        } else {
-            switch function.body {
-            case let .block(exprIDs, _):
-                var terminatedByReturn = false
-                for exprID in exprIDs {
-                    if let expr = ast.arena.expr(exprID), case let .returnExpr(value, _, _) = expr {
-                        if let value {
-                            let lowered = driver.lowerExpr(value, ast: ast, sema: sema, arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers, instructions: &body)
-                            body.append(.returnValue(lowered))
-                        } else {
-                            body.append(.returnUnit)
-                        }
-                        terminatedByReturn = true
-                        break
-                    }
-                    let lowered = driver.lowerExpr(exprID, ast: ast, sema: sema, arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers, instructions: &body)
-                    if driver.controlFlowLowerer.isTerminatedExpr(lowered, arena: arena, sema: sema) {
-                        terminatedByReturn = true
-                        break
-                    }
-                }
-                if !terminatedByReturn {
-                    body.append(.returnUnit)
-                }
-            case let .expr(exprID, _):
-                let value = driver.lowerExpr(exprID, ast: ast, sema: sema, arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers, instructions: &body)
-                body.append(.returnValue(value))
-            case .unit:
+            if !terminatedByReturn {
                 body.append(.returnUnit)
             }
+        case let .expr(exprID, _):
+            let value = driver.lowerExpr(exprID, ast: ast, sema: sema, arena: arena, interner: interner, propertyConstantInitializers: propertyConstantInitializers, instructions: &body)
+            body.append(.returnValue(value))
+        case .unit:
+            body.append(.returnUnit)
         }
         body.append(.endBlock)
         let kirID = arena.appendDecl(.function(KIRFunction(
