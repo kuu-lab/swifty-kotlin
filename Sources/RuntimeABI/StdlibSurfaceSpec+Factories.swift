@@ -22,8 +22,7 @@ extension StdlibSurfaceSpec {
             arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .collectionHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 
@@ -41,8 +40,7 @@ extension StdlibSurfaceSpec {
             arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .setHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 
@@ -60,8 +58,7 @@ extension StdlibSurfaceSpec {
             arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .mapHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 
@@ -79,8 +76,7 @@ extension StdlibSurfaceSpec {
             arity: StdlibSurfaceArity(arity...arity),
             runtimeLinkName: runtimeLinkName,
             returnStrategy: returnStrategy,
-            lambdaExpectation: lambdaExpectation,
-            loweringCategory: .sequenceHOF
+            lambdaExpectation: lambdaExpectation
         )
     }
 }
