@@ -11,7 +11,7 @@ package kotlin.collections
 // CallTypeChecker+MemberCallInferenceCollectionFlow.swift.
 // CollectionLiteralLoweringPass preserves source-backed calls in shouldPreserveSourceBackedAggregateCall.
 
-public fun <T, R> List<T>.fold(initial: R, operation: (R, T) -> R): R {
+public inline fun <T, R> List<T>.fold(initial: R, operation: (R, T) -> R): R {
     var accumulator = initial
     var i = 0
     while (i < size) {
@@ -21,7 +21,7 @@ public fun <T, R> List<T>.fold(initial: R, operation: (R, T) -> R): R {
     return accumulator
 }
 
-public fun <T, R> List<T>.foldRight(initial: R, operation: (T, R) -> R): R {
+public inline fun <T, R> List<T>.foldRight(initial: R, operation: (T, R) -> R): R {
     var accumulator = initial
     var i = size - 1
     while (i >= 0) {
@@ -31,7 +31,7 @@ public fun <T, R> List<T>.foldRight(initial: R, operation: (T, R) -> R): R {
     return accumulator
 }
 
-public fun <T> List<T>.reduce(operation: (T, T) -> T): T {
+public inline fun <T> List<T>.reduce(operation: (T, T) -> T): T {
     if (size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
     var accumulator = this[0]
     var i = 1
@@ -42,7 +42,7 @@ public fun <T> List<T>.reduce(operation: (T, T) -> T): T {
     return accumulator
 }
 
-public fun <T> List<T>.reduceOrNull(operation: (T, T) -> T): T? {
+public inline fun <T> List<T>.reduceOrNull(operation: (T, T) -> T): T? {
     if (size == 0) return null
     var accumulator = this[0]
     var i = 1
@@ -53,7 +53,7 @@ public fun <T> List<T>.reduceOrNull(operation: (T, T) -> T): T? {
     return accumulator
 }
 
-public fun <T, R> List<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
+public inline fun <T, R> List<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
     val result = mutableListOf<R>()
     var accumulator = initial
     result.add(accumulator)
@@ -66,7 +66,7 @@ public fun <T, R> List<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
     return result
 }
 
-public fun <T, R> List<T>.runningFold(initial: R, operation: (R, T) -> R): List<R> {
+public inline fun <T, R> List<T>.runningFold(initial: R, operation: (R, T) -> R): List<R> {
     val result = mutableListOf<R>()
     var accumulator = initial
     result.add(accumulator)
