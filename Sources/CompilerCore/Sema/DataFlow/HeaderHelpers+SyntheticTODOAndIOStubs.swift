@@ -296,6 +296,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "block", type: blockFunctionType)],
             returnType: types.longType,
             externalLinkName: "kk_system_measureNanoTime",
+            stdlibSpecialCallKind: .measureNanoTime,
             symbols: symbols,
             interner: interner
         )
