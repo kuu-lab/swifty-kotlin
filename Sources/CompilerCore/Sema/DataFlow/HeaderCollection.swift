@@ -51,6 +51,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         bindings: BindingTable,
         scope: Scope,
+        sourceManager: SourceManager,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         ctx: CompilationContext
@@ -207,10 +208,20 @@ extension DataFlowSemaPhase {
         scope.insert(symbol)
         bindings.bindDecl(declID, symbol: symbol)
 
+        if case let .funDecl(funDecl) = decl {
+            diagnoseReservedExternalFunctionUse(
+                funDecl,
+                sourceFileID: file.fileID,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics
+            )
+        }
         registerAnnotations(
             for: decl,
             symbol: symbol,
             declRange: declaration.range,
+            sourceFileID: file.fileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )

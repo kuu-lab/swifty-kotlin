@@ -220,6 +220,30 @@ enum DiagnosticRegistry {
             codeActions: [DiagnosticCodeAction(title: "Add explicit return type annotation")]
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0006",
+            pass: "SEMA",
+            defaultSeverity: .warning,
+            summary: "Synthetic stdlib stub overlaps a bundled Kotlin declaration."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0007",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Reserved bundled stdlib annotation used outside bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0008",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Reserved external declaration used outside bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0009",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Function declaration requires a body."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0013",
             pass: "SEMA",
             defaultSeverity: .error,

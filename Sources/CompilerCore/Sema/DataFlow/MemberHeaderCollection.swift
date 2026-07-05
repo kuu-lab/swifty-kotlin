@@ -28,6 +28,7 @@ extension DataFlowSemaPhase {
         classTypeParameterSymbols: [SymbolID] = [],
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
+        let sourceManager = ctx.sourceManager
         let sourceFile = ast.files.first { $0.fileID == sourceFileID }
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
@@ -93,10 +94,18 @@ extension DataFlowSemaPhase {
                 flags: memberFlags
             )
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
+            diagnoseReservedExternalFunctionUse(
+                funDecl,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics
+            )
             registerAnnotations(
                 for: decl,
                 symbol: memberSymbol,
                 declRange: funDecl.range,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -294,6 +303,8 @@ extension DataFlowSemaPhase {
                 for: decl,
                 symbol: memberSymbol,
                 declRange: propertyDecl.range,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -466,6 +477,7 @@ extension DataFlowSemaPhase {
         duplicateCheckFlags: SymbolFlags,
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
+        sourceManager: SourceManager,
         declID: DeclID,
         decl: Decl,
         symbols: SymbolTable,
@@ -494,6 +506,8 @@ extension DataFlowSemaPhase {
             for: decl,
             symbol: nestedSymbol,
             declRange: declSite,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -517,6 +531,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(declID) else {
             return
         }
@@ -539,6 +554,7 @@ extension DataFlowSemaPhase {
                 duplicateCheckFlags: nestedClassFlags,
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 declID: declID,
                 decl: decl,
                 symbols: symbols,
@@ -774,6 +790,7 @@ extension DataFlowSemaPhase {
                 duplicateCheckFlags: flags(from: nestedInterface.modifiers),
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 declID: declID,
                 decl: decl,
                 symbols: symbols,
@@ -859,6 +876,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(declID),
               case let .objectDecl(nestedObject) = decl
         else {
@@ -876,6 +894,7 @@ extension DataFlowSemaPhase {
             duplicateCheckFlags: nestedObjectFlags,
             ownerSymbol: ownerSymbol,
             sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             declID: declID,
             decl: decl,
             symbols: symbols,

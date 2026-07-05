@@ -977,7 +977,11 @@ struct ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName, expectedType) in expectedMembers {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                // Use lastExprID rather than firstExprID: bundled stdlib sources
+                // (injected before the fixture's own source) may already contain
+                // calls to the same member name, which would otherwise shadow the
+                // fixture's own call site.
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
@@ -2169,7 +2173,11 @@ func assertSyntheticMemberCall(
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let callExpr = try #require(firstExprID(in: ast) { _, expr in
+        // Use lastExprID rather than firstExprID: bundled stdlib sources (injected
+        // before the fixture's own source) may contain unrelated calls to the same
+        // member name (e.g. Sequence aggregate HOFs calling `this.toList()`
+        // internally), which would otherwise shadow the fixture's own call site.
+        let callExpr = try #require(lastExprID(in: ast) { _, expr in
             guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
             return ctx.interner.resolve(callee) == testCase.memberName
         })

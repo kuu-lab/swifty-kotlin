@@ -302,6 +302,9 @@ final class MemberLowerer {
         if let externalLink = sema.symbols.externalLinkName(for: symbol), !externalLink.isEmpty {
             return
         }
+        if function.modifiers.contains(.external), function.body == .unit {
+            return
+        }
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
         driver.ctx.setCurrentFunctionSymbol(symbol)

@@ -57,6 +57,8 @@ extension DataFlowSemaPhase {
         for decl: Decl,
         symbol: SymbolID,
         declRange: SourceRange?,
+        sourceFileID: FileID?,
+        sourceManager: SourceManager?,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine
     ) {
@@ -64,6 +66,8 @@ extension DataFlowSemaPhase {
             declarationAnnotations(for: decl),
             symbol: symbol,
             declRange: declRange,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -88,6 +92,8 @@ extension DataFlowSemaPhase {
         _ astAnnotations: [AnnotationNode],
         symbol: SymbolID,
         declRange: SourceRange?,
+        sourceFileID: FileID?,
+        sourceManager: SourceManager?,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine
     ) {
@@ -104,6 +110,22 @@ extension DataFlowSemaPhase {
         }
         symbols.setAnnotations(records, for: symbol)
 
+        if let ksSymbolName = astAnnotations.first(where: { KnownCompilerAnnotation.ksSymbolName.matches($0.name) }) {
+            if !isBundledSourceFile(sourceFileID, sourceManager: sourceManager) {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0007",
+                    "@KsSymbolName is reserved for bundled stdlib declarations.",
+                    range: declRange
+                )
+            }
+            if symbols.symbol(symbol)?.kind == .function,
+               let linkName = ksSymbolName.arguments.first.map(annotationStringArgumentValue(_:)),
+               !linkName.isEmpty
+            {
+                symbols.setExternalLinkName(linkName, for: symbol)
+            }
+        }
+
         // Register @Suppress ranges so matching diagnostics are filtered.
         guard let declRange else {
             return
@@ -116,6 +138,54 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+    }
+
+    func diagnoseReservedExternalFunctionUse(
+        _ function: FunDecl,
+        sourceFileID: FileID,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard function.modifiers.contains(.external),
+              !isBundledSourceFile(sourceFileID, sourceManager: sourceManager)
+        else {
+            return
+        }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0008",
+            "The external modifier is reserved for bundled stdlib declarations.",
+            range: function.range
+        )
+    }
+
+    private func isBundledSourceFile(_ fileID: FileID?, sourceManager: SourceManager?) -> Bool {
+        guard let fileID, let sourceManager else {
+            return false
+        }
+        return sourceManager.path(of: fileID).hasPrefix("__bundled_")
+    }
+
+    private func annotationStringArgumentValue(_ raw: String) -> String {
+        var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let equals = trimmed.firstIndex(of: "=") {
+            let name = trimmed[..<equals].trimmingCharacters(in: .whitespacesAndNewlines)
+            if name == "value" {
+                trimmed = String(trimmed[trimmed.index(after: equals)...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        while trimmed.count >= 2,
+              let first = trimmed.first,
+              let last = trimmed.last,
+              (first == "\"" && last == "\"") || (first == "'" && last == "'")
+        {
+            trimmed = String(trimmed.dropFirst().dropLast())
+        }
+        return trimmed
+            .replacingOccurrences(of: "\\\\", with: "\\")
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\'", with: "'")
     }
 
     private func suppressionRange(for decl: Decl, declRange: SourceRange?) -> SourceRange? {
@@ -1042,7 +1112,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
-        var skipStats = SyntheticStubSkipStatsCollector()
+        let skipStats = SyntheticStubSkipStatsCollector()
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)

@@ -6,7 +6,7 @@ extension KIRLoweringDriver {
         symbol: SymbolID,
         shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
-        if function.modifiers.contains(.external) {
+        if function.modifiers.contains(.external), function.body == .unit {
             return []
         }
 

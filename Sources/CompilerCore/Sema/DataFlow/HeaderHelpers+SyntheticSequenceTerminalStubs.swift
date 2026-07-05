@@ -216,24 +216,367 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("MutableSet"),
         ], elementType: typeParamType, invariant: true)
-        _ = {
-            guard let comparableSymbol = types.comparableInterfaceSymbol else {
-                return []
-            }
-            return [types.make(.classType(ClassType(
-                classSymbol: comparableSymbol,
-                args: [.in(typeParamType)],
+        let makeSequenceReturnType: (TypeID) -> TypeID = { elementType in
+            types.make(.classType(ClassType(
+                classSymbol: sequenceSymbol,
+                args: [.out(elementType)],
                 nullability: .nonNull
-            )))]
-        }()
+            )))
+        }
+        let invariantListReturnType = nominalCollectionType([
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ], elementType: typeParamType, invariant: true)
+        let rootPairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")])
+
+        // MIGRATION-SEQ-005: synthetic bridge members called from
+        // Stdlib/kotlin/sequences/SequenceWindowChunk.kt.
+        registerSequenceMemberStub(
+            named: "__kk_sequence_take",
+            externalLinkName: "kk_sequence_take",
+            receiverType: receiverType,
+            parameters: [("n", types.intType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic]
+        )
+        registerSequenceMemberStub(
+            named: "__kk_sequence_takeWhile",
+            externalLinkName: "kk_sequence_takeWhile",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic]
+        )
+        registerSequenceMemberStub(
+            named: "__kk_sequence_drop",
+            externalLinkName: "kk_sequence_drop",
+            receiverType: receiverType,
+            parameters: [("n", types.intType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic]
+        )
+        registerSequenceMemberStub(
+            named: "__kk_sequence_dropWhile",
+            externalLinkName: "kk_sequence_dropWhile",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic]
+        )
+        registerSequenceMemberStub(
+            named: "__kk_sequence_chunked",
+            externalLinkName: "kk_sequence_chunked",
+            receiverType: receiverType,
+            parameters: [("size", types.intType)],
+            returnType: makeSequenceReturnType(listReturnType),
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true,
+            flags: [.synthetic]
+        )
+        do {
+            let rName = interner.intern("R")
+            let bridgeFQName = sequenceFQName + [interner.intern("__kk_sequence_chunked_transform")]
+            let rSymbol = symbols.lookup(fqName: bridgeFQName + [rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: bridgeFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [invariantListReturnType],
+                returnType: rType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "__kk_sequence_chunked_transform",
+                externalLinkName: "kk_sequence_chunked_transform",
+                receiverType: receiverType,
+                parameters: [("size", types.intType), ("transform", transformType)],
+                returnType: makeSequenceReturnType(rType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                additionalTypeParameterSymbols: [rSymbol],
+                flags: [.synthetic]
+            )
+        }
+        registerSequenceMemberStub(
+            named: "__kk_sequence_windowed",
+            externalLinkName: "kk_sequence_windowed",
+            receiverType: receiverType,
+            parameters: [
+                ("size", types.intType),
+                ("step", types.intType),
+                ("partialWindows", types.booleanType),
+            ],
+            returnType: makeSequenceReturnType(listReturnType),
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic]
+        )
+        do {
+            let rName = interner.intern("R")
+            let bridgeFQName = sequenceFQName + [interner.intern("__kk_sequence_windowed_transform")]
+            let rSymbol = symbols.lookup(fqName: bridgeFQName + [rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: bridgeFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [invariantListReturnType],
+                returnType: rType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "__kk_sequence_windowed_transform",
+                externalLinkName: "kk_sequence_windowed_transform",
+                receiverType: receiverType,
+                parameters: [
+                    ("size", types.intType),
+                    ("step", types.intType),
+                    ("partialWindows", types.booleanType),
+                    ("transform", transformType),
+                ],
+                returnType: makeSequenceReturnType(rType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                additionalTypeParameterSymbols: [rSymbol],
+                flags: [.synthetic]
+            )
+        }
+        do {
+            let rName = interner.intern("R")
+            let bridgeFQName = sequenceFQName + [interner.intern("__kk_sequence_zip")]
+            let rSymbol = symbols.lookup(fqName: bridgeFQName + [rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: bridgeFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let otherType = makeSequenceReturnType(rType)
+            let pairType = if let rootPairSymbol {
+                types.make(.classType(ClassType(
+                    classSymbol: rootPairSymbol,
+                    args: [.out(typeParamType), .out(rType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                types.anyType
+            }
+            registerSequenceMemberStub(
+                named: "__kk_sequence_zip",
+                externalLinkName: "kk_sequence_zip",
+                receiverType: receiverType,
+                parameters: [("other", otherType)],
+                returnType: makeSequenceReturnType(pairType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                additionalTypeParameterSymbols: [rSymbol],
+                flags: [.synthetic]
+            )
+        }
+        do {
+            let rName = interner.intern("R")
+            let vName = interner.intern("V")
+            let bridgeFQName = sequenceFQName + [interner.intern("__kk_sequence_zip_transform")]
+            let rSymbol = symbols.lookup(fqName: bridgeFQName + [rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: bridgeFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let vSymbol = symbols.lookup(fqName: bridgeFQName + [vName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: vName,
+                fqName: bridgeFQName + [vName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let vType = types.make(.typeParam(TypeParamType(symbol: vSymbol, nullability: .nonNull)))
+            let otherType = makeSequenceReturnType(rType)
+            let transformType = types.make(.functionType(FunctionType(
+                params: [typeParamType, rType],
+                returnType: vType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "__kk_sequence_zip_transform",
+                externalLinkName: "kk_sequence_zip_transform",
+                receiverType: receiverType,
+                parameters: [("other", otherType), ("transform", transformType)],
+                returnType: makeSequenceReturnType(vType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                additionalTypeParameterSymbols: [rSymbol, vSymbol],
+                flags: [.synthetic]
+            )
+        }
+        do {
+            let pairType = if let rootPairSymbol {
+                types.make(.classType(ClassType(
+                    classSymbol: rootPairSymbol,
+                    args: [.out(typeParamType), .out(typeParamType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                types.anyType
+            }
+            registerSequenceMemberStub(
+                named: "__kk_sequence_zipWithNext",
+                externalLinkName: "kk_sequence_zipWithNext",
+                receiverType: receiverType,
+                parameters: [],
+                returnType: makeSequenceReturnType(pairType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                flags: [.synthetic]
+            )
+        }
+        do {
+            let rName = interner.intern("R")
+            let bridgeFQName = sequenceFQName + [interner.intern("__kk_sequence_zipWithNextTransform")]
+            let rSymbol = symbols.lookup(fqName: bridgeFQName + [rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: bridgeFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [typeParamType, typeParamType],
+                returnType: rType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "__kk_sequence_zipWithNextTransform",
+                externalLinkName: "kk_sequence_zipWithNextTransform",
+                receiverType: receiverType,
+                parameters: [("transform", transformType)],
+                returnType: makeSequenceReturnType(rType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                additionalTypeParameterSymbols: [rSymbol],
+                flags: [.synthetic]
+            )
+        }
+        registerSequenceMemberStub(
+            named: "__kk_sequence_distinct",
+            externalLinkName: "kk_sequence_distinct",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic]
+        )
+        do {
+            let kName = interner.intern("K")
+            let bridgeFQName = sequenceFQName + [interner.intern("__kk_sequence_distinctBy")]
+            let kSymbol = symbols.lookup(fqName: bridgeFQName + [kName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: kName,
+                fqName: bridgeFQName + [kName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let kType = types.make(.typeParam(TypeParamType(symbol: kSymbol, nullability: .nonNull)))
+            let selectorType = types.make(.functionType(FunctionType(
+                params: [typeParamType],
+                returnType: kType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "__kk_sequence_distinctBy",
+                externalLinkName: "kk_sequence_distinctBy",
+                receiverType: receiverType,
+                parameters: [("selector", selectorType)],
+                returnType: receiverType,
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                additionalTypeParameterSymbols: [kSymbol],
+                flags: [.synthetic]
+            )
+        }
 
         // sortedWith(comparator: (T, T) -> Int): Sequence<T>
-        _ = types.make(.functionType(FunctionType(
-            params: [typeParamType, typeParamType],
-            returnType: types.intType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         registerSequenceOverloadedMemberStub(
             named: "sortedWith",
             externalLinkName: "kk_sequence_sortedWith",
@@ -359,20 +702,6 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: [],
             returnType: types.makeNullable(typeParamType),
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // take(n: Int): Sequence<T> (STDLIB-SEQ-FN-119)
-        registerSequenceMemberStub(
-            named: "take",
-            externalLinkName: "kk_sequence_take",
-            receiverType: receiverType,
-            parameters: [("n", types.intType)],
-            returnType: receiverType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
@@ -879,54 +1208,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        do {
-            let distinctByName = interner.intern("distinctBy")
-            let distinctByFQName = sequenceFQName + [distinctByName]
-            if symbols.lookup(fqName: distinctByFQName) == nil {
-                let keyTypeParamName = interner.intern("K")
-                let keyTypeParamSymbol = symbols.define(
-                    kind: .typeParameter,
-                    name: keyTypeParamName,
-                    fqName: distinctByFQName + [keyTypeParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: []
-                )
-                let keyType = types.make(.typeParam(TypeParamType(symbol: keyTypeParamSymbol, nullability: .nonNull)))
-                let selectorType = types.make(.functionType(FunctionType(
-                    params: [typeParamType],
-                    returnType: keyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-                registerSequenceMemberStub(
-                    named: "distinctBy",
-                    externalLinkName: "kk_sequence_distinctBy",
-                    receiverType: receiverType,
-                    parameters: [("selector", selectorType)],
-                    returnType: receiverType,
-                    sequenceSymbol: sequenceSymbol,
-                    sequenceFQName: sequenceFQName,
-                    typeParamSymbol: typeParamSymbol,
-                    symbols: symbols,
-                    interner: interner,
-                    canThrow: true,
-                    additionalTypeParameterSymbols: [keyTypeParamSymbol]
-                )
-            }
-        }
-        registerSequenceMemberStub(
-            named: "drop",
-            externalLinkName: "kk_sequence_drop",
-            receiverType: receiverType,
-            parameters: [("n", types.intType)],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
         let sequenceElementToIntType = types.make(.functionType(FunctionType(
             params: [typeParamType],
             returnType: types.intType,
@@ -1230,33 +1511,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_sequence_filterIndexed",
             receiverType: receiverType,
             parameters: [("predicate", indexedPredicateType)],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // takeWhile(predicate): Sequence<T>
-        registerSequenceMemberStub(
-            named: "takeWhile",
-            externalLinkName: "kk_sequence_takeWhile",
-            receiverType: receiverType,
-            parameters: [("predicate", predicateType)],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSequenceMemberStub(
-            named: "dropWhile",
-            externalLinkName: "kk_sequence_dropWhile",
-            receiverType: receiverType,
-            parameters: [("predicate", predicateType)],
             returnType: receiverType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
@@ -3000,167 +3254,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // distinct(): Sequence<T>
-        registerSequenceMemberStub(
-            named: "distinct",
-            externalLinkName: "kk_sequence_distinct",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-SEQ-008: chunked(size, transform): Sequence<R>
-        do {
-            let chunkedName = interner.intern("chunked")
-            let chunkedFQName = sequenceFQName + [chunkedName]
-            let rName = interner.intern("R")
-            let rFQName = chunkedFQName + [rName]
-            let rSymbol: SymbolID = if let existing = symbols.lookup(fqName: rFQName) {
-                existing
-            } else {
-                symbols.define(
-                    kind: .typeParameter,
-                    name: rName,
-                    fqName: rFQName,
-                    declSite: nil,
-                    visibility: .private,
-                    flags: []
-                )
-            }
-            let rType = types.make(.typeParam(TypeParamType(
-                symbol: rSymbol,
-                nullability: .nonNull
-            )))
-            let invariantChunkListType = nominalCollectionType([
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("List"),
-            ], elementType: typeParamType, invariant: true)
-            let transformType = types.make(.functionType(FunctionType(
-                params: [invariantChunkListType],
-                returnType: rType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let sequenceRType = types.make(.classType(ClassType(
-                classSymbol: sequenceSymbol,
-                args: [.out(rType)],
-                nullability: .nonNull
-            )))
-            registerSequenceMemberStub(
-                named: "chunked",
-                externalLinkName: "kk_sequence_chunked_transform",
-                receiverType: receiverType,
-                parameters: [("size", types.intType), ("transform", transformType)],
-                returnType: sequenceRType,
-                sequenceSymbol: sequenceSymbol,
-                sequenceFQName: sequenceFQName,
-                typeParamSymbol: typeParamSymbol,
-                symbols: symbols,
-                interner: interner,
-                canThrow: true,
-                additionalTypeParameterSymbols: [rSymbol]
-            )
-        }
-
-        // STDLIB-SEQ-FN-012: chunked(size): Sequence<List<T>>
-        let chunkedReturnType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(listReturnType)],
-            nullability: .nonNull
-        )))
-        registerSequenceOverloadedMemberStub(
-            named: "chunked",
-            externalLinkName: "kk_sequence_chunked",
-            receiverType: receiverType,
-            parameters: [("size", types.intType)],
-            returnType: chunkedReturnType,
-            canThrow: true
-        )
-
-        // windowed(size, step, partialWindows, transform): Sequence<R>
-        do {
-            let windowedName = interner.intern("windowed")
-            let windowedFQName = sequenceFQName + [windowedName]
-            let rName = interner.intern("R")
-            let rFQName = windowedFQName + [interner.intern("transform"), rName]
-            let rSymbol: SymbolID = if let existing = symbols.lookup(fqName: rFQName) {
-                existing
-            } else {
-                symbols.define(
-                    kind: .typeParameter,
-                    name: rName,
-                    fqName: rFQName,
-                    declSite: nil,
-                    visibility: .private,
-                    flags: []
-                )
-            }
-            let rType = types.make(.typeParam(TypeParamType(
-                symbol: rSymbol,
-                nullability: .nonNull
-            )))
-            let invariantWindowListType = nominalCollectionType([
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("List"),
-            ], elementType: typeParamType, invariant: true)
-            let transformType = types.make(.functionType(FunctionType(
-                params: [invariantWindowListType],
-                returnType: rType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let sequenceRType = types.make(.classType(ClassType(
-                classSymbol: sequenceSymbol,
-                args: [.out(rType)],
-                nullability: .nonNull
-            )))
-            registerSequenceMemberStub(
-                named: "windowed",
-                externalLinkName: "kk_sequence_windowed_transform",
-                receiverType: receiverType,
-                parameters: [
-                    ("size", types.intType),
-                    ("step", types.intType),
-                    ("partialWindows", types.booleanType),
-                    ("transform", transformType),
-                ],
-                returnType: sequenceRType,
-                sequenceSymbol: sequenceSymbol,
-                sequenceFQName: sequenceFQName,
-                typeParamSymbol: typeParamSymbol,
-                symbols: symbols,
-                interner: interner,
-                canThrow: true,
-                additionalTypeParameterSymbols: [rSymbol]
-            )
-        }
-
-        // STDLIB-SEQ-FN-131: windowed(size, step, partialWindows): Sequence<List<T>>
-        let windowedReturnType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(listReturnType)],
-            nullability: .nonNull
-        )))
-        registerSequenceOverloadedMemberStub(
-            named: "windowed",
-            externalLinkName: "kk_sequence_windowed",
-            receiverType: receiverType,
-            parameters: [
-                ("size", types.intType),
-                ("step", types.intType),
-                ("partialWindows", types.booleanType),
-            ],
-            returnType: windowedReturnType,
-            canThrow: false
-        )
-
         // forEach(action: (T) -> Unit): Unit
         registerSequenceMemberStub(
             named: "forEach",
@@ -3342,111 +3435,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // zipWithNext(): Sequence<Pair<T, T>>
-        let zipWithNextName = interner.intern("zipWithNext")
-        let zipWithNextFQName = sequenceFQName + [zipWithNextName]
-        if symbols.lookup(fqName: zipWithNextFQName) == nil {
-            let pairSymbol: SymbolID? = symbols.lookup(fqName: [
-                interner.intern("kotlin"), interner.intern("Pair"),
-            ])
-            let zipWithNextResultType: TypeID = if let pairSymbol {
-                types.make(.classType(ClassType(
-                    classSymbol: pairSymbol,
-                    args: [.out(typeParamType), .out(typeParamType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                types.anyType
-            }
-            let zipWithNextSequenceResultType = types.make(.classType(ClassType(
-                classSymbol: sequenceSymbol,
-                args: [.out(zipWithNextResultType)],
-                nullability: .nonNull
-            )))
-            let zipWithNextSymbol = symbols.define(
-                kind: .function,
-                name: zipWithNextName,
-                fqName: zipWithNextFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .operatorFunction]
-            )
-            symbols.setParentSymbol(sequenceSymbol, for: zipWithNextSymbol)
-            symbols.setExternalLinkName("kk_sequence_zipWithNext", for: zipWithNextSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: zipWithNextSequenceResultType,
-                    valueParameterSymbols: [],
-                    valueParameterHasDefaultValues: [],
-                    valueParameterIsVararg: [],
-                    typeParameterSymbols: [typeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: zipWithNextSymbol
-            )
-        }
-
-        // zipWithNext(transform: (T, T) -> R): Sequence<R>
-        let zipWithNextTransformFQName = zipWithNextFQName + [interner.intern("transform")]
-        if symbols.lookup(fqName: zipWithNextTransformFQName) == nil {
-            let rName = interner.intern("R")
-            let rFQName = zipWithNextTransformFQName + [rName]
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: rFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let sequenceRType = types.make(.classType(ClassType(
-                classSymbol: sequenceSymbol,
-                args: [.out(rType)],
-                nullability: .nonNull
-            )))
-            let transformType = types.make(.functionType(FunctionType(
-                params: [typeParamType, typeParamType],
-                returnType: rType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let transformSymbol = symbols.define(
-                kind: .function,
-                name: zipWithNextName,
-                fqName: zipWithNextTransformFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .operatorFunction]
-            )
-            symbols.setParentSymbol(sequenceSymbol, for: transformSymbol)
-            symbols.setExternalLinkName("kk_sequence_zipWithNextTransform", for: transformSymbol)
-            let transformParamName = interner.intern("transform")
-            let transformParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: transformParamName,
-                fqName: zipWithNextTransformFQName + [transformParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(transformSymbol, for: transformParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [transformType],
-                    returnType: sequenceRType,
-                    valueParameterSymbols: [transformParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [typeParamSymbol, rSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: transformSymbol
-            )
-        }
     }
 
 }

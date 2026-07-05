@@ -40,6 +40,42 @@ private func collectPerFileResultsInParallel<Result: Sendable>(
     return zip(fileIDs, orderedResults).sorted(by: { $0.0.rawValue < $1.0.rawValue })
 }
 
+private func isBundledStdlibFile(_ fileID: FileID, sourceManager: SourceManager) -> Bool {
+    sourceManager.path(of: fileID).hasPrefix("__bundled_")
+}
+
+private func collectPerFileResultsWithBundledStdlibTiming<Result: Sendable>(
+    fileIDs: [FileID],
+    sourceManager: SourceManager,
+    phaseTimer: PhaseTimer?,
+    task: @escaping @Sendable (FileID) -> Result
+) -> [(FileID, Result)] {
+    guard let phaseTimer else {
+        return collectPerFileResultsInParallel(fileIDs: fileIDs, task: task)
+    }
+
+    var bundledFileIDs: [FileID] = []
+    var otherFileIDs: [FileID] = []
+    for fileID in fileIDs {
+        if isBundledStdlibFile(fileID, sourceManager: sourceManager) {
+            bundledFileIDs.append(fileID)
+        } else {
+            otherFileIDs.append(fileID)
+        }
+    }
+    guard !bundledFileIDs.isEmpty else {
+        return collectPerFileResultsInParallel(fileIDs: fileIDs, task: task)
+    }
+
+    let startTime = DispatchTime.now().uptimeNanoseconds
+    let bundledResults = collectPerFileResultsInParallel(fileIDs: bundledFileIDs, task: task)
+    let endTime = DispatchTime.now().uptimeNanoseconds
+    phaseTimer.recordSubPhase("bundled-stdlib", startTime: startTime, endTime: endTime)
+
+    let otherResults = collectPerFileResultsInParallel(fileIDs: otherFileIDs, task: task)
+    return (bundledResults + otherResults).sorted(by: { $0.0.rawValue < $1.0.rawValue })
+}
+
 final class LoadSourcesPhase: CompilerPhase {
     static let name = "LoadSources"
 
@@ -83,7 +119,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/ranges/RangeIterators",
         "kotlin/ranges/RangeMembership",
         "kotlin/reflect/KClassAnnotationRegistration",
-        "kotlin/sequences/SequenceWindowChunk",
         "kotlin/text/StringBuilder",
         "kotlin/text/StringBasics",
         "kotlin/text/StringEncoding",
@@ -106,13 +141,14 @@ final class LoadSourcesPhase: CompilerPhase {
         }
         relativePaths.sort()
 
+        var bundledSources: [(path: String, contents: Data)] = []
         for relativePath in relativePaths {
             guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
             let bundledPath = "__bundled_\(relativePath).kt"
             guard !sourceManager.containsFile(path: bundledPath) else { continue }
             let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
             guard let data = fm.contents(atPath: fullPath) else { continue }
-            _ = sourceManager.addFile(path: bundledPath, contents: data)
+            bundledSources.append((path: bundledPath, contents: data))
         }
 
         let residualSources: [(path: String, source: String)] = [
@@ -123,7 +159,11 @@ final class LoadSourcesPhase: CompilerPhase {
         ]
         for (path, source) in residualSources {
             guard !sourceManager.containsFile(path: path) else { continue }
-            _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
+            bundledSources.append((path: path, contents: Data(source.utf8)))
+        }
+
+        for source in bundledSources.sorted(by: { $0.path < $1.path }) {
+            _ = sourceManager.addFile(path: source.path, contents: source.contents)
         }
     }
 
@@ -142,7 +182,11 @@ final class LexPhase: CompilerPhase {
         let diagnostics = ctx.diagnostics
         let sourceManager = ctx.sourceManager
 
-        let tokensByFile = collectPerFileResultsInParallel(fileIDs: fileIDs) { fileID in
+        let tokensByFile = collectPerFileResultsWithBundledStdlibTiming(
+            fileIDs: fileIDs,
+            sourceManager: sourceManager,
+            phaseTimer: ctx.phaseTimer
+        ) { fileID in
             let contents = sourceManager.contents(of: fileID)
             let lexer = KotlinLexer(
                 file: fileID,
@@ -177,7 +221,11 @@ final class ParsePhase: CompilerPhase {
         let diagnostics = ctx.diagnostics
         let tokensByFile = Dictionary(uniqueKeysWithValues: ctx.tokensByFile.map { ($0.0, $0.1) })
         let fileIDs = tokensByFile.keys.sorted(by: { $0.rawValue < $1.rawValue })
-        let parsedByFile = collectPerFileResultsInParallel(fileIDs: fileIDs) { fileID in
+        let parsedByFile = collectPerFileResultsWithBundledStdlibTiming(
+            fileIDs: fileIDs,
+            sourceManager: ctx.sourceManager,
+            phaseTimer: ctx.phaseTimer
+        ) { fileID in
             let parser = KotlinParser(
                 tokens: tokensByFile[fileID] ?? [],
                 interner: interner,

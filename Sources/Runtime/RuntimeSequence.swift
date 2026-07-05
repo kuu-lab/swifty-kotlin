@@ -1766,6 +1766,44 @@ public func kk_sequence_zip(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
+@_cdecl("kk_sequence_zip_transform")
+public func kk_sequence_zip_transform(
+    _ seqRaw: Int,
+    _ otherRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let leftElements = runtimeSequenceSourceElementsOrThrow(from: seqRaw, caller: #function, outThrown: outThrown) ?? []
+    if let outThrown, outThrown.pointee != 0 {
+        return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
+    }
+    let rightElements = runtimeSequenceSourceElementsOrThrow(from: otherRaw, caller: #function, outThrown: outThrown) ?? []
+    if let outThrown, outThrown.pointee != 0 {
+        return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
+    }
+
+    let count = min(leftElements.count, rightElements.count)
+    var results: [Int] = []
+    results.reserveCapacity(count)
+    for index in 0 ..< count {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            lhs: leftElements[index],
+            rhs: rightElements[index],
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
+        }
+        results.append(maybeUnbox(result))
+    }
+    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+}
+
 @_cdecl("kk_sequence_takeWhile")
 public func kk_sequence_takeWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let seq = runtimeSequenceBox(from: seqRaw) else {

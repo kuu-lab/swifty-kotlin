@@ -15,6 +15,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(companionDeclID),
               case let .objectDecl(companionObject) = decl
         else {
@@ -44,6 +45,8 @@ extension DataFlowSemaPhase {
             for: decl,
             symbol: companionSymbol,
             declRange: companionObject.range,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )

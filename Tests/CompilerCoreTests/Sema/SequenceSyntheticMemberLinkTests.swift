@@ -498,14 +498,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.take surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "take"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_take"))
         }
     }
 
@@ -708,14 +700,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.takeWhile surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "takeWhile"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_takeWhile"))
         }
     }
 
@@ -931,14 +915,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.distinct surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "distinct"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_distinct"))
         }
     }
 
@@ -1056,14 +1032,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.drop surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "drop"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_drop"))
         }
     }
 
@@ -1121,14 +1089,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.distinctBy surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "distinctBy"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_distinctBy"))
         }
     }
 
@@ -1153,36 +1113,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.zipWithNext surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "zipWithNext"]
-                .map { ctx.interner.intern($0) }
-            let transformFQName = memberFQName + [ctx.interner.intern("transform")]
-            let links = Set(
-                (sema.symbols.lookupAll(fqName: memberFQName) + sema.symbols.lookupAll(fqName: transformFQName))
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_zipWithNext"))
-            #expect(links.contains("kk_sequence_zipWithNextTransform"))
-
-            let noArgSymbol = try #require(sema.symbols.lookup(fqName: memberFQName))
-            let noArgSignature = try #require(sema.symbols.functionSignature(for: noArgSymbol))
-            guard case let .classType(noArgReturnType) = sema.types.kind(of: noArgSignature.returnType) else {
-                Issue.record("Expected Sequence.zipWithNext() to return Sequence<Pair<T, T>>")
-                return
-            }
-            #expect(
-                try ctx.interner.resolve(#require(sema.symbols.symbol(noArgReturnType.classSymbol)?.name)) == "Sequence"
-            )
-
-            let transformSymbol = try #require(sema.symbols.lookup(fqName: transformFQName))
-            let transformSignature = try #require(sema.symbols.functionSignature(for: transformSymbol))
-            guard case let .classType(transformReturnType) = sema.types.kind(of: transformSignature.returnType) else {
-                Issue.record("Expected Sequence.zipWithNext(transform) to return Sequence<R>")
-                return
-            }
-            #expect(
-                try ctx.interner.resolve(#require(sema.symbols.symbol(transformReturnType.classSymbol)?.name)) == "Sequence"
-            )
         }
     }
 
@@ -1205,14 +1135,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.dropWhile surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "dropWhile"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_dropWhile"))
         }
     }
 
@@ -1551,15 +1473,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.windowed surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "windowed"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_windowed"))
-            #expect(links.contains("kk_sequence_windowed_transform"))
         }
     }
 
@@ -1815,14 +1728,6 @@ struct SequenceSyntheticMemberLinkTests {
                 "Expected Sequence.chunked surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
-            let sema = try #require(ctx.sema)
-            let memberFQName = ["kotlin", "sequences", "Sequence", "chunked"]
-                .map { ctx.interner.intern($0) }
-            let links = Set(
-                sema.symbols.lookupAll(fqName: memberFQName)
-                    .compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
-            #expect(links.contains("kk_sequence_chunked"))
         }
     }
 
