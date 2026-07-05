@@ -402,7 +402,6 @@ extension CodegenBackendIntegrationTests {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            print("=== CALLEES IN LIST AGGREGATE TEST: \(callees) ===")
             XCTAssertTrue(callees.contains("kk_list_flatMap"))
             XCTAssertTrue(callees.contains("kk_list_get"))
             XCTAssertTrue(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
@@ -815,4 +814,3 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToTypeArrayRuntime", expected: "3\n3\n2\n[3, 1, 2]\n")
     }
 }
-

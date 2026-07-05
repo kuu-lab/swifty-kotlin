@@ -2057,6 +2057,22 @@ extension DataFlowSemaPhase {
         if includeGetAndSetAlias {
             registerAtomicMember(
                 ownerSymbol: ownerSymbol, ownerType: ownerType,
+                name: "get", externalLinkName: "\(prefix)_load",
+                returnType: valueType, parameters: [],
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols, interner: interner
+            )
+            registerAtomicMember(
+                ownerSymbol: ownerSymbol, ownerType: ownerType,
+                name: "set", externalLinkName: "\(prefix)_store",
+                returnType: unitType, parameters: [(name: "value", type: valueType)],
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols, interner: interner
+            )
+            registerAtomicMember(
+                ownerSymbol: ownerSymbol, ownerType: ownerType,
                 name: "getAndSet", externalLinkName: "\(prefix)_exchange",
                 returnType: valueType, parameters: [(name: "newValue", type: valueType)],
                 typeParameterSymbols: typeParameterSymbols,

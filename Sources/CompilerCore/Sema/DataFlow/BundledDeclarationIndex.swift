@@ -154,7 +154,49 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
         }
+        if isRuntimeBackedAtomicSyntheticRetainedOverlap(key, ownerFQName: ownerFQName, interner: interner) {
+            return true
+        }
         return false
+    }
+
+    private static func isRuntimeBackedAtomicSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        ownerFQName: [String],
+        interner: StringInterner
+    ) -> Bool {
+        // AtomicMigration.kt carries compatibility aliases as bundled Kotlin
+        // extension functions in kotlin.concurrent, but current member-call
+        // resolution still needs the receiver-owned synthetic bridge when users
+        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference
+        // directly. Retain these runtime-backed aliases until the bundled source
+        // path is visible to ordinary member-call lookup.
+        switch ownerFQName {
+        case ["kotlin", "concurrent", "atomics", "AtomicInt"],
+             ["kotlin", "concurrent", "AtomicInt"],
+             ["kotlin", "concurrent", "atomics", "AtomicLong"],
+             ["kotlin", "concurrent", "AtomicLong"]:
+            switch interner.resolve(key.name) {
+            case "get", "incrementAndGet", "decrementAndGet":
+                return key.arity == 0
+            case "set", "getAndSet", "addAndGet":
+                return key.arity == 1
+            default:
+                return false
+            }
+        case ["kotlin", "concurrent", "atomics", "AtomicReference"],
+             ["kotlin", "concurrent", "AtomicReference"]:
+            switch interner.resolve(key.name) {
+            case "get":
+                return key.arity == 0
+            case "set", "getAndSet":
+                return key.arity == 1
+            default:
+                return false
+            }
+        default:
+            return false
+        }
     }
 
     private static func isRuntimeBackedListSyntheticRetainedOverlap(
