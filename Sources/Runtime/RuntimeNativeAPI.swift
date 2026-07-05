@@ -882,6 +882,7 @@ private final class RuntimeFrozenRegistry: @unchecked Sendable {
 
 }
 
+@discardableResult
 @_cdecl("kk_freeze_object")
 public func kk_freeze_object(_ objectRaw: Int) -> Int {
     // ABI-004: recursive freeze — traverses all reachable ref fields.
