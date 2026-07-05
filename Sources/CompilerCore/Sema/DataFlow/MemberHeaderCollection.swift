@@ -17,6 +17,7 @@ extension DataFlowSemaPhase {
         members: MemberDeclarations,
         owner: OwnerContext,
         sourceFileID: FileID,
+        sourceManager: SourceManager,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -92,10 +93,18 @@ extension DataFlowSemaPhase {
                 flags: memberFlags
             )
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
+            diagnoseReservedExternalFunctionUse(
+                funDecl,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics
+            )
             registerAnnotations(
                 for: decl,
                 symbol: memberSymbol,
                 declRange: funDecl.range,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -285,6 +294,8 @@ extension DataFlowSemaPhase {
                 for: decl,
                 symbol: memberSymbol,
                 declRange: propertyDecl.range,
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -418,6 +429,7 @@ extension DataFlowSemaPhase {
                 ownerFQName: ownerFQName,
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -434,6 +446,7 @@ extension DataFlowSemaPhase {
                 ownerFQName: ownerFQName,
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -455,6 +468,7 @@ extension DataFlowSemaPhase {
         duplicateCheckFlags: SymbolFlags,
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
+        sourceManager: SourceManager,
         declID: DeclID,
         decl: Decl,
         symbols: SymbolTable,
@@ -483,6 +497,8 @@ extension DataFlowSemaPhase {
             for: decl,
             symbol: nestedSymbol,
             declRange: declSite,
+            sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -497,6 +513,7 @@ extension DataFlowSemaPhase {
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
+        sourceManager: SourceManager,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -527,6 +544,7 @@ extension DataFlowSemaPhase {
                 duplicateCheckFlags: nestedClassFlags,
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 declID: declID,
                 decl: decl,
                 symbols: symbols,
@@ -704,6 +722,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -735,6 +754,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: nestedSymbol,
                     ownerType: nestedType,
                     sourceFileID: sourceFileID,
+                    sourceManager: sourceManager,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -760,6 +780,7 @@ extension DataFlowSemaPhase {
                 duplicateCheckFlags: flags(from: nestedInterface.modifiers),
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 declID: declID,
                 decl: decl,
                 symbols: symbols,
@@ -800,6 +821,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
                 sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -815,6 +837,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: nestedSymbol,
                     ownerType: nestedType,
                     sourceFileID: sourceFileID,
+                    sourceManager: sourceManager,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -834,6 +857,7 @@ extension DataFlowSemaPhase {
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
+        sourceManager: SourceManager,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -859,6 +883,7 @@ extension DataFlowSemaPhase {
             duplicateCheckFlags: nestedObjectFlags,
             ownerSymbol: ownerSymbol,
             sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             declID: declID,
             decl: decl,
             symbols: symbols,
@@ -893,6 +918,7 @@ extension DataFlowSemaPhase {
             ),
             owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
             sourceFileID: sourceFileID,
+            sourceManager: sourceManager,
             ast: ast,
             symbols: symbols,
             types: types,

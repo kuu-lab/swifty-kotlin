@@ -6,8 +6,6 @@ symbol fq=flatMapGeneric.$0.names kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.length.$get kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
-symbol fq=kotlin.text.uppercase#2 kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 file f0 package=_
   decl flatMapGeneric fun flatMapGeneric sym=flatMapGeneric
 expr e@2:30 name(names) type=kotlin.collections.List<String> ref=flatMapGeneric.$0.names

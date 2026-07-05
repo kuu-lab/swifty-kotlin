@@ -420,7 +420,11 @@ extension CallLowerer {
                 } else if calleeName == dropName {
                     runtimeCallee = "kk_sequence_drop"
                 } else if calleeName == zipName {
-                    runtimeCallee = "kk_sequence_zip"
+                    switch normalizedArgIDs.count {
+                    case 1: runtimeCallee = "kk_sequence_zip"
+                    case 2: runtimeCallee = "kk_sequence_zip_transform"
+                    default: runtimeCallee = nil
+                    }
                 } else if calleeName == takeWhileName {
                     runtimeCallee = "kk_sequence_takeWhile"
                 } else if calleeName == takeLastWhileName {
@@ -687,6 +691,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_runningReduceIndexed"
                         || runtimeCallee == "kk_sequence_ifEmpty"
                         || runtimeCallee == "kk_sequence_zipWithNextTransform"
+                        || runtimeCallee == "kk_sequence_zip_transform"
                     var runtimeArguments = [loweredReceiverID] + normalizedArgIDs
                     if runtimeCallee == "kk_sequence_sumOf"
                         || runtimeCallee == "kk_sequence_sumBy"
@@ -721,6 +726,18 @@ extension CallLowerer {
                             instructions: &instructions
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
+                    }
+                    if runtimeCallee == "kk_sequence_zip_transform",
+                       normalizedArgIDs.count == 2
+                    {
+                        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                            normalizedArgIDs[1],
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        runtimeArguments = [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr]
                     }
                     if runtimeCallee == "kk_sequence_reduceOrNull"
                         || runtimeCallee == "kk_sequence_associate"
