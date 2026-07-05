@@ -176,15 +176,15 @@ extension DataFlowSemaPhase {
         } else {
             newIsExtensionProperty = false
         }
-        let adoptedSyntheticSymbol = adoptedSyntheticUuidSourceDeclarationSymbol(
+        let reusableSyntheticSymbol = reusableSyntheticDeclarationSymbol(
             kind: declaration.kind,
             fqName: fqName,
-            sourceFileID: file.fileID,
-            ctx: ctx,
+            file: file,
+            sourceManager: sourceManager,
             symbols: symbols,
             interner: interner
         )
-        if adoptedSyntheticSymbol == nil {
+        if reusableSyntheticSymbol == nil {
             checkAndReportDuplicateDeclaration(
                 newKind: declaration.kind,
                 fqName: fqName,
@@ -196,14 +196,20 @@ extension DataFlowSemaPhase {
                 newIsExtensionProperty: newIsExtensionProperty
             )
         }
-        let symbol = adoptedSyntheticSymbol ?? symbols.define(
-            kind: declaration.kind,
-            name: declaration.name,
-            fqName: fqName,
-            declSite: declaration.range,
-            visibility: declaration.visibility,
-            flags: declaration.flags
-        )
+        let symbol: SymbolID
+        if let reusableSyntheticSymbol {
+            symbol = reusableSyntheticSymbol
+            symbols.removeFlags(.synthetic, for: symbol)
+        } else {
+            symbol = symbols.define(
+                kind: declaration.kind,
+                name: declaration.name,
+                fqName: fqName,
+                declSite: declaration.range,
+                visibility: declaration.visibility,
+                flags: declaration.flags
+            )
+        }
         symbols.setSourceFileID(file.fileID, for: symbol)
         scope.insert(symbol)
         bindings.bindDecl(declID, symbol: symbol)
@@ -915,6 +921,39 @@ extension DataFlowSemaPhase {
 
         case .enumEntryDecl:
             break
+        }
+    }
+
+    private func reusableSyntheticDeclarationSymbol(
+        kind: SymbolKind,
+        fqName: [InternedString],
+        file: ASTFile,
+        sourceManager: SourceManager,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard kind == .class else { return nil }
+        guard reusableSyntheticSourceDeclarationKey(for: file, sourceManager: sourceManager, interner: interner) == fqName else {
+            return nil
+        }
+        return symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else { return false }
+            return symbol.kind == kind && symbol.flags.contains(.synthetic)
+        }
+    }
+
+    private func reusableSyntheticSourceDeclarationKey(
+        for file: ASTFile,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> [InternedString]? {
+        switch sourceManager.path(of: file.fileID) {
+        case "__bundled_kotlin/Result.kt":
+            return ["kotlin", "Result"].map { interner.intern($0) }
+        case "__bundled_kotlin/uuid/Uuid.kt":
+            return ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        default:
+            return nil
         }
     }
 

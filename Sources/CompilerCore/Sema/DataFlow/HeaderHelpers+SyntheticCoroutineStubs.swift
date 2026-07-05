@@ -113,11 +113,11 @@ extension DataFlowSemaPhase {
         )))
         let kotlinResultType = types.make(.classType(ClassType(
             classSymbol: kotlinResultSymbol,
-            args: [.out(kotlinResultTType)],
+            args: [.invariant(kotlinResultTType)],
             nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([kotlinResultTypeParamSymbol], for: kotlinResultSymbol)
-        types.setNominalTypeParameterVariances([.out], for: kotlinResultSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: kotlinResultSymbol)
         symbols.setPropertyType(kotlinResultType, for: kotlinResultSymbol)
 
         let continuationSymbol = ensureInterfaceSymbol(
@@ -425,7 +425,7 @@ extension DataFlowSemaPhase {
 
         let resultOfContinuationFactoryTType = types.make(.classType(ClassType(
             classSymbol: kotlinResultSymbol,
-            args: [.out(continuationFactoryTType)],
+            args: [.invariant(continuationFactoryTType)],
             nullability: .nonNull
         )))
         let continuationFactoryResumeWithType = types.make(.functionType(FunctionType(
@@ -502,7 +502,7 @@ extension DataFlowSemaPhase {
 
         let resultOfContinuationTType = types.make(.classType(ClassType(
             classSymbol: kotlinResultSymbol,
-            args: [.out(continuationTType)],
+            args: [.invariant(continuationTType)],
             nullability: .nonNull
         )))
         registerSyntheticCoroutineMember(

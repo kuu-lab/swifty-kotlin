@@ -62,7 +62,7 @@ struct ContinuationSyntheticStubTests {
         )
         let resultOfContinuationTType = sema.types.make(.classType(ClassType(
             classSymbol: resultSymbol,
-            args: [.out(continuationTType)],
+            args: [.invariant(continuationTType)],
             nullability: .nonNull
         )))
 
@@ -89,7 +89,7 @@ struct ContinuationSyntheticStubTests {
             resultOfContinuationTType ==
             sema.types.make(.classType(ClassType(
                 classSymbol: resultSymbol,
-                args: [.out(continuationTType)],
+                args: [.invariant(continuationTType)],
                 nullability: .nonNull
             )))
         )
@@ -110,7 +110,7 @@ struct ContinuationSyntheticStubTests {
         )))
         let resultOfContinuationFactoryTType = sema.types.make(.classType(ClassType(
             classSymbol: resultSymbol,
-            args: [.out(continuationFactoryTType)],
+            args: [.invariant(continuationFactoryTType)],
             nullability: .nonNull
         )))
         let continuationFactoryResumeWithType = sema.types.make(.functionType(FunctionType(

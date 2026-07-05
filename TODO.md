@@ -82,7 +82,7 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 > 移行元: `Sources/Runtime/RuntimeResult.swift` (16 @_cdecl)
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/Result.kt`
 
-- [ ] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
+- [x] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
 
 ## ターゲット外バックログ（本体非追跡）
 #### JS/Wasm/JVM stub登録呼び出し削除
