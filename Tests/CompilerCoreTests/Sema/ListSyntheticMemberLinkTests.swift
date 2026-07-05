@@ -42,6 +42,8 @@ struct ListSyntheticMemberLinkTests {
     @Test
     func testListTransformMembersUseRuntimeExternalLinksForParameterReceivers() throws {
         let source = """
+        import kotlin.random.Random
+
         fun render(values: List<Int>) {
             values.take(3)
             values.drop(2)
@@ -49,6 +51,7 @@ struct ListSyntheticMemberLinkTests {
             values.sorted()
             values.distinct()
             values.shuffled()
+            values.shuffled(Random)
         }
         """
 
@@ -60,18 +63,19 @@ struct ListSyntheticMemberLinkTests {
             let sema = try #require(ctx.sema)
 
             let expectedExternalLinks = [
-                "take": "kk_list_take",
-                "drop": "kk_list_drop",
-                "reversed": "kk_list_reversed",
-                "sorted": "kk_list_sorted",
-                "distinct": "kk_list_distinct",
-                "shuffled": "kk_list_shuffled",
+                ("take", 1, "kk_list_take"),
+                ("drop", 1, "kk_list_drop"),
+                ("reversed", 0, "kk_list_reversed"),
+                ("sorted", 0, "kk_list_sorted"),
+                ("distinct", 0, "kk_list_distinct"),
+                ("shuffled", 0, "kk_list_shuffled"),
+                ("shuffled", 1, "kk_list_shuffled_random"),
             ]
 
-            for (memberName, externalLinkName) in expectedExternalLinks {
+            for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
+                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && args.count == argumentCount
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")

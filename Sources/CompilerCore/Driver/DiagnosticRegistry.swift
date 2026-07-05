@@ -501,6 +501,12 @@ enum DiagnosticRegistry {
             summary: "Property in object literal must have a type annotation or initializer."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0102",
+            pass: "SEMA",
+            defaultSeverity: .warning,
+            summary: "Synthetic stdlib stub duplicates a bundled Kotlin source declaration."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-TAILREC",
             pass: "SEMA",
             defaultSeverity: .warning,

@@ -396,7 +396,7 @@ extension CodegenBackendIntegrationTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListAggregateRuntime", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListAggregateRuntime", emit: .llvmIR)
             try runToLowering(ctx)
 
             let module = try XCTUnwrap(ctx.kir)
@@ -814,4 +814,3 @@ extension CodegenBackendIntegrationTests {
         try assertKotlinOutput(source, moduleName: "ListToTypeArrayRuntime", expected: "3\n3\n2\n[3, 1, 2]\n")
     }
 }
-

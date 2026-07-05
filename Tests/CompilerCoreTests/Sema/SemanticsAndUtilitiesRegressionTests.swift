@@ -37,6 +37,38 @@ struct SemanticsAndUtilitiesRegressionTests {
     }
 
     @Test
+    func testAtomicMigrationAliasesResolveInAtomicsPackage() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
+        import kotlin.concurrent.atomics.AtomicInt
+        import kotlin.concurrent.atomics.AtomicLong
+
+        fun main() {
+            val intValue = AtomicInt(1)
+            val nextInt = intValue.incrementAndGet()
+            val intAgain = intValue.get()
+
+            val longValue = AtomicLong(3L)
+            val nextLong = longValue.incrementAndGet()
+            val longAgain = longValue.get()
+
+            println(nextInt + intAgain)
+            println(nextLong + longAgain)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Atomic migration aliases should resolve from kotlin.concurrent.atomics imports: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
+    @Test
     func testBuilderMemberChainWithSameNamePropertiesResolvesMemberFunctions() throws {
         let source = """
         class Config(
