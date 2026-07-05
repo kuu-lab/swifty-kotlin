@@ -129,6 +129,25 @@ public func kk_string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.lowercased(with: box.locale))
 }
 
+@_cdecl("kk_string_lowercase_locale_flat")
+public func kk_string_lowercase_locale_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ localeRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    runtimeRegisterFlatString(
+        runtimeStringFromRaw(kk_string_lowercase_locale(kk_string_from_flat(data, length, byteCount, hash), localeRaw)) ?? "",
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_uppercase_locale")
 public func kk_string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -136,6 +155,25 @@ public func kk_string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
         return runtimeMakeStringRaw(source.uppercased())
     }
     return runtimeMakeStringRaw(source.uppercased(with: box.locale))
+}
+
+@_cdecl("kk_string_uppercase_locale_flat")
+public func kk_string_uppercase_locale_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ localeRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    runtimeRegisterFlatString(
+        runtimeStringFromRaw(kk_string_uppercase_locale(kk_string_from_flat(data, length, byteCount, hash), localeRaw)) ?? "",
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("kk_string_compareTo_locale")
@@ -151,6 +189,25 @@ public func kk_string_compareTo_locale(_ lhsRaw: Int, _ rhsRaw: Int, _ localeRaw
     case .orderedSame:
         return 0
     }
+}
+
+@_cdecl("kk_string_compareTo_locale_flat")
+public func kk_string_compareTo_locale_flat(
+    _ lhsData: UnsafePointer<UInt8>?,
+    _ lhsLength: Int,
+    _ lhsByteCount: Int,
+    _ lhsHash: Int,
+    _ rhsData: UnsafePointer<UInt8>?,
+    _ rhsLength: Int,
+    _ rhsByteCount: Int,
+    _ rhsHash: Int,
+    _ localeRaw: Int
+) -> Int {
+    kk_string_compareTo_locale(
+        kk_string_from_flat(lhsData, lhsLength, lhsByteCount, lhsHash),
+        kk_string_from_flat(rhsData, rhsLength, rhsByteCount, rhsHash),
+        localeRaw
+    )
 }
 
 private enum NormalizationFormTag: Int {
@@ -194,9 +251,41 @@ public func kk_string_normalize(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     return runtimeMakeStringRaw(runtimeNormalizedString(source, formTagRaw: formTagRaw))
 }
 
+@_cdecl("kk_string_normalize_flat")
+public func kk_string_normalize_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formTagRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    runtimeRegisterFlatString(
+        runtimeNormalizedString(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash), formTagRaw: formTagRaw),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_isNormalized")
 public func kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let normalized = runtimeNormalizedString(source, formTagRaw: formTagRaw)
+    return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
+}
+
+@_cdecl("kk_string_isNormalized_flat")
+public func kk_string_isNormalized_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formTagRaw: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let normalized = runtimeNormalizedString(source, formTagRaw: formTagRaw)
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
@@ -210,6 +299,23 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
         return runtimeMakeStringListRaw([source])
     }
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
+}
+
+@_cdecl("kk_string_split_flat")
+public func kk_string_split_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimData: UnsafePointer<UInt8>?,
+    _ delimLength: Int,
+    _ delimByteCount: Int,
+    _ delimHash: Int
+) -> Int {
+    kk_string_split(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimData, delimLength, delimByteCount, delimHash)
+    )
 }
 
 // MARK: - STDLIB-TEXT-EDGE-001: CharSequence.split with ignoreCase and limit
@@ -226,6 +332,27 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     }
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
+    )
+}
+
+@_cdecl("kk_string_split_limit_flat")
+public func kk_string_split_limit_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimData: UnsafePointer<UInt8>?,
+    _ delimLength: Int,
+    _ delimByteCount: Int,
+    _ delimHash: Int,
+    _ ignoreCaseRaw: Int,
+    _ limitRaw: Int
+) -> Int {
+    kk_string_split_limit(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimData, delimLength, delimByteCount, delimHash),
+        ignoreCaseRaw,
+        limitRaw
     )
 }
 
@@ -302,6 +429,24 @@ public func kk_string_subSequence(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     kk_string_substring(strRaw, startRaw, endRaw, 1, outThrown)
+}
+
+@_cdecl("kk_string_subSequence_flat")
+public func kk_string_subSequence_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ startRaw: Int,
+    _ endRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_subSequence(kk_string_from_flat(data, length, byteCount, hash), startRaw, endRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
 // STDLIB-TEXT-FN-068: String.slice(indices: IntRange)
@@ -427,76 +572,46 @@ public func kk_string_codePointCount_range(
 
 @_cdecl("kk_string_toList")
 public func kk_string_toList(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeListRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    return registerRuntimeObject(RuntimeListBox(values: charValues))
 }
-
-// MARK: - STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
-
-/// Converts a `String` to a fresh `MutableList<Char>` by iterating its Unicode
-/// scalars.  In the runtime, `List` and `MutableList` share the same
-/// `RuntimeListBox` representation, so this mirrors `kk_string_toList` while
-/// returning a value the caller can mutate.
-/// Implements `kotlin.text.CharSequence.toMutableList(): MutableList<Char>`.
 @_cdecl("kk_string_toMutableList")
 public func kk_string_toMutableList(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeListRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    return registerRuntimeObject(RuntimeListBox(values: charValues))
 }
-
 @_cdecl("kk_string_toCharArray")
 public func kk_string_toCharArray(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeArrayRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    let box = RuntimeArrayBox(length: charValues.count)
+    box.values = charValues
+    return registerRuntimeObject(box)
 }
-
-// MARK: - STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
-
-/// Converts a `String` to a boxed `Array<Char>` by iterating its Unicode scalars.
-/// Unlike `toCharArray()` which returns a primitive `CharArray`, this returns a
-/// generic `Array<Char>` compatible with `Collection<Char>.toTypedArray()`.
 @_cdecl("kk_string_toTypedArray")
 public func kk_string_toTypedArray(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeArrayRaw(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    let box = RuntimeArrayBox(length: charValues.count)
+    box.values = charValues
+    return registerRuntimeObject(box)
 }
-
-// MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
-
-/// Appends every character of the string (as a boxed `Char`) to `destRaw`,
-/// which must be a mutable collection (List or Set).  Returns `destRaw` so
-/// callers can chain: `val result = "abc".toCollection(mutableListOf())`.
-///
-/// Mirrors `kotlin.text.CharSequence.toCollection<C : MutableCollection<in Char>>`.
 @_cdecl("kk_string_toCollection")
 public func kk_string_toCollection(_ strRaw: Int, _ destRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
     guard runtimeMutableCollectionExists(destRaw) else {
         invalidContainerPanic(#function, "mutable collection")
     }
-    for charRaw in charRaws {
-        runtimeAppendToMutableCollection(destRaw, charRaw)
+    for charValue in charValues {
+        runtimeAppendToMutableCollection(destRaw, charValue)
     }
     return destRaw
 }
-
-// MARK: - STDLIB-TEXT-FN-108: CharSequence.toSortedSet()
-
-/// Returns a `SortedSet<Char>` containing all unique UTF-16 code units of the string
-/// in their natural `Char` ascending order.
-/// Implements `kotlin.text.CharSequence.toSortedSet(): SortedSet<Char>`.
 @_cdecl("kk_string_toSortedSet")
 public func kk_string_toSortedSet(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { kk_box_char(Int($0)) }
-    let deduped = runtimeDeduplicatePreservingOrder(charRaws)
+    let charValues = runtimeStringUTF16CodeUnits(strRaw).map { RuntimeValue(charScalar: Int($0)) }
+    let deduped = runtimeDeduplicatePreservingOrder(charValues)
     let sorted = deduped.sorted { runtimeCompareValues($0, $1) < 0 }
-    return registerRuntimeObject(RuntimeSetBox(elements: sorted))
+    return registerRuntimeObject(RuntimeSetBox(values: sorted))
 }
-
-// MARK: - STDLIB-640: CharArray.concatToString()
-
-/// Converts a `CharArray` to a `String` by concatenating all characters.
-/// This is the inverse of `String.toCharArray()`.
 @_cdecl("kk_chararray_concatToString")
 public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     guard let box = runtimeArrayBox(from: arrRaw) else {
@@ -517,10 +632,13 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
 /// Returns a lazy `Iterable<Char>` wrapper around the given string.
 /// Character materialisation is deferred until the iterable is actually consumed
 /// (e.g. via `iterator()`, `toList()`, or `for-in`).  Creation is O(1).
+func runtimeStringAsIterable(_ source: String) -> Int {
+    registerRuntimeObject(RuntimeStringIterableBox(source: source))
+}
+
 @_cdecl("kk_string_asIterable")
 public func kk_string_asIterable(_ strRaw: Int) -> Int {
-    let box = RuntimeStringIterableBox(strRaw: strRaw)
-    return registerRuntimeObject(box)
+    runtimeStringAsIterable(runtimeStringFromRawOrPanic(strRaw, caller: #function))
 }
 
 /// Materialise the lazy string-iterable into a `List<Char>`.
@@ -529,39 +647,33 @@ public func kk_string_asIterable(_ strRaw: Int) -> Int {
 @_cdecl("kk_string_iterable_toList")
 public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
     guard let box = runtimeStringIterableBox(from: iterableRaw) else {
-        // Validate that the raw value is a valid string handle before falling
-        // back, to avoid reinterpreting an unrelated object pointer as a string.
-        if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
-            return kk_string_toList(iterableRaw)
-        }
-        // Unrecognised input — return an empty list.
+        // Only the lazy iterable wrapper is accepted; legacy raw string handles
+        // must not be reinterpreted as iterables.
         return kk_string_toList(runtimeMakeStringRaw(""))
     }
-    return kk_string_toList(box.strRaw)
+    return kk_string_toList(runtimeMakeStringRaw(box.source))
 }
 
 /// Create an iterator from a lazy string iterable (for `for (c in str.asIterable())`).
 @_cdecl("kk_string_iterable_iterator")
 public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     if let box = runtimeStringIterableBox(from: iterableRaw) {
-        return kk_string_iterator(box.strRaw)
+        return kk_string_iterator(runtimeMakeStringRaw(box.source))
     }
-    // Validate that the raw value is a valid string handle before falling
-    // back, to avoid reinterpreting an unrelated object pointer as a string.
-    if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
-        return kk_string_iterator(iterableRaw)
-    }
-    // Return an empty iterator for unrecognised inputs (including null
-    // sentinel) rather than misinterpreting them as string handles.
+    // Only the lazy iterable wrapper is accepted; legacy raw string handles
+    // must not be reinterpreted as iterables. Return an empty iterator.
     let box = RuntimeStringIteratorBox(charRaws: [])
     return registerRuntimeObject(box)
 }
 
+func runtimeStringAsSequence(_ source: String) -> Int {
+    // Lazy: store only the string handle; characters are yielded on demand
+    registerRuntimeObject(RuntimeSequenceBox(steps: [.stringSource(source: source)]))
+}
+
 @_cdecl("kk_string_asSequence")
 public func kk_string_asSequence(_ strRaw: Int) -> Int {
-    // Lazy: store only the string handle; characters are yielded on demand
-    let seq = RuntimeSequenceBox(steps: [.stringSource(strRaw: strRaw)])
-    return registerRuntimeObject(seq)
+    runtimeStringAsSequence(runtimeStringFromRawOrPanic(strRaw, caller: #function))
 }
 
 // MARK: - STDLIB-TEXT-FN-115: CharSequence.withIndex() — Iterable<IndexedValue<Char>>
@@ -579,6 +691,16 @@ public func kk_string_withIndex(_ strRaw: Int) -> Int {
         elements.append(runtimeIndexedValueNew(index: idx, value: charRaw))
     }
     return runtimeMakeListRaw(elements)
+}
+
+@_cdecl("kk_string_withIndex_flat")
+public func kk_string_withIndex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    kk_string_withIndex(kk_string_from_flat(data, length, byteCount, hash))
 }
 
 
@@ -688,6 +810,66 @@ public func kk_string_removeSurrounding_pair(
     return runtimeMakeStringRaw(String(source[start ..< end]))
 }
 
+// MARK: - Flat ABI wrappers
+
+@_cdecl("kk_string_removePrefix_flat")
+public func kk_string_removePrefix_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ prefixData: UnsafePointer<UInt8>?, _ prefixLength: Int, _ prefixByteCount: Int, _ prefixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removePrefix(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(prefixData, prefixLength, prefixByteCount, prefixHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeSuffix_flat")
+public func kk_string_removeSuffix_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ suffixData: UnsafePointer<UInt8>?, _ suffixLength: Int, _ suffixByteCount: Int, _ suffixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeSuffix(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(suffixData, suffixLength, suffixByteCount, suffixHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeSurrounding_flat")
+public func kk_string_removeSurrounding_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?, _ delimiterLength: Int, _ delimiterByteCount: Int, _ delimiterHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeSurrounding(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimiterData, delimiterLength, delimiterByteCount, delimiterHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_removeSurrounding_pair_flat")
+public func kk_string_removeSurrounding_pair_flat(
+    _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
+    _ prefixData: UnsafePointer<UInt8>?, _ prefixLength: Int, _ prefixByteCount: Int, _ prefixHash: Int,
+    _ suffixData: UnsafePointer<UInt8>?, _ suffixLength: Int, _ suffixByteCount: Int, _ suffixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?, _ outByteCount: UnsafeMutablePointer<Int>?, _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_removeSurrounding_pair(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(prefixData, prefixLength, prefixByteCount, prefixHash),
+        kk_string_from_flat(suffixData, suffixLength, suffixByteCount, suffixHash)
+    )
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_takeLast")
 public func kk_string_takeLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -744,6 +926,22 @@ public func kk_string_startsWith(_ strRaw: Int, _ prefixRaw: Int) -> Int {
     return kk_box_bool(source.hasPrefix(prefix) ? 1 : 0)
 }
 
+@_cdecl("kk_string_startsWith_flat")
+public func kk_string_startsWith_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ prefixData: UnsafePointer<UInt8>?,
+    _ prefixLength: Int,
+    _ prefixByteCount: Int,
+    _ prefixHash: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let prefix = runtimeStringFromFlatFields(data: prefixData, length: prefixLength, byteCount: prefixByteCount, hash: prefixHash)
+    return source.hasPrefix(prefix) ? 1 : 0
+}
+
 @_cdecl("kk_string_endsWith")
 public func kk_string_endsWith(_ strRaw: Int, _ suffixRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -796,6 +994,43 @@ public func kk_string_contains_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ igno
         }
     }
     return kk_box_bool(0)
+}
+
+@_cdecl("kk_string_contains_ignoreCase_flat")
+public func kk_string_contains_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
+    if other.isEmpty {
+        return 1
+    }
+    if ignoreCaseRaw == 0 {
+        return source.contains(other) ? 1 : 0
+    }
+    let sourceScalars = Array(source.unicodeScalars)
+    let otherScalars = Array(other.unicodeScalars)
+    if otherScalars.count > sourceScalars.count {
+        return 0
+    }
+    for offset in 0 ... (sourceScalars.count - otherScalars.count) {
+        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
+        let matches = zip(slice, otherScalars).allSatisfy {
+            String($0).caseInsensitiveCompare(String($1)) == .orderedSame
+        }
+        if matches {
+            return 1
+        }
+    }
+    return 0
 }
 // MARK: - Bridge functions for case conversion (MIGRATION-TEXT-005)
 

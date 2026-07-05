@@ -167,8 +167,7 @@ struct TypeCheckHelpers {
         if isRangeExpr, iterableType == sema.types.ulongType {
             return sema.types.ulongType
         }
-        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(iterableType)),
-           let symbol = sema.symbols.symbol(classType.classSymbol)
+        if let (classType, symbol) = resolveClassTypeSymbol(iterableType, sema: sema)
         {
             switch interner.resolve(symbol.name) {
             case "IntRange", "IntProgression":

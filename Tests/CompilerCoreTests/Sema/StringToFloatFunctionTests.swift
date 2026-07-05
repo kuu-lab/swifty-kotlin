@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-097: Validates that `String.toFloat()` resolves through Sema
 /// for plain String receivers as well as literal / branch / nullable contexts.
-/// The runtime link involved is `kk_string_toFloat` (see
+/// The runtime link involved is `kk_string_toFloat_flat` (see
 /// `Sources/Runtime/RuntimeStringStdlib.swift`).
 @Suite
 struct StringToFloatFunctionTests {

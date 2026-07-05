@@ -301,7 +301,7 @@ extension OverloadResolverTests {
     @Test func testUnifiedInference_NonGenericSupertypeSkipsDecomposition() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "ng_T", symbols: symbols, interner: interner)
         let tType = types.make(.typeParam(TypeParamType(symbol: tSym)))
 

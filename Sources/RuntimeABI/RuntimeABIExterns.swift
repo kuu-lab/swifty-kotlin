@@ -25,19 +25,17 @@ public enum RuntimeABIExterns {
                 returnType: spec.returnTypeString
             )
         }
-
-        /// Generates the C extern declaration string.
-        public var cExternDeclaration: String {
-            let params: String = if parameterTypes.isEmpty {
-                "void"
-            } else {
-                parameterTypes.joined(separator: ", ")
-            }
-            return "extern \(returnType) \(name)(\(params));"
-        }
     }
 
     /// All runtime extern declarations, ordered by section.
     public static let allExterns = RuntimeABISpec.allFunctions.map(ExternDecl.init(spec:))
 
+    private static let externsByName: [String: ExternDecl] = Dictionary(
+        uniqueKeysWithValues: allExterns.map { ($0.name, $0) }
+    )
+
+    /// Look up an extern declaration by symbol name.
+    public static func externDecl(named name: String) -> ExternDecl? {
+        externsByName[name]
+    }
 }

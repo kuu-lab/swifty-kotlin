@@ -147,6 +147,66 @@ extension CallTypeChecker {
         }
     }
 
+    /// Returns the visible stdlib function symbol for source-backed stdlib
+    /// declarations that still need compiler special-casing.
+    ///
+    /// A migrated bundled function is no longer synthetic, so the generic
+    /// shadowing guard would otherwise treat the stdlib declaration itself as a
+    /// user shadow.  We allow the exact stdlib FQN and reject any other
+    /// non-synthetic candidate with the same simple name.
+    func sourceOrSyntheticStdlibFunctionSymbol(
+        _ name: InternedString,
+        fqComponents: [String],
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let internedFQ = fqComponents.map { ctx.interner.intern($0) }
+        var stdlibSymbol: SymbolID?
+        for candidate in ctx.cachedScopeLookup(name) {
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function
+            else {
+                continue
+            }
+            if symbol.fqName == internedFQ {
+                if symbol.flags.contains(.synthetic) {
+                    return candidate
+                }
+                stdlibSymbol = stdlibSymbol ?? candidate
+                continue
+            }
+            if !symbol.flags.contains(.synthetic) {
+                return nil
+            }
+        }
+        return stdlibSymbol
+    }
+
+    /// Returns true for legacy synthetic runtime stubs, but not for imported
+    /// Kotlin stdlib source implementations. This lets source stdlib wrappers
+    /// run their Kotlin body instead of being swallowed by an intrinsic path.
+    func shouldUseRuntimeStdlibSpecialCall(
+        _ name: InternedString,
+        fqComponents: [String],
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        if isShadowedByNonSyntheticSymbol(name, locals: locals, ctx: ctx) {
+            return false
+        }
+        let interner = ctx.interner
+        let internedFQ = fqComponents.map { interner.intern($0) }
+        return ctx.cachedScopeLookup(name).contains { candidate in
+            guard let sym = ctx.cachedSymbol(candidate),
+                  sym.kind == .function,
+                  sym.flags.contains(.synthetic),
+                  !sym.flags.contains(.importedLibrary)
+            else {
+                return false
+            }
+            return sym.fqName == internedFQ
+        }
+    }
+
     /// Returns the fully qualified path of a callee expression when it is
     /// composed of dotted names like `kotlin.coroutines.foo`.
     func qualifiedCalleePath(for exprID: ExprID, ast: ASTModule) -> [InternedString]? {

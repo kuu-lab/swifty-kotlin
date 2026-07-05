@@ -74,54 +74,25 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_sequence_joinTo", for: memberSymbol)
-
         let parameters: [(name: String, type: TypeID, hasDefault: Bool)] = [
             ("buffer", appendableType, false),
             ("separator", types.stringType, true),
             ("prefix", types.stringType, true),
             ("postfix", types.stringType, true),
         ]
-        var parameterTypes: [TypeID] = []
-        var parameterSymbols: [SymbolID] = []
-        var parameterDefaults: [Bool] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-            parameterTypes.append(parameter.type)
-            parameterSymbols.append(parameterSymbol)
-            parameterDefaults.append(parameter.hasDefault)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: appendableType,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: parameterDefaults,
-                valueParameterIsVararg: Array(repeating: false, count: parameters.count),
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
+        registerSyntheticFunctionStub(
+            named: "joinTo",
+            ownerFQName: sequenceFQName,
+            parentSymbol: sequenceSymbol,
+            receiverType: receiverType,
+            parameters: syntheticFunctionParameters(parameters),
+            returnType: appendableType,
+            externalLinkName: "kk_sequence_joinTo",
+            flags: [.synthetic, .operatorFunction],
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
         )
     }
 
@@ -176,53 +147,24 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_sequence_joinToString", for: memberSymbol)
-
         let parameters: [(name: String, type: TypeID, hasDefault: Bool)] = [
             ("separator", types.stringType, true),
             ("prefix", types.stringType, true),
             ("postfix", types.stringType, true),
         ]
-        var parameterTypes: [TypeID] = []
-        var parameterSymbols: [SymbolID] = []
-        var parameterDefaults: [Bool] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-            parameterTypes.append(parameter.type)
-            parameterSymbols.append(parameterSymbol)
-            parameterDefaults.append(parameter.hasDefault)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: types.stringType,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: parameterDefaults,
-                valueParameterIsVararg: Array(repeating: false, count: parameters.count),
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
+        registerSyntheticFunctionStub(
+            named: "joinToString",
+            ownerFQName: sequenceFQName,
+            parentSymbol: sequenceSymbol,
+            receiverType: receiverType,
+            parameters: syntheticFunctionParameters(parameters),
+            returnType: types.stringType,
+            externalLinkName: "kk_sequence_joinToString",
+            flags: [.synthetic, .operatorFunction],
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
         )
     }
 
@@ -236,55 +178,20 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        guard symbols.symbol(ownerSymbol) != nil else {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
             return
         }
-        let memberName = interner.intern(name)
-        let memberFQName = symbols.symbol(ownerSymbol)!.fqName + [memberName]
-        if symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.parameterTypes == parameters.map(\.type) &&
-                existingSignature.returnType == returnType
-        }) != nil {
-            return
-        }
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameters.map(\.type),
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: memberSymbol
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: ownerInfo.fqName,
+            parentSymbol: ownerSymbol,
+            receiverType: ownerType,
+            parameters: syntheticFunctionParameters(parameters),
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            matchReturnType: true,
+            symbols: symbols,
+            interner: interner
         )
     }
 
@@ -830,67 +737,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-
-        let chunkedName = interner.intern("chunked")
-        let chunkedFQName = sequenceFQName + [chunkedName]
-        if let listSymbol = symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]) {
-            let typeParamType = types.make(.typeParam(TypeParamType(
-                symbol: typeParamSymbol,
-                nullability: .nonNull
-            )))
-            let chunkType = types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.invariant(typeParamType)],
-                nullability: .nonNull
-            )))
-            let transformType = types.make(.functionType(FunctionType(
-                params: [chunkType],
-                returnType: types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let returnType = types.make(.classType(ClassType(
-                classSymbol: sequenceSymbol,
-                args: [.out(types.anyType)],
-                nullability: .nonNull
-            )))
-            let alreadyRegistered = symbols.lookupAll(fqName: chunkedFQName).contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes.count == 2
-                    && symbols.externalLinkName(for: symID) == "kk_sequence_chunked_transform"
-            }
-            if !alreadyRegistered {
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: chunkedName,
-                    fqName: chunkedFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .inlineFunction]
-                )
-                symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName("kk_sequence_chunked_transform", for: memberSymbol)
-                let receiverType = types.make(.classType(ClassType(
-                    classSymbol: sequenceSymbol,
-                    args: [.out(typeParamType)],
-                    nullability: .nonNull
-                )))
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [types.intType, transformType],
-                        returnType: returnType,
-                        typeParameterSymbols: [typeParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-        }
 
         let nullableReceiverType = types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,

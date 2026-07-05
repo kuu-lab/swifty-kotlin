@@ -2,6 +2,8 @@ import Foundation
 
 extension BuildASTPhase.ExpressionParser {
     func parsePrimary() -> ExprID? {
+        defer { leaveRecursion() }
+        guard enterRecursion() else { return nil }
         guard let token = current() else {
             return nil
         }

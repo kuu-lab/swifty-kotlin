@@ -219,6 +219,9 @@ extension DeclTypeChecker {
             symbol,
             ctx: ctx.with(currentDeclSymbol: symbol)
         )
+        if function.modifiers.contains(.external), function.body == .unit {
+            return
+        }
 
         var locals: LocalBindings = [:]
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
@@ -264,13 +267,24 @@ extension DeclTypeChecker {
         // functions with inferred return types also skip the platform-type warning.
         functionCtx.suppressPlatformReturnWarning = (function.returnType == nil)
 
-        // Abstract methods use .unit as their body sentinel – skip body type
-        // inference. Gate on abstractType so non-abstract missing bodies still
-        // hit the Unit <: ReturnType constraint.
+        // Bodyless declarations use .unit as their sentinel. Abstract and expect
+        // functions declare a contract only, while external functions lower to a
+        // runtime symbol via their header metadata.
+        let symbolFlags = sema.symbols.symbol(symbol)?.flags ?? []
         let isAbstract = function.body == .unit
-            && (sema.symbols.symbol(symbol)?.flags.contains(.abstractType) ?? false)
+            && symbolFlags.contains(.abstractType)
         if isAbstract { return }
-        if function.modifiers.contains(.external) { return }
+        if function.body == .unit {
+            if function.modifiers.contains(.external) || symbolFlags.contains(.expectDeclaration) {
+                return
+            }
+            diagnostics.error(
+                "KSWIFTK-SEMA-0009",
+                "Function '\(ctx.interner.resolve(function.name))' must have a body.",
+                range: function.range
+            )
+            return
+        }
 
         let bodyType = inferFunctionBodyType(
             function.body,

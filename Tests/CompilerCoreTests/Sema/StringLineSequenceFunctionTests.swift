@@ -4,7 +4,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-036: Validates that `CharSequence.lineSequence()` resolves
 /// through Sema for `String` / `CharSequence` receivers, dispatches to the
-/// runtime helper `kk_string_lineSequence`, and is classified as non-throwing.
+/// runtime helper `kk_string_lineSequence_flat` for String receivers, and is classified as non-throwing.
 @Suite
 struct StringLineSequenceFunctionTests {
     private func allMemberCallExprIDs(
@@ -99,7 +99,7 @@ struct StringLineSequenceFunctionTests {
         }
     }
 
-    /// The lowered KIR should call the runtime helper `kk_string_lineSequence`,
+    /// The lowered KIR should call the runtime helper `kk_string_lineSequence_flat`,
     /// and the call must be classified as non-throwing.
     @Test func testLineSequenceLowersToRuntimeHelperNonThrowing() throws {
         let source = """
@@ -123,8 +123,8 @@ struct StringLineSequenceFunctionTests {
             )
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let lineSequenceFlags = try #require(
-                throwFlags["kk_string_lineSequence"],
-                "Expected kk_string_lineSequence calls to appear in main()"
+                throwFlags["kk_string_lineSequence_flat"],
+                "Expected kk_string_lineSequence_flat calls to appear in main()"
             )
             #expect(lineSequenceFlags.count == 1)
             #expect(

@@ -14,6 +14,8 @@ extension CodegenBackendIntegrationTests {
 
             println("Hello".uppercase())
             println("Hello".lowercase())
+            println("I".lowercase(Locale("tr")))
+            println("i".uppercase(Locale("tr")))
 
             val locale = Locale("en", "US")
             println(locale.language)
@@ -30,6 +32,8 @@ extension CodegenBackendIntegrationTests {
                 3.5
                 HELLO
                 hello
+                \u{131}
+                \u{130}
                 en
                 US
                 """ + "\n"

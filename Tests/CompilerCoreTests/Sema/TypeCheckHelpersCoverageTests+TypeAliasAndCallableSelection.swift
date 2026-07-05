@@ -153,7 +153,7 @@ extension TypeCheckHelpersCoverageTests {
             sema: fixture.sema
         )
         if case let .in(inner) = substitutedIn {
-            #expect(fixture.types.kind(of: inner) == .primitive(.string, .nullable))
+            #expect(fixture.types.kind(of: inner) == .stringStruct(.nullable))
         } else {
             Issue.record("Expected in")
         }

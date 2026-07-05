@@ -665,7 +665,7 @@ extension CallLowerer {
         let anyFallbackReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullAnyFallbackReceiverType = sema.types.makeNonNullable(anyFallbackReceiverType)
         let allowsAnyFallback: Bool = switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {
-        case .primitive(.string, _):
+        case .stringStruct:
             false
         case .primitive:
             true
@@ -1063,6 +1063,20 @@ extension CallLowerer {
             ))
             instructions.append(.label(endLabel))
             return result
+        }
+
+        if let accessorRead = tryLowerMemberPropertyAccessorRead(
+            exprID,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            args: args,
+            ast: ast,
+            sema: sema,
+            interner: interner,
+            instructions: &instructions.instructions
+        ) {
+            instructions.append(.label(endLabel))
+            return accessorRead
         }
 
         // Lower arguments only on the non-null path.

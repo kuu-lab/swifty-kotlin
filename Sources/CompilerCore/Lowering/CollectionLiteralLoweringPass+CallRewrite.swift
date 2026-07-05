@@ -1,6 +1,6 @@
 
 extension CollectionLiteralLoweringPass {
-    private func shouldPreserveSourceBackedListAggregateCall(
+    private func shouldPreserveSourceBackedAggregateCall(
         symbol: SymbolID?,
         callee: InternedString,
         lookup: CollectionLiteralLookupTables,
@@ -11,7 +11,13 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.reduceName
             || callee == lookup.reduceOrNullName
             || callee == lookup.scanName
-            || callee == lookup.runningFoldName,
+            || callee == lookup.runningFoldName
+            || callee == lookup.associateName
+            || callee == lookup.associateByName
+            || callee == lookup.groupByName
+            || callee == lookup.sumOfName
+            || callee == lookup.maxByOrNullName
+            || callee == lookup.minByOrNullName,
             let symbol,
             let sema = ctx.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),
@@ -125,6 +131,16 @@ extension CollectionLiteralLoweringPass {
                         continue
                     }
 
+                    if shouldPreserveSourceBackedAggregateCall(
+                        symbol: symbol,
+                        callee: callee,
+                        lookup: lookup,
+                        ctx: ctx
+                    ) {
+                        loweredBody.append(instruction)
+                        continue
+                    }
+
                     if rewriteSequenceCollectionCall(
                         symbol: symbol,
                         callee: callee,
@@ -139,16 +155,6 @@ extension CollectionLiteralLoweringPass {
                         state: &state,
                         loweredBody: &loweredBody
                     ) {
-                        continue
-                    }
-
-                    if shouldPreserveSourceBackedListAggregateCall(
-                        symbol: symbol,
-                        callee: callee,
-                        lookup: lookup,
-                        ctx: ctx
-                    ) {
-                        loweredBody.append(instruction)
                         continue
                     }
 

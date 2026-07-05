@@ -333,6 +333,18 @@ extension DataFlowSemaPhase {
             if consume(character: "E") {
                 return types.errorType
             }
+            if consume(prefix: "UB") {
+                return types.ubyteType
+            }
+            if consume(prefix: "US") {
+                return types.ushortType
+            }
+            if consume(prefix: "UI") {
+                return types.uintType
+            }
+            if consume(prefix: "UJ") {
+                return types.ulongType
+            }
             if consume(character: "U") {
                 return types.unitType
             }
@@ -400,7 +412,7 @@ extension DataFlowSemaPhase {
                 return nil
             }
             if name == "kotlin_String" {
-                return types.make(.primitive(.string, .nonNull))
+                return types.stringType
             }
 
             let fqName = name.split(separator: ".").map { interner.intern(String($0)) }
@@ -457,7 +469,11 @@ extension DataFlowSemaPhase {
             }
 
             var contextReceivers: [TypeID] = []
-            if consume(character: "C") {
+            if peek() == "C",
+               index + 1 < source.count,
+               source[index + 1].isNumber
+            {
+                _ = consume(character: "C")
                 guard let contextArity = parseNumber(), consume(character: "<") else {
                     return nil
                 }
@@ -540,6 +556,8 @@ extension DataFlowSemaPhase {
                 types.nullableAnyType
             case let .primitive(primitive, _):
                 types.make(.primitive(primitive, .nullable))
+            case .stringStruct:
+                types.makeNullable(type)
             case let .classType(classType):
                 types.make(.classType(ClassType(
                     classSymbol: classType.classSymbol,

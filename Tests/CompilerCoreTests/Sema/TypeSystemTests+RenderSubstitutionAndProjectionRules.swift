@@ -21,7 +21,7 @@ extension TypeSystemTests {
         #expect(ts.renderType(ts.make(.primitive(.long, .nonNull))) == "Long")
         #expect(ts.renderType(ts.make(.primitive(.float, .nonNull))) == "Float")
         #expect(ts.renderType(ts.make(.primitive(.double, .nonNull))) == "Double")
-        #expect(ts.renderType(ts.make(.primitive(.string, .nonNull))) == "String")
+        #expect(ts.renderType(ts.stringType) == "String")
     }
 
     @Test
@@ -89,7 +89,7 @@ extension TypeSystemTests {
     func testRenderTypeFunctionTypeWithReceiver() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let ft = ts.make(.functionType(FunctionType(receiver: stringType, params: [], returnType: intType)))
         let rendered = ts.renderType(ft)
         #expect(rendered.contains("String."))
@@ -99,7 +99,7 @@ extension TypeSystemTests {
     func testRenderTypeFunctionTypeWithContextReceivers() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let ft = ts.make(.functionType(FunctionType(
             contextReceivers: [stringType, intType],
             receiver: stringType,
@@ -113,7 +113,7 @@ extension TypeSystemTests {
     func testRenderTypeIntersection() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let inter = ts.make(.intersection([intType, stringType]))
         let rendered = ts.renderType(inter)
         #expect(rendered.contains(" & "))

@@ -320,6 +320,18 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_zip_transform",
+            parameters: [
+                RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "otherRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Sequence"
+        ),
         // Sorting operations (STDLIB-272)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_sorted",

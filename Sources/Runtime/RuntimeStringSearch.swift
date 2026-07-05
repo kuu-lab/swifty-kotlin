@@ -284,6 +284,19 @@ public func kk_string_indexOfFirst(
     return -1
 }
 
+@_cdecl("kk_string_indexOfFirst_flat")
+public func kk_string_indexOfFirst_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_indexOfFirst(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_indexOfLast")
 public func kk_string_indexOfLast(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -306,6 +319,19 @@ public func kk_string_indexOfLast(
         }
     }
     return lastIndex
+}
+
+@_cdecl("kk_string_indexOfLast_flat")
+public func kk_string_indexOfLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_indexOfLast(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 @_cdecl("kk_string_lastIndexOf")
@@ -356,6 +382,19 @@ public func kk_string_indexOf_char(_ strRaw: Int, _ charRaw: Int, _ startIndexRa
     return -1
 }
 
+@_cdecl("kk_string_indexOf_char_flat")
+public func kk_string_indexOf_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charRaw: Int,
+    _ startIndexRaw: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    kk_string_indexOf_char(kk_string_from_flat(data, length, byteCount, hash), charRaw, startIndexRaw, ignoreCaseRaw)
+}
+
 // MARK: - STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase
 
 @_cdecl("kk_string_indexOf_ignoreCase")
@@ -365,6 +404,9 @@ public func kk_string_indexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ start
     let ignoreCase = ignoreCaseRaw != 0
 
     if other.isEmpty {
+        if ignoreCase {
+            return -1
+        }
         let start = max(0, min(startIndexRaw, source.unicodeScalars.count))
         return start
     }
@@ -392,6 +434,27 @@ public func kk_string_indexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ start
     return -1
 }
 
+@_cdecl("kk_string_indexOf_ignoreCase_flat")
+public func kk_string_indexOf_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ startIndexRaw: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    kk_string_indexOf_ignoreCase(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash),
+        startIndexRaw,
+        ignoreCaseRaw
+    )
+}
+
 @_cdecl("kk_string_lastIndexOf_ignoreCase")
 public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -402,6 +465,9 @@ public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ s
     let otherScalars = Array(other.unicodeScalars)
 
     if other.isEmpty {
+        if ignoreCase {
+            return sourceScalars.isEmpty ? -1 : sourceScalars.count - 1
+        }
         let start = max(0, min(startIndexRaw, sourceScalars.count))
         return start
     }
@@ -426,6 +492,27 @@ public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ s
         if matches { lastIndex = offset }
     }
     return lastIndex
+}
+
+@_cdecl("kk_string_lastIndexOf_ignoreCase_flat")
+public func kk_string_lastIndexOf_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ startIndexRaw: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    kk_string_lastIndexOf_ignoreCase(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash),
+        startIndexRaw,
+        ignoreCaseRaw
+    )
 }
 
 // MARK: - STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)

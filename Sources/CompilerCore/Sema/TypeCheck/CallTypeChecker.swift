@@ -649,8 +649,11 @@ final class CallTypeChecker {
            calleeName == knownNames.runCatching,
            locals[calleeName] == nil,
            isLambdaOrCallableRefArg(args[0].expr, ast: ast),
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
-           isSyntheticStdlibSymbol(calleeName, fqComponents: ["kotlin", "runCatching"], ctx: ctx)
+           let runCatchingSymbol = sourceOrSyntheticStdlibFunctionSymbol(
+               calleeName,
+               fqComponents: ["kotlin", "runCatching"],
+               ctx: ctx
+           )
         {
             let lambdaType = driver.inferExpr(
                 args[0].expr, ctx: ctx, locals: &locals, expectedType: nil
@@ -669,7 +672,7 @@ final class CallTypeChecker {
             let resultType: TypeID = if let resultClassSymbol = sema.symbols.lookup(fqName: knownNames.kotlinResultFQName) {
                 sema.types.make(.classType(ClassType(
                     classSymbol: resultClassSymbol,
-                    args: [.out(innerType)],
+                    args: [.invariant(innerType)],
                     nullability: .nonNull
                 )))
             } else {
@@ -677,14 +680,12 @@ final class CallTypeChecker {
             }
             // Mark the lambda for closure ABI expansion in KIR
             sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-            // Bind the call to the synthetic runCatching function symbol
-            if let runCatchingSymbol = sema.symbols.lookup(fqName: knownNames.kotlinRunCatchingFQName) {
-                sema.bindings.bindCall(id, binding: CallBinding(
-                    chosenCallee: runCatchingSymbol,
-                    substitutedTypeArguments: [innerType],
-                    parameterMapping: [0: 0]
-                ))
-            }
+            // Bind the call to the stdlib runCatching function symbol.
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: runCatchingSymbol,
+                substitutedTypeArguments: [innerType],
+                parameterMapping: [0: 0]
+            ))
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
         }
@@ -1016,13 +1017,12 @@ final class CallTypeChecker {
         // --- Stdlib measureTimeMillis { ... } (STDLIB-131) ---
         if let calleeName,
            args.count == 1,
-           topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureTimeMillis"],
                locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: true
-           ) == .measureTimeMillis
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — the block's return type is
@@ -1043,13 +1043,12 @@ final class CallTypeChecker {
         // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-FN-006) ---
         if let calleeName,
            args.count == 1,
-           topLevelStdlibSpecialCallKind(
-               calleeName: calleeName,
-               argCount: args.count,
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureTimeMicros"],
                locals: locals,
-               ctx: ctx,
-               rejectNonSyntheticShadow: true
-           ) == .measureTimeMicros
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as
@@ -1070,7 +1069,12 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureNanoTime",
            args.count == 1,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureNanoTime"],
+               locals: locals,
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as
@@ -1722,8 +1726,8 @@ final class CallTypeChecker {
             if explicitTypeArgs.count == 2 {
                 inferredTypeArgs = explicitTypeArgs
             } else if let expectedType,
-                      case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-                      sema.symbols.symbol(classType.classSymbol)?.fqName == functionFQName,
+                      let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
+                      symbol.fqName == functionFQName,
                       classType.args.count == 2
             {
                 let unpacked = classType.args.compactMap { arg -> TypeID? in
@@ -2424,8 +2428,7 @@ final class CallTypeChecker {
            interner.resolve(calleeName) == "callRecursive",
            args.count == 1,
            let receiverType = ctx.implicitReceiverType,
-           case let .classType(scopeClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-           let scopeSymbol = sema.symbols.symbol(scopeClass.classSymbol),
+           let (scopeClass, scopeSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
            scopeSymbol.fqName.count == 2,
            interner.resolve(scopeSymbol.fqName[0]) == "kotlin",
            interner.resolve(scopeSymbol.fqName[1]) == "DeepRecursiveScope",
@@ -2663,8 +2666,7 @@ final class CallTypeChecker {
             }
             func arrayElementType(from type: TypeID) -> TypeID {
                 let nonNullType = sema.types.makeNonNullable(type)
-                guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-                      let symbol = sema.symbols.symbol(classType.classSymbol),
+                guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
                       symbol.name == knownNames.array,
                       let firstArg = classType.args.first
                 else {
@@ -3625,8 +3627,7 @@ final class CallTypeChecker {
             let name = interner.resolve(calleeName)
             if name == "callRecursive",
                args.count == 1,
-               case let .classType(scopeClass) = sema.types.kind(of: nonNullReceiver),
-               let scopeSymbol = sema.symbols.symbol(scopeClass.classSymbol),
+               let (scopeClass, scopeSymbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema),
                scopeSymbol.fqName.count == 2,
                interner.resolve(scopeSymbol.fqName[0]) == "kotlin",
                interner.resolve(scopeSymbol.fqName[1]) == "DeepRecursiveScope",

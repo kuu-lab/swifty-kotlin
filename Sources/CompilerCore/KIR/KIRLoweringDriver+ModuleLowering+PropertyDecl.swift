@@ -19,14 +19,24 @@ extension KIRLoweringDriver {
         // storage — skip emitting a KIRGlobal so no backing field is generated
         // in codegen.  The getter accessor function alone is sufficient.
         // Exception: properties with explicit backing fields always have storage.
+        //
+        // Delegate properties (`val x: T by expr`) also have no backing storage
+        // for the property symbol itself — all access is routed through the
+        // delegate storage symbol (e.g. `$delegate_x`) which gets its own
+        // KIRGlobal in lowerPropertyDelegate.  Emitting a second KIRGlobal for
+        // the property symbol with type `propType` (e.g. `stringStruct`) would
+        // cause the code generator to write a wide stringStruct aggregate into
+        // an i64-sized slot, corrupting adjacent globals (including the delegate
+        // storage).
         let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
         let isGetterOnlyComputed = propertyDecl.getter != nil
             && propertyDecl.setter == nil
             && propertyDecl.initializer == nil
             && propertyDecl.delegateExpression == nil
             && !hasExplicitBackingField
+        let isDelegateProperty = propertyDecl.delegateExpression != nil
 
-        if !isExtensionProperty, !isGetterOnlyComputed {
+        if !isExtensionProperty, !isGetterOnlyComputed, !isDelegateProperty {
             let kirID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: propType)))
             declIDs.append(kirID)
         }

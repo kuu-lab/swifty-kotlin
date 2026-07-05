@@ -51,21 +51,114 @@ private final class LockedCommandOutput: @unchecked Sendable {
     }
 }
 
+private final class CommandPipeDrain: @unchecked Sendable {
+    private let handle: FileHandle
+    private let output: LockedCommandOutput
+    private let stream: CommandOutputStream
+    private let group: DispatchGroup
+    private let name: String
+
+    init(handle: FileHandle, output: LockedCommandOutput, stream: CommandOutputStream, group: DispatchGroup, name: String) {
+        self.handle = handle
+        self.output = output
+        self.stream = stream
+        self.group = group
+        self.name = name
+    }
+
+    func start() {
+        group.enter()
+        let thread = Thread { [self] in
+            defer { group.leave() }
+            output.store(handle.readDataToEndOfFile(), for: stream)
+        }
+        thread.name = name
+        thread.start()
+    }
+}
+
 package enum CommandRunner {
     private static let drainTimeoutSeconds: TimeInterval = 20
     private static let terminationGracePeriodSeconds: TimeInterval = 1
 
+    /// Resolves an executable by scanning `$PATH`, but only trusts directories
+    /// that cannot be tampered with by another local user. This prevents a
+    /// PATH-hijack where a malicious `name` planted in an attacker-controlled
+    /// directory earlier in `$PATH` would be executed with the victim's
+    /// privileges. Empty, relative, group/other-writable, or foreign-owned PATH
+    /// entries are skipped; if no trusted match is found, `fallback` is returned.
     package static func resolveExecutable(_ name: String, fallback: String) -> String {
+        resolveExecutable(
+            name,
+            fallback: fallback,
+            pathEnvironment: ProcessInfo.processInfo.environment["PATH"] ?? ""
+        )
+    }
+
+    package static func resolveExecutable(
+        _ name: String,
+        fallback: String,
+        pathEnvironment: String
+    ) -> String {
         let fileManager = FileManager.default
-        if let pathEnv = ProcessInfo.processInfo.environment["PATH"] {
-            for directory in pathEnv.split(separator: ":") {
-                let candidate = String(directory) + "/" + name
-                if fileManager.isExecutableFile(atPath: candidate) {
-                    return candidate
-                }
+        for directory in pathEnvironment.split(separator: ":", omittingEmptySubsequences: false) {
+            let directoryPath = String(directory)
+            // An empty entry resolves to the current working directory and a
+            // relative entry can be influenced by the process's CWD; neither
+            // is trustworthy, so require an absolute path.
+            guard directoryPath.hasPrefix("/") else { continue }
+            guard isTrustedDirectory(directoryPath, fileManager: fileManager) else { continue }
+            let candidate = directoryPath + "/" + name
+            if fileManager.isExecutableFile(atPath: candidate) {
+                return candidate
             }
         }
         return fallback
+    }
+
+    /// A directory is trusted for executable resolution only when it exists, is
+    /// a directory, is not writable by group or others, and is owned by `root`
+    /// or the current user. This rejects directories another local user could
+    /// use to plant a malicious binary.
+    private static func isTrustedDirectory(_ path: String, fileManager: FileManager) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return false
+        }
+        if isSymbolicLink(path, fileManager: fileManager) {
+            let parentPath = URL(fileURLWithPath: path).deletingLastPathComponent().path
+            guard parentPath != path, isTrustedDirectory(parentPath, fileManager: fileManager) else {
+                return false
+            }
+        }
+        // Resolve symlinks so we inspect the target directory's attributes
+        // rather than the link's (symlinks always report 0o777 permissions,
+        // e.g. /bin -> /usr/bin on modern Debian/Ubuntu).
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        guard let attributes = try? fileManager.attributesOfItem(atPath: resolvedPath) else {
+            return false
+        }
+        guard let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value else {
+            return false
+        }
+        let groupWrite: UInt16 = 0o020
+        let otherWrite: UInt16 = 0o002
+        if permissions & (groupWrite | otherWrite) != 0 {
+            return false
+        }
+        // Fail closed: if ownership can't be determined, treat the directory as
+        // untrusted rather than assuming it is safe.
+        guard let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value else {
+            return false
+        }
+        if owner != 0 && owner != getuid() {
+            return false
+        }
+        return true
+    }
+
+    private static func isSymbolicLink(_ path: String, fileManager: FileManager) -> Bool {
+        (try? fileManager.destinationOfSymbolicLink(atPath: path)) != nil
     }
 
     /// Runs a command and records its wall-clock time as a sub-phase in the
@@ -89,50 +182,55 @@ package enum CommandRunner {
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
+        let stdoutReadHandle = stdoutPipe.fileHandleForReading
+        let stderrReadHandle = stderrPipe.fileHandleForReading
+        let stdoutWriteHandle = stdoutPipe.fileHandleForWriting
+        let stderrWriteHandle = stderrPipe.fileHandleForWriting
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        do {
-            try process.run()
-        } catch {
-            throw CommandRunnerError.launchFailed("Failed to launch \(executable): \(error)")
-        }
         // Drain both pipes before waiting for process termination to avoid
         // deadlocks when child output exceeds the kernel pipe buffer.
         let output = LockedCommandOutput()
         let drainGroup = DispatchGroup()
-        let exitGroup = DispatchGroup()
+        let stdoutDrain = CommandPipeDrain(
+            handle: stdoutReadHandle,
+            output: output,
+            stream: .stdout,
+            group: drainGroup,
+            name: "CommandRunner.stdout"
+        )
+        let stderrDrain = CommandPipeDrain(
+            handle: stderrReadHandle,
+            output: output,
+            stream: .stderr,
+            group: drainGroup,
+            name: "CommandRunner.stderr"
+        )
+        stdoutDrain.start()
+        stderrDrain.start()
 
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            output.store(data, for: .stdout)
-        }
-        drainGroup.enter()
-        DispatchQueue.global().async {
-            defer { drainGroup.leave() }
-            let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            output.store(data, for: .stderr)
+        let terminatedSemaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            terminatedSemaphore.signal()
         }
 
-        exitGroup.enter()
-        DispatchQueue.global().async {
-            defer { exitGroup.leave() }
-            process.waitUntilExit()
+        do {
+            try process.run()
+        } catch {
+            stdoutWriteHandle.closeFile()
+            stderrWriteHandle.closeFile()
+            _ = wait(for: drainGroup, timeout: drainTimeoutSeconds)
+            throw CommandRunnerError.launchFailed("Failed to launch \(executable): \(error)")
         }
+        stdoutWriteHandle.closeFile()
+        stderrWriteHandle.closeFile()
 
-        var didExit = wait(for: exitGroup, timeout: timeout)
+        var didExit = wait(for: terminatedSemaphore, timeout: timeout)
         let didTimeOut = !didExit
         if !didExit {
             process.terminate()
-            // Re-enter group to wait for process exit after terminate
-            exitGroup.enter()
-            DispatchQueue.global().async {
-                defer { exitGroup.leave() }
-                process.waitUntilExit()
-            }
-            didExit = wait(for: exitGroup, timeout: terminationGracePeriodSeconds)
+            didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
             if !didExit {
                 // Check if process is still running before sending SIGKILL to avoid killing wrong process
                 // Note: There's a race condition between this check and the kill() call where the process
@@ -145,13 +243,7 @@ package enum CommandRunner {
                         // Other errors are unusual but we continue anyway
                     }
                 }
-                // Re-enter group to wait for process exit after SIGKILL
-                exitGroup.enter()
-                DispatchQueue.global().async {
-                    defer { exitGroup.leave() }
-                    process.waitUntilExit()
-                }
-                didExit = wait(for: exitGroup, timeout: terminationGracePeriodSeconds)
+                didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
                 // Verify process exited after SIGKILL
                 if !didExit && process.isRunning {
                     // Process is still running despite SIGKILL - this is unusual but possible
@@ -217,6 +309,11 @@ package enum CommandRunner {
     private static func wait(for group: DispatchGroup, timeout: TimeInterval) -> Bool {
         let milliseconds = max(1, Int((timeout * 1000).rounded()))
         return group.wait(timeout: .now() + .milliseconds(milliseconds)) == .success
+    }
+
+    private static func wait(for semaphore: DispatchSemaphore, timeout: TimeInterval) -> Bool {
+        let milliseconds = max(1, Int((timeout * 1000).rounded()))
+        return semaphore.wait(timeout: .now() + .milliseconds(milliseconds)) == .success
     }
 
     private static func timeoutMessage(

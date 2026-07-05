@@ -323,11 +323,9 @@ extension CollectionLiteralLoweringPass {
         }
 
         // --- STDLIB-189: String HOF closureRaw injection ---
-        // String higher-order functions (filter, map, count, any, all, none)
-        // are called with args = [receiver, lambdaRef] but the runtime
-        // expects (strRaw, fnPtr, closureRaw, outThrown).  Insert the
-        // missing closureRaw=0 argument so the ABI lowering pass only
-        // needs to append the outThrown slot.
+        // String higher-order functions are called with args = [receiver,
+        // lambdaRef]. Insert closureRaw=0 so ABI lowering only needs to append
+        // the outThrown slot.
         if arguments.count == 2,
            callee == lookup.kkStringFilterName
             || callee == lookup.kkStringMapName
@@ -341,7 +339,6 @@ extension CollectionLiteralLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let isStringResult = callee == lookup.kkStringFilterName
-                || callee == lookup.kkStringMapName
             loweredBody.append(.call(
                 symbol: nil,
                 callee: callee,

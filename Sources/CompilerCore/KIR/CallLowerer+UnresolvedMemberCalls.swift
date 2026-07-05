@@ -66,23 +66,30 @@ extension CallLowerer {
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
-            return interner.intern("kk_string_length")
+            return interner.intern("__string_struct_get_length")
+        }
+        if memberName == "length",
+           let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
+           case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
+           classType.classSymbol == charSequenceSymbol
+        {
+            return interner.intern("kk_char_sequence_length")
         }
 
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
             switch memberName {
             case "compareTo":
-                return interner.intern("kk_string_compareTo_member")
+                return interner.intern("kk_string_compareTo_flat")
             case "get":
-                return interner.intern("kk_string_get")
+                return interner.intern("kk_string_get_flat")
             case "lines":
-                return interner.intern("kk_string_lines")
+                return interner.intern("kk_string_lines_flat")
             case "lineSequence":
-                return interner.intern("kk_string_lineSequence")
+                return interner.intern("kk_string_lineSequence_flat")
             case "toRegex":
                 return argumentCount == 0
-                    ? interner.intern("kk_string_toRegex")
-                    : interner.intern("kk_string_toRegex_with_option")
+                    ? interner.intern("kk_string_toRegex_flat")
+                    : interner.intern("kk_string_toRegex_with_option_flat")
             default:
                 break
             }
@@ -470,6 +477,11 @@ extension CallLowerer {
         case "partition":
             return interner.intern("kk_list_partition")
         case "zipWithNext":
+            if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                return interner.intern(hasHOFLambdaArg
+                    ? "kk_sequence_zipWithNextTransform"
+                    : "kk_sequence_zipWithNext")
+            }
             return interner.intern(hasHOFLambdaArg
                 ? "kk_list_zipWithNextTransform"
                 : "kk_list_zipWithNext")
@@ -654,7 +666,13 @@ extension CallLowerer {
             case distinctName:
                 return interner.intern("kk_sequence_distinct")
             case zipName:
-                return interner.intern("kk_sequence_zip")
+                if hofArity == 1 {
+                    return interner.intern("kk_sequence_zip")
+                }
+                if hofArity == 2 {
+                    return interner.intern("kk_sequence_zip_transform")
+                }
+                break
             case takeWhileName:
                 return interner.intern("kk_sequence_takeWhile")
             case takeLastWhileName:
@@ -923,8 +941,7 @@ extension CallLowerer {
               || memberName == "reduceRightIndexed"
               || memberName == "reduceRightOrNull"
               || memberName == "reduceRightIndexedOrNull",
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
+              let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
         else {
             return nil
         }

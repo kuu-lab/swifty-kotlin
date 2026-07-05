@@ -396,8 +396,7 @@ extension CallTypeChecker {
         }
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-              let owner = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, owner) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
               owner.fqName.count == 3,
               interner.resolve(owner.fqName[0]) == "java",
               interner.resolve(owner.fqName[1]) == "io",
@@ -608,8 +607,7 @@ extension CallTypeChecker {
 
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-              let owner = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, owner) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
               owner.fqName.count == 4,
               interner.resolve(owner.fqName[0]) == "kotlin",
               interner.resolve(owner.fqName[1]) == "io",

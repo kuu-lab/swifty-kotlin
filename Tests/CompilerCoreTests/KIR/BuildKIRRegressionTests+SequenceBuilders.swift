@@ -31,12 +31,11 @@ extension BuildKIRRegressionTests {
 
             let module = try #require(ctx.kir)
             let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
-            let sourceFunctions = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let sourceFunctions = findAllKIRFunctions(in: module).filter { function in
                 let name = ctx.interner.resolve(function.name)
                 let isSourceFunction = function.sourceRange?.start.file == sourceFileID
                 let isGeneratedLambdaFunction = name.contains("kk_lambda_")
-                return isSourceFunction || isGeneratedLambdaFunction ? function : nil
+                return isSourceFunction || isGeneratedLambdaFunction
             }
             let callees = sourceFunctions.flatMap { function -> [String] in
                 return extractCallees(from: function.body, interner: ctx.interner)

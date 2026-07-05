@@ -14,7 +14,7 @@ public struct DiagnosticCodeAction: Equatable, Sendable {
 }
 
 /// Metadata describing a registered diagnostic code.
-struct DiagnosticDescriptor: Equatable, Sendable {
+struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
     /// The canonical code string (e.g. "KSWIFTK-SEMA-0014").
     let code: String
     /// Which compiler pass this diagnostic originates from.
@@ -25,6 +25,10 @@ struct DiagnosticDescriptor: Equatable, Sendable {
     let summary: String
     /// Default code actions (quick-fixes) available for this diagnostic.
     let codeActions: [DiagnosticCodeAction]
+
+    var description: String {
+        return "[\(code)] \(defaultSeverity): \(summary)"
+    }
 
     init(
         code: String,
@@ -48,7 +52,6 @@ struct DiagnosticDescriptor: Equatable, Sendable {
 /// CORO, BACKEND, LINK, PIPELINE, ICE) and `{CODE}` is a numeric or mnemonic
 /// identifier unique within that pass.
 enum DiagnosticRegistry {
-    /// All registered diagnostic descriptors, keyed by their code string.
     static let descriptors: [String: DiagnosticDescriptor] = {
         var map: [String: DiagnosticDescriptor] = [:]
         for descriptor in allDescriptors {
@@ -179,6 +182,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Malformed statement."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0012",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expression nesting exceeds the maximum supported depth."
+        ),
     ]
 
     // MARK: - Semantic analysis pass (SEMA)
@@ -209,6 +218,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Missing return type annotation.",
             codeActions: [DiagnosticCodeAction(title: "Add explicit return type annotation")]
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0006",
+            pass: "SEMA",
+            defaultSeverity: .warning,
+            summary: "Synthetic stdlib stub overlaps a bundled Kotlin declaration."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0007",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Reserved bundled stdlib annotation used outside bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0008",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Reserved external declaration used outside bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0009",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Function declaration requires a body."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0013",

@@ -559,15 +559,12 @@ extension ExprTypeChecker {
             implicitMemberType = sema.types.intType
         }
         if implicitMemberType == nil, name == knownNames.size || name == knownNames.isEmpty,
-           case let .classType(classInfo) = sema.types.kind(of: nonNullReceiver)
+           let (_, symbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema),
+           knownNames.collectionKind(of: symbol) != nil
         {
-            if let symbol = sema.symbols.symbol(classInfo.classSymbol),
-               knownNames.collectionKind(of: symbol) != nil
-            {
-                implicitMemberType = name == knownNames.size
-                    ? sema.types.intType
-                    : sema.types.make(.primitive(.boolean, .nonNull))
-            }
+            implicitMemberType = name == knownNames.size
+                ? sema.types.intType
+                : sema.types.make(.primitive(.boolean, .nonNull))
         }
         if implicitMemberType == nil,
            let result = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema)
@@ -898,8 +895,7 @@ extension ExprTypeChecker {
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
             } else {
-                if case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
-                   let owner = sema.symbols.symbol(classType.classSymbol)
+                if let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
                 {
                     let propertyCandidates = sema.symbols.lookupAll(
                         fqName: owner.fqName + [member]

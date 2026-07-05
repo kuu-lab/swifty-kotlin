@@ -174,6 +174,7 @@ extension CallLowerer {
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
         args: [CallArgument],
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -183,11 +184,7 @@ extension CallLowerer {
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface
-              || ownerInfo.kind == .object,
-              let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
-                  sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-              ]
+              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object
         else {
             return nil
         }
@@ -203,6 +200,28 @@ extension CallLowerer {
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
+
+        if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
+        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+            sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+        ] else {
+            return nil
+        }
+
         let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
@@ -223,6 +242,36 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    func tryLowerMemberPropertyAccessorRead(
+        _ exprID: ExprID,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        args: [CallArgument],
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard args.isEmpty,
+              let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+              memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
+        else {
+            return nil
+        }
+
+        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        instructions.append(.call(
+            symbol: getterSymbol,
+            callee: interner.intern("get"),
+            arguments: [loweredReceiverID],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return result
     }
 
     func tryLowerEnumEntryPropertyRead(
@@ -248,7 +297,7 @@ extension CallLowerer {
         let helperName = interner.intern(entryName + helperSuffix)
         let resultType = sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
-                ? sema.types.make(.primitive(.string, .nonNull))
+                ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
@@ -315,6 +364,27 @@ extension CallLowerer {
                 continue
             }
             return propertyDecl.getter != nil || propertyDecl.delegateExpression != nil
+        }
+        return false
+    }
+
+    func memberPropertyUsesAccessor(
+        _ propertySymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        for rawDecl in ast.arena.decls.indices {
+            let declID = DeclID(rawValue: Int32(rawDecl))
+            guard sema.bindings.declSymbols[declID] == propertySymbol,
+                  let decl = ast.arena.decl(declID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            if let getter = propertyDecl.getter {
+                return getter.body != .unit
+            }
+            return propertyDecl.delegateExpression != nil
         }
         return false
     }

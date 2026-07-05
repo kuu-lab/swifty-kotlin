@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
+
 // MIGRATION-COL-001
 // Collection factory functions.
 // Migration source: Sources/Runtime/RuntimeCollections.swift, RuntimeSetAndMap.swift
@@ -15,13 +17,22 @@ package kotlin.collections
 // RuntimeSetAndMap.swift. Each external declaration matches the Swift-side
 // parameter layout: null array + count=0 produces a fresh mutable collection.
 
+@KsSymbolName("kk_emptyList")
 private external fun kk_emptyList(): List<Nothing>
+
+@KsSymbolName("kk_list_of")
 private external fun kk_list_of(array: Any?, count: Int): MutableList<Any?>
 
+@KsSymbolName("kk_emptySet")
 private external fun kk_emptySet(): Set<Nothing>
+
+@KsSymbolName("kk_set_of")
 private external fun kk_set_of(array: Any?, count: Int): MutableSet<Any?>
 
+@KsSymbolName("kk_emptyMap")
 private external fun kk_emptyMap(): Map<Nothing, Nothing>
+
+@KsSymbolName("kk_map_of")
 private external fun kk_map_of(keys: Any?, values: Any?, count: Int): MutableMap<Any?, Any?>
 
 // ─── emptyList / emptySet / emptyMap ─────────────────────────────────────────

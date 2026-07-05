@@ -26,11 +26,12 @@ extension CallLowerer {
             "trim", "trimStart", "trimEnd",
             "sortWith", "sortBy", "sortByDescending",
             "onEach", "onEachIndexed",
+            "replaceFirstChar",
             "ifEmpty",
             "ifBlank",
             "chunked", "chunkedSequence", "windowed", "copyOf",
             "toComponents",
-            "onSuccess", "onFailure", "recover",
+            "onSuccess", "onFailure", "recover", "recoverCatching",
         ].contains(interner.resolve(calleeName))
     }
 
@@ -90,6 +91,13 @@ extension CallLowerer {
                 type: arena.exprType(loweredArgID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
+            driver.ctx.registerCallableValue(
+                fnPtrExpr,
+                symbol: callableInfo.symbol,
+                callee: callableInfo.callee,
+                captureArguments: callableInfo.captureArguments,
+                hasClosureParam: callableInfo.hasClosureParam
+            )
             finalArgs.append(fnPtrExpr)
             let boxedCaptureArguments = makeBoxedCallableCaptureArguments(
                 callableInfo: callableInfo,
@@ -122,9 +130,7 @@ extension CallLowerer {
             loweredComparatorID: KIRExprID
         ) -> PrimitiveCompareABIKind? {
             func comparatorElementType(from type: TypeID) -> TypeID? {
-                let nonNullType = sema.types.makeNonNullable(type)
-                guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-                      let symbol = sema.symbols.symbol(classType.classSymbol),
+                guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
                       interner.resolve(symbol.name) == "Comparator",
                       let firstArg = classType.args.first
                 else {

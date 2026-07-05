@@ -6,7 +6,7 @@ import Testing
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toDoubleOrNull` links to the
-///   runtime symbol `kk_string_toDoubleOrNull` declared in
+///   runtime symbol `kk_string_toDoubleOrNull_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Double?`.

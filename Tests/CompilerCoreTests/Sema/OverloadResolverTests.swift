@@ -317,7 +317,7 @@ struct OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let ext = defineSymbol(
             kind: .function,
@@ -355,7 +355,7 @@ struct OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let ext = defineSymbol(
             kind: .function,

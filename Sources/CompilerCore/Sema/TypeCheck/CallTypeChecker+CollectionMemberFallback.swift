@@ -322,7 +322,7 @@ extension CallTypeChecker {
 
         guard let signature = sema.symbols.functionSignature(for: fallbackCallee),
               signature.classTypeParameterCount > 0,
-              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+              let receiverClassType = resolveClassType(receiverType, sema: sema)
         else {
             return nil
         }
@@ -1910,13 +1910,12 @@ extension CallTypeChecker {
             )))
         }
 
-        // zip(other): returns List<Pair<A,B>> where A is receiver element type and B is other element type
+        // zip(other): returns List<Pair<A,B>> or Sequence<Pair<A,B>> where A
+        // is receiver element type and B is the other collection element type.
         if memberName == interner.intern("zip"),
            !args.isEmpty,
-           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first,
            let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first
         {
-            // Try to get the element type of the other list from the first argument
             let otherElementType: TypeID
             if let otherListType = sema.bindings.exprTypes[args[0].expr] {
                 let nonNullOther = sema.types.makeNonNullable(otherListType)
@@ -1933,16 +1932,48 @@ extension CallTypeChecker {
             } else {
                 otherElementType = sema.types.anyType
             }
+            if args.count >= 2 {
+                let transformType = sema.bindings.exprTypes[args[1].expr] ?? sema.types.anyType
+                let transformedElementType: TypeID
+                if case let .functionType(fnType) = sema.types.kind(of: sema.types.makeNonNullable(transformType)) {
+                    transformedElementType = fnType.returnType
+                } else {
+                    transformedElementType = sema.types.anyType
+                }
+                if isSequenceReceiver {
+                    return makeSyntheticSequenceType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: transformedElementType
+                    )
+                }
+                return makeSyntheticListType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: transformedElementType
+                )
+            }
             let pairType = sema.types.make(.classType(ClassType(
                 classSymbol: pairSymbol,
                 args: [.invariant(receiverElementType), .invariant(otherElementType)],
                 nullability: .nonNull
             )))
-            return sema.types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.invariant(pairType)],
-                nullability: .nonNull
-            )))
+            if isSequenceReceiver {
+                return makeSyntheticSequenceType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: pairType
+                )
+            }
+            return makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: pairType
+            )
         }
 
         // unzip(): for List<Pair<A,B>>, returns Pair<List<A>, List<B>>
@@ -2320,6 +2351,34 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
+        // zip(other, transform): transform receives the receiver element and
+        // the other collection element.
+        if memberName == interner.intern("zip"), argCount == 2 {
+            let otherElementType: TypeID
+            if let otherCollectionType = sema.bindings.exprTypes[args[0].expr] {
+                let nonNullOther = sema.types.makeNonNullable(otherCollectionType)
+                if case let .classType(classType) = sema.types.kind(of: nonNullOther),
+                   let firstArg = classType.args.first
+                {
+                    otherElementType = switch firstArg {
+                    case let .invariant(t), let .out(t), let .in(t): t
+                    case .star: sema.types.anyType
+                    }
+                } else {
+                    otherElementType = sema.types.anyType
+                }
+            } else {
+                otherElementType = sema.types.anyType
+            }
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType, otherElementType],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 1, expectedType: expectedType)
+        }
+
         // chunked(size, transform): transform receives List<T> and returns R
         if memberName == interner.intern("chunked"), argCount == 2 {
             // Build List<T> for the lambda parameter type; the transform receives
@@ -2602,12 +2661,11 @@ extension CallTypeChecker {
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard let classType = resolveClassType(receiverType, sema: sema)
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
         else {
             return sema.types.anyType
         }
-        if let symbol = sema.symbols.symbol(classType.classSymbol),
-           knownNames.isMapLikeSymbol(symbol),
+        if knownNames.isMapLikeSymbol(symbol),
            classType.args.count == 2
         {
             let keyType = switch classType.args[0] {
