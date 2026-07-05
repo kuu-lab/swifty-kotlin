@@ -274,10 +274,7 @@ extension CallLowerer {
 
             driver.ctx.restoreImplicitReceiver(symbol: savedReceiverSymbol, exprID: savedReceiverExprID)
 
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: boundType
-            )
+            let result = arena.appendTemporary(type: boundType)
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
                 instructions.append(.call(
                     symbol: info.symbol,

@@ -125,6 +125,12 @@ package enum CommandRunner {
         guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
             return false
         }
+        if isSymbolicLink(path, fileManager: fileManager) {
+            let parentPath = URL(fileURLWithPath: path).deletingLastPathComponent().path
+            guard parentPath != path, isTrustedDirectory(parentPath, fileManager: fileManager) else {
+                return false
+            }
+        }
         // Resolve symlinks so we inspect the target directory's attributes
         // rather than the link's (symlinks always report 0o777 permissions,
         // e.g. /bin -> /usr/bin on modern Debian/Ubuntu).
@@ -149,6 +155,10 @@ package enum CommandRunner {
             return false
         }
         return true
+    }
+
+    private static func isSymbolicLink(_ path: String, fileManager: FileManager) -> Bool {
+        (try? fileManager.destinationOfSymbolicLink(atPath: path)) != nil
     }
 
     /// Runs a command and records its wall-clock time as a sub-phase in the

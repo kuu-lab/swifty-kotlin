@@ -1574,10 +1574,7 @@ extension CallLowerer {
                         )
                     }
 
-                    let boxedArg = arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)),
-                        type: sema.types.nullableAnyType
-                    )
+                    let boxedArg = arena.appendTemporary(type: sema.types.nullableAnyType)
                     instructions.append(.copy(from: loweredArgID, to: boxedArg))
                     return boxedArg
                 }
