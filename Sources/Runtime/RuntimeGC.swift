@@ -36,6 +36,7 @@ struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
+    var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -328,6 +329,7 @@ func kk_runtime_reset_metadata() {
         state.kClassBoxCache.removeAll(keepingCapacity: false)
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
+        state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
     }
