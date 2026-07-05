@@ -59,12 +59,44 @@ enum SyntheticCharMemberReturnKind {
             )
         )
     }
+
+    var stubTypeRef: SyntheticStubTypeRef {
+        switch self {
+        case .boolean:
+            .boolean
+        case .string:
+            .string
+        case .char:
+            .char
+        case .int:
+            .int
+        case .double:
+            .double
+        case .nullableInt:
+            .nullable(.int)
+        case .nullableDouble:
+            .nullable(.double)
+        case .charCategory:
+            .namedClass(["kotlin", "text", "CharCategory"])
+        case .charDirectionality:
+            .namedClass(["kotlin", "text", "CharDirectionality"])
+        }
+    }
 }
 
 struct SyntheticCharMemberSpec {
     let name: String
     let externalLinkName: String
     let returnKind: SyntheticCharMemberReturnKind
+
+    var functionSpec: SyntheticFunctionStubSpec {
+        SyntheticFunctionStubSpec(
+            name: name,
+            externalLinkName: externalLinkName,
+            receiverType: .char,
+            returnType: returnKind.stubTypeRef
+        )
+    }
 }
 
 private struct SyntheticCharCompanionFunctionSpec {
@@ -342,21 +374,18 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        for member in syntheticCharMemberSpecs {
-            registerSyntheticCharExtensionFunction(
-                named: member.name,
-                externalLinkName: member.externalLinkName,
-                receiverType: types.charType,
-                returnType: member.returnKind.typeID(
-                    in: types,
-                    charCategoryType: charCategoryType,
-                    charDirectionalityType: charDirectionalityType
-                ),
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        _ = (charCategoryType, charDirectionalityType)
+        let kotlinTextContext = SyntheticStubRegistrationContext(
+            ownerFQName: kotlinTextPkg,
+            parentSymbol: symbols.lookup(fqName: kotlinTextPkg)
+        )
+        registerSyntheticFunctionStubs(
+            syntheticCharMemberSpecs.map(\.functionSpec),
+            context: kotlinTextContext,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
             symbols: symbols,
@@ -379,60 +408,84 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(localeType, for: localeSymbol)
 
-        registerSyntheticCharExtensionFunction(
-            named: "lowercase",
-            externalLinkName: "kk_char_lowercase_locale",
-            receiverType: types.charType,
-            parameters: [
-                ("locale", localeType, false, false),
+        registerSyntheticFunctionStubs(
+            [
+                SyntheticFunctionStubSpec(
+                    name: "lowercase",
+                    externalLinkName: "kk_char_lowercase_locale",
+                    receiverType: .char,
+                    parameters: [
+                        SyntheticStubParameterSpec(
+                            name: "locale",
+                            type: .namedClass(["java", "util", "Locale"])
+                        ),
+                    ],
+                    returnType: .string
+                ),
+                SyntheticFunctionStubSpec(
+                    name: "uppercase",
+                    externalLinkName: "kk_char_uppercase_locale",
+                    receiverType: .char,
+                    parameters: [
+                        SyntheticStubParameterSpec(
+                            name: "locale",
+                            type: .namedClass(["java", "util", "Locale"])
+                        ),
+                    ],
+                    returnType: .string
+                ),
+                // PARITY-CODEGEN-005: Char.compareTo(Char)
+                SyntheticFunctionStubSpec(
+                    name: "compareTo",
+                    externalLinkName: "kk_char_compareTo",
+                    receiverType: .char,
+                    parameters: [
+                        SyntheticStubParameterSpec(name: "other", type: .char),
+                    ],
+                    returnType: .int
+                ),
+                // STDLIB-003-ABI-001: Char.digitToInt(radix: Int)
+                SyntheticFunctionStubSpec(
+                    name: "digitToInt",
+                    externalLinkName: "kk_char_digitToInt_radix",
+                    receiverType: .char,
+                    parameters: [
+                        SyntheticStubParameterSpec(name: "radix", type: .int),
+                    ],
+                    returnType: .int
+                ),
+                // STDLIB-003-ABI-001: Char.digitToIntOrNull(radix: Int)
+                SyntheticFunctionStubSpec(
+                    name: "digitToIntOrNull",
+                    externalLinkName: "kk_char_digitToIntOrNull_radix",
+                    receiverType: .char,
+                    parameters: [
+                        SyntheticStubParameterSpec(name: "radix", type: .int),
+                    ],
+                    returnType: .nullable(.int)
+                ),
+                // DOCPARITY-CHAR-005: Int.digitToChar() / Int.digitToChar(radix: Int)
+                SyntheticFunctionStubSpec(
+                    name: "digitToChar",
+                    externalLinkName: "kk_char_digitToChar_radix",
+                    receiverType: .int,
+                    returnType: .char
+                ),
+                SyntheticFunctionStubSpec(
+                    name: "digitToChar",
+                    externalLinkName: "kk_char_digitToChar_radix",
+                    receiverType: .int,
+                    parameters: [
+                        SyntheticStubParameterSpec(name: "radix", type: .int),
+                    ],
+                    returnType: .char
+                ),
             ],
-            returnType: types.stringType,
-            packageFQName: kotlinTextPkg,
+            context: kotlinTextContext,
             symbols: symbols,
+            types: types,
             interner: interner
         )
-        registerSyntheticCharExtensionFunction(
-            named: "uppercase",
-            externalLinkName: "kk_char_uppercase_locale",
-            receiverType: types.charType,
-            parameters: [
-                ("locale", localeType, false, false),
-            ],
-            returnType: types.stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // PARITY-CODEGEN-005: Char.compareTo(Char)
-        registerSyntheticCharExtensionFunction(
-            named: "compareTo",
-            externalLinkName: "kk_char_compareTo",
-            receiverType: types.charType,
-            parameters: [
-                ("other", types.charType, false, false),
-            ],
-            returnType: types.intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int)
-        registerDigitToIntRadixStub(symbols: symbols, types: types, interner: interner)
-        // STDLIB-003-ABI-001: Char.digitToIntOrNull(radix: Int)
-        registerSyntheticCharExtensionFunction(
-            named: "digitToIntOrNull",
-            externalLinkName: "kk_char_digitToIntOrNull_radix",
-            receiverType: types.charType,
-            parameters: [
-                ("radix", types.intType, false, false),
-            ],
-            returnType: types.makeNullable(types.intType),
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // DOCPARITY-CHAR-005: Int.digitToChar() / Int.digitToChar(radix: Int)
-        registerDigitToCharStubs(symbols: symbols, types: types, interner: interner)
         registerNativeCharCompanionHelpers(symbols: symbols, types: types, interner: interner)
     }
 
@@ -537,157 +590,6 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(enumType, for: child)
             }
         }
-    }
-
-    private func registerSyntheticCharExtensionFunction(
-        named name: String,
-        externalLinkName: String,
-        receiverType: TypeID,
-        parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)] = [],
-        returnType: TypeID,
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        let parameterTypes = parameters.map(\.type)
-
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes == parameterTypes
-                && signature.returnType == returnType
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: parameters.map(\.hasDefault),
-                valueParameterIsVararg: parameters.map(\.isVararg)
-            ),
-            for: functionSymbol
-        )
-    }
-
-    /// Register `fun Char.digitToInt(radix: Int): Int` synthetic stub.
-    func registerDigitToIntRadixStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinTextPkg = ensureKotlinTextPackageForCharStubs(symbols: symbols, interner: interner)
-        let functionName = interner.intern("digitToInt")
-        let functionFQName = kotlinTextPkg + [functionName]
-        let intType = types.intType
-
-        let alreadyExists = symbols.lookupAll(fqName: functionFQName).contains { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-            return signature.receiverType == types.charType
-                && signature.parameterTypes == [intType]
-                && signature.returnType == intType
-        }
-        guard !alreadyExists else { return }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let pkgSym = symbols.lookup(fqName: kotlinTextPkg) {
-            symbols.setParentSymbol(pkgSym, for: functionSymbol)
-        }
-        symbols.setExternalLinkName("kk_char_digitToInt_radix", for: functionSymbol)
-
-        let radixParamName = interner.intern("radix")
-        let radixParamSym = symbols.define(
-            kind: .valueParameter,
-            name: radixParamName,
-            fqName: functionFQName + [radixParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(functionSymbol, for: radixParamSym)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: types.charType,
-                parameterTypes: [intType],
-                returnType: intType,
-                valueParameterSymbols: [radixParamSym],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false]
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func registerDigitToCharStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinTextPkg = ensureKotlinTextPackageForCharStubs(symbols: symbols, interner: interner)
-
-        registerSyntheticCharExtensionFunction(
-            named: "digitToChar",
-            externalLinkName: "kk_char_digitToChar_radix",
-            receiverType: types.intType,
-            returnType: types.charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCharExtensionFunction(
-            named: "digitToChar",
-            externalLinkName: "kk_char_digitToChar_radix",
-            receiverType: types.intType,
-            parameters: [
-                ("radix", types.intType, false, false),
-            ],
-            returnType: types.charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
     }
 
     private func ensureSyntheticCharDirectionalityEnum(

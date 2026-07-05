@@ -1114,90 +1114,20 @@ extension DataFlowSemaPhase {
     ) {
         let skipStats = SyntheticStubSkipStatsCollector()
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
-        registerSyntheticPropertyInterfaceStubs(
-            symbols: symbols, types: types, interner: interner,
-            kotlinPkg: kotlinPkg, kotlinPropertiesPkg: kotlinPropertiesPkg
-        )
-        // Random stubs must be registered before collection stubs so that
-        // shuffled(random: Random) can look up the kotlin.random.Random symbol.
-        registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCollectionStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
+        let registryContext = SyntheticDelegateStubRegistryContext(
+            kotlinPkg: kotlinPkg,
+            kotlinPropertiesPkg: kotlinPropertiesPkg,
             bundledIndex: bundledIndex,
             skipStats: skipStats
         )
-        // STDLIB-REFLECT-063: Now that List is registered, update KFunction.parameters type to
-        // List<Any?> so that `.size` resolves correctly on the parameters property.
-        patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
-        // KType.arguments depends on kotlin.collections.List and KTypeProjection.
-        patchKTypeArgumentsType(symbols: symbols, types: types, interner: interner)
-        // KTypeParameter.upperBounds depends on kotlin.collections.List.
-        patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRangeProgressionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRangeUntilStubs(symbols: symbols, types: types, interner: interner)
-        if types.comparableInterfaceSymbol == nil {
-            registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
-        }
-        registerSyntheticBuilderDSLStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticComparatorStubs(symbols: symbols, types: types, interner: interner)
-        patchArrayBinarySearchComparatorStub(symbols: symbols, types: types, interner: interner)
-        patchArraySortedArrayWithComparatorStub(symbols: symbols, types: types, interner: interner)
-        registerSyntheticComparisonStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStdlibLoopStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTestFrameworkStubs(
+
+        registerSyntheticDelegateRegistryStubs(
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinPkg: kotlinPkg
+            context: registryContext
         )
-        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticResultStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDeepRecursiveStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
-        // Function interfaces are registered by TODO/IO stubs, so patch KProperty function supertypes here.
-        patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
-        patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        // FileTreeWalk runs after FileIO and FileWalkDirection so File and direction enum are available
-        registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
-        // Extended stdlib batch (Atomic/Networking/Logging/Streams/JS-interop/...).
-        // To add a new stub in this range, edit
-        // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
-        // The Phase file preserves the exact original call order.
-        registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
         skipStats.logIfEnabled()
     }
 
