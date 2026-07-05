@@ -3,27 +3,6 @@ extension DataFlowSemaPhase {
         "__bundled_kotlin/uuid/Uuid.kt"
     }
 
-    func adoptedSyntheticUuidSourceDeclarationSymbol(
-        kind: SymbolKind,
-        fqName: [InternedString],
-        sourceFileID: FileID,
-        ctx: CompilationContext,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID? {
-        guard ctx.sourceManager.path(of: sourceFileID) == Self.bundledUuidSourcePath,
-              kind == .class,
-              matchesFQName(fqName, ["kotlin", "uuid", "Uuid"], interner: interner)
-        else {
-            return nil
-        }
-
-        return symbols.lookupAll(fqName: fqName).first { symbolID in
-            guard let symbol = symbols.symbol(symbolID) else { return false }
-            return symbol.kind == .class && symbol.flags.contains(.synthetic)
-        }
-    }
-
     func attachUuidSourceMigrationBridgeIfNeeded(
         to symbolID: SymbolID,
         fqName: [InternedString],
@@ -43,6 +22,27 @@ extension DataFlowSemaPhase {
 
         symbols.setExternalLinkName(externalLinkName, for: symbolID)
         attachUuidSourceMigrationExperimentalAnnotation(to: symbolID, symbols: symbols)
+    }
+
+    func reusableSyntheticUuidSourceCompanionSymbol(
+        fqName: [InternedString],
+        sourceFileID: FileID,
+        ownerSymbol: SymbolID,
+        ctx: CompilationContext,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard isBundledUuidSource(sourceFileID, ctx: ctx),
+              matchesFQName(fqName, ["kotlin", "uuid", "Uuid", "Companion"], interner: interner),
+              let companionSymbol = symbols.companionObjectSymbol(for: ownerSymbol),
+              let companion = symbols.symbol(companionSymbol),
+              companion.kind == .object,
+              companion.flags.contains(.synthetic),
+              companion.fqName == fqName
+        else {
+            return nil
+        }
+        return companionSymbol
     }
 
     func attachUuidSourceMigrationClassAnnotationIfNeeded(

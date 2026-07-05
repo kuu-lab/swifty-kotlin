@@ -196,6 +196,39 @@ struct UuidAPISurfaceInventoryTests {
         )
     }
 
+    @Test
+    func testUuidSourceCompanionReusesSyntheticCompanionSymbol() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        let uuidSourceFileID = try #require(
+            ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
+        )
+        let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        let companionFQ = uuidFQ + [interner.intern("Companion")]
+        let uuidSymbol = try #require(sema.symbols.lookup(fqName: uuidFQ))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: uuidSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+
+        #expect(
+            sema.symbols.lookupAll(fqName: companionFQ) == [companionSymbol],
+            "Uuid source migration must not leave split synthetic/source companion symbols"
+        )
+        #expect(companionInfo.kind == .object)
+        #expect(!companionInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.sourceFileID(for: companionSymbol) == uuidSourceFileID)
+
+        for memberName in ["random", "parse", "parseOrNull", "parseHex", "NIL", "LEXICAL_ORDER"] {
+            let memberFQ = companionFQ + [interner.intern(memberName)]
+            let memberSymbols = sema.symbols.lookupAll(fqName: memberFQ)
+            #expect(!memberSymbols.isEmpty, "Uuid.Companion.\(memberName) must be registered")
+            for memberSymbol in memberSymbols {
+                #expect(
+                    sema.symbols.parentSymbol(for: memberSymbol) == companionSymbol,
+                    "Uuid.Companion.\(memberName) must share the unified companion parent"
+                )
+            }
+        }
+    }
+
     // MARK: - 2. Companion factory methods
 
     @Test
