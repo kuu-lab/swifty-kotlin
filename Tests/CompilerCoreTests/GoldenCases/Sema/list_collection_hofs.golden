@@ -7,7 +7,6 @@ symbol fq=__local_5.grouped kind=local vis=private flags=_ type=kotlin.collectio
 symbol fq=kotlin.Pair kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
-symbol fq=kotlin.length.$get kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
 symbol fq=kotlin.text.first kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Char
 symbol fq=transform kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<String>] ret=Unit
 symbol fq=transform.$0.values kind=valueParameter vis=private flags=_
