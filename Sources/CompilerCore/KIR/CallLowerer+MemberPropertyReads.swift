@@ -381,7 +381,10 @@ extension CallLowerer {
             else {
                 continue
             }
-            return propertyDecl.getter?.body != .unit || propertyDecl.delegateExpression != nil
+            if let getter = propertyDecl.getter {
+                return getter.body != .unit
+            }
+            return propertyDecl.delegateExpression != nil
         }
         return false
     }
