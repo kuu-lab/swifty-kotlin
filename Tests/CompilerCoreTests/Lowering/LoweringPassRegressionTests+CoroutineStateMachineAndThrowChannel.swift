@@ -5,6 +5,92 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
+    func testCoroutineLoweringRewritesSequenceBuilderProducersToCPSRuntimeABI() throws {
+        let source = """
+        fun main() {
+            val seq = sequence {
+                yield(1)
+                yield(2)
+            }
+            val iter = iterator {
+                yield(3)
+            }
+            println(seq)
+            println(iter)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "CoroutineBuilderCPS", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let functions = findAllKIRFunctions(in: module)
+            let allCallees = functions.flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+
+            #expect(allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains("kk_iterator_builder_build_coro"), "Callees: \(allCallees)")
+
+            let builderBuildCalls = functions.flatMap { function -> [(String, Int)] in
+                function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
+                        return nil
+                    }
+                    let name = ctx.interner.resolve(callee)
+                    guard name == "kk_sequence_builder_build_coro" || name == "kk_iterator_builder_build_coro" else {
+                        return nil
+                    }
+                    return (name, arguments.count)
+                }
+            }
+            #expect(builderBuildCalls.allSatisfy { _, argumentCount in argumentCount == 3 }, "Builder calls: \(builderBuildCalls)")
+
+            let yieldFunctions = functions.filter { function in
+                extractCallees(from: function.body, interner: ctx.interner).contains("kk_sequence_builder_yield")
+            }
+            #expect(!yieldFunctions.isEmpty, "Expected lowered builder functions to call kk_sequence_builder_yield")
+            #expect(yieldFunctions.allSatisfy { function in
+                function.body.contains { instruction in
+                    if case .returnIfEqual = instruction {
+                        return true
+                    }
+                    return false
+                }
+            }, "yield() calls in CPS builders must propagate COROUTINE_SUSPENDED")
+        }
+    }
+
+    @Test
+    func testCoroutineLoweringKeepsYieldAllSequenceBuildersOnLegacyRuntimeABI() throws {
+        let source = """
+        fun main() {
+            val seq = sequence {
+                yieldAll(listOf(1, 2))
+            }
+            println(seq)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceBuilderYieldAllLegacy", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let functions = findAllKIRFunctions(in: module)
+            let allCallees = functions.flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+
+            #expect(allCallees.contains("kk_sequence_builder_build"), "Callees: \(allCallees)")
+            #expect(!allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+        }
+    }
+
+    @Test
     func testCoroutineLoweringSpillsAndReloadsLiveValuesAcrossSuspension() throws {
         let interner = StringInterner()
         let arena = KIRArena()
