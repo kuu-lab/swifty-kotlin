@@ -197,6 +197,15 @@ struct BundledDeclarationIndex: Sendable {
             return key.arity == 2
         case "reduce", "sumOf", "maxByOrNull", "minByOrNull":
             return key.arity == 1
+        case "toList", "toSet", "toMutableList":
+            // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
+            // Kotlin source, but CollectionLiteralLoweringPass call-rewrite still
+            // dispatches Sequence.toList/toSet/toMutableList to the kk_sequence_*
+            // ABI stubs (see CollectionLiteralLoweringPass+CallRewriteSequenceTerminals
+            // and CallLowerer+ReceiverTypePredicates.toMutableListRuntimeCalleeFor...).
+            // Retain the synthetic stub's externalLinkName so Sema-level symbol
+            // lookups stay consistent with that lowering path.
+            return key.arity == 0
         default:
             return false
         }
