@@ -9,10 +9,7 @@ public enum RuntimeABICType: String, Equatable, Sendable {
     case nullableOpaquePointer = "void * _Nullable"
     case constUInt8Pointer = "const uint8_t *"
     case nullableConstUInt8Pointer = "const uint8_t * _Nullable"
-    case uint8Pointer = "uint8_t *"
     case nullableUInt8Pointer = "uint8_t * _Nullable"
-    case constCCharPointer = "const char *"
-    case fieldAddrPointer = "void **"
     case constTypeInfoPointer = "const KTypeInfo *"
     case nullableRawPointerPointer = "void ** _Nullable"
     case int64 = "int64_t"
@@ -456,47 +453,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_instant_to_js_date",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_double_toJsNumber",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .double),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_toJsNumber",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .int32),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_jsclass_kotlin",
-            parameters: [
-                RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_boolean_toJsBoolean",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -2371,18 +2328,6 @@ public enum RuntimeABISpec {
             isThrowing: false
         ),
     ]
-
-    /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
-    ///
-    /// The sub-arrays are listed in alphabetical order, one entry per line, so that
-    /// parallel branches adding a new category insert their entry at a unique
-    /// alphabetic position rather than all appending to the same trailing line.
-    /// This is purely a merge-conflict-prevention layout: the resulting element
-    /// set is unchanged from any other ordering.
-    ///
-    /// When adding a new sub-array, insert its name in alphabetical position.
-    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
-
 
     /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
     ///
