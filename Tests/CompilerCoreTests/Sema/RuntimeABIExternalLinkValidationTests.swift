@@ -46,6 +46,31 @@ struct RuntimeABIExternalLinkValidationTests {
         )
     }
 
+    @Test func testBundledKsSymbolNameDeclarationsMatchRuntimeABIArity() throws {
+        let annotatedDeclarations = try collectBundledKsSymbolNameDeclarations()
+        let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
+        var failures: [String] = []
+
+        for declaration in annotatedDeclarations.sorted(by: { $0.linkName < $1.linkName }) {
+            guard let specs = runtimeABIByName[declaration.linkName], !specs.isEmpty else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) is missing from RuntimeABISpec")
+                continue
+            }
+            if !specs.contains(where: { $0.parameters.count == declaration.arity }) {
+                let arities = specs.map { "\($0.parameters.count)" }.sorted().joined(separator: ", ")
+                failures.append(
+                    "\(declaration.linkName) in \(declaration.relativePath) has Kotlin arity \(declaration.arity), RuntimeABI arities [\(arities)]"
+                )
+            }
+        }
+
+        #expect(!annotatedDeclarations.isEmpty, "@KsSymbolName coverage should not be empty")
+        #expect(
+            failures.isEmpty,
+            Comment(rawValue: "Bundled @KsSymbolName declarations disagree with RuntimeABISpec: \(failures.joined(separator: "; "))")
+        )
+    }
+
     private var allowedCompilerExternalLinks: Set<String> {
         [
             "kk_for_lowered",
@@ -120,6 +145,151 @@ struct RuntimeABIExternalLinkValidationTests {
             names.formUnion(runtimeLinkNameLiterals(in: source))
         }
         return names
+    }
+
+    private struct BundledKsSymbolNameDeclaration {
+        let linkName: String
+        let arity: Int
+        let relativePath: String
+    }
+
+    private func collectBundledKsSymbolNameDeclarations() throws -> [BundledKsSymbolNameDeclaration] {
+        let stdlibRoot = packageRoot().appendingPathComponent("Sources/CompilerCore/Stdlib")
+        let fileManager = FileManager.default
+        guard let enumerator = fileManager.enumerator(
+            at: stdlibRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var declarations: [BundledKsSymbolNameDeclaration] = []
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "kt" {
+            let resourceValues = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
+            guard resourceValues.isRegularFile == true else { continue }
+            let source = try String(contentsOf: fileURL, encoding: .utf8)
+            let relativePath = fileURL.path.replacingOccurrences(of: stdlibRoot.path + "/", with: "")
+            declarations.append(contentsOf: bundledKsSymbolNameDeclarations(in: source, relativePath: relativePath))
+        }
+        return declarations
+    }
+
+    private func bundledKsSymbolNameDeclarations(
+        in source: String,
+        relativePath: String
+    ) -> [BundledKsSymbolNameDeclaration] {
+        var declarations: [BundledKsSymbolNameDeclaration] = []
+        var pendingLinkNames: [String] = []
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+
+        for (index, line) in lines.enumerated() {
+            if let linkName = ksSymbolNameArgument(in: line) {
+                pendingLinkNames.append(linkName)
+                continue
+            }
+            guard !pendingLinkNames.isEmpty,
+                  let functionHeader = functionHeader(startingAt: index, in: lines),
+                  let arity = functionParameterArity(in: functionHeader)
+            else {
+                continue
+            }
+            for linkName in pendingLinkNames {
+                declarations.append(
+                    BundledKsSymbolNameDeclaration(
+                        linkName: linkName,
+                        arity: arity,
+                        relativePath: relativePath
+                    )
+                )
+            }
+            pendingLinkNames.removeAll()
+        }
+
+        return declarations
+    }
+
+    private func ksSymbolNameArgument(in line: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: #"@KsSymbolName\("([^"]+)"\)"#) else {
+            return nil
+        }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = regex.firstMatch(in: line, range: range),
+              let valueRange = Range(match.range(at: 1), in: line)
+        else {
+            return nil
+        }
+        return String(line[valueRange])
+    }
+
+    private func functionHeader(startingAt index: Int, in lines: [String]) -> String? {
+        var header = ""
+        for line in lines[index...] {
+            header += " " + line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if header.contains(")") {
+                break
+            }
+        }
+        return header.contains(" fun ") || header.trimmingCharacters(in: .whitespaces).hasPrefix("fun ")
+            ? header
+            : nil
+    }
+
+    private func functionParameterArity(in header: String) -> Int? {
+        guard let funRange = header.range(of: "fun ") else {
+            return nil
+        }
+        let suffix = header[funRange.upperBound...]
+        guard let openParen = suffix.firstIndex(of: "(") else {
+            return nil
+        }
+
+        var parenDepth = 0
+        var closeParen: String.Index?
+        var index = openParen
+        while index < suffix.endIndex {
+            let character = suffix[index]
+            if character == "(" {
+                parenDepth += 1
+            } else if character == ")" {
+                parenDepth -= 1
+                if parenDepth == 0 {
+                    closeParen = index
+                    break
+                }
+            }
+            index = suffix.index(after: index)
+        }
+        guard let closeParen else {
+            return nil
+        }
+
+        let parameters = suffix[suffix.index(after: openParen)..<closeParen]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !parameters.isEmpty else {
+            return 0
+        }
+
+        var count = 1
+        var nestedParens = 0
+        var nestedAngles = 0
+        for character in parameters {
+            switch character {
+            case "(":
+                nestedParens += 1
+            case ")":
+                nestedParens -= 1
+            case "<":
+                nestedAngles += 1
+            case ">" where nestedAngles > 0:
+                nestedAngles -= 1
+            case "," where nestedParens == 0 && nestedAngles == 0:
+                count += 1
+            default:
+                break
+            }
+        }
+        return count
     }
 
     private func runtimeLinkNameLiterals(in source: String) -> Set<String> {
