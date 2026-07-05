@@ -663,6 +663,39 @@ extension CallTypeChecker {
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
             }
 
+            func bindBundledSequenceAggregateSource(typeArguments: [TypeID]) {
+                guard isSequenceReceiver else {
+                    return
+                }
+                let sourceFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    calleeName,
+                ]
+                guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          symbol.declSite != nil,
+                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          signature.parameterTypes.count == args.count,
+                          let signatureReceiver = signature.receiverType
+                    else {
+                        return false
+                    }
+                    return isSequenceLikeType(signatureReceiver, sema: sema, interner: interner)
+                }) else {
+                    return
+                }
+                sema.bindings.bindCall(id, binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: typeArguments,
+                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                ))
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            }
+
+            var sourceBackedSequenceAggregateTypeArguments: [TypeID]?
             let resultType: TypeID
             let destinationCollectionHOFs: Set = [
                 "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
@@ -1093,6 +1126,11 @@ extension CallTypeChecker {
                                 args: [.invariant(keyType), .invariant(valueType)],
                                 nullability: .nonNull
                             )))
+                            if isSequenceReceiver {
+                                sourceBackedSequenceAggregateTypeArguments = args.count >= 2
+                                    ? [collectionElementType, keyType, valueType]
+                                    : [collectionElementType, keyType]
+                            }
                         } else {
                             resultType = sema.types.anyType
                         }
@@ -1138,6 +1176,9 @@ extension CallTypeChecker {
                                 args: [.invariant(keyType), .invariant(valueType)],
                                 nullability: .nonNull
                             )))
+                            if isSequenceReceiver {
+                                sourceBackedSequenceAggregateTypeArguments = [collectionElementType, keyType, valueType]
+                            }
                         } else {
                             resultType = sema.types.anyType
                         }
@@ -1820,6 +1861,11 @@ extension CallTypeChecker {
                         args: [.invariant(keyType), .invariant(listType)],
                         nullability: .nonNull
                     )))
+                    if isSequenceReceiver {
+                        sourceBackedSequenceAggregateTypeArguments = args.count >= 2
+                            ? [collectionElementType, keyType, valueElementType]
+                            : [collectionElementType, keyType]
+                    }
                 } else {
                     resultType = sema.types.anyType
                 }
@@ -2382,6 +2428,9 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
+                if calleeStr == "sumOf", isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
+                }
                 if calleeStr == "sumBy" {
                     let memberFQName = [
                         interner.intern("kotlin"),
@@ -2523,6 +2572,9 @@ extension CallTypeChecker {
                 resultType = (calleeStr == "maxBy" || calleeStr == "minBy")
                     ? collectionElementType
                     : sema.types.makeNullable(collectionElementType)
+                if (calleeStr == "maxByOrNull" || calleeStr == "minByOrNull"), isSequenceReceiver {
+                    sourceBackedSequenceAggregateTypeArguments = [collectionElementType, selectorType]
+                }
 
             case "maxOf", "minOf":
                 guard args.count == 1 else {
@@ -2789,6 +2841,9 @@ extension CallTypeChecker {
                 bindBundledListAggregateSource(typeArguments: [collectionElementType, initialType])
             } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull"), args.count == 1 {
                 bindBundledListAggregateSource(typeArguments: [collectionElementType])
+            }
+            if let sourceBackedSequenceAggregateTypeArguments {
+                bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments)
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
