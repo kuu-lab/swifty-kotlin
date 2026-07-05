@@ -340,6 +340,50 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+        let resultSingleLambdaRuntimeCallees: Set<InternedString> = [
+            interner.intern("kk_result_getOrElse"),
+            interner.intern("kk_result_map"),
+            interner.intern("kk_result_onSuccess"),
+            interner.intern("kk_result_onFailure"),
+            interner.intern("kk_result_recover"),
+            interner.intern("kk_result_recoverCatching"),
+        ]
+        if resultSingleLambdaRuntimeCallees.contains(loweredCallee),
+           finalArguments.count == 2,
+           sourceArgExprs.count == 1
+        {
+            let lambdaArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs[0],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + lambdaArgs
+        }
+        if loweredCallee == interner.intern("kk_result_fold"),
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let successArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs[0],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            let failureArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[2],
+                argExprID: sourceArgExprs[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + successArgs + failureArgs
+        }
         // thenBy/thenByDescending/thenDescending/thenComparator (1-arg variants):
         // receiver comparator + lambda/comparison → (c1Fn, c1Closure, fn, closure)
         let thenByOneArgCallees: Set<InternedString> = [
@@ -490,8 +534,8 @@ extension CallLowerer {
                 finalArguments.insert(zeroExpr, at: 3)
             }
         }
-        if loweredCallee == interner.intern("kk_sequence_chunked"),
-           hasHOFLambdaArg,
+        if (loweredCallee == interner.intern("kk_sequence_chunked_transform")
+            || (loweredCallee == interner.intern("kk_sequence_chunked") && hasHOFLambdaArg)),
            finalArguments.count == 3
         {
             loweredCallee = interner.intern("kk_sequence_chunked_transform")
@@ -512,6 +556,19 @@ extension CallLowerer {
             // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
             // (parameterMapping only covers 2 original args; the extra closureBox at index 2 is not mapped).
             // Re-split finalArguments[2] (the already-extracted fnPtr) to restore (fnPtr, closureRaw).
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[2] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
+        if loweredCallee == interner.intern("kk_sequence_zip_transform"),
+           finalArguments.count == 3
+        {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
                 finalArguments[2],
                 sema: sema,
@@ -601,7 +658,11 @@ extension CallLowerer {
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
             || loweredCallee == interner.intern("kk_sequence_takeLastWhile")
-            || loweredCallee == interner.intern("kk_sequence_indexOfLast"),
+            || loweredCallee == interner.intern("kk_sequence_indexOfLast")
+            || loweredCallee == interner.intern("kk_sequence_takeWhile")
+            || loweredCallee == interner.intern("kk_sequence_dropWhile")
+            || loweredCallee == interner.intern("kk_sequence_distinctBy")
+            || loweredCallee == interner.intern("kk_sequence_zipWithNextTransform"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -1004,40 +1065,51 @@ extension CallLowerer {
             || loweredCallee == interner.intern("kk_clock_system_now") {
             callArguments = []
         }
-        // Result HOF functions accept an outThrown parameter but we don't need
-        // the codegen to generate conditional thrown-check branches. Instead,
-        // append a zero (null) pointer argument so the runtime receives the
-        // expected parameter count, and keep canThrow=false to avoid control-
-        // flow complexity.
-        let resultHOFCallees: Set = [
-            interner.intern("kk_result_onSuccess"),
-            interner.intern("kk_result_onFailure"),
+        let resultHOFCallees = resultSingleLambdaRuntimeCallees.union([
+            interner.intern("kk_result_fold"),
+        ])
+        let resultRethrowingHOFCallees: Set<InternedString> = [
             interner.intern("kk_result_getOrElse"),
             interner.intern("kk_result_map"),
             interner.intern("kk_result_fold"),
+            interner.intern("kk_result_onSuccess"),
+            interner.intern("kk_result_onFailure"),
             interner.intern("kk_result_recover"),
-            interner.intern("kk_result_recoverCatching"),
-            interner.intern("kk_result_mapCatching"),
-            interner.intern("kk_result_flatMap"),
-            interner.intern("kk_result_flatMapCatching"),
         ]
+        var thrownResult: KIRExprID?
         if resultHOFCallees.contains(loweredCallee) {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            callArguments.append(zeroExpr)
+            if resultRethrowingHOFCallees.contains(loweredCallee) {
+                thrownResult = arena.appendExpr(
+                    .temporary(Int32(arena.expressions.count)),
+                    type: sema.types.nullableAnyType
+                )
+            } else {
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                callArguments.append(zeroExpr)
+            }
         }
         let throwingCallees = Self.throwingMemberCalleeNames(interner: interner)
-        let canThrow = throwingCallees.contains(loweredCallee)
+        let canThrow = throwingCallees.contains(loweredCallee) || thrownResult != nil
         instructions.append(.call(
             symbol: chosenCallee,
             callee: loweredCallee,
             arguments: callArguments,
             result: result,
             canThrow: canThrow,
-            thrownResult: nil,
+            thrownResult: thrownResult,
             isSuperCall: isSuperCall,
             qualifiedSuperType: qualifiedSuperType
         ))
+        if let thrownResult {
+            let continueLabel = driver.ctx.makeLoopLabel()
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+            instructions.append(.jump(continueLabel))
+            instructions.append(.label(rethrowLabel))
+            instructions.append(.rethrow(value: thrownResult))
+            instructions.append(.label(continueLabel))
+        }
     }
 
     /// Cached set of runtime callee names whose `.call` should be emitted

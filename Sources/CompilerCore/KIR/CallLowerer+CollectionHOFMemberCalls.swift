@@ -31,7 +31,7 @@ extension CallLowerer {
             "ifBlank",
             "chunked", "chunkedSequence", "windowed", "copyOf",
             "toComponents",
-            "onSuccess", "onFailure", "recover",
+            "onSuccess", "onFailure", "recover", "recoverCatching",
         ].contains(interner.resolve(calleeName))
     }
 

@@ -88,6 +88,14 @@ extension CallLowerer {
             {
                 return true
             }
+            if resultRuntimeHOFMemberCalleeName(
+                memberName: interner.resolve(calleeName),
+                receiverType: sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
+                sema: sema,
+                interner: interner
+            ) != nil {
+                return true
+            }
             return sema.symbols.symbol(chosenCallee)?.declSite == nil
         }()
         let normalizedArgIDs: [KIRExprID] = {
@@ -383,6 +391,7 @@ extension CallLowerer {
             exprID,
             loweredReceiverID: loweredReceiverID,
             args: args,
+            ast: ast,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -2905,9 +2914,28 @@ extension CallLowerer {
                     return result
                 }
             }
-            let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
-                || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
+            let isSourceBackedSequenceAggregateCall: Bool = {
+                guard [
+                    "associate",
+                    "associateBy",
+                    "groupBy",
+                    "sumOf",
+                    "maxByOrNull",
+                    "minByOrNull",
+                ].contains(interner.resolve(calleeName)),
+                    let chosenBase64Callee,
+                    sema.symbols.symbol(chosenBase64Callee)?.declSite != nil,
+                    (sema.symbols.externalLinkName(for: chosenBase64Callee) ?? "").isEmpty
+                else {
+                    return false
+                }
+                return isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            }()
+            let useSequenceRuntimeForCollectionFallback = !isSourceBackedSequenceAggregateCall
+                && isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
+            let useIterableRuntimeForCollectionFallback = !isSourceBackedSequenceAggregateCall
+                && (sema.bindings.isCollectionExpr(receiverExpr)
+                    || isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner))
                 && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             if useSequenceRuntimeForCollectionFallback || useIterableRuntimeForCollectionFallback {
                 let runtimeCallee: String?

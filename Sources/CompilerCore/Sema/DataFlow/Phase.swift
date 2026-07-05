@@ -19,38 +19,26 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
 
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
+        sema.importedInlineFunctions = loadImports(ctx: ctx, symbols: symbols, types: types)
 
-        sema.importedInlineFunctions = loadImportedLibrarySymbols(
-            ctx: ctx, symbols: symbols, types: types
-        )
-        registerSyntheticPreBundledStubs(
-            symbols: symbols, types: types, interner: ctx.interner
-        )
-
-        collectBundledHeaders(
-            ast: ast, fileScopes: fileScopes,
-            symbols: symbols, types: types, bindings: bindings, ctx: ctx
-        )
+        // Build the bundled declaration index from AST before synthetic registration,
+        // but keep bundled SymbolTable header collection after synthetic type foundations.
         let bundledIndex = BundledDeclarationIndex.build(
+            ast: ast,
             symbols: symbols,
             types: types,
             sourceManager: ctx.sourceManager,
             interner: ctx.interner
         )
-        registerSyntheticPostBundledStubs(
+        registerSyntheticDelegateStubs(
             symbols: symbols,
             types: types,
             interner: ctx.interner,
             bundledIndex: bundledIndex
         )
-        bundledIndex.warnSyntheticOverlaps(
-            symbols: symbols,
-            types: types,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner
-        )
-
-        collectUserHeaders(
+        // Keep overlap diagnostics as an explicit guard test helper. Emitting
+        // them during normal Sema pollutes user diagnostics for unaffected code.
+        collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
@@ -79,7 +67,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         return fileScopes
     }
 
-    private func loadImportedLibrarySymbols(
+    private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
     ) -> [SymbolID: KIRFunction] {
         var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
@@ -91,97 +79,31 @@ final class DataFlowSemaPhase: CompilerPhase {
         return importedInlineFunctions
     }
 
-    private func registerSyntheticPreBundledStubs(
+    func diagnoseSyntheticBundledDeclarationOverlaps(
+        bundledIndex: BundledDeclarationIndex,
         symbols: SymbolTable,
         types: TypeSystem,
+        diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        BundledSyntheticStubRegistration.bundledIndex = .empty
-        BundledSyntheticStubRegistration.types = types
-        BundledSyntheticStubRegistration.skippedCount = 0
-        BundledSyntheticStubRegistration.postBundledPass = false
-        BundledSyntheticStubRegistration.preBundledPass = true
-        defer {
-            BundledSyntheticStubRegistration.clear()
+        var seen: Set<SyntheticBundledDeclarationKey> = []
+        var overlaps: [SyntheticBundledDeclarationKey] = []
+        for symbol in symbols.allSymbols() {
+            guard symbol.flags.contains(.synthetic),
+                  let key = syntheticBundledDeclarationKey(for: symbol, symbols: symbols, types: types),
+                  bundledIndex.contains(ownerFQName: key.ownerFQName, name: key.name, arity: key.arity),
+                  seen.insert(key).inserted
+            else {
+                continue
+            }
+            overlaps.append(key)
         }
-        registerSyntheticDelegateStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
 
-    private func registerSyntheticPostBundledStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        bundledIndex: BundledDeclarationIndex
-    ) {
-        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
-        BundledSyntheticStubRegistration.types = types
-        BundledSyntheticStubRegistration.skippedCount = 0
-        BundledSyntheticStubRegistration.preBundledPass = false
-        BundledSyntheticStubRegistration.postBundledPass = true
-        defer {
-            BundledSyntheticStubRegistration.clear()
-        }
-        registerSyntheticDelegateStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            bundledIndex: bundledIndex
-        )
-    }
-
-    private func isBundledFile(_ file: ASTFile, sourceManager: SourceManager) -> Bool {
-        sourceManager.path(of: file.fileID).hasPrefix("__bundled_")
-    }
-
-    func collectBundledHeaders(
-        ast: ASTModule, fileScopes: [Int32: FileScope],
-        symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
-        ctx: CompilationContext
-    ) {
-        for file in ast.sortedFiles where isBundledFile(file, sourceManager: ctx.sourceManager) {
-            collectHeadersForFile(
-                file: file, ast: ast, fileScopes: fileScopes,
-                symbols: symbols, types: types, bindings: bindings, ctx: ctx
-            )
-        }
-    }
-
-    func collectUserHeaders(
-        ast: ASTModule, fileScopes: [Int32: FileScope],
-        symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
-        ctx: CompilationContext
-    ) {
-        for file in ast.sortedFiles where !isBundledFile(file, sourceManager: ctx.sourceManager) {
-            collectHeadersForFile(
-                file: file, ast: ast, fileScopes: fileScopes,
-                symbols: symbols, types: types, bindings: bindings, ctx: ctx
-            )
-        }
-    }
-
-    private func collectHeadersForFile(
-        file: ASTFile,
-        ast: ASTModule,
-        fileScopes: [Int32: FileScope],
-        symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
-        ctx: CompilationContext
-    ) {
-        guard let fileScope = fileScopes[file.fileID.rawValue] else { return }
-        registerFileAnnotations(
-            file: file,
-            symbols: symbols,
-            diagnostics: ctx.diagnostics,
-            interner: ctx.interner
-        )
-        for declID in file.topLevelDecls {
-            collectHeader(
-                declID: declID, file: file, ast: ast,
-                symbols: symbols, types: types, bindings: bindings,
-                scope: fileScope, diagnostics: ctx.diagnostics, interner: ctx.interner
+        for key in overlaps.sorted(by: { formatKey($0, interner: interner) < formatKey($1, interner: interner) }) {
+            diagnostics.warning(
+                "KSWIFTK-SEMA-0006",
+                "Synthetic stdlib stub overlaps bundled Kotlin declaration: \(formatKey(key, interner: interner)).",
+                range: nil
             )
         }
     }
@@ -203,10 +125,98 @@ final class DataFlowSemaPhase: CompilerPhase {
                 collectHeader(
                     declID: declID, file: file, ast: ast,
                     symbols: symbols, types: types, bindings: bindings,
-                    scope: fileScope, diagnostics: ctx.diagnostics, interner: ctx.interner
+                    scope: fileScope, sourceManager: ctx.sourceManager,
+                    diagnostics: ctx.diagnostics, interner: ctx.interner
                 )
             }
         }
+    }
+
+    private func syntheticBundledDeclarationKey(
+        for symbol: SemanticSymbol,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> SyntheticBundledDeclarationKey? {
+        switch symbol.kind {
+        case .function:
+            guard let signature = symbols.functionSignature(for: symbol.id) else {
+                return nil
+            }
+            let ownerFQName = declarationOwnerFQName(
+                receiverType: signature.receiverType,
+                symbolID: symbol.id,
+                symbols: symbols,
+                types: types
+            )
+            guard let ownerFQName else {
+                return nil
+            }
+            return SyntheticBundledDeclarationKey(
+                ownerFQName: ownerFQName,
+                name: symbol.name,
+                arity: signature.parameterTypes.count
+            )
+
+        case .property:
+            let ownerFQName = declarationOwnerFQName(
+                receiverType: symbols.extensionPropertyReceiverType(for: symbol.id),
+                symbolID: symbol.id,
+                symbols: symbols,
+                types: types
+            )
+            guard let ownerFQName else {
+                return nil
+            }
+            return SyntheticBundledDeclarationKey(ownerFQName: ownerFQName, name: symbol.name, arity: 0)
+
+        default:
+            return nil
+        }
+    }
+
+    private func declarationOwnerFQName(
+        receiverType: TypeID?,
+        symbolID: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [InternedString]? {
+        if let receiverType,
+           let receiverOwner = nominalOwnerFQName(for: receiverType, symbols: symbols, types: types)
+        {
+            return receiverOwner
+        }
+        guard let parentID = symbols.parentSymbol(for: symbolID),
+              let parentSymbol = symbols.symbol(parentID)
+        else {
+            return nil
+        }
+        return parentSymbol.fqName
+    }
+
+    private func nominalOwnerFQName(
+        for typeID: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [InternedString]? {
+        switch types.kind(of: types.makeNonNullable(typeID)) {
+        case let .classType(nominalType):
+            guard let symbol = symbols.symbol(nominalType.classSymbol) else {
+                return nil
+            }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                return symbol.fqName
+            default:
+                return nil
+            }
+        default:
+            return nil
+        }
+    }
+
+    private func formatKey(_ key: SyntheticBundledDeclarationKey, interner: StringInterner) -> String {
+        let owner = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
+        return "\(owner).\(interner.resolve(key.name))(arity=\(key.arity))"
     }
 
     private func runValidationPasses(
@@ -298,4 +308,10 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
         }
     }
+}
+
+private struct SyntheticBundledDeclarationKey: Hashable {
+    let ownerFQName: [InternedString]
+    let name: InternedString
+    let arity: Int
 }

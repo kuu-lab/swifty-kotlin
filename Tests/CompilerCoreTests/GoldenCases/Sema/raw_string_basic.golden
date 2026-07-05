@@ -2,7 +2,6 @@ symbol fq=__local_0.s kind=local vis=private flags=_ type=String
 symbol fq=__local_1.multi kind=local vis=private flags=_ type=String
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.trimIndent kind=function vis=public flags=_ sig=recv=String params=[] ret=String
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file f0 package=_
   decl main fun main sym=main

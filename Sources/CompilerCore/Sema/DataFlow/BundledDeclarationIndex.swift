@@ -35,9 +35,8 @@ struct BundledDeclarationIndex: Sendable {
     }
 
     /// Build from AST bundled sources before SymbolTable header collection.
-    /// Step (0) requires bundled SymbolTable registration before stubs; that reorder
-    /// breaks sema until synthetic type foundations are split (KSP-002). AST scanning
-    /// preserves compilation behavior while supplying `(owner, name, arity)` keys.
+    /// AST scanning preserves the current phase order while supplying
+    /// `(owner, name, arity)` keys to synthetic stub registration.
     static func build(ast: ASTModule, sourceManager: SourceManager) -> BundledDeclarationIndex {
         BundledDeclarationIndex(keys: buildKeys(ast: ast, sourceManager: sourceManager))
     }
@@ -212,8 +211,12 @@ struct BundledDeclarationIndex: Sendable {
     }
 
     private static func buildKeys(ast: ASTModule, sourceManager: SourceManager) -> Set<BundledMemberKey> {
+        let bundledFileIDs = bundledFileIDs(in: sourceManager)
+        guard !bundledFileIDs.isEmpty else {
+            return []
+        }
         let bundledFiles = ast.sortedFiles.filter {
-            sourceManager.path(of: $0.fileID).hasPrefix("__bundled_")
+            bundledFileIDs.contains($0.fileID)
         }
         let topLevelNominalNamesByPackage = collectTopLevelNominalNamesByPackage(
             files: bundledFiles,
@@ -242,11 +245,7 @@ struct BundledDeclarationIndex: Sendable {
         sourceManager: SourceManager,
         interner: StringInterner?
     ) -> BundledDeclarationIndex {
-        let bundledFileIDs = Set(
-            sourceManager.fileIDs()
-                .filter { sourceManager.path(of: $0).hasPrefix("__bundled_") }
-                .map(\.rawValue)
-        )
+        let bundledFileIDs = bundledFileIDs(in: sourceManager)
         guard !bundledFileIDs.isEmpty else {
             return .empty
         }
@@ -254,8 +253,9 @@ struct BundledDeclarationIndex: Sendable {
         var keys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() {
             guard !symbol.flags.contains(.synthetic) else { continue }
-            guard let declSite = symbol.declSite,
-                  bundledFileIDs.contains(declSite.start.file.rawValue)
+            let fileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file
+            guard let fileID,
+                  bundledFileIDs.contains(fileID)
             else {
                 continue
             }
@@ -386,6 +386,10 @@ struct BundledDeclarationIndex: Sendable {
             return parentSymbol.fqName
         }
         return Array(symbol.fqName.dropLast())
+    }
+
+    private static func bundledFileIDs(in sourceManager: SourceManager) -> Set<FileID> {
+        Set(sourceManager.fileIDs().filter { sourceManager.path(of: $0).hasPrefix("__bundled_") })
     }
 
     private static func addListIterableAliases(to keys: inout Set<BundledMemberKey>, interner: StringInterner) {

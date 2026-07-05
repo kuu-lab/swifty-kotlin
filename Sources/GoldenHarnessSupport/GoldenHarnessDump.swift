@@ -74,13 +74,15 @@ enum GoldenHarnessDump {
         guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
             throw GoldenHarnessDumpError.missingSourceFile
         }
+        let excludedFileIDs = bundledStdlibFileIDs(in: ctx.sourceManager)
 
         return renderSemaOutput(
             ast: ast,
             sema: sema,
             interner: ctx.interner,
             sourceManager: ctx.sourceManager,
-            sourceFileID: sourceFileID
+            sourceFileID: sourceFileID,
+            excludedFileIDs: excludedFileIDs
         )
     }
 
@@ -91,7 +93,8 @@ enum GoldenHarnessDump {
         sema: SemaModule,
         interner: StringInterner,
         sourceManager: SourceManager,
-        sourceFileID: FileID
+        sourceFileID: FileID,
+        excludedFileIDs: Set<Int32> = []
     ) -> String {
         let ctx = StableRenderContext(sema: sema, interner: interner, ast: ast, sourceManager: sourceManager)
 
@@ -119,6 +122,7 @@ enum GoldenHarnessDump {
         // 3. Render only required symbol lines, sorted by FQ name for stability
         let requiredSymbols = sema.symbols.allSymbols()
             .filter { ctx.requiredSymbols.contains($0.id.rawValue) }
+            .filter { !isExcludedBundledSymbol($0, excludedFileIDs: excludedFileIDs) }
             .sorted { ctx.stableKey(for: $0.id) < ctx.stableKey(for: $1.id) }
 
         var symbolLines: [String] = []
@@ -127,6 +131,17 @@ enum GoldenHarnessDump {
         }
 
         return (symbolLines + bodyLines).joined(separator: "\n") + "\n"
+    }
+
+    private static func bundledStdlibFileIDs(in sourceManager: SourceManager) -> Set<Int32> {
+        Set(sourceManager.fileIDs()
+            .filter { sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .map(\.rawValue))
+    }
+
+    private static func isExcludedBundledSymbol(_ symbol: SemanticSymbol, excludedFileIDs: Set<Int32>) -> Bool {
+        guard let declSite = symbol.declSite else { return false }
+        return excludedFileIDs.contains(declSite.start.file.rawValue)
     }
 
     private static func renderSymbol(_ symbol: SemanticSymbol, ctx: StableRenderContext) -> String {

@@ -62,8 +62,8 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 > 移行元: `Sources/Runtime/RuntimeSequence.swift` (105), `RuntimeSequenceBuilders.swift` (20), `RuntimeSequenceAssociation.swift` (25), `RuntimeSequenceFoldScan.swift` (9)
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/sequences/`
 
-- [ ] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
-- [ ] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
+- [x] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
+- [x] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
 
 ### Phase M5: kotlin.comparisons
 > 移行元: `Sources/Runtime/RuntimeComparator.swift` (47 @_cdecl)
@@ -82,7 +82,7 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 > 移行元: `Sources/Runtime/RuntimeResult.swift` (16 @_cdecl)
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/Result.kt`
 
-- [ ] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
+- [x] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
 
 ## ターゲット外バックログ（本体非追跡）
 #### JS/Wasm/JVM stub登録呼び出し削除

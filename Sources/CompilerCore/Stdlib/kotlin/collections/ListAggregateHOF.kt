@@ -9,7 +9,7 @@ package kotlin.collections
 // NOTE: Bundled source is injected via BundledKotlinStdlib.kotlinCollectionsSource.
 // Sema binds these definitions through bindBundledListAggregateSource in
 // CallTypeChecker+MemberCallInferenceCollectionFlow.swift.
-// CollectionLiteralLoweringPass preserves source-backed calls in shouldPreserveSourceBackedListAggregateCall.
+// CollectionLiteralLoweringPass preserves source-backed calls in shouldPreserveSourceBackedAggregateCall.
 
 public fun <T, R> List<T>.fold(initial: R, operation: (R, T) -> R): R {
     var accumulator = initial
