@@ -9,7 +9,7 @@ struct NativeUnhandledExceptionHookSurfaceTests {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
         return try #require(result)
     }

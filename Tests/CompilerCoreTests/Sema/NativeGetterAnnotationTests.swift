@@ -18,7 +18,7 @@ struct NativeGetterAnnotationTests {
                 !(ctx.diagnostics.hasError),
                 "Expected nativeGetter annotation surface to resolve cleanly, got: \(diagnostics)"
             )
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
         return try #require(result)
     }

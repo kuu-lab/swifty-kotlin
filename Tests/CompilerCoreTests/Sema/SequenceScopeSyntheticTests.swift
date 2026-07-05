@@ -12,7 +12,7 @@ struct SequenceScopeSyntheticTests {
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
             #expect(!ctx.diagnostics.hasError, "Expected SequenceScope surface to resolve cleanly, got: \(diagnostics)")
-            result = try (ctx.sema!, ctx.interner)
+            result = (ctx.sema!, ctx.interner)
         }
         return try #require(result)
     }

@@ -15,7 +15,7 @@ struct NativeConcurrentSyntheticStubTests {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
         return try #require(result)
     }
@@ -36,7 +36,7 @@ struct NativeConcurrentSyntheticStubTests {
         interner: StringInterner
     ) throws -> SymbolID {
             let found = sema.symbols.lookup(fqName: path.map { interner.intern($0) })
-        return try #require(found, "Expected \(path.joined(separator: ".")) to be registered")
+        return try requireTestValue(found, "Expected \(path.joined(separator: ".")) to be registered")
     }
 
     private func classType(
