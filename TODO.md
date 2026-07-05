@@ -85,13 +85,7 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 - [ ] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
 
 ## ターゲット外バックログ（本体非追跡）
-#### JVM Atomic相互運用stub
-- [x] CLEANUP-STUB-024: `kk_java_atomic_int_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
-- [x] CLEANUP-STUB-028: `kk_java_atomic_int_array_asKotlinAtomicArray` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
 #### JS/Wasm/JVM stub登録呼び出し削除
-
-## テスト改善タスク
-- [x] TEST-SEQ-009: `kotlin.sequences` の `findLast` / `partition` に Runtime テストを追加する。`kk_sequence_findLast` / `kk_sequence_partition` は専用ランタイム実装があるのに `Tests/RuntimeTests/RuntimeSequenceTests*.swift` での参照が 0 件。カバー対象: 空シーケンス・単一要素・マッチなし（`findLast` は `null`）・全要素マッチ・`partition` の predicate による 2 分割（`Pair<List, List>`）。`count` は基本ケース（`testCountReturnsElementCount`）のみ存在のため、空シーケンスと `predicate` 版を補完する
 
 ## 公式ドキュメント整合性チェック（Kotlin docs parity）
 
