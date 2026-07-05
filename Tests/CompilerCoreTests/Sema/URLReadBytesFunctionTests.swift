@@ -18,7 +18,7 @@ struct URLReadBytesFunctionTests {
                 !ctx.diagnostics.hasError,
                 "URL.readBytes surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
         return try #require(result)
     }

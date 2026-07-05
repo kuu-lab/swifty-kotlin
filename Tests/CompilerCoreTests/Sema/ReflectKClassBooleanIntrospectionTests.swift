@@ -16,7 +16,7 @@ struct ReflectKClassBooleanIntrospectionTests {
                 !(ctx.diagnostics.hasError),
                 Comment(rawValue: "Expected KClass boolean introspection source to type-check, got: \(ctx.diagnostics.diagnostics)")
             )
-            result = try (try #require(ctx.sema), ctx.interner, ctx)
+            result = (try #require(ctx.sema), ctx.interner, ctx)
         }
         return try #require(result)
     }
