@@ -124,7 +124,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）
 - [ ] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
 - [ ] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する
-- [ ] RF-STDLIB-007: golden / `diff_kotlinc.sh` ハーネスが implicit stdlib ソース込みで決定的に動くよう正規化する（fileID 順序・診断ソートの安定性）
+- [x] RF-STDLIB-007: golden / `diff_kotlinc.sh` ハーネスが implicit stdlib ソース込みで決定的に動くよう正規化する（fileID 順序・診断ソートの安定性）。2026-07-06 実装確認: `LoadSourcesPhase` は bundled / residual stdlib を path sort 後にユーザー入力より先へ登録し、`BundledStdlibOrderingTests` が不変条件を固定。Sema golden は bundled declSite シンボルを除外し、診断 text/JSON は source location + severity/code/message で render 時ソートする。`diff_kotlinc.sh` は case discovery / sharding / parallel replay を入力順で安定化済み。
 - [ ] RF-STDLIB-008: M1–M17 の完了条件を「.kt 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」に統一し、本ファイル M セクション冒頭の移行方針を更新する
 
 ### Phase RF3: 合成スタブ削減（RF2 完了後に本格化。(a) 群のみ即着手可）
@@ -289,12 +289,12 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
   - 変更: `Sources/CompilerCore/Driver/DiagnosticRegistry.swift` の `semaDescriptors` / `Phase.swift`
   - 手順: (1) `rg 'KSWIFTK-SEMA-' Sources/CompilerCore/Driver/DiagnosticRegistry.swift` で未使用番号を採番し descriptor 追加 (2) `registerSyntheticDelegateStubs` 完了後、bundled インデックスと `.synthetic` フラグ付きシンボルの `(owner, name, arity)` 交差を検出したら `ctx.diagnostics.warning(...)`（= KSP-002 のガード漏れ検知） (3) 診断テスト追加
   - 検証: G
-- [ ] KSP-004: bundled ソースの fileID 順序不変条件テストを追加する
+- [x] KSP-004: bundled ソースの fileID 順序不変条件テストを追加する
   - 前提: なし（並列可）
   - 変更: 新規 `Tests/CompilerCoreTests/Driver/BundledStdlibOrderingTests.swift`
   - 手順: `LoadSourcesPhase` 実行後の `sourceManager.fileIDs()` について (a) `__bundled_*` がユーザー入力より前 (b) `__bundled_*` 同士が相対パス辞書順、を assert
   - 検証: G
-- [ ] KSP-005: golden Sema ダンプから bundled 由来シンボルを除外する
+- [x] KSP-005: golden Sema ダンプから bundled 由来シンボルを除外する
   - 前提: KSP-004
   - 変更: `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` の `dumpSema(sourcePath:)`
   - 手順: `Sources/CompilerCore/Sema/Models/MetadataSerializer.swift` の `buildRecords` にある excludedFileIDs（`__bundled_*` の declSite 除外）と同じフィルタを dumpSema に適用 → U で一括更新
