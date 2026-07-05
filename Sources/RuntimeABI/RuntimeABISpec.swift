@@ -2377,7 +2377,6 @@ public enum RuntimeABISpec {
         networkFunctions,
         numericRuntimeBridgeFunctions,
         operatorFunctions,
-        parallelFunctions,
         pathFunctions,
         primitiveNumericConversionFunctions,
         randomFunctions,
