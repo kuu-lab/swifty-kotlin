@@ -33,6 +33,7 @@ struct KIRModelsBehaviorTests {
         let expr3 = arena.appendExpr(.symbolRef(symA))
         let expr4 = arena.appendExpr(.temporary(4))
         let expr5 = arena.appendExpr(.unit)
+        let expr6 = arena.appendTemporary(type: intType)
 
         let fnA = KIRFunction(
             symbol: symA,
@@ -81,6 +82,9 @@ struct KIRModelsBehaviorTests {
         #expect(arena.decl(KIRDeclID(rawValue: 999)) == nil)
         #expect(arena.expr(expr0) == .intLiteral(10))
         #expect(arena.exprType(expr0) == intType)
+        #expect(expr6.rawValue == 6)
+        #expect(arena.expr(expr6) == .temporary(6))
+        #expect(arena.exprType(expr6) == intType)
         arena.setExprType(types.unitType, for: expr5)
         #expect(arena.exprType(expr5) == types.unitType)
         #expect(arena.expr(KIRExprID(rawValue: -1)) == nil)

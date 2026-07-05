@@ -77,78 +77,23 @@ extension DataFlowSemaPhase {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else {
             return
         }
-        let functionName = interner.intern(name)
-        let functionFQName = ownerInfo.fqName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.receiverType == ownerType
-                && existingSignature.parameterTypes == parameters.map(\.type)
-        }) {
-            guard let existingInfo = symbols.symbol(existing),
-                  existingInfo.flags.contains(.synthetic) || existingInfo.declSite == nil else {
-                return
-            }
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            if let existingSignature = symbols.functionSignature(for: existing),
-               existingSignature.returnType != returnType {
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: existingSignature.receiverType,
-                        parameterTypes: existingSignature.parameterTypes,
-                        returnType: returnType,
-                        isSuspend: existingSignature.isSuspend,
-                        valueParameterSymbols: existingSignature.valueParameterSymbols,
-                        valueParameterHasDefaultValues: existingSignature.valueParameterHasDefaultValues,
-                        valueParameterIsVararg: existingSignature.valueParameterIsVararg
-                    ),
-                    for: existing
-                )
-            }
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var parameterTypes: [TypeID] = []
-        var parameterSymbols: [SymbolID] = []
-
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            parameterTypes.append(parameter.type)
-            parameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: parameterSymbols.count),
-                valueParameterIsVararg: valueParameterIsVararg ?? Array(repeating: false, count: parameterSymbols.count)
+        let varargs = valueParameterIsVararg ?? Array(repeating: false, count: parameters.count)
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: ownerInfo.fqName,
+            parentSymbol: ownerSymbol,
+            receiverType: ownerType,
+            parameters: syntheticFunctionParameters(
+                parameters,
+                hasDefaultValues: Array(repeating: false, count: parameters.count),
+                isVararg: varargs
             ),
-            for: functionSymbol
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            updateExistingSignature: true,
+            requireSyntheticOrNoDeclSiteForExisting: true,
+            symbols: symbols,
+            interner: interner
         )
     }
 
@@ -271,88 +216,27 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        let parameterTypes = parameters.map(\.type)
         let defaults = valueParameterHasDefaultValues
             ?? Array(repeating: false, count: parameters.count)
         let varargs = valueParameterIsVararg
             ?? Array(repeating: false, count: parameters.count)
-
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.receiverType == receiverType
-                && existingSignature.parameterTypes == parameterTypes
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            if isOperator {
-                symbols.insertFlags([.operatorFunction], for: existing)
-            }
-            if let existingSignature = symbols.functionSignature(for: existing) {
-                let shouldUpdateSignature =
-                    existingSignature.returnType != returnType
-                    || existingSignature.valueParameterHasDefaultValues != defaults
-                    || existingSignature.valueParameterIsVararg != varargs
-                guard shouldUpdateSignature else {
-                    return
-                }
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: existingSignature.receiverType,
-                        parameterTypes: existingSignature.parameterTypes,
-                        returnType: returnType,
-                        isSuspend: existingSignature.isSuspend,
-                        valueParameterSymbols: existingSignature.valueParameterSymbols,
-                        valueParameterHasDefaultValues: defaults,
-                        valueParameterIsVararg: varargs
-                    ),
-                    for: existing
-                )
-            }
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: isOperator ? [.synthetic, .operatorFunction] : [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: defaults,
-                valueParameterIsVararg: varargs
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: packageFQName,
+            parentSymbol: symbols.lookup(fqName: packageFQName),
+            receiverType: receiverType,
+            parameters: syntheticFunctionParameters(
+                parameters,
+                hasDefaultValues: defaults,
+                isVararg: varargs
             ),
-            for: functionSymbol
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            flags: isOperator ? [.synthetic, .operatorFunction] : [.synthetic],
+            updateExistingSignature: true,
+            existingFlagsToInsert: isOperator ? [.operatorFunction] : [],
+            symbols: symbols,
+            interner: interner
         )
     }
 
@@ -407,82 +291,25 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        let parameterTypes = parameters.map(\.type)
         let defaults = valueParameterHasDefaultValues
             ?? Array(repeating: false, count: parameters.count)
         let varargs = valueParameterIsVararg
             ?? Array(repeating: false, count: parameters.count)
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.parameterTypes == parameterTypes
-                && existingSignature.returnType == returnType
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            if let existingSignature = symbols.functionSignature(for: existing) {
-                let shouldUpdateSignature =
-                    existingSignature.valueParameterHasDefaultValues != defaults
-                    || existingSignature.valueParameterIsVararg != varargs
-                guard shouldUpdateSignature else {
-                    return
-                }
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: existingSignature.receiverType,
-                        parameterTypes: existingSignature.parameterTypes,
-                        returnType: existingSignature.returnType,
-                        isSuspend: existingSignature.isSuspend,
-                        valueParameterSymbols: existingSignature.valueParameterSymbols,
-                        valueParameterHasDefaultValues: defaults,
-                        valueParameterIsVararg: varargs
-                    ),
-                    for: existing
-                )
-            }
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let paramNameID = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramNameID,
-                fqName: functionFQName + [paramNameID],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: defaults,
-                valueParameterIsVararg: varargs
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: packageFQName,
+            parentSymbol: symbols.lookup(fqName: packageFQName),
+            parameters: syntheticFunctionParameters(
+                parameters,
+                hasDefaultValues: defaults,
+                isVararg: varargs
             ),
-            for: functionSymbol
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            matchReturnType: true,
+            updateExistingSignature: true,
+            symbols: symbols,
+            interner: interner
         )
     }
 }

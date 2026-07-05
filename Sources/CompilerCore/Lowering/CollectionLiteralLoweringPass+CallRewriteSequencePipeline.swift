@@ -129,8 +129,7 @@ extension CollectionLiteralLoweringPass {
             return true
         }
         if state.listExprIDs.contains(receiverID.rawValue) {
-            let transformResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
+            let transformResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
                 symbol: nil,
@@ -193,8 +192,7 @@ extension CollectionLiteralLoweringPass {
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             if arguments.count == 1 {
                 // zipWithNext() — no transform
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -221,8 +219,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     closureRawID = zeroExpr
                 }
-                let hofResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let hofResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -368,8 +365,7 @@ extension CollectionLiteralLoweringPass {
             if isArgCollection {
                 effectiveArg = argID
             } else {
-                let wrappedExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let wrappedExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -420,8 +416,7 @@ extension CollectionLiteralLoweringPass {
         } == "kk_list_minus_element"
         let returnsList = result.flatMap { module.arena.exprType($0) }.map { resultType in
             guard let sema = ctx.sema,
-                  case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(resultType)),
-                  let resultSymbol = sema.symbols.symbol(classType.classSymbol)
+                  let (_, resultSymbol) = resolveClassTypeSymbol(resultType, sema: sema)
             else { return false }
             return ctx.interner.resolve(resultSymbol.name) == "List"
         } ?? false

@@ -18,8 +18,7 @@ extension CollectionLiteralLoweringPass {
         if callee == lookup.kkPrintlnAnyName || callee == lookup.printlnName, arguments.count == 1 {
             let argID = arguments[0]
             if state.listExprIDs.contains(argID.rawValue) {
-                let strResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let strResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -40,8 +39,7 @@ extension CollectionLiteralLoweringPass {
                 return true
             }
             if state.setExprIDs.contains(argID.rawValue) {
-                let strResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let strResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -62,8 +60,7 @@ extension CollectionLiteralLoweringPass {
                 return true
             }
             if state.mapExprIDs.contains(argID.rawValue) {
-                let strResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                let strResult = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -292,8 +289,7 @@ extension CollectionLiteralLoweringPass {
                     loweredBody.append(.constValue(
                         result: innerTrampolineExpr,
                         value: .externSymbolAddress(innerTrampolineName)))
-                    let reversedClosureResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)), type: nil)
+                    let reversedClosureResult = module.arena.appendTemporary(type: nil)
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkComparatorReversedName,
@@ -327,11 +323,9 @@ extension CollectionLiteralLoweringPass {
         }
 
         // --- STDLIB-189: String HOF closureRaw injection ---
-        // String higher-order functions (filter, map, count, any, all, none)
-        // are called with args = [receiver, lambdaRef] but the runtime
-        // expects (strRaw, fnPtr, closureRaw, outThrown).  Insert the
-        // missing closureRaw=0 argument so the ABI lowering pass only
-        // needs to append the outThrown slot.
+        // String higher-order functions are called with args = [receiver,
+        // lambdaRef]. Insert closureRaw=0 so ABI lowering only needs to append
+        // the outThrown slot.
         if arguments.count == 2,
            callee == lookup.kkStringFilterName
             || callee == lookup.kkStringMapName
@@ -345,7 +339,6 @@ extension CollectionLiteralLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let isStringResult = callee == lookup.kkStringFilterName
-                || callee == lookup.kkStringMapName
             loweredBody.append(.call(
                 symbol: nil,
                 callee: callee,

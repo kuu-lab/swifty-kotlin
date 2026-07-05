@@ -154,9 +154,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             loweredBody.reserveCapacity(function.body.count + 16)
 
             func appendIntConstant(_ value: Int64) -> KIRExprID {
-                let expr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: intType
+                let expr = module.arena.appendTemporary(type: intType
                 )
                 loweredBody.append(.constValue(result: expr, value: .intLiteral(value)))
                 return expr
@@ -164,9 +162,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
             func appendFlowOfCall(arguments: [KIRExprID], result: KIRExprID?) {
                 let countExpr = appendIntConstant(Int64(arguments.count))
-                let arrayExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: nil
+                let arrayExpr = module.arena.appendTemporary(type: nil
                 )
                 loweredBody.append(.call(
                     symbol: nil,
@@ -178,9 +174,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                 ))
                 for (index, arg) in arguments.enumerated() {
                     let indexExpr = appendIntConstant(Int64(index))
-                    let setResult = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: nil
+                    let setResult = module.arena.appendTemporary(type: nil
                     )
                     loweredBody.append(.call(
                         symbol: nil,
@@ -214,7 +208,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     loweredBody.append(instruction)
 
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
                     if callee == collectName,
                        arguments.count == 1,
                        let flowExpr = activeFlowExpr,

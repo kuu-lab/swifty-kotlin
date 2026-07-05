@@ -43,7 +43,7 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(job.cancellationSnapshot())
 
         // Complete cancellation
-        XCTAssertTrue(job.completeCancellationIfNeeded())
+        XCTAssertTrue(job.complete(with: 0))
         XCTAssertTrue(job.completedSnapshot())
         XCTAssertTrue(job.cancellationSnapshot())
     }
@@ -110,7 +110,7 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(job.cancel(cause: cause))
 
         XCTAssertTrue(job.cancellationSnapshot())
-        XCTAssertTrue(job.completeCancellationIfNeeded())
+        XCTAssertTrue(job.complete(with: 0))
         XCTAssertEqual(job.join(), cause)
     }
 
@@ -188,7 +188,7 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         job3.markStarted()
         let cause = runtimeAllocateThrowable(message: "cancelled")
         XCTAssertTrue(job3.cancel(cause: cause))
-        XCTAssertTrue(job3.completeCancellationIfNeeded())
+        XCTAssertTrue(job3.complete(with: 0))
         XCTAssertEqual(job3.join(), cause)
     }
 

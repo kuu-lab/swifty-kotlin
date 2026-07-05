@@ -6,6 +6,34 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
+    func hasImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        // Imported stdlib declarations own the public Kotlin surface; synthetic
+        // fallback stubs should not reintroduce direct runtime links there.
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else {
+                return false
+            }
+            return symbol.kind == kind && symbol.flags.contains(.importedLibrary)
+        }
+    }
+
+    func hasSourceOrImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID), symbol.kind == kind else {
+                return false
+            }
+            return symbol.flags.contains(.importedLibrary) || !symbol.flags.contains(.synthetic)
+        }
+    }
+
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
         case let .classDecl(classDecl):
@@ -442,6 +470,16 @@ extension DataFlowSemaPhase {
                 return
             }
         }
+        if newKind == .property,
+           !newFlags.contains(.synthetic)
+        {
+            let existingNonPackage = existing.filter { $0.kind != .package }
+            if !existingNonPackage.isEmpty,
+               existingNonPackage.allSatisfy({ $0.kind == .property && $0.flags.contains(.synthetic) })
+            {
+                return
+            }
+        }
         if hasDeclarationConflict(
             newKind: newKind,
             existing: existing,
@@ -495,7 +533,7 @@ extension DataFlowSemaPhase {
         }
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         guard !hasUserDeclaredFunction(
             fqName: toStringFQName,
             receiverType: ownerType,
@@ -1001,8 +1039,10 @@ extension DataFlowSemaPhase {
     func registerSyntheticDelegateStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) {
+        var skipStats = SyntheticStubSkipStatsCollector()
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
@@ -1014,7 +1054,13 @@ extension DataFlowSemaPhase {
         // Random stubs must be registered before collection stubs so that
         // shuffled(random: Random) can look up the kotlin.random.Random symbol.
         registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCollectionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCollectionStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
+        )
         // STDLIB-REFLECT-063: Now that List is registered, update KFunction.parameters type to
         // List<Any?> so that `.size` resolves correctly on the parameters property.
         patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
@@ -1082,6 +1128,7 @@ extension DataFlowSemaPhase {
         // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
         // The Phase file preserves the exact original call order.
         registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
+        skipStats.logIfEnabled()
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

@@ -54,7 +54,7 @@ extension OverloadResolverTests {
 
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         // fn(a: Int, b: Bool = true, c: String)
         let fn = defineSymbol(kind: .function, name: "namedDef", suffix: "namedDef", symbols: symbols, interner: interner)
@@ -241,7 +241,7 @@ extension OverloadResolverTests {
 
         let intType = types.make(.primitive(.int, .nonNull))
         let boolType = types.make(.primitive(.boolean, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         // fn(first: Int, mid: Bool = false, last: String)
         let fn = defineSymbol(kind: .function, name: "midDefault", suffix: "midDefault", symbols: symbols, interner: interner)
@@ -349,7 +349,7 @@ extension OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let boolType = types.make(.primitive(.boolean, .nonNull))
 
         // Extension on String
@@ -383,7 +383,7 @@ extension OverloadResolverTests {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let boolType = types.make(.primitive(.boolean, .nonNull))
 
         // Extension on String

@@ -1,11 +1,11 @@
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
 symbol fq=test.Foo kind=class vis=public flags=_
-file f14 package=test
+file f0 package=test
   decl test.Foo class Foo sym=test.Foo
 expr e@4:18 int(1) type=Int
-expr e@6:18#2 int(2) type=Int
+expr e@6:18 int(2) type=Int
 expr e@5:20 string(init1) type=String
-expr e@5:12#1 call callee=e@5:12#0 args=[_:e@5:20] type=Unit call=kotlin.io.println#1
+expr e@5:12 call callee=e@5:12#1 args=[_:e@5:20] type=Unit call=kotlin.io.println#1
 expr e@7:20 string(init2) type=String
-expr e@7:12#4 call callee=e@7:12#3 args=[_:e@7:20] type=Unit call=kotlin.io.println#1
+expr e@7:12 call callee=e@7:12#1 args=[_:e@7:20] type=Unit call=kotlin.io.println#1

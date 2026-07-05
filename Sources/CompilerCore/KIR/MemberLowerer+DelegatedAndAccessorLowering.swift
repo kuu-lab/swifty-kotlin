@@ -95,21 +95,15 @@ extension MemberLowerer {
             returnType = propertyType
             accessorName = interner.intern("get")
 
-            let delegateHandleExprID = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.anyType
+            let delegateHandleExprID = arena.appendTemporary(type: sema.types.anyType
             )
             body.append(.loadGlobal(result: delegateHandleExprID, symbol: delegateStorageSymbol))
             // call: $delegate_x.getValue(thisRef, kProperty) -> PropertyType
-            let resultExprID = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: propertyType
+            let resultExprID = arena.appendTemporary(type: propertyType
             )
             let notNullThrows = delegateKind == .notNull
             let thrownExprID: KIRExprID? = notNullThrows
-                ? arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
+                ? arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 : nil
             body.append(
@@ -140,14 +134,10 @@ extension MemberLowerer {
             // call: $delegate_x.setValue(thisRef, kProperty, value)
             let valueExprID = arena.appendExpr(.symbolRef(valueParamSymbol), type: propertyType)
             body.append(.constValue(result: valueExprID, value: .symbolRef(valueParamSymbol)))
-            let delegateHandleExprID = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.anyType
+            let delegateHandleExprID = arena.appendTemporary(type: sema.types.anyType
             )
             body.append(.loadGlobal(result: delegateHandleExprID, symbol: delegateStorageSymbol))
-            let resultExprID = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.unitType
+            let resultExprID = arena.appendTemporary(type: sema.types.unitType
             )
             body.append(
                 .call(
@@ -244,17 +234,17 @@ extension MemberLowerer {
         let propertyName = sema.symbols.symbol(propertySymbol)?.name ?? interner.intern("")
         let propertyNameExprID = arena.appendExpr(
             .stringLiteral(propertyName),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: propertyNameExprID, value: .stringLiteral(propertyName)))
         let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         let returnTypeSig = interner.intern(sema.types.renderType(propertyType))
         let returnTypeExprID = arena.appendExpr(
             .stringLiteral(returnTypeSig),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
-        let kPropertyExprID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let kPropertyExprID = arena.appendTemporary(type: sema.types.anyType)
         body.append(
             .call(
                 symbol: nil,

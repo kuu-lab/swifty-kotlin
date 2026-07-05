@@ -354,8 +354,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsListFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName,
               let firstArg = classType.args.first
@@ -379,8 +378,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsSetFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableSetFQName,
               let firstArg = classType.args.first
@@ -404,8 +402,7 @@ extension CallTypeChecker {
         guard let expectedType else {
             return nil
         }
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema),
               symbol.fqName == knownNames.kotlinCollectionsMapFQName
               || symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName,
               classType.args.count >= 2
@@ -608,9 +605,7 @@ extension CallTypeChecker {
         into substitution: inout [TypeVarID: TypeID]
     ) {
         let sema = ctx.sema
-        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
-              let symbol = sema.symbols.symbol(classType.classSymbol),
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
               let simpleName = symbol.fqName.last
         else {
             return
@@ -692,7 +687,7 @@ extension CallTypeChecker {
     }
 
     private func typeArguments(of type: TypeID, sema: SemaModule) -> [TypeArg] {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)) else {
+        guard let classType = resolveClassType(type, sema: sema) else {
             return []
         }
         return classType.args
@@ -1000,7 +995,7 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
         let elementType: TypeID
-        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(sequenceType)),
+        if let classType = resolveClassType(sequenceType, sema: sema),
            let firstArg = classType.args.first
         {
             switch firstArg {
@@ -1077,7 +1072,7 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
         let elementType: TypeID
-        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(channelType)),
+        if let classType = resolveClassType(channelType, sema: sema),
            classType.classSymbol == channelSymbol,
            let firstArg = classType.args.first
         {
@@ -1159,13 +1154,12 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         guard let expectedType,
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType))
+              let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema)
         else {
             return nil
         }
         let knownNames = KnownCompilerNames(interner: interner)
-        guard let symbol = sema.symbols.symbol(classType.classSymbol),
-              symbol.fqName == knownNames.kotlinxCoroutinesChannelFQName,
+        guard symbol.fqName == knownNames.kotlinxCoroutinesChannelFQName,
               let firstArg = classType.args.first
         else {
             return nil
@@ -1427,8 +1421,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         guard let expectedType,
-              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
+              let (classType, symbol) = resolveClassTypeSymbol(expectedType, sema: sema)
         else {
             return nil
         }
@@ -1461,8 +1454,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID? {
         let nonNullType = sema.types.makeNonNullable(collectionType)
-        if case let .classType(classType) = sema.types.kind(of: nonNullType),
-           let symbol = sema.symbols.symbol(classType.classSymbol),
+        if let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
            let simpleName = symbol.fqName.last
         {
             let resolved = interner.resolve(simpleName)

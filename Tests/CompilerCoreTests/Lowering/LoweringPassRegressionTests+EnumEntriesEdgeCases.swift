@@ -13,7 +13,6 @@ extension LoweringPassRegressionTests {
         entryNames: [String],
         interner: StringInterner,
         symbols: SymbolTable,
-        types: TypeSystem,
         sema: SemaModule,
         moduleName: String
     ) throws -> (module: KIRModule, enumSymbol: SymbolID, ctx: CompilationContext) {
@@ -66,21 +65,19 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Color",
             entryNames: ["RED", "GREEN", "BLUE"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesGetter"
         )
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(fn) = decl else { return nil }
-            return interner.resolve(fn.name)
+        let functionNames = findAllKIRFunctions(in: module).map { fn in
+            interner.resolve(fn.name)
         }
 
         #expect(functionNames.contains("entries$get"),
@@ -94,14 +91,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Direction",
             entryNames: ["NORTH", "SOUTH", "EAST", "WEST"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesRuntimeCalls"
         )
@@ -124,14 +120,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Planet",
             entryNames: ["MERCURY", "VENUS", "EARTH", "MARS", "JUPITER"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesCount"
         )
@@ -163,14 +158,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Season",
             entryNames: ["SPRING", "SUMMER", "AUTUMN", "WINTER"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesOrder"
         )
@@ -194,14 +188,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Empty",
             entryNames: [],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesEmpty"
         )
@@ -230,14 +223,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Singleton",
             entryNames: ["ONLY"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesSingle"
         )
@@ -272,21 +264,19 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Side",
             entryNames: ["LEFT", "RIGHT"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValuesAndEntries"
         )
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(fn) = decl else { return nil }
-            return interner.resolve(fn.name)
+        let functionNames = findAllKIRFunctions(in: module).map { fn in
+            interner.resolve(fn.name)
         }
         #expect(functionNames.contains("values"),
                 "values() must be synthesized; got: \(functionNames)")
@@ -309,21 +299,20 @@ extension LoweringPassRegressionTests {
                 "entries$get must NOT call kk_enum_make_values_array; callees: \(entriesCallees)")
     }
 
-    // MARK: - STDLIB-023-08: valueOf is synthesized and calls kk_string_equals + kk_enum_valueOf_throw
+    // MARK: - STDLIB-023-08: valueOf is synthesized and calls kk_string_equals_flat + kk_enum_valueOf_throw
 
     @Test
     func testEnumValueOfSynthesizedWithStringComparisonAndThrow() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Status",
             entryNames: ["ACTIVE", "INACTIVE", "PENDING"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValueOf"
         )
@@ -331,8 +320,8 @@ extension LoweringPassRegressionTests {
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         let callees = extractCallees(from: valueOfFn.body, interner: interner)
 
-        #expect(callees.contains("kk_string_equals"),
-                "valueOf should call kk_string_equals; callees: \(callees)")
+        #expect(callees.contains("kk_string_equals_flat"),
+                "valueOf should call kk_string_equals_flat; callees: \(callees)")
         #expect(callees.contains("kk_enum_valueOf_throw"),
                 "valueOf should call kk_enum_valueOf_throw; callees: \(callees)")
     }
@@ -344,14 +333,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Coin",
             entryNames: ["HEADS", "TAILS"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValuesFreshArray"
         )
@@ -373,7 +361,7 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let entryNames = ["ALPHA", "BETA", "GAMMA"]
         let (module, _, _) = try makeEnumModule(
@@ -381,14 +369,12 @@ extension LoweringPassRegressionTests {
             entryNames: entryNames,
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumPerEntryHelpers"
         )
 
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(fn) = decl else { return nil }
-            return interner.resolve(fn.name)
+        let functionNames = findAllKIRFunctions(in: module).map { fn in
+            interner.resolve(fn.name)
         }
 
         for name in entryNames {
@@ -417,14 +403,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Fruit",
             entryNames: ["APPLE", "BANANA"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValueOfErrorPrefix"
         )
@@ -446,14 +431,13 @@ extension LoweringPassRegressionTests {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
 
         let (module, _, _) = try makeEnumModule(
             enumName: "Flag",
             entryNames: ["ON", "OFF"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesZeroParams"
         )

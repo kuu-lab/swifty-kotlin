@@ -85,8 +85,8 @@ final class StringRemoveSurroundingFunctionTests: XCTestCase {
             })
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: symbol),
-                "kk_string_removeSurrounding",
-                "Single-delimiter overload must map to kk_string_removeSurrounding"
+                "kk_string_removeSurrounding_flat",
+                "Single-delimiter overload must map to kk_string_removeSurrounding_flat"
             )
             XCTAssertEqual(
                 sema.symbols.functionSignature(for: symbol)?.returnType,
@@ -111,8 +111,8 @@ final class StringRemoveSurroundingFunctionTests: XCTestCase {
             })
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: symbol),
-                "kk_string_removeSurrounding_pair",
-                "Two-argument overload must map to kk_string_removeSurrounding_pair"
+                "kk_string_removeSurrounding_pair_flat",
+                "Two-argument overload must map to kk_string_removeSurrounding_pair_flat"
             )
             XCTAssertEqual(
                 sema.symbols.functionSignature(for: symbol)?.returnType,

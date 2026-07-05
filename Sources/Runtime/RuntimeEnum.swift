@@ -1,27 +1,5 @@
 
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
-// kk_string_equals and kk_enum_valueOf_throw are used by synthesized valueOf(String).
-
-// STDLIB-TEXT-FN-016: String.equals(other: String?)
-// Returns raw 0/1 (not kk_box_bool) because the synthesized enum valueOf
-// branches on this result via jumpIfEqual with boolLiteral(false).
-@_cdecl("kk_string_equals")
-public func kk_string_equals(_ aRaw: Int, _ bRaw: Int) -> Int {
-    if bRaw == runtimeNullSentinelInt {
-        return 0
-    }
-    guard let aPtr = UnsafeMutableRawPointer(bitPattern: aRaw),
-          let a = extractString(from: aPtr)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid string pointer in kk_string_equals (aRaw=0x\(String(aRaw, radix: 16)))")
-    }
-    guard let bPtr = UnsafeMutableRawPointer(bitPattern: bRaw),
-          let b = extractString(from: bPtr)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid string pointer in kk_string_equals (bRaw=0x\(String(bRaw, radix: 16)))")
-    }
-    return a == b ? 1 : 0
-}
 
 @_cdecl("kk_enum_valueOf_throw")
 public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

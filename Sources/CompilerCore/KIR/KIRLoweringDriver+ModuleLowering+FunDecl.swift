@@ -6,6 +6,10 @@ extension KIRLoweringDriver {
         symbol: SymbolID,
         shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
+        if function.modifiers.contains(.external) {
+            return []
+        }
+
         let sema = shared.sema
         let arena = shared.arena
 

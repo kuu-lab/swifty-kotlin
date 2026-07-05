@@ -65,7 +65,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                     newBody.append(.call(symbol: nil, callee: callee, arguments: [operand], result: result, canThrow: false, thrownResult: nil))
                 case let .nullAssert(operand, result):
                     newBody.append(.call(symbol: nil, callee: ctx.interner.intern("kk_op_notnull"), arguments: [operand], result: result, canThrow: true, thrownResult: nil))
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
                     if callee == printlnCallee || callee == kkPrintlnAnyCallee,
                        arguments.count == 1,
                        tryLowerPrintlnCall(
@@ -124,13 +124,13 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         if rank > 0 {
             if lhsRank < rank {
                 let convCallee = conversionCallee(fromRank: lhsRank, toRank: rank, interner: interner)
-                let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: arena.exprType(result))
+                let converted = arena.appendTemporary(type: arena.exprType(result))
                 newBody.append(.call(symbol: nil, callee: convCallee, arguments: [lhs], result: converted, canThrow: false, thrownResult: nil))
                 effectiveLhs = converted
             }
             if rhsRank < rank {
                 let convCallee = conversionCallee(fromRank: rhsRank, toRank: rank, interner: interner)
-                let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: arena.exprType(result))
+                let converted = arena.appendTemporary(type: arena.exprType(result))
                 newBody.append(.call(symbol: nil, callee: convCallee, arguments: [rhs], result: converted, canThrow: false, thrownResult: nil))
                 effectiveRhs = converted
             }
@@ -324,12 +324,11 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
 
     /// Returns true when the expression is a reference type that requires structural
     /// equality (e.g. List, Set, Map, String, Any, class instances).
-    /// String is classified as a primitive in the type system but is represented as a
-    /// heap-allocated RuntimeStringBox at runtime, so pointer comparison is insufficient.
+    /// String is a compiler aggregate, so pointer comparison is insufficient.
     private func isReferenceType(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
         switch types.kind(of: typeID) {
-        case .primitive(.string, _):
+        case .stringStruct:
             return true
         case .primitive:
             return false
@@ -483,10 +482,10 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         }
 
         func appendConcat(_ lhs: KIRExprID, _ rhs: KIRExprID) -> KIRExprID {
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
+            let result = arena.appendTemporary(type: stringType)
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_concat"),
+                callee: interner.intern("kk_string_concat_flat"),
                 arguments: [lhs, rhs],
                 result: result,
                 canThrow: false,
@@ -503,14 +502,14 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             let tag: Int64 = switch sema.types.kind(of: type) {
             case .primitive(.boolean, _):
                 2
-            case .primitive(.string, _):
+            case .stringStruct:
                 3
             default:
                 1
             }
             let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
             body.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-            let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
+            let converted = arena.appendTemporary(type: stringType)
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_any_to_string"),
@@ -539,7 +538,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
             let propertyType = sema.symbols.propertyType(for: property.0) ?? sema.types.anyType
-            let loaded = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: propertyType)
+            let loaded = arena.appendTemporary(type: propertyType)
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_get_inbounds"),
@@ -614,9 +613,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         }
 
         let stringType = sema.types.stringType
-        let toStringResult = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: stringType
+        let toStringResult = arena.appendTemporary(type: stringType
         )
         // Emit a direct call to the toString() method with the object as receiver.
         body.append(.call(

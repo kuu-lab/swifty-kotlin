@@ -1124,9 +1124,21 @@ public func kk_cname_lookup(_ externNameRaw: Int) -> Int {
 // STDLIB-CINTEROP-FN-046: writeBits(ptr: NativePtr, offset: Long, size: Int, value: Long)
 // Writes `size` bits from the low-order bits of `value` into raw memory starting
 // at bit position `offset` from the address `ptr`.
+//
+// Bounds contract: as with Kotlin/Native's cinterop `writeBits`, the caller owns
+// pointer correctness — `ptr` must reference storage large enough to hold the
+// touched byte range `[offset >> 3, (offset + size - 1) >> 3]`. The runtime does
+// not know the size of the allocation behind `ptr`, so it cannot fully validate
+// the upper bound. It does, however, reject parameter values that are guaranteed
+// to index outside the intended range: `offset` must be non-negative (a negative
+// bit offset produces a negative byte index and writes *before* the buffer via
+// the arithmetic shift `bitIndex >> 3`), and `size` must lie in `0...Int.bitWidth`
+// (`value` only carries `Int.bitWidth` meaningful bits, so a larger `size` cannot
+// encode real data and would only extend the write out of bounds).
 @_cdecl("kk_cinterop_writeBits")
 public func kk_cinterop_writeBits(_ ptr: Int, _ offset: Int, _ size: Int, _ value: Int) {
     guard ptr != 0, let rawPtr = UnsafeMutableRawPointer(bitPattern: ptr) else { return }
+    guard offset >= 0, size >= 0, size <= Int.bitWidth else { return }
     for i in 0..<size {
         let bit = (value >> i) & 1
         let bitIndex = offset + i

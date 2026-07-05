@@ -108,6 +108,10 @@ extension ExprTypeChecker {
         } else {
             []
         }
+        if op == .add, sema.types.isString(lhs) || sema.types.isString(rhs) {
+            sema.bindings.bindExprType(id, type: stringType)
+            return stringType
+        }
         // STDLIB-345: List/Sequence plus/minus operators
         if !lhsIsPrimitive, op == .add || op == .subtract {
             let isListLhs = driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
@@ -259,7 +263,7 @@ extension ExprTypeChecker {
 
         switch op {
         case .add:
-            if lhs == stringType || rhs == stringType {
+            if sema.types.isString(lhs) || sema.types.isString(rhs) {
                 type = stringType
             } else if lhs == charType && rhs == intType {
                 // Char + Int -> Char
@@ -523,9 +527,7 @@ extension ExprTypeChecker {
     }
 
     private func isCoroutineContextLikeType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         let kotlinxCoroutinesPkg = [

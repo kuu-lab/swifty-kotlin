@@ -155,9 +155,13 @@ public struct KIRGlobal: Sendable {
     }
 }
 
-public struct KIRNominalType: Sendable {
+public struct KIRNominalType: Sendable, CustomStringConvertible {
     public let symbol: SymbolID
     public let memberDecls: [KIRDeclID]
+
+    public var description: String {
+        return "KIRNominalType(\(symbol.rawValue), members: \(memberDecls.count))"
+    }
 
     public init(symbol: SymbolID, memberDecls: [KIRDeclID] = []) {
         self.symbol = symbol
@@ -171,9 +175,13 @@ public enum KIRDecl: Sendable {
     case nominalType(KIRNominalType)
 }
 
-public struct KIRFile: Sendable {
+public struct KIRFile: Sendable, CustomStringConvertible {
     public let fileID: FileID
     public let decls: [KIRDeclID]
+
+    public var description: String {
+        return "KIRFile(\(fileID.rawValue), decls: \(decls.count))"
+    }
 
     public init(fileID: FileID, decls: [KIRDeclID]) {
         self.fileID = fileID
@@ -210,6 +218,23 @@ public final class KIRArena {
         }
         let id = KIRExprID(rawValue: Int32(expressions.count))
         expressions.append(expr)
+        if let type {
+            exprTypes[id] = type
+        }
+        return id
+    }
+
+    public func appendTemporary(type: TypeID? = nil) -> KIRExprID {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            let id = KIRExprID(rawValue: Int32(expressions.count))
+            expressions.append(.temporary(id.rawValue))
+            if let type { exprTypes[id] = type }
+            return id
+        }
+        let id = KIRExprID(rawValue: Int32(expressions.count))
+        expressions.append(.temporary(id.rawValue))
         if let type {
             exprTypes[id] = type
         }

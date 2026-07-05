@@ -322,7 +322,7 @@ extension CallTypeChecker {
 
         guard let signature = sema.symbols.functionSignature(for: fallbackCallee),
               signature.classTypeParameterCount > 0,
-              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+              let receiverClassType = resolveClassType(receiverType, sema: sema)
         else {
             return nil
         }
@@ -644,9 +644,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return knownNames.isArrayLikeName(symbol.name)
@@ -657,9 +655,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return symbol.name == interner.intern("Iterable")
@@ -2606,12 +2602,11 @@ extension CallTypeChecker {
     func collectionFallbackElementType(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> TypeID {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
         else {
             return sema.types.anyType
         }
-        if let symbol = sema.symbols.symbol(classType.classSymbol),
-           knownNames.isMapLikeSymbol(symbol),
+        if knownNames.isMapLikeSymbol(symbol),
            classType.args.count == 2
         {
             let keyType = switch classType.args[0] {
@@ -2671,9 +2666,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return symbol.name == interner.intern("Iterable")
@@ -2699,9 +2692,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isSequenceSymbol(symbol)
@@ -2713,9 +2704,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isCollectionLikeSymbol(symbol)
@@ -2727,9 +2716,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isConcreteListLikeSymbol(symbol)
@@ -2738,9 +2725,7 @@ extension CallTypeChecker {
     private func isMapLikeCollectionReceiver(receiverID: ExprID, sema: SemaModule, interner: StringInterner) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isMapLikeSymbol(symbol) && classType.args.count == 2
@@ -2753,9 +2738,7 @@ extension CallTypeChecker {
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return (
@@ -2770,9 +2753,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return (
@@ -2792,9 +2773,7 @@ extension CallTypeChecker {
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isMutableSetSymbol(symbol) && classType.args.count == 1
@@ -2807,9 +2786,7 @@ extension CallTypeChecker {
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isMutableMapSymbol(symbol) && classType.args.count == 2
@@ -2822,9 +2799,7 @@ extension CallTypeChecker {
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.isConcreteListLikeSymbol(symbol) && !knownNames.isMapLikeSymbol(symbol)
@@ -2837,9 +2812,7 @@ extension CallTypeChecker {
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         return knownNames.collectionKind(of: symbol) == .set && classType.args.count == 1

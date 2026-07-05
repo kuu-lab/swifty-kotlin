@@ -4,8 +4,8 @@ symbol fq=golden.sema.minOfLongTwoArg.$0.b kind=valueParameter vis=private flags
 symbol fq=kotlin.comparisons.minOf#8 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Long,Long] ret=Long
 symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.minOfLongTwoArg fun minOfLongTwoArg sym=golden.sema.minOfLongTwoArg
 expr e@3:53 name(a) type=Long ref=golden.sema.minOfLongTwoArg.$0.a
 expr e@3:56 name(b) type=Long ref=golden.sema.minOfLongTwoArg.$0.b
-expr e@3:47#1 call callee=e@3:47#0 args=[_:e@3:53,_:e@3:56] type=Long call=kotlin.comparisons.minOf#8
+expr e@3:47 call callee=e@3:47#1 args=[_:e@3:53,_:e@3:56] type=Long call=kotlin.comparisons.minOf#8

@@ -3,7 +3,7 @@ import Testing
 
 /// STDLIB-TEXT-FN-066: Validates that `CharSequence.single()` resolves through
 /// Sema for String receivers across multiple call sites and links to the
-/// runtime helper `kk_string_single` (see
+/// runtime helper `kk_string_single_flat` (see
 /// `Sources/Runtime/RuntimeStringStdlib.swift`).
 @Suite
 struct StringSingleFunctionTests {
@@ -53,7 +53,7 @@ struct StringSingleFunctionTests {
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
             resolvedReturnType = sema.symbols.functionSignature(for: symbol)?.returnType
         }
-        #expect(resolvedLink == "kk_string_single")
+        #expect(resolvedLink == "kk_string_single_flat")
         #expect(resolvedReturnType != nil, "single() should expose a return type")
     }
 
@@ -75,6 +75,6 @@ struct StringSingleFunctionTests {
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
         }
-        #expect(resolvedLink == "kk_string_singleOrNull")
+        #expect(resolvedLink == "kk_string_singleOrNull_flat")
     }
 }

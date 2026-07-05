@@ -376,11 +376,10 @@ extension DataFlowSemaPhase {
         )
 
         // appendRange(CharSequence, Int, Int): StringBuilder (STDLIB-580)
-        // The runtime still accepts raw string storage, but the surface type now
-        // matches Kotlin's CharSequence signature.
+        // The runtime boundary receives flattened String fields.
         registerStringBuilderMemberFunction(
             named: "appendRange",
-            externalLinkName: "kk_string_builder_appendRange_obj",
+            externalLinkName: "kk_string_builder_appendRange_obj_flat",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("value", charSequenceType, false, false), ("startIndex", intType, false, false), ("endIndex", intType, false, false)],
@@ -392,7 +391,7 @@ extension DataFlowSemaPhase {
         // insertRange(Int, CharSequence, Int, Int): StringBuilder (STDLIB-TEXT-BUILDER-003)
         registerStringBuilderMemberFunction(
             named: "insertRange",
-            externalLinkName: "kk_string_builder_insertRange_obj",
+            externalLinkName: "kk_string_builder_insertRange_obj_flat",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("index", intType, false, false), ("value", charSequenceType, false, false), ("startIndex", intType, false, false), ("endIndex", intType, false, false)],
@@ -404,7 +403,7 @@ extension DataFlowSemaPhase {
         // setRange(Int, Int, String): StringBuilder (STDLIB-TEXT-BUILDER-004)
         registerStringBuilderMemberFunction(
             named: "setRange",
-            externalLinkName: "kk_string_builder_setRange",
+            externalLinkName: "kk_string_builder_setRange_flat",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false), ("value", stringType, false, false)],
@@ -418,7 +417,7 @@ extension DataFlowSemaPhase {
         // replace(Int, Int, String): StringBuilder
         registerStringBuilderMemberFunction(
             named: "replace",
-            externalLinkName: "kk_string_builder_replace_obj",
+            externalLinkName: "kk_string_builder_replace_obj_flat",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("start", intType, false, false), ("end", intType, false, false), ("str", stringType, false, false)],

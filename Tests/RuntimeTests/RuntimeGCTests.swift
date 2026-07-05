@@ -81,6 +81,8 @@ final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
         var rootOffset: Int32 = 0
         withUnsafePointer(to: &rootOffset) { offsetPtr in
             var descriptor = FrameMapDescriptorC(rootCount: 1, rootOffsets: offsetPtr)
+            _ = descriptor.rootCount
+            _ = descriptor.rootOffsets
             withUnsafePointer(to: &descriptor) { descriptorPtr in
                 kk_register_frame_map(77, UnsafeRawPointer(descriptorPtr))
             }

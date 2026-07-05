@@ -4,7 +4,7 @@ symbol fq=choose.$0.left kind=valueParameter vis=private flags=_
 symbol fq=choose.$0.right kind=valueParameter vis=private flags=_
 symbol fq=useWhen kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=Int
 symbol fq=useWhen.$1.v kind=valueParameter vis=private flags=_
-file f14 package=_
+file f0 package=_
   decl choose fun choose sym=choose
   decl useWhen fun useWhen sym=useWhen
 expr e@1:61 name(flag) type=Boolean ref=choose.$0.flag
@@ -12,13 +12,13 @@ expr e@1:67 name(left) type=Int ref=choose.$0.left
 expr e@1:77 name(right) type=Int ref=choose.$0.right
 expr e@1:57 if cond=e@1:61 then=e@1:67 else=e@1:77 type=Int
 expr e@3:29 name(v) type=Int ref=useWhen.$1.v
-expr e@4:5#2 int(1) type=Int
-expr e@4:17#2 bool(true) type=Boolean
+expr e@4:5 int(1) type=Int
+expr e@4:17 bool(true) type=Boolean
 expr e@4:23 name(v) type=Int ref=useWhen.$1.v
-expr e@4:26#2 int(0) type=Int
-expr e@4:10#1 call callee=e@4:10#0 args=[_:e@4:17#2,_:e@4:23,_:e@4:26#2] type=Int call=choose
+expr e@4:26 int(0) type=Int
+expr e@4:10 call callee=e@4:10#1 args=[_:e@4:17,_:e@4:23,_:e@4:26] type=Int call=choose
 expr e@5:20 bool(false) type=Boolean
 expr e@5:27 int(0) type=Int
 expr e@5:30 name(v) type=Int ref=useWhen.$1.v
-expr e@5:13#2 call callee=e@5:13#1 args=[_:e@5:20,_:e@5:27,_:e@5:30] type=Int call=choose
-expr e@3:23 when subject=e@3:29 branches=[e@4:5#2->e@4:10#1] else=e@5:13#2 type=Int
+expr e@5:13 call callee=e@5:13#1 args=[_:e@5:20,_:e@5:27,_:e@5:30] type=Int call=choose
+expr e@3:23 when subject=e@3:29 branches=[e@4:5->e@4:10] else=e@5:13 type=Int

@@ -562,11 +562,6 @@ final class RuntimeNativeRefDebuggingTests: IsolatedRuntimeXCTestCase {
 // MARK: - Private test helpers
 // ---------------------------------------------------------------------------
 
-private struct NativeRefObjHeaderProbe {
-    let typeInfo: UnsafePointer<KTypeInfo>?
-    let flags: UInt32
-    let size: UInt32
-}
 
 private func withDummyNativeRefTypeInfo(_ body: (UnsafeRawPointer) -> Void) {
     let typeName = Array("Test.NativeRef\0".utf8).map(CChar.init)

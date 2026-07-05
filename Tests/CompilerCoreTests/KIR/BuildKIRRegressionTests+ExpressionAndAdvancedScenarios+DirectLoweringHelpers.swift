@@ -5,7 +5,6 @@ import Testing
 
 struct KIRDirectLoweringFixture {
     let interner: StringInterner
-    let diagnostics: DiagnosticEngine
     let symbols: SymbolTable
     let types: TypeSystem
     let bindings: BindingTable
@@ -34,12 +33,7 @@ func makeKIRDirectLoweringFixture() -> KIRDirectLoweringFixture {
     let symbols = SymbolTable()
     let types = TypeSystem()
     let bindings = BindingTable()
-    let sema = SemaModule(
-        symbols: symbols,
-        types: types,
-        bindings: bindings,
-        diagnostics: diagnostics
-    )
+    let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
     let astArena = ASTArena()
     let file = ASTFile(
         fileID: FileID(rawValue: 0),
@@ -60,7 +54,6 @@ func makeKIRDirectLoweringFixture() -> KIRDirectLoweringFixture {
     let driver = KIRLoweringDriver(ctx: loweringContext)
     return KIRDirectLoweringFixture(
         interner: interner,
-        diagnostics: diagnostics,
         symbols: symbols,
         types: types,
         bindings: bindings,

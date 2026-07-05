@@ -1,6 +1,9 @@
-@testable import RuntimeABI
-@testable import Runtime
+import RuntimeABI
 import XCTest
+
+private let runtimeABIExternDeclsByName = Dictionary(
+    uniqueKeysWithValues: RuntimeABIExterns.allExterns.map { ($0.name, $0) }
+)
 
 // MARK: - Shared ABI Spec / Extern Adapter Reconciliation
 
@@ -12,14 +15,14 @@ extension ABIMismatchTests {
     }
 
     private func sharedABINames() -> [String] {
-        let specNames = RuntimeABISpec.allFunctions.map(\.name)
-        let externNameSet = Set(RuntimeABIExterns.allExterns.map(\.name))
+        let specNames = RuntimeABISpec.allFunctions.map { $0.name }
+        let externNameSet = Set(RuntimeABIExterns.allExterns.map { $0.name })
         return specNames.filter { externNameSet.contains($0) }
     }
 
     func testExternCountMatchesSpec() {
-        let specNames = RuntimeABISpec.allFunctions.map(\.name)
-        let externNames = RuntimeABIExterns.allExterns.map(\.name)
+        let specNames = RuntimeABISpec.allFunctions.map { $0.name }
+        let externNames = RuntimeABIExterns.allExterns.map { $0.name }
         var externNameCounts: [String: Int] = [:]
         for name in externNames {
             externNameCounts[name, default: 0] += 1
@@ -43,7 +46,7 @@ extension ABIMismatchTests {
         for specName in sharedABINames() {
             let spec = RuntimeABISpec.allFunctions.first { $0.name == specName }
             XCTAssertNotNil(spec)
-            let externDecl = RuntimeABIExterns.externDecl(named: specName)
+            let externDecl = runtimeABIExternDeclsByName[specName]
             XCTAssertNotNil(
                 externDecl,
                 "RuntimeABISpec function '\(specName)' has no matching entry in RuntimeABIExterns"
@@ -62,7 +65,7 @@ extension ABIMismatchTests {
 
     func testReturnTypesMatch() {
         for spec in RuntimeABISpec.allFunctions {
-            guard let externDecl = RuntimeABIExterns.externDecl(named: spec.name) else {
+            guard let externDecl = runtimeABIExternDeclsByName[spec.name] else {
                 continue
             }
             XCTAssertEqual(
@@ -77,7 +80,7 @@ extension ABIMismatchTests {
 
     func testParameterTypesMatch() {
         for spec in RuntimeABISpec.allFunctions {
-            guard let externDecl = RuntimeABIExterns.externDecl(named: spec.name) else {
+            guard let externDecl = runtimeABIExternDeclsByName[spec.name] else {
                 continue
             }
             XCTAssertEqual(
@@ -92,7 +95,7 @@ extension ABIMismatchTests {
 
     func testParameterCountsMatch() {
         for spec in RuntimeABISpec.allFunctions {
-            guard let externDecl = RuntimeABIExterns.externDecl(named: spec.name) else {
+            guard let externDecl = runtimeABIExternDeclsByName[spec.name] else {
                 continue
             }
             XCTAssertEqual(
@@ -145,8 +148,8 @@ extension ABIMismatchTests {
             "kk_comparator_nulls_last",
             "kk_comparator_nulls_last_trampoline",
         ]
-        let specNames = Set(RuntimeABISpec.allFunctions.map(\.name))
-        let externNames = Set(RuntimeABIExterns.allExterns.map(\.name))
+        let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
+        let externNames = Set(RuntimeABIExterns.allExterns.map { $0.name })
         for name in requiredComparatorSymbols {
             XCTAssertTrue(
                 specNames.contains(name),
@@ -182,7 +185,7 @@ extension ABIMismatchTests {
                 expectedTypes,
                 "RuntimeABISpec parameter types for '\(name)' are unexpected"
             )
-            let externDecl = RuntimeABIExterns.externDecl(named: name)
+            let externDecl = runtimeABIExternDeclsByName[name]
             XCTAssertNotNil(externDecl, "RuntimeABIExterns should include '\(name)'")
             XCTAssertEqual(
                 externDecl?.parameterTypes ?? [],
@@ -198,7 +201,7 @@ extension ABIMismatchTests {
                 expectedTypes,
                 "RuntimeABISpec parameter types for '\(name)' are unexpected"
             )
-            let externDecl = RuntimeABIExterns.externDecl(named: name)
+            let externDecl = runtimeABIExternDeclsByName[name]
             XCTAssertNotNil(externDecl, "RuntimeABIExterns should include '\(name)'")
             XCTAssertEqual(
                 externDecl?.parameterTypes ?? [],

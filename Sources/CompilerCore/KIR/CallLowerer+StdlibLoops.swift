@@ -21,7 +21,7 @@ extension CallLowerer {
         let unitType = sema.types.unitType
         let lessThanCallee = interner.intern("kk_op_lt")
         let addCallee = interner.intern("kk_op_add")
-        let unboxIntCallee = interner.intern("kk_unbox_int")
+        let unboxIntCallee = ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
 
         let countExpr = driver.lowerExpr(
             args[0].expr,
@@ -32,7 +32,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let indexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let indexExpr = arena.appendTemporary(type: intType)
         let oneExpr = arena.appendExpr(.intLiteral(1), type: intType)
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: indexExpr, value: .intLiteral(0)))
@@ -43,7 +43,7 @@ extension CallLowerer {
         let exitLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(conditionLabel))
 
-        let conditionExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+        let conditionExpr = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             symbol: nil,
             callee: lessThanCallee,
@@ -90,7 +90,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: unitType)
+                let actionResult = arena.appendTemporary(type: unitType)
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
@@ -102,7 +102,7 @@ extension CallLowerer {
             }
         }
 
-        let nextIndexBoxedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        let nextIndexBoxedExpr = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: addCallee,
@@ -111,15 +111,13 @@ extension CallLowerer {
             canThrow: true,
             thrownResult: nil
         ))
-        let nextIndexExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
-        instructions.append(.call(
-            symbol: nil,
+        let nextIndexExpr = emitNonThrowingCall(
             callee: unboxIntCallee,
-            arguments: [nextIndexBoxedExpr],
-            result: nextIndexExpr,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            arg: nextIndexBoxedExpr,
+            resultType: intType,
+            arena: arena,
+            into: &instructions
+        )
         instructions.append(.copy(from: nextIndexExpr, to: indexExpr))
         instructions.append(.jump(conditionLabel))
         instructions.append(.label(exitLabel))
@@ -149,7 +147,7 @@ extension CallLowerer {
         let currentTimeCallee = interner.intern("kk_system_currentTimeMillis")
         let subCallee = interner.intern("kk_op_sub")
 
-        let startTimeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let startTimeExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: currentTimeCallee, arguments: [],
             result: startTimeExpr, canThrow: false, thrownResult: nil
@@ -171,10 +169,8 @@ extension CallLowerer {
             )
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
                 let unitType = sema.types.unitType
-                let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: unitType)
-                let thrownResult = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
+                let actionResult = arena.appendTemporary(type: unitType)
+                let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 instructions.append(.call(
                     symbol: callableInfo.symbol, callee: callableInfo.callee,
@@ -198,13 +194,13 @@ extension CallLowerer {
             }
         }
 
-        let endTimeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let endTimeExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: currentTimeCallee, arguments: [],
             result: endTimeExpr, canThrow: false, thrownResult: nil
         ))
 
-        let resultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let resultExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: subCallee, arguments: [endTimeExpr, startTimeExpr],
             result: resultExpr, canThrow: false, thrownResult: nil
@@ -233,7 +229,7 @@ extension CallLowerer {
         let nanoTimeCallee = interner.intern("kk_system_nanoTime")
         let subCallee = interner.intern("kk_op_sub")
 
-        let startTimeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let startTimeExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: nanoTimeCallee, arguments: [],
             result: startTimeExpr, canThrow: false, thrownResult: nil
@@ -255,10 +251,8 @@ extension CallLowerer {
             )
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
                 let unitType = sema.types.unitType
-                let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: unitType)
-                let thrownResult = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
+                let actionResult = arena.appendTemporary(type: unitType)
+                let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 instructions.append(.call(
                     symbol: callableInfo.symbol, callee: callableInfo.callee,
@@ -273,13 +267,13 @@ extension CallLowerer {
             }
         }
 
-        let endTimeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let endTimeExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: nanoTimeCallee, arguments: [],
             result: endTimeExpr, canThrow: false, thrownResult: nil
         ))
 
-        let resultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let resultExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: subCallee, arguments: [endTimeExpr, startTimeExpr],
             result: resultExpr, canThrow: false, thrownResult: nil
@@ -308,7 +302,7 @@ extension CallLowerer {
         let microTimeCallee = interner.intern("kk_system_getTimeMicros")
         let subCallee = interner.intern("kk_op_sub")
 
-        let startTimeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let startTimeExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: microTimeCallee, arguments: [],
             result: startTimeExpr, canThrow: false, thrownResult: nil
@@ -330,10 +324,8 @@ extension CallLowerer {
             )
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
                 let unitType = sema.types.unitType
-                let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: unitType)
-                let thrownResult = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
+                let actionResult = arena.appendTemporary(type: unitType)
+                let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 instructions.append(.call(
                     symbol: callableInfo.symbol, callee: callableInfo.callee,
@@ -348,13 +340,13 @@ extension CallLowerer {
             }
         }
 
-        let endTimeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let endTimeExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: microTimeCallee, arguments: [],
             result: endTimeExpr, canThrow: false, thrownResult: nil
         ))
 
-        let resultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let resultExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: subCallee, arguments: [endTimeExpr, startTimeExpr],
             result: resultExpr, canThrow: false, thrownResult: nil
@@ -424,10 +416,8 @@ extension CallLowerer {
                 )
             }
             let unitType = sema.types.unitType
-            let actionResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: unitType)
-            let thrownResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            let actionResult = arena.appendTemporary(type: unitType)
+            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
             )
             instructions.append(.call(
                 symbol: callableInfo.symbol, callee: callableInfo.callee,
@@ -518,10 +508,8 @@ extension CallLowerer {
                 )
             }
             let callResultType = sema.types.makeNullable(sema.types.anyType)
-            let callResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: callResultType)
-            let thrownResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            let callResult = arena.appendTemporary(type: callResultType)
+            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
             )
             instructions.append(.call(
                 symbol: callableInfo.symbol, callee: callableInfo.callee,
@@ -571,7 +559,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let newCallee = interner.intern("kk_timedvalue_new")
-        let timedValueExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let timedValueExpr = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil, callee: newCallee, arguments: [valueExpr, durationExpr],
             result: timedValueExpr, canThrow: false, thrownResult: nil
@@ -587,7 +575,7 @@ extension CallLowerer {
     ) -> KIRExprID {
         let nanoTimeCallee = interner.intern("kk_system_nanoTime")
         let longType = sema.types.longType
-        let timeExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let timeExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: nanoTimeCallee, arguments: [],
             result: timeExpr, canThrow: false, thrownResult: nil
@@ -609,14 +597,14 @@ extension CallLowerer {
 
         let longType = sema.types.longType
         let subCallee = interner.intern("kk_op_sub")
-        let elapsedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: longType)
+        let elapsedExpr = arena.appendTemporary(type: longType)
         instructions.append(.call(
             symbol: nil, callee: subCallee, arguments: [endTimeExpr, startTimeExpr],
             result: elapsedExpr, canThrow: false, thrownResult: nil
         ))
 
         let fromNanosCallee = interner.intern("kk_duration_from_nanoseconds")
-        let durationExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let durationExpr = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil, callee: fromNanosCallee, arguments: [elapsedExpr],
             result: durationExpr, canThrow: false, thrownResult: nil

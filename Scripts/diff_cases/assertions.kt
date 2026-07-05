@@ -1,4 +1,4 @@
-// SKIP-DIFF: assert() is enabled by default in kswiftc runtime but disabled on the JVM
+// SKIP-DIFF (DEBT-DIFF-001): assert() is enabled by default in kswiftc runtime but disabled on the JVM
 // reference (requires `-ea`), so stdout diverges. AssertionError/Error type catches now
 // resolve in Sema; require/check/error cases pass parity.
 fun main() {

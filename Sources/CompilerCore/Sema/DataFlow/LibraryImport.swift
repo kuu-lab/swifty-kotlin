@@ -58,7 +58,7 @@ extension DataFlowSemaPhase {
                     continue
                 }
                 let name = record.fqName.last ?? interner.intern("_")
-                var flags: SymbolFlags = [.synthetic]
+                var flags: SymbolFlags = [.synthetic, .importedLibrary]
                 if record.isSuspend, record.kind == .function {
                     flags.insert(.suspendFunction)
                 }
@@ -271,7 +271,7 @@ extension DataFlowSemaPhase {
             }
         case let .kClassType(kc):
             collectSyntheticTypeParamsRecursive(kc.argument, types: types, base: base, into: &collected)
-        case .primitive, .any, .unit, .nothing, .error:
+        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
             break
         }
     }
@@ -457,7 +457,17 @@ extension DataFlowSemaPhase {
 
         let inlinePath = URL(fileURLWithPath: inlineDir)
             .appendingPathComponent(record.mangledName + ".kirbin")
+            .standardized
             .path
+        let inlineDirResolved = URL(fileURLWithPath: inlineDir).standardized.path
+        guard inlinePath.hasPrefix(inlineDirResolved + "/") else {
+            diagnostics.error(
+                "KSWIFTK-LIB-0019",
+                "Inline KIR path for '\(record.mangledName)' escapes inline directory",
+                range: nil
+            )
+            return
+        }
         guard let inlineFunction = parseImportedInlineFunction(
             path: inlinePath,
             importedSymbol: symbol,

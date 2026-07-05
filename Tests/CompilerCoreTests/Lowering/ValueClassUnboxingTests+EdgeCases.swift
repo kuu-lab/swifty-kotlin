@@ -28,7 +28,7 @@ extension ValueClassUnboxingTests {
         let underlyingType = sema.symbols.valueClassUnderlyingType(for: nameSymbol.id)
         #expect(underlyingType != nil, "value class with String payload should record an underlying type")
         if let underlyingType {
-            if case .primitive(.string, _) = sema.types.kind(of: underlyingType) {
+            if case .stringStruct = sema.types.kind(of: underlyingType) {
                 // Expected
             } else {
                 Issue.record("Expected underlying type to be String, got \(sema.types.kind(of: underlyingType))")
@@ -107,8 +107,7 @@ extension ValueClassUnboxingTests {
         let kk_object_new = interner.intern("kk_object_new")
 
         var hasValueClassAlloc = false
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
+        for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
                 if case let .call(_, callee, _, result, _, _, _, _) = instruction,
                    callee == kk_object_new,

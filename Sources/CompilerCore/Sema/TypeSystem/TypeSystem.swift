@@ -87,7 +87,7 @@ public final class TypeSystem {
             .primitive(.long, .nonNull),
             .primitive(.float, .nonNull),
             .primitive(.double, .nonNull),
-            .primitive(.string, .nonNull),
+            .stringStruct(.nonNull),
             .primitive(.uint, .nonNull),
             .primitive(.ulong, .nonNull),
             .primitive(.ubyte, .nonNull),
@@ -106,7 +106,7 @@ public final class TypeSystem {
             .primitive(.long, .nonNull): longType,
             .primitive(.float, .nonNull): floatType,
             .primitive(.double, .nonNull): doubleType,
-            .primitive(.string, .nonNull): stringType,
+            .stringStruct(.nonNull): stringType,
             .primitive(.uint, .nonNull): uintType,
             .primitive(.ulong, .nonNull): ulongType,
             .primitive(.ubyte, .nonNull): ubyteType,
@@ -127,6 +127,8 @@ public final class TypeSystem {
         case let .nothing(n):
             n == .nonNull
         case let .any(n):
+            n == .nonNull
+        case let .stringStruct(n):
             n == .nonNull
         case let .primitive(_, n):
             n == .nonNull
@@ -150,7 +152,7 @@ public final class TypeSystem {
         switch kind(of: type) {
         case .error, .unit:
             .nonNull
-        case let .nothing(n), let .any(n), let .primitive(_, n):
+        case let .nothing(n), let .any(n), let .stringStruct(n), let .primitive(_, n):
             n
         case let .classType(ct):
             ct.nullability
@@ -205,6 +207,9 @@ public final class TypeSystem {
         case let .any(existing):
             if existing == nullability { return type }
             return make(.any(nullability))
+        case let .stringStruct(existing):
+            if existing == nullability { return type }
+            return make(.stringStruct(nullability))
         case let .primitive(prim, existing):
             if existing == nullability { return type }
             return make(.primitive(prim, nullability))
@@ -254,6 +259,13 @@ public final class TypeSystem {
             return .error
         }
         return idToKind[index]
+    }
+
+    public func isString(_ type: TypeID) -> Bool {
+        if case .stringStruct = kind(of: type) {
+            return true
+        }
+        return false
     }
 
     public func setNominalDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {

@@ -24,7 +24,7 @@ extension CallLowerer {
             sema.bindings.exprTypes[exprID]
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let lhsID = driver.lowerExpr(
             lhs,
             ast: ast,
@@ -43,7 +43,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+        let result = arena.appendTemporary(type: boundType)
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.
@@ -76,9 +76,9 @@ extension CallLowerer {
                 // For != (equals desugaring), the call result is Bool that needs negation.
                 // We allocate a separate temporary for both cases.
                 let callResult: KIRExprID = if isCompareToDesugaring {
-                    arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                    arena.appendTemporary(type: intType)
                 } else if isEqualsDesugaring {
-                    arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                    arena.appendTemporary(type: boolType)
                 } else {
                     result
                 }
@@ -220,8 +220,7 @@ extension CallLowerer {
                 } else {
                     // Wrap single element in a one-element sequence so the
                     // runtime always receives a collection handle.
-                    let wrappedExpr = arena.appendExpr(
-                        .temporary(Int32(arena.expressions.count)), type: nil
+                    let wrappedExpr = arena.appendTemporary(type: nil
                     )
                     instructions.append(
                         .call(
@@ -295,10 +294,10 @@ extension CallLowerer {
         if case .add = op, sema.bindings.exprTypes[exprID] == stringType {
             // Kotlin String.plus(other: Any?) calls toString() on the RHS
             // when it is not already a String. Insert a kk_any_to_string
-            // coercion so that kk_string_concat always receives two string
-            // pointers.
+            // coercion so that kk_string_concat_flat always receives two string
+            // aggregate values.
             let rhsExprType = sema.bindings.exprTypes[rhs]
-            let nullableStringType = sema.types.make(.primitive(.string, .nullable))
+            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
             let effectiveRHS: KIRExprID
             if rhsExprType == stringType || rhsExprType == nullableStringType {
                 effectiveRHS = rhsID
@@ -306,8 +305,7 @@ extension CallLowerer {
                 let tag = anyFallbackTag(for: rhsExprType ?? sema.types.anyType, sema: sema)
                 let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
                 instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)), type: stringType
+                let converted = arena.appendTemporary(type: stringType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -328,8 +326,7 @@ extension CallLowerer {
                 let tag = anyFallbackTag(for: lhsExprType ?? sema.types.anyType, sema: sema)
                 let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
                 instructions.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
-                let converted = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)), type: stringType
+                let converted = arena.appendTemporary(type: stringType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -344,7 +341,7 @@ extension CallLowerer {
             instructions.append(
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat"),
+                    callee: interner.intern("kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: result,
                     canThrow: false,
@@ -354,20 +351,67 @@ extension CallLowerer {
             return result
         }
         // String comparison desugaring: route <, <=, >, >= on String operands
-        // through kk_string_compareTo (content comparison) instead of the default
+        // through kk_string_compareTo_flat (content comparison) instead of the default
         // kk_op_lt/le/gt/ge path which compares raw pointer addresses.
         let lhsType = sema.bindings.exprTypes[lhs]
         let rhsType = sema.bindings.exprTypes[rhs]
-        let nullableStringType = sema.types.make(.primitive(.string, .nullable))
-        let isStringOperand = (lhsType == stringType || lhsType == nullableStringType)
-            && (rhsType == stringType || rhsType == nullableStringType)
+        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+        let lhsIsString = lhsType == stringType || lhsType == nullableStringType
+        let rhsIsString = rhsType == stringType || rhsType == nullableStringType
+        // null literals get type nothing(.nullable), not stringStruct — detect them so
+        // we can pass a properly-typed null string aggregate to kk_string_equals_flat.
+        let lhsIsNullLiteral: Bool = {
+            guard let t = lhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let rhsIsNullLiteral: Bool = {
+            guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
+            || (rhsIsString && lhsIsNullLiteral)
         if isStringOperand {
+            // When one side is a null literal, we need an expression typed as
+            // nullableStringType so the flat-string codegen generates a null string
+            // aggregate (nullptr, 0, 0, 0) instead of a raw i64 null sentinel.
+            func resolvedStringID(for id: KIRExprID, isNull: Bool) -> KIRExprID {
+                guard isNull else { return id }
+                let nullStringID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableStringType)
+                instructions.append(.constValue(result: nullStringID, value: .null))
+                return nullStringID
+            }
             switch op {
-            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
-                let compareResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+            case .equal:
+                let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
+                let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_compareTo"),
+                    callee: interner.intern("kk_string_equals_flat"),
+                    arguments: [actualLhsID, actualRhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            case .notEqual:
+                let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
+                let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
+                let eqResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_equals_flat"),
+                    arguments: [actualLhsID, actualRhsID],
+                    result: eqResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                instructions.append(.unary(op: .not, operand: eqResult, result: result))
+                return result
+            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                let compareResult = arena.appendTemporary(type: intType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_compareTo_flat"),
                     arguments: [lhsID, rhsID],
                     result: compareResult,
                     canThrow: false,
@@ -496,6 +540,28 @@ extension CallLowerer {
         case .logicalOr:
             kirOp = .logicalOr
         case .elvis:
+            if boundType == stringType {
+                let rawResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_elvis"),
+                    arguments: [lhsID, rhsID],
+                    result: rawResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                let stringTag = arena.appendExpr(.intLiteral(3), type: intType)
+                instructions.append(.constValue(result: stringTag, value: .intLiteral(3)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [rawResult, stringTag],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_op_elvis"),
@@ -620,8 +686,7 @@ extension CallLowerer {
         ) ?? sema.bindings.callBindings[exprID]
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        let receiverLooksLikeArray: Bool = if case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-                                              let symbol = sema.symbols.symbol(classType.classSymbol)
+        let receiverLooksLikeArray: Bool = if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)
         {
             [
                 "Array", "IntArray", "LongArray", "UIntArray", "DoubleArray", "FloatArray", "BooleanArray", "CharArray",
@@ -657,11 +722,11 @@ extension CallLowerer {
             )
             let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
             instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_get"),
-                arguments: [receiverID, indexID, thrownExpr],
+                callee: interner.intern("kk_string_get_flat"),
+                arguments: [receiverID, indexID],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -684,7 +749,7 @@ extension CallLowerer {
                     instructions: &instructions
                 )
             }
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             emitMemberCallInstruction(
                 normalized: driver.callSupportLowerer.normalizedCallArguments(
                     providedArguments: loweredIndices,
@@ -724,7 +789,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get"),
@@ -797,7 +862,7 @@ extension CallLowerer {
                 }
             }
             let loweredArgs = loweredIndices + [valueID]
-            let callResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.unitType)
+            let callResult = arena.appendTemporary(type: sema.types.unitType)
             emitMemberCallInstruction(
                 normalized: driver.callSupportLowerer.normalizedCallArguments(
                     providedArguments: loweredArgs,
@@ -886,7 +951,7 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let getResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let getResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get"),
@@ -895,7 +960,7 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-        let opResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let opResult = arena.appendTemporary(type: sema.types.anyType)
         guard let expr = ast.arena.expr(exprID),
               case let .indexedCompoundAssign(op, _, _, _, _) = expr
         else {
@@ -904,11 +969,11 @@ extension CallLowerer {
             return unit
         }
         // Determine the runtime op stub.
-        // Use kk_string_concat for String += String (matching lowerBinaryExpr pattern),
+        // Use kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
         // otherwise use the appropriate numeric op stub.
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         // Derive element type from the receiver's array type.
         // Mirrors TypeCheckHelpers.arrayElementType logic but also checks
         // the value expression type as a heuristic for non-IntArray receivers.
@@ -932,7 +997,7 @@ extension CallLowerer {
             return false
         }()
         let opName = if op == .plusAssign, isStringElement {
-            "kk_string_concat"
+            "kk_string_concat_flat"
         } else {
             switch op {
             case .plusAssign: "kk_op_add"

@@ -6,9 +6,7 @@ func nominalRangeElementType(
     interner: StringInterner
 ) -> TypeID? {
     let nonNullType = sema.types.makeNonNullable(rangeType)
-    guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-          let symbol = sema.symbols.symbol(classType.classSymbol)
-    else {
+    guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
         return nil
     }
 
@@ -114,9 +112,7 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         switch interner.resolve(symbol.name) {
@@ -137,9 +133,7 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
         return interner.resolve(symbol.name) == "OpenEndRange"
@@ -173,8 +167,7 @@ struct TypeCheckHelpers {
         if isRangeExpr, iterableType == sema.types.ulongType {
             return sema.types.ulongType
         }
-        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(iterableType)),
-           let symbol = sema.symbols.symbol(classType.classSymbol)
+        if let (classType, symbol) = resolveClassTypeSymbol(iterableType, sema: sema)
         {
             switch interner.resolve(symbol.name) {
             case "IntRange", "IntProgression":
@@ -321,9 +314,7 @@ struct TypeCheckHelpers {
         interner: StringInterner
     ) -> TypeID? {
         let knownNames = KnownCompilerNames(interner: interner)
-        guard case let .classType(classType) = sema.types.kind(of: arrayType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(arrayType, sema: sema) else {
             return nil
         }
         switch symbol.name {

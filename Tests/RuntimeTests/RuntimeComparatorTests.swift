@@ -27,10 +27,6 @@ private let nullsFirstTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePo
     kk_comparator_nulls_first_trampoline(closureRaw, a, b, outThrown)
 }
 
-private let primitiveComparatorTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
-    kk_comparator_from_selector_primitive_trampoline(closureRaw, a, b, outThrown)
-}
-
 private let selectorComparatorTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
     kk_comparator_from_selector_trampoline(closureRaw, a, b, outThrown)
 }
@@ -956,14 +952,6 @@ final class RuntimeComparatorTests: XCTestCase {
         XCTAssertLessThan(kk_comparator_nulls_last_trampoline(chain, 5, runtimeNullSentinelInt, nil), 0)
         XCTAssertGreaterThan(kk_comparator_nulls_last_trampoline(chain, 5, 3, nil), 0)
         XCTAssertEqual(kk_comparator_nulls_last_trampoline(chain, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0)
-    }
-
-    func testComparatorNullsLastNaturalTrampoline() {
-        XCTAssertGreaterThan(kk_comparator_nulls_last_natural_trampoline(0, runtimeNullSentinelInt, 5, nil), 0, "null should sort after non-null")
-        XCTAssertLessThan(kk_comparator_nulls_last_natural_trampoline(0, 5, runtimeNullSentinelInt, nil), 0, "non-null should sort before null")
-        XCTAssertGreaterThan(kk_comparator_nulls_last_natural_trampoline(0, 5, 3, nil), 0, "natural order: 5 > 3")
-        XCTAssertLessThan(kk_comparator_nulls_last_natural_trampoline(0, 3, 5, nil), 0, "natural order: 3 < 5")
-        XCTAssertEqual(kk_comparator_nulls_last_natural_trampoline(0, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0, "null == null")
     }
 
     func testComparatorThenByDescendingTrampoline() {

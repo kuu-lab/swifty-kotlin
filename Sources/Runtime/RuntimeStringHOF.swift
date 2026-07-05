@@ -4,11 +4,51 @@
 
 import Foundation
 
+private func runtimeStringHOFElementValue(_ raw: Int) -> RuntimeValue {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return RuntimeValue(raw: maybeUnbox(raw))
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return RuntimeValue(raw: maybeUnbox(raw))
+    }
+    if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
+        return RuntimeValue(charScalar: charBox.value)
+    }
+    if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
+        return runtimeStringHOFStringValue(stringBox.value)
+    }
+    return RuntimeValue(raw: maybeUnbox(raw))
+}
+
+private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
+    var length = 0
+    var byteCount = 0
+    var hash = 0
+    let data = runtimeRegisterFlatString(
+        value,
+        outLength: &length,
+        outByteCount: &byteCount,
+        outHash: &hash
+    )
+    guard let data else {
+        return RuntimeValue(raw: 0)
+    }
+    return RuntimeValue(
+        stringData: Int(bitPattern: data),
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+}
+
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
 
 @_cdecl("kk_string_iterator")
 public func kk_string_iterator(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { Int($0) }
     let box = RuntimeStringIteratorBox(charRaws: charRaws)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -50,6 +90,24 @@ public func kk_string_filter(
     return runtimeMakeStringRaw(runtimeStringFromScalars(filtered))
 }
 
+@_cdecl("kk_string_filter_flat")
+public func kk_string_filter_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_filter(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_map")
 public func kk_string_map(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -58,14 +116,27 @@ public func kk_string_map(
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var mappedElements: [Int] = []
+    var mappedElements: [RuntimeValue] = []
     for scalar in scalars {
         var thrown = 0
         let result = lambda(closureRaw, Int(scalar.value), &thrown)
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        mappedElements.append(result)
+        mappedElements.append(runtimeStringHOFElementValue(result))
     }
-    return runtimeMakeListRaw(mappedElements)
+    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
+}
+
+@_cdecl("kk_string_map_flat")
+public func kk_string_map_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_map(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 @_cdecl("kk_string_count")
@@ -86,6 +157,19 @@ public func kk_string_count(
     return count
 }
 
+@_cdecl("kk_string_count_flat")
+public func kk_string_count_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_count(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_any")
 public func kk_string_any(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -101,6 +185,19 @@ public func kk_string_any(
         if result != 0 { return 1 }
     }
     return 0
+}
+
+@_cdecl("kk_string_any_flat")
+public func kk_string_any_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_any(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 @_cdecl("kk_string_all")
@@ -120,6 +217,19 @@ public func kk_string_all(
     return 1
 }
 
+@_cdecl("kk_string_all_flat")
+public func kk_string_all_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_all(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_none")
 public func kk_string_none(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -137,40 +247,50 @@ public func kk_string_none(
     return 1
 }
 
+@_cdecl("kk_string_none_flat")
+public func kk_string_none_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_none(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 // MARK: - STDLIB-316: String.chunked / String.windowed
 
-@_cdecl("kk_string_chunked")
-public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard size > 0 else {
-        return runtimeMakeStringListRaw([])
-    }
+func runtimeStringChunkValues(_ source: String, size: Int) -> [RuntimeValue] {
+    guard size > 0 else { return [] }
     let scalars = Array(source.unicodeScalars)
-    var chunks: [String] = []
+    var chunks: [RuntimeValue] = []
     var i = 0
     while i < scalars.count {
         let end = Swift.min(i + size, scalars.count)
-        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
+        chunks.append(runtimeStringHOFStringValue(runtimeStringFromScalars(scalars[i ..< end])))
         i = end
     }
-    return runtimeMakeStringListRaw(chunks)
+    return chunks
+}
+
+func runtimeStringChunkedList(_ source: String, size: Int) -> Int {
+    registerRuntimeObject(RuntimeListBox(values: runtimeStringChunkValues(source, size: size)))
+}
+
+func runtimeStringChunkedSequence(_ source: String, size: Int) -> Int {
+    registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: runtimeStringChunkValues(source, size: size))]))
+}
+
+@_cdecl("kk_string_chunked")
+public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
+    runtimeStringChunkedList(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size)
 }
 
 @_cdecl("kk_string_chunked_sequence")
 public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard size > 0 else {
-        return kk_list_asSequence(runtimeMakeStringListRaw([]))
-    }
-    let scalars = Array(source.unicodeScalars)
-    var chunks: [String] = []
-    var i = 0
-    while i < scalars.count {
-        let end = Swift.min(i + size, scalars.count)
-        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
-        i = end
-    }
-    return kk_list_asSequence(runtimeMakeStringListRaw(chunks))
+    runtimeStringChunkedSequence(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size)
 }
 
 @_cdecl("kk_string_chunked_sequence_transform")
@@ -185,7 +305,7 @@ public func kk_string_chunked_sequence_transform(
     let chunkSize = max(1, size)
     let scalars = Array(source.unicodeScalars)
     let estimatedChunks = scalars.isEmpty ? 0 : (scalars.count + chunkSize - 1) / chunkSize
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     results.reserveCapacity(estimatedChunks)
     var index = 0
     while index < scalars.count {
@@ -201,10 +321,10 @@ public func kk_string_chunked_sequence_transform(
         if thrown != 0 {
             return handleCollectionLambdaThrow(thrown, outThrown)
         }
-        results.append(maybeUnbox(transformed))
+        results.append(runtimeStringHOFElementValue(transformed))
         index = end
     }
-    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+    return registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: results)]))
 }
 
 @_cdecl("kk_string_windowed_default")
@@ -212,56 +332,59 @@ public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
     return kk_string_windowed(strRaw, size, 1)
 }
 
-@_cdecl("kk_string_windowed")
-public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard size > 0, step > 0 else {
-        return runtimeMakeStringListRaw([])
-    }
+func runtimeStringWindowedValues(_ source: String, size: Int, step: Int) -> [RuntimeValue] {
+    guard size > 0, step > 0 else { return [] }
     let scalars = Array(source.unicodeScalars)
-    var windows: [String] = []
+    var windows: [RuntimeValue] = []
     var i = 0
     while i + size <= scalars.count {
-        windows.append(runtimeStringFromScalars(scalars[i ..< i + size]))
+        windows.append(runtimeStringHOFStringValue(runtimeStringFromScalars(scalars[i ..< i + size])))
         i += step
     }
-    return runtimeMakeStringListRaw(windows)
+    return windows
 }
 
-@_cdecl("kk_string_windowed_partial")
-public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+func runtimeStringWindowedPartialValues(_ source: String, size: Int, step: Int, partialWindows: Int) -> [RuntimeValue] {
     let clampedSize = Swift.max(1, size)
     let clampedStep = Swift.max(1, step)
     let scalars = Array(source.unicodeScalars)
     let partial = partialWindows != 0
-    var windows: [String] = []
+    var windows: [RuntimeValue] = []
     var i = 0
     while i < scalars.count {
         let end = Swift.min(i + clampedSize, scalars.count)
         if !partial && end - i < clampedSize { break }
-        windows.append(runtimeStringFromScalars(scalars[i ..< end]))
+        windows.append(runtimeStringHOFStringValue(runtimeStringFromScalars(scalars[i ..< end])))
         i += clampedStep
     }
-    return runtimeMakeStringListRaw(windows)
+    return windows
+}
+
+func runtimeStringWindowedList(_ source: String, size: Int, step: Int) -> Int {
+    registerRuntimeObject(RuntimeListBox(values: runtimeStringWindowedValues(source, size: size, step: step)))
+}
+
+func runtimeStringWindowedPartialList(_ source: String, size: Int, step: Int, partialWindows: Int) -> Int {
+    registerRuntimeObject(RuntimeListBox(values: runtimeStringWindowedPartialValues(source, size: size, step: step, partialWindows: partialWindows)))
+}
+
+func runtimeStringWindowedSequencePartial(_ source: String, size: Int, step: Int, partialWindows: Int) -> Int {
+    registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: runtimeStringWindowedPartialValues(source, size: size, step: step, partialWindows: partialWindows))]))
+}
+
+@_cdecl("kk_string_windowed")
+public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
+    runtimeStringWindowedList(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size, step: step)
+}
+
+@_cdecl("kk_string_windowed_partial")
+public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+    runtimeStringWindowedPartialList(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size, step: step, partialWindows: partialWindows)
 }
 
 @_cdecl("kk_string_windowedSequence_partial")
 public func kk_string_windowedSequence_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
-    let scalars = Array(source.unicodeScalars)
-    let partial = partialWindows != 0
-    var windows: [Int] = []
-    var i = 0
-    while i < scalars.count {
-        let end = min(i + clampedSize, scalars.count)
-        if !partial && end - i < clampedSize { break }
-        windows.append(runtimeMakeStringRaw(runtimeStringFromScalars(scalars[i ..< end])))
-        i += clampedStep
-    }
-    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: windows)]))
+    runtimeStringWindowedSequencePartial(runtimeStringFromRawOrPanic(strRaw, caller: #function), size: size, step: step, partialWindows: partialWindows)
 }
 
 @_cdecl("kk_string_windowedSequence_transform")
@@ -280,7 +403,7 @@ public func kk_string_windowedSequence_transform(
     let clampedStep = max(1, step)
     let scalars = Array(source.unicodeScalars)
     let partial = partialWindows != 0
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     var i = 0
     while i < scalars.count {
         let end = min(i + clampedSize, scalars.count)
@@ -297,10 +420,10 @@ public func kk_string_windowedSequence_transform(
             outThrown?.pointee = thrown
             return 0
         }
-        results.append(maybeUnbox(transformed))
+        results.append(runtimeStringHOFElementValue(transformed))
         i += clampedStep
     }
-    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+    return registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: results)]))
 }
 
 // MARK: - STDLIB-318: String.commonPrefixWith / commonSuffixWith
@@ -378,29 +501,41 @@ public func kk_string_zipWithNext(_ strRaw: Int) -> Int {
     let scalars = Array(source.unicodeScalars)
     var pairs: [Int] = []
     for i in 0 ..< scalars.count - 1 {
-        let a = kk_box_char(Int(scalars[i].value))
-        let b = kk_box_char(Int(scalars[i + 1].value))
-        pairs.append(kk_pair_new(a, b))
+        pairs.append(runtimePairNew(
+            firstValue: RuntimeValue(charScalar: Int(scalars[i].value)),
+            secondValue: RuntimeValue(charScalar: Int(scalars[i + 1].value))
+        ))
     }
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
 
+@_cdecl("kk_string_zipWithNext_flat")
+public func kk_string_zipWithNext_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    kk_string_zipWithNext(kk_string_from_flat(data, length, byteCount, hash))
+}
+
 @_cdecl("kk_string_zipWithNextTransform")
 public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     let source = runtimeStringFromRaw(strRaw) ?? ""
     let scalars = Array(source.unicodeScalars)
     guard scalars.count >= 2 else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return registerRuntimeObject(RuntimeListBox(values: []))
     }
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     results.reserveCapacity(scalars.count - 1)
     for i in 0 ..< scalars.count - 1 {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda2(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
-            lhs: kk_box_char(Int(scalars[i].value)),
-            rhs: kk_box_char(Int(scalars[i + 1].value)),
+            lhs: Int(scalars[i].value),
+            rhs: Int(scalars[i + 1].value),
             outThrown: &thrown
         )
         if thrown != 0 {
@@ -409,9 +544,22 @@ public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closur
             }
             return 0
         }
-        results.append(maybeUnbox(result))
+        results.append(runtimeStringHOFElementValue(result))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
+    return registerRuntimeObject(RuntimeListBox(values: results))
+}
+
+@_cdecl("kk_string_zipWithNextTransform_flat")
+public func kk_string_zipWithNextTransform_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_zipWithNextTransform(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 // MARK: - STDLIB-TEXT-FN-116: CharSequence.zip(other) / zip(other, transform)
@@ -424,11 +572,29 @@ public func kk_string_zip(_ strRaw: Int, _ otherRaw: Int) -> Int {
     var pairs: [Int] = []
     pairs.reserveCapacity(count)
     for i in 0 ..< count {
-        let a = kk_box_char(Int(sourceCodeUnits[i]))
-        let b = kk_box_char(Int(otherCodeUnits[i]))
-        pairs.append(kk_pair_new(a, b))
+        pairs.append(runtimePairNew(
+            firstValue: RuntimeValue(charScalar: Int(sourceCodeUnits[i])),
+            secondValue: RuntimeValue(charScalar: Int(otherCodeUnits[i]))
+        ))
     }
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
+}
+
+@_cdecl("kk_string_zip_flat")
+public func kk_string_zip_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    kk_string_zip(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash)
+    )
 }
 
 @_cdecl("kk_string_zipTransform")
@@ -443,7 +609,7 @@ public func kk_string_zipTransform(
     let sourceCodeUnits = runtimeStringUTF16CodeUnits(strRaw)
     let otherCodeUnits = runtimeStringUTF16CodeUnits(otherRaw)
     let count = min(sourceCodeUnits.count, otherCodeUnits.count)
-    var results: [Int] = []
+    var results: [RuntimeValue] = []
     results.reserveCapacity(count)
     for i in 0 ..< count {
         var thrown = 0
@@ -460,9 +626,32 @@ public func kk_string_zipTransform(
             }
             return 0
         }
-        results.append(maybeUnbox(result))
+        results.append(runtimeStringHOFElementValue(result))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
+    return registerRuntimeObject(RuntimeListBox(values: results))
+}
+
+@_cdecl("kk_string_zipTransform_flat")
+public func kk_string_zipTransform_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_zipTransform(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(otherData, otherLength, otherByteCount, otherHash),
+        fnPtr,
+        closureRaw,
+        outThrown
+    )
 }
 
 // MARK: - STDLIB-192: equals(other, ignoreCase)
@@ -476,6 +665,30 @@ public func kk_string_equalsIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreC
     return kk_box_bool(cmp == 0 ? 1 : 0)
 }
 
+@_cdecl("kk_string_equals")
+public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
+    if otherRaw == runtimeNullSentinelInt {
+        return kk_box_bool(0)
+    }
+    return kk_box_bool(kk_string_compareTo_member(strRaw, otherRaw) == 0 ? 1 : 0)
+}
+
+@_cdecl("kk_string_equals_flat")
+public func kk_string_equals_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlatFields(data: otherData, length: otherLength, byteCount: otherByteCount, hash: otherHash)
+    return source == other ? 1 : 0
+}
+
 // MARK: - STDLIB-HOF-023: Advanced String Higher-Order Functions
 
 @_cdecl("kk_string_mapIndexed")
@@ -485,7 +698,7 @@ public func kk_string_mapIndexed(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
-    var mappedElements: [Int] = []
+    var mappedElements: [RuntimeValue] = []
     for (index, scalar) in scalars.enumerated() {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda2(
@@ -496,9 +709,9 @@ public func kk_string_mapIndexed(
             outThrown: &thrown
         )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
-        mappedElements.append(result)
+        mappedElements.append(runtimeStringHOFElementValue(result))
     }
-    return runtimeMakeListRaw(mappedElements)
+    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
 }
 
 @_cdecl("kk_string_mapNotNull")
@@ -508,7 +721,7 @@ public func kk_string_mapNotNull(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
-    var mappedElements: [Int] = []
+    var mappedElements: [RuntimeValue] = []
     for scalar in scalars {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(
@@ -519,11 +732,38 @@ public func kk_string_mapNotNull(
         )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         if result != runtimeNullSentinelInt {
-            mappedElements.append(result)
+            mappedElements.append(runtimeStringHOFElementValue(result))
         }
     }
-    return runtimeMakeListRaw(mappedElements)
+    return registerRuntimeObject(RuntimeListBox(values: mappedElements))
 }
+
+@_cdecl("kk_string_mapNotNull_flat")
+public func kk_string_mapNotNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_mapNotNull(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_string_mapIndexed_flat")
+public func kk_string_mapIndexed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_mapIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 
 @_cdecl("kk_string_firstNotNullOf")
 public func kk_string_firstNotNullOf(
@@ -556,6 +796,19 @@ public func kk_string_firstNotNullOf(
     return 0
 }
 
+@_cdecl("kk_string_firstNotNullOf_flat")
+public func kk_string_firstNotNullOf_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_firstNotNullOf(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_firstNotNullOfOrNull")
 public func kk_string_firstNotNullOfOrNull(
     _ strRaw: Int,
@@ -582,6 +835,19 @@ public func kk_string_firstNotNullOfOrNull(
         }
     }
     return runtimeNullSentinelInt
+}
+
+@_cdecl("kk_string_firstNotNullOfOrNull_flat")
+public func kk_string_firstNotNullOfOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_firstNotNullOfOrNull(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 // MARK: - STDLIB-TEXT-FN-046: CharSequence.reduce
@@ -690,6 +956,19 @@ public func kk_string_reduceOrNull(
     return acc
 }
 
+@_cdecl("kk_string_reduceOrNull_flat")
+public func kk_string_reduceOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_reduceOrNull(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_reduceRightIndexed")
 public func kk_string_reduceRightIndexed(
     _ strRaw: Int,
@@ -728,6 +1007,19 @@ public func kk_string_reduceRightIndexed(
     return acc
 }
 
+@_cdecl("kk_string_reduceRightIndexed_flat")
+public func kk_string_reduceRightIndexed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_reduceRightIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_reduceRightIndexedOrNull")
 public func kk_string_reduceRightIndexedOrNull(
     _ strRaw: Int,
@@ -761,6 +1053,19 @@ public func kk_string_reduceRightIndexedOrNull(
         }
     }
     return acc
+}
+
+@_cdecl("kk_string_reduceRightIndexedOrNull_flat")
+public func kk_string_reduceRightIndexedOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_reduceRightIndexedOrNull(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 @_cdecl("kk_string_reduceRightOrNull")
@@ -797,6 +1102,19 @@ public func kk_string_reduceRightOrNull(
     return acc
 }
 
+@_cdecl("kk_string_reduceRightOrNull_flat")
+public func kk_string_reduceRightOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_reduceRightOrNull(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_sumBy")
 public func kk_string_sumBy(
     _ strRaw: Int,
@@ -821,6 +1139,19 @@ public func kk_string_sumBy(
         total += maybeUnbox(result)
     }
     return total
+}
+
+@_cdecl("kk_string_sumBy_flat")
+public func kk_string_sumBy_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_sumBy(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 @_cdecl("kk_string_sumByDouble")
@@ -849,6 +1180,19 @@ public func kk_string_sumByDouble(
     return kk_double_to_bits(total)
 }
 
+@_cdecl("kk_string_sumByDouble_flat")
+public func kk_string_sumByDouble_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_sumByDouble(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_filterIndexed")
 public func kk_string_filterIndexed(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -872,6 +1216,24 @@ public func kk_string_filterIndexed(
     return runtimeMakeStringRaw(runtimeStringFromScalars(filtered))
 }
 
+@_cdecl("kk_string_filterIndexed_flat")
+public func kk_string_filterIndexed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_filterIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_filterNot")
 public func kk_string_filterNot(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -892,6 +1254,24 @@ public func kk_string_filterNot(
         if result == 0 { filtered.append(scalar) }
     }
     return runtimeMakeStringRaw(runtimeStringFromScalars(filtered))
+}
+
+@_cdecl("kk_string_filterNot_flat")
+public func kk_string_filterNot_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_filterNot(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
 @_cdecl("kk_string_takeWhile")
@@ -917,6 +1297,24 @@ public func kk_string_takeWhile(
     return runtimeMakeStringRaw(runtimeStringFromScalars(taken))
 }
 
+@_cdecl("kk_string_takeWhile_flat")
+public func kk_string_takeWhile_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_takeWhile(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_takeLastWhile")
 public func kk_string_takeLastWhile(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
@@ -938,6 +1336,24 @@ public func kk_string_takeLastWhile(
         takenCount += 1
     }
     return runtimeMakeStringRaw(String(decoding: codeUnits.suffix(takenCount), as: UTF16.self))
+}
+
+@_cdecl("kk_string_takeLastWhile_flat")
+public func kk_string_takeLastWhile_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_takeLastWhile(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
 @_cdecl("kk_string_dropWhile")
@@ -963,6 +1379,24 @@ public func kk_string_dropWhile(
     return runtimeMakeStringRaw(runtimeStringFromScalars(Array(scalars.dropFirst(dropIndex))))
 }
 
+@_cdecl("kk_string_dropWhile_flat")
+public func kk_string_dropWhile_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let raw = kk_string_dropWhile(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+    guard let string = runtimeStringFromRaw(raw) else { return nil }
+    return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 // MARK: - onEach (STDLIB-TEXT-FN-039)
 
 @_cdecl("kk_string_onEach")
@@ -981,6 +1415,19 @@ public func kk_string_onEach(
     return strRaw
 }
 
+@_cdecl("kk_string_onEach_flat")
+public func kk_string_onEach_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_onEach(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
+}
+
 @_cdecl("kk_string_splitToSequence")
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -997,6 +1444,23 @@ public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
+@_cdecl("kk_string_splitToSequence_flat")
+public func kk_string_splitToSequence_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimData: UnsafePointer<UInt8>?,
+    _ delimLength: Int,
+    _ delimByteCount: Int,
+    _ delimHash: Int
+) -> Int {
+    kk_string_splitToSequence(
+        kk_string_from_flat(data, length, byteCount, hash),
+        kk_string_from_flat(delimData, delimLength, delimByteCount, delimHash)
+    )
+}
+
 @_cdecl("kk_string_joinToString")
 public func kk_string_joinToString(
     _ strListRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int
@@ -1009,7 +1473,14 @@ public func kk_string_joinToString(
     let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
     let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
 
-    let strings = list.elements.compactMap { extractString(from: UnsafeMutableRawPointer(bitPattern: $0)) }
+    let strings = list.values.compactMap { value -> String? in
+        switch value.tag {
+        case RuntimeValue.stringTag, RuntimeValue.charTag:
+            return runtimeElementToString(value)
+        default:
+            return extractString(from: UnsafeMutableRawPointer(bitPattern: value.legacyRawValue))
+        }
+    }
     let result = prefix + strings.joined(separator: separator) + postfix
     return runtimeMakeStringRaw(result)
 }
@@ -1099,9 +1570,10 @@ public func kk_string_partition(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else {
-        let first = runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function))
-        let second = runtimeMakeStringRaw("")
-        return kk_pair_new(first, second)
+        return runtimePairNew(
+            firstValue: runtimeStringHOFStringValue(runtimeStringFromRawOrPanic(strRaw, caller: #function)),
+            secondValue: runtimeStringHOFStringValue("")
+        )
     }
     var matched: [UnicodeScalar] = []
     var unmatched: [UnicodeScalar] = []
@@ -1115,7 +1587,10 @@ public func kk_string_partition(
         )
         if thrown != 0 {
             outThrown?.pointee = thrown
-            return kk_pair_new(runtimeMakeStringRaw(""), runtimeMakeStringRaw(""))
+            return runtimePairNew(
+                firstValue: runtimeStringHOFStringValue(""),
+                secondValue: runtimeStringHOFStringValue("")
+            )
         }
         if maybeUnbox(result) != 0 {
             matched.append(scalar)
@@ -1123,9 +1598,23 @@ public func kk_string_partition(
             unmatched.append(scalar)
         }
     }
-    let first = runtimeMakeStringRaw(runtimeStringFromScalars(matched))
-    let second = runtimeMakeStringRaw(runtimeStringFromScalars(unmatched))
-    return kk_pair_new(first, second)
+    return runtimePairNew(
+        firstValue: runtimeStringHOFStringValue(runtimeStringFromScalars(matched)),
+        secondValue: runtimeStringHOFStringValue(runtimeStringFromScalars(unmatched))
+    )
+}
+
+@_cdecl("kk_string_partition_flat")
+public func kk_string_partition_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_partition(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }
 
 // MARK: - STDLIB-TEXT-FN-040: CharSequence.onEachIndexed
@@ -1148,4 +1637,17 @@ public func kk_string_onEachIndexed(
         if thrown != 0 { outThrown?.pointee = thrown; return strRaw }
     }
     return strRaw
+}
+
+@_cdecl("kk_string_onEachIndexed_flat")
+public func kk_string_onEachIndexed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_onEachIndexed(kk_string_from_flat(data, length, byteCount, hash), fnPtr, closureRaw, outThrown)
 }

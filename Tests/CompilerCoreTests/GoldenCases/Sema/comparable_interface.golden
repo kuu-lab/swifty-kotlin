@@ -21,36 +21,36 @@ symbol fq=max.$4.b kind=valueParameter vis=private flags=_
 symbol fq=nullSafeCompare kind=function vis=public flags=_ sig=recv=_ params=[Temperature?,Temperature] ret=Int
 symbol fq=nullSafeCompare.$5.a kind=valueParameter vis=private flags=_
 symbol fq=nullSafeCompare.$5.b kind=valueParameter vis=private flags=_
-file f14 package=_
+file f0 package=_
   decl Temperature class Temperature sym=Temperature
   decl max fun max sym=max
   decl nullSafeCompare fun nullSafeCompare sym=nullSafeCompare
   decl compareInts fun compareInts sym=compareInts
   decl compareTemperatures fun compareTemperatures sym=compareTemperatures
   decl compareGe fun compareGe sym=compareGe
-expr e@5:55#0 this type=Temperature
-expr e@5:55#1 memberCall recv=e@5:55#0 callee=degrees args=[] type=Int ref=Temperature.degrees
-expr e@5:70#0 name(other) type=Temperature ref=Temperature.compareTo.$0.other
-expr e@5:70#1 memberCall recv=e@5:70#0 callee=degrees args=[] type=Int ref=Temperature.degrees
+expr e@5:55 this type=Temperature
+expr e@5:55#1 memberCall recv=e@5:55 callee=degrees args=[] type=Int ref=Temperature.degrees
+expr e@5:70 name(other) type=Temperature ref=Temperature.compareTo.$0.other
+expr e@5:70#1 memberCall recv=e@5:70 callee=degrees args=[] type=Int ref=Temperature.degrees
 expr e@5:55#2 binary(subtract) lhs=e@5:55#1 rhs=e@5:70#1 type=Int
-expr e@8:50#0 name(a) type=max.$4.T ref=max.$4.a
+expr e@8:50 name(a) type=max.$4.T ref=max.$4.a
 expr e@8:54 name(b) type=max.$4.T ref=max.$4.b
-expr e@8:50#1 binary(greaterThan) lhs=e@8:50#0 rhs=e@8:54 type=Boolean call=kotlin.Comparable.compareTo targs=[max.$4.T]
+expr e@8:50#1 binary(greaterThan) lhs=e@8:50 rhs=e@8:54 type=Boolean call=kotlin.Comparable.compareTo targs=[max.$4.T]
 expr e@8:57 name(a) type=max.$4.T ref=max.$4.a
 expr e@8:64 name(b) type=max.$4.T ref=max.$4.b
 expr e@8:46 if cond=e@8:50#1 then=e@8:57 else=e@8:64 type=max.$4.T
-expr e@10:61#0 name(a) type=Temperature? ref=nullSafeCompare.$5.a
+expr e@10:61 name(a) type=Temperature? ref=nullSafeCompare.$5.a
 expr e@10:74 name(b) type=Temperature ref=nullSafeCompare.$5.b
-expr e@10:61#1 safeMemberCall recv=e@10:61#0 callee=compareTo args=[_:e@10:74] type=Int? call=Temperature.compareTo
+expr e@10:61#1 safeMemberCall recv=e@10:61 callee=compareTo args=[_:e@10:74] type=Int? call=Temperature.compareTo
 expr e@10:81 int(1) type=Int
 expr e@10:80 unary(unaryMinus) operand=e@10:81 type=Int
 expr e@10:61#2 binary(elvis) lhs=e@10:61#1 rhs=e@10:80 type=Int
-expr e@12:44#1 name(a) type=Int ref=compareInts.$2.a
-expr e@12:48#1 name(b) type=Int ref=compareInts.$2.b
-expr e@12:44#2 binary(lessThan) lhs=e@12:44#1 rhs=e@12:48#1 type=Boolean
-expr e@14:68#0 name(a) type=Temperature ref=compareTemperatures.$3.a
+expr e@12:44 name(a) type=Int ref=compareInts.$2.a
+expr e@12:48 name(b) type=Int ref=compareInts.$2.b
+expr e@12:44#1 binary(lessThan) lhs=e@12:44 rhs=e@12:48 type=Boolean
+expr e@14:68 name(a) type=Temperature ref=compareTemperatures.$3.a
 expr e@14:72 name(b) type=Temperature ref=compareTemperatures.$3.b
-expr e@14:68#1 binary(lessThan) lhs=e@14:68#0 rhs=e@14:72 type=<error>
-expr e@16:58#0 name(a) type=Temperature ref=compareGe.$1.a
+expr e@14:68#1 binary(lessThan) lhs=e@14:68 rhs=e@14:72 type=<error>
+expr e@16:58 name(a) type=Temperature ref=compareGe.$1.a
 expr e@16:63 name(b) type=Temperature ref=compareGe.$1.b
-expr e@16:58#1 binary(greaterOrEqual) lhs=e@16:58#0 rhs=e@16:63 type=<error>
+expr e@16:58#1 binary(greaterOrEqual) lhs=e@16:58 rhs=e@16:63 type=<error>

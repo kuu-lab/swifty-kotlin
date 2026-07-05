@@ -46,7 +46,7 @@ extension CallTypeChecker {
         }
 
         func memberTypeArgument(_ type: TypeID, index: Int) -> TypeID? {
-            guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+            guard let classType = resolveClassType(type, sema: sema),
                   classType.args.indices.contains(index)
             else {
                 return nil
@@ -191,8 +191,7 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             let expectedGroupingValueType: TypeID = if let expectedType,
-                                                       case let .classType(expectedClassType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
-                                                       let expectedSymbol = sema.symbols.symbol(expectedClassType.classSymbol),
+                                                       let (expectedClassType, expectedSymbol) = resolveClassTypeSymbol(expectedType, sema: sema),
                                                        knownNames.isMapLikeSymbol(expectedSymbol),
                                                        expectedClassType.args.count >= 2
             {
@@ -292,9 +291,7 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         switch KnownCompilerNames(interner: interner).collectionKind(of: symbol) {

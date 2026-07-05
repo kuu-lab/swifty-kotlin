@@ -45,9 +45,7 @@ extension CallLowerer {
             default:
                 return nil
             }
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.bindings.exprTypes[exprID]
+            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
             )
@@ -66,9 +64,7 @@ extension CallLowerer {
            parentInfo.name == knownNames.charsets
         {
             let runtimeCallee = interner.intern("kk_charset_\(interner.resolve(info.name).lowercased())")
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.bindings.exprTypes[exprID]
+            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
             )
@@ -86,9 +82,7 @@ extension CallLowerer {
            interner.resolve(parentInfo.name) == "NormalizationForms"
         {
             let runtimeCallee = interner.intern("kk_normalization_form_\(interner.resolve(info.name).lowercased())")
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.bindings.exprTypes[exprID]
+            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
                     ?? sema.symbols.propertyType(for: valueSym)
                     ?? sema.types.anyType
             )
@@ -136,7 +130,7 @@ extension CallLowerer {
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
         if objectLiteralPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
-            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            let result = arena.appendTemporary(type: resultType)
             instructions.append(.call(
                 symbol: propertySymbol,
                 callee: interner.intern("get"),
@@ -157,7 +151,7 @@ extension CallLowerer {
         let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
@@ -212,7 +206,7 @@ extension CallLowerer {
         let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
         instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get_inbounds"),
@@ -254,9 +248,9 @@ extension CallLowerer {
         let helperName = interner.intern(entryName + helperSuffix)
         let resultType = sema.bindings.exprTypes[exprID]
             ?? (calleeStr == "name"
-                ? sema.types.make(.primitive(.string, .nonNull))
+                ? sema.types.stringType
                 : sema.types.make(.primitive(.int, .nonNull)))
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: helperName,
@@ -288,7 +282,7 @@ extension CallLowerer {
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: propertySymbol,
             callee: interner.intern(externalLinkName),

@@ -1,5 +1,7 @@
 package kotlin.text
 
+import kswiftk.internal.*
+
 // String indent and format functions migrated from Swift Runtime
 // MIGRATION-TEXT-006
 
@@ -7,7 +9,7 @@ private fun String.splitIntoLines(): List<String> {
     val src = replace("\r\n", "\n").replace("\r", "\n")
     val result = mutableListOf<String>()
     var start = 0
-    while (start < src.length) {
+    while (start < __string_struct_get_length(src)) {
         val idx = src.indexOf("\n", start)
         if (idx == -1) {
             result.add(src.substring(start))
@@ -49,7 +51,7 @@ private fun trimBlankEdges(lines: List<String>): List<String> {
  */
 public fun String.trimIndent(): String {
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     var minIndent = -1
     for (line in lines) {
         if (!line.isBlank()) {
@@ -79,16 +81,16 @@ public fun String.trimIndent(): String {
 public fun String.trimMargin(marginPrefix: String = "|"): String {
     require(!marginPrefix.isBlank()) { "marginPrefix must be non-blank string." }
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
         if (!first) sb.append('\n')
         var i = 0
-        while (i < line.length && (line[i] == ' ' || line[i] == '\t')) i++
+        while (i < __string_struct_get_length(line) && (line[i] == ' ' || line[i] == '\t')) i++
         val trimmedLeading = line.substring(i)
         if (trimmedLeading.startsWith(marginPrefix)) {
-            sb.append(trimmedLeading.substring(marginPrefix.length))
+            sb.append(trimmedLeading.substring(__string_struct_get_length(marginPrefix)))
         } else {
             sb.append(line)
         }
@@ -102,7 +104,7 @@ public fun String.trimMargin(marginPrefix: String = "|"): String {
  */
 public fun String.prependIndent(indent: String = "    "): String {
     val lines = splitIntoLines()
-    if (lines.isEmpty()) return this
+    if (lines.size == 0) return this
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
@@ -119,7 +121,7 @@ public fun String.prependIndent(indent: String = "    "): String {
  */
 public fun String.replaceIndent(newIndent: String = ""): String {
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     var minIndent = -1
     for (line in lines) {
         if (!line.isBlank()) {
@@ -152,17 +154,17 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
         throw IllegalArgumentException("marginPrefix must be non-blank string.")
     }
     val lines = trimBlankEdges(splitIntoLines())
-    if (lines.isEmpty()) return ""
+    if (lines.size == 0) return ""
     val sb = StringBuilder()
     var first = true
     for (line in lines) {
         if (!first) sb.append('\n')
         var i = 0
-        while (i < line.length && (line[i] == ' ' || line[i] == '\t')) i++
+        while (i < __string_struct_get_length(line) && (line[i] == ' ' || line[i] == '\t')) i++
         val trimmedLeading = line.substring(i)
         if (trimmedLeading.startsWith(marginPrefix)) {
             sb.append(newIndent)
-            sb.append(trimmedLeading.substring(marginPrefix.length))
+            sb.append(trimmedLeading.substring(__string_struct_get_length(marginPrefix)))
         } else {
             sb.append(line)
         }
@@ -170,4 +172,3 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
     }
     return sb.toString()
 }
-
