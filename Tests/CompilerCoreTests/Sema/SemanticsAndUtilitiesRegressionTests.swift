@@ -3702,7 +3702,7 @@ struct CommandRunnerErrorPathTests {
     @Test
     func testRunThrowsNonZeroExitWithCapturedStderr() throws {
         do {
-            try CommandRunner.run(
+            _ = try CommandRunner.run(
                 executable: "/usr/bin/env",
                 arguments: ["sh", "-c", "printf 'err' >&2; exit 7"]
             )
@@ -3720,7 +3720,7 @@ struct CommandRunnerErrorPathTests {
     @Test
     func testRunThrowsLaunchFailedForMissingExecutable() throws {
         do {
-            try CommandRunner.run(
+            _ = try CommandRunner.run(
                 executable: "/definitely/missing/executable",
                 arguments: []
             )
