@@ -109,7 +109,6 @@ final class LoadSourcesPhase: CompilerPhase {
     }
 
     private static let excludedBundledStdlibFiles: Set<String> = [
-        "kotlin/Result",
         "kotlin/ResultExtensions",
         "kotlin/collections/CollectionFactories",
         "kotlin/collections/ListFilterHOF",

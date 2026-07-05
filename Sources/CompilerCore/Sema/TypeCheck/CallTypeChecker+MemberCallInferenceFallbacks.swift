@@ -825,7 +825,7 @@ extension CallTypeChecker {
         return contentType
     }
 
-    /// Extract the element type T from a Result<out T> receiver type.
+    /// Extract the element type T from a Result<T> receiver type.
     func extractResultElementType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -846,7 +846,7 @@ extension CallTypeChecker {
         }
     }
 
-    /// Look up a synthetic Result member function by name.
+    /// Look up a source-backed or synthetic Result member function by name.
     func lookupResultMember(
         _ name: String,
         sema: SemaModule,
@@ -854,10 +854,13 @@ extension CallTypeChecker {
     ) -> SymbolID? {
         let knownNames = KnownCompilerNames(interner: interner)
         let memberFQName = knownNames.kotlinResultFQName + [interner.intern(name)]
-        return sema.symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+        let candidates = sema.symbols.lookupAll(fqName: memberFQName).filter { symbolID in
             guard let sym = sema.symbols.symbol(symbolID) else { return false }
-            return sym.kind == .function && sym.flags.contains(.synthetic)
-        })
+            return sym.kind == .function
+        }
+        return candidates.first { symbolID in
+            !(sema.symbols.symbol(symbolID)?.flags.contains(.synthetic) ?? false)
+        } ?? candidates.first
     }
 
     /// Construct a Result<T> type from an element type.
@@ -872,7 +875,7 @@ extension CallTypeChecker {
         }
         return sema.types.make(.classType(ClassType(
             classSymbol: resultClassSymbol,
-            args: [.out(elementType)],
+            args: [.invariant(elementType)],
             nullability: .nonNull
         )))
     }

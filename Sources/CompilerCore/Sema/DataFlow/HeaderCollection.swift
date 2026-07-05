@@ -175,24 +175,39 @@ extension DataFlowSemaPhase {
         } else {
             newIsExtensionProperty = false
         }
-        checkAndReportDuplicateDeclaration(
-            newKind: declaration.kind,
-            fqName: fqName,
-            range: declaration.range,
-            symbols: symbols,
-            diagnostics: diagnostics,
-            newFlags: declaration.flags,
-            additionalExisting: scopeExisting,
-            newIsExtensionProperty: newIsExtensionProperty
-        )
-        let symbol = symbols.define(
+        let reusableSyntheticSymbol = reusableSyntheticDeclarationSymbol(
             kind: declaration.kind,
-            name: declaration.name,
             fqName: fqName,
-            declSite: declaration.range,
-            visibility: declaration.visibility,
-            flags: declaration.flags
+            file: file,
+            symbols: symbols,
+            interner: interner
         )
+        if reusableSyntheticSymbol == nil {
+            checkAndReportDuplicateDeclaration(
+                newKind: declaration.kind,
+                fqName: fqName,
+                range: declaration.range,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                newFlags: declaration.flags,
+                additionalExisting: scopeExisting,
+                newIsExtensionProperty: newIsExtensionProperty
+            )
+        }
+        let symbol: SymbolID
+        if let reusableSyntheticSymbol {
+            symbol = reusableSyntheticSymbol
+            symbols.removeFlags(.synthetic, for: symbol)
+        } else {
+            symbol = symbols.define(
+                kind: declaration.kind,
+                name: declaration.name,
+                fqName: fqName,
+                declSite: declaration.range,
+                visibility: declaration.visibility,
+                flags: declaration.flags
+            )
+        }
         symbols.setSourceFileID(file.fileID, for: symbol)
         scope.insert(symbol)
         bindings.bindDecl(declID, symbol: symbol)
@@ -896,6 +911,22 @@ extension DataFlowSemaPhase {
 
         case .enumEntryDecl:
             break
+        }
+    }
+
+    private func reusableSyntheticDeclarationSymbol(
+        kind: SymbolKind,
+        fqName: [InternedString],
+        file: ASTFile,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard kind == .class else { return nil }
+        guard file.packageFQName.map(interner.resolve) == ["kotlin"] else { return nil }
+        guard fqName.map(interner.resolve) == ["kotlin", "Result"] else { return nil }
+        return symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else { return false }
+            return symbol.kind == kind && symbol.flags.contains(.synthetic)
         }
     }
 
