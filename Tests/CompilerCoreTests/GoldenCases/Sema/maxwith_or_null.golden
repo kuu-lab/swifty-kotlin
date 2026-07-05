@@ -7,12 +7,12 @@ symbol fq=golden.sema.maxFromSequence.$1.xs kind=valueParameter vis=private flag
 symbol fq=kotlin.Comparator kind=interface vis=public flags=synthetic|funInterface
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=synthetic
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.maxFromList fun maxFromList sym=golden.sema.maxFromList
   decl golden.sema.maxFromSequence fun maxFromSequence sym=golden.sema.maxFromSequence
-expr e@5:62#0 name(xs) type=kotlin.collections.List<Int> ref=golden.sema.maxFromList.$0.xs
+expr e@5:62 name(xs) type=kotlin.collections.List<Int> ref=golden.sema.maxFromList.$0.xs
 expr e@5:79 name(cmp) type=kotlin.Comparator<Int> ref=golden.sema.maxFromList.$0.cmp
-expr e@5:62#1 memberCall recv=e@5:62#0 callee=maxWithOrNull args=[_:e@5:79] type=Int?
-expr e@6:70#0 name(xs) type=kotlin.sequences.Sequence<Int> ref=golden.sema.maxFromSequence.$1.xs
+expr e@5:62#1 memberCall recv=e@5:62 callee=maxWithOrNull args=[_:e@5:79] type=Int?
+expr e@6:70 name(xs) type=kotlin.sequences.Sequence<Int> ref=golden.sema.maxFromSequence.$1.xs
 expr e@6:87 name(cmp) type=kotlin.Comparator<Int> ref=golden.sema.maxFromSequence.$1.cmp
-expr e@6:70#1 memberCall recv=e@6:70#0 callee=maxWithOrNull args=[_:e@6:87] type=Int?
+expr e@6:70#1 memberCall recv=e@6:70 callee=maxWithOrNull args=[_:e@6:87] type=Int?

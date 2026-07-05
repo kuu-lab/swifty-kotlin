@@ -564,7 +564,7 @@ final class ExprTypeChecker {
                 chosenCallee: chosen,
                 substitutedTypeArguments: resolved.substitutedTypeArguments
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map { (_: TypeVarID, value: TypeID) in value },
+                    .map { _, value in value },
                 parameterMapping: resolved.parameterMapping
             )
         )
@@ -609,6 +609,22 @@ final class ExprTypeChecker {
         var candidates: [SymbolID] = []
         var seen: Set<SymbolID> = []
 
+        func operatorCandidateMatchesReceiver(_ candidate: SymbolID) -> Bool {
+            guard receiverType != sema.types.errorType else {
+                return false
+            }
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let signatureReceiverType = signature.receiverType
+            else {
+                return true
+            }
+            return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: signatureReceiverType,
+                sema: sema
+            )
+        }
+
         for name in names {
             let nameStr = ctx.interner.resolve(name)
             let isInheritedOperator = inheritedOperatorNames.contains(nameStr)
@@ -621,6 +637,9 @@ final class ExprTypeChecker {
                 guard seen.insert(candidate).inserted,
                       let symbol = sema.symbols.symbol(candidate)
                 else {
+                    continue
+                }
+                guard operatorCandidateMatchesReceiver(candidate) else {
                     continue
                 }
                 // Accept explicit operator functions, and also accept overrides
@@ -665,6 +684,9 @@ final class ExprTypeChecker {
                     else {
                         continue
                     }
+                    guard operatorCandidateMatchesReceiver(candidate) else {
+                        continue
+                    }
                     candidates.append(candidate)
                 }
             }
@@ -681,7 +703,16 @@ final class ExprTypeChecker {
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),
                       let signature = sema.symbols.functionSignature(for: candidate),
-                      signature.receiverType != nil
+                      let signatureReceiverType = signature.receiverType
+                else {
+                    continue
+                }
+                guard receiverType != sema.types.errorType,
+                      driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                          callSiteReceiver: receiverType,
+                          declaredReceiver: signatureReceiverType,
+                          sema: sema
+                      )
                 else {
                     continue
                 }

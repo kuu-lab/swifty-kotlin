@@ -98,9 +98,8 @@ extension CompanionObjectTests {
         )
 
         let module = try #require(ctx.kir)
-        let functionNames = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else { return nil }
-            return ctx.interner.resolve(function.name)
+        let functionNames = findAllKIRFunctions(in: module).map { function in
+            ctx.interner.resolve(function.name)
         }
 
         // Companion initializer must be synthesized
@@ -139,8 +138,7 @@ extension CompanionObjectTests {
 
         let module = try #require(ctx.kir)
         // Verify companion init function exists
-        let companionInits = module.arena.declarations.compactMap { decl -> String? in
-            guard case let .function(function) = decl else { return nil }
+        let companionInits = findAllKIRFunctions(in: module).compactMap { function -> String? in
             let name = ctx.interner.resolve(function.name)
             return name.hasPrefix("__companion_init_") ? name : nil
         }
@@ -218,8 +216,7 @@ extension CompanionObjectTests {
             let module = try #require(ctx.kir)
             // Find the companion init function and verify it has a copy instruction
             // (property initialization writes the initial value)
-            let companionInitFn = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let companionInitFn = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 let name = ctx.interner.resolve(function.name)
                 return name.hasPrefix("__companion_init_") ? function : nil
             }.first

@@ -58,7 +58,7 @@ extension KIRLoweringDriver {
             )
             let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
             body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-            let allocatedObj = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: objectType)
+            let allocatedObj = arena.appendTemporary(type: objectType)
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_object_new"),
@@ -80,7 +80,7 @@ extension KIRLoweringDriver {
                 )
                 let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
                 body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-                let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                let registerResult = arena.appendTemporary(type: intType)
                 let superKind = sema.symbols.symbol(superSymbol)?.kind
                 let registerCallee: InternedString = if superKind == .interface {
                     interner.intern("kk_type_register_iface")
@@ -111,7 +111,7 @@ extension KIRLoweringDriver {
                     body.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
                     let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
                     body.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
-                    let registerIfaceResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                    let registerIfaceResult = arena.appendTemporary(type: intType)
                     body.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_object_register_itable_iface"),
@@ -134,7 +134,7 @@ extension KIRLoweringDriver {
                         body.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
                         let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
                         body.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
-                        let registerMethodResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                        let registerMethodResult = arena.appendTemporary(type: intType)
                         body.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_object_register_itable_method"),

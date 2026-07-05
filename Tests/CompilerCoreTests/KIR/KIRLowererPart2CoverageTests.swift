@@ -312,7 +312,6 @@ struct KIRLowererPart2CoverageTests {
 
 struct DirectKIRFixture {
     let interner: StringInterner
-    let diagnostics: DiagnosticEngine
     let symbols: SymbolTable
     let types: TypeSystem
     let bindings: BindingTable
@@ -341,12 +340,7 @@ func makeDirectKIRFixture() -> DirectKIRFixture {
     let symbols = SymbolTable()
     let types = TypeSystem()
     let bindings = BindingTable()
-    let sema = SemaModule(
-        symbols: symbols,
-        types: types,
-        bindings: bindings,
-        diagnostics: diagnostics
-    )
+    let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
     let astArena = ASTArena()
     let file = ASTFile(
@@ -370,7 +364,6 @@ func makeDirectKIRFixture() -> DirectKIRFixture {
 
     return DirectKIRFixture(
         interner: interner,
-        diagnostics: diagnostics,
         symbols: symbols,
         types: types,
         bindings: bindings,

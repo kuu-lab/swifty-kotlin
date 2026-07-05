@@ -34,9 +34,7 @@ extension CallLowerer {
         // takeIf / takeUnless with safe call (STDLIB-160)
         if sema.bindings.takeIfTakeUnlessKind(for: exprID) != nil {
             let takeBoundType = boundType ?? sema.types.anyType
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: takeBoundType
+            let result = arena.appendTemporary(type: takeBoundType
             )
             let loweredReceiver = driver.lowerExpr(
                 receiverExpr,
@@ -73,9 +71,7 @@ extension CallLowerer {
         if sema.bindings.scopeFunctionKind(for: exprID) != nil {
             let scopeBoundType = boundType ?? sema.types.anyType
             let nullableResultType = sema.types.makeNullable(scopeBoundType)
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: nullableResultType
+            let result = arena.appendTemporary(type: nullableResultType
             )
             let loweredReceiver = driver.lowerExpr(
                 receiverExpr,
@@ -139,7 +135,7 @@ extension CallLowerer {
             receiverExpr,
             shared: shared, emit: &instructions
         )
-        let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let safeReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullSafeReceiverType = sema.types.makeNonNullable(safeReceiverType)
         let isCoroutineReceiver = if case .primitive = sema.types.kind(of: nonNullSafeReceiverType) {
@@ -162,11 +158,11 @@ extension CallLowerer {
             let nullableUnitType = sema.types.makeNullable(sema.types.unitType)
             let nullValue = arena.appendExpr(.unit, type: nullableUnitType)
             instructions.append(.constValue(result: nullValue, value: .null))
-            let nullableResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableUnitType)
+            let nullableResult = arena.appendTemporary(type: nullableUnitType)
             instructions.append(.copy(from: nullValue, to: nullableResult))
             instructions.append(.jump(endLabel))
             instructions.append(.label(nonNullLabel))
-            let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.unitType)
+            let nonNullResult = arena.appendTemporary(type: sema.types.unitType)
             let loweredArgIDs: [KIRExprID]
             switch args.count {
             case 0:
@@ -218,11 +214,11 @@ extension CallLowerer {
                 let nullableBooleanType = sema.types.makeNullable(sema.types.booleanType)
                 let nullValue = arena.appendExpr(.unit, type: nullableBooleanType)
                 instructions.append(.constValue(result: nullValue, value: .null))
-                let nullableResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableBooleanType)
+                let nullableResult = arena.appendTemporary(type: nullableBooleanType)
                 instructions.append(.copy(from: nullValue, to: nullableResult))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
-                let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.booleanType)
+                let nonNullResult = arena.appendTemporary(type: sema.types.booleanType)
                 let argumentIDs: [KIRExprID]
                 if args.isEmpty {
                     argumentIDs = []
@@ -268,11 +264,11 @@ extension CallLowerer {
                 let nullableResultType = sema.types.makeNullable(callResultType)
                 let nullValue = arena.appendExpr(.unit, type: nullableResultType)
                 instructions.append(.constValue(result: nullValue, value: .null))
-                let nullableResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableResultType)
+                let nullableResult = arena.appendTemporary(type: nullableResultType)
                 instructions.append(.copy(from: nullValue, to: nullableResult))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
-                let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: callResultType)
+                let nonNullResult = arena.appendTemporary(type: callResultType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_op_inv"),
@@ -429,7 +425,7 @@ extension CallLowerer {
                 let nullableResultType = sema.types.makeNullable(resultType)
                 let nullValue = arena.appendExpr(.unit, type: nullableResultType)
                 instructions.append(.constValue(result: nullValue, value: .null))
-                let nullableResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableResultType)
+                let nullableResult = arena.appendTemporary(type: nullableResultType)
                 instructions.append(.copy(from: nullValue, to: nullableResult))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
@@ -438,7 +434,7 @@ extension CallLowerer {
                 var rhs = driver.lowerExpr(args[0].expr, shared: shared, emit: &instructions)
                 if resultType == doubleType {
                     if nonNullReceiverType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -450,7 +446,7 @@ extension CallLowerer {
                         lhs = converted
                     }
                     if nonNullRhsType == floatType {
-                        let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: doubleType)
+                        let converted = arena.appendTemporary(type: doubleType)
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern("kk_float_to_double_bits"),
@@ -463,7 +459,7 @@ extension CallLowerer {
                     }
                 }
 
-                let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                let nonNullResult = arena.appendTemporary(type: resultType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(resultType == doubleType ? "kk_op_dfloor_mod" : "kk_op_ffloor_mod"),
@@ -537,11 +533,11 @@ extension CallLowerer {
                     let nullableResultType = sema.types.makeNullable(callResultType)
                     let nullValue = arena.appendExpr(.unit, type: nullableResultType)
                     instructions.append(.constValue(result: nullValue, value: .null))
-                    let nullableResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableResultType)
+                    let nullableResult = arena.appendTemporary(type: nullableResultType)
                     instructions.append(.copy(from: nullValue, to: nullableResult))
                     instructions.append(.jump(endLabel))
                     instructions.append(.label(nonNullLabel))
-                    let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: callResultType)
+                    let nonNullResult = arena.appendTemporary(type: callResultType)
                     let loweredArgID = driver.lowerExpr(
                         args[0].expr,
                         shared: shared,
@@ -633,7 +629,7 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullExpr, to: result))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(callLabel))
-                let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: callResultType)
+                let nonNullResult = arena.appendTemporary(type: callResultType)
                 if args.isEmpty {
                     let radixExpr = arena.appendExpr(.intLiteral(10), type: intType)
                     instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
@@ -669,7 +665,7 @@ extension CallLowerer {
         let anyFallbackReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullAnyFallbackReceiverType = sema.types.makeNonNullable(anyFallbackReceiverType)
         let allowsAnyFallback: Bool = switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {
-        case .primitive(.string, _):
+        case .stringStruct:
             false
         case .primitive:
             true

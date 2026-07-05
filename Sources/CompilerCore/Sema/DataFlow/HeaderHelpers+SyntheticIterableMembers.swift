@@ -252,7 +252,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName,
               let iterableTypeParamSymbol = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first
@@ -260,7 +262,6 @@ extension DataFlowSemaPhase {
 
         let memberName = interner.intern("all")
         let memberFQName = iterableFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
 
         let elementType = types.make(.typeParam(TypeParamType(
             symbol: iterableTypeParamSymbol,
@@ -278,25 +279,23 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        let memberSymbol = symbols.define(
-            kind: .function,
+        _ = registerSyntheticMemberFunctionStub(
             name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_iterable_all", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [predicateType],
-                returnType: types.booleanType,
-                typeParameterSymbols: [iterableTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
+            memberFQName: memberFQName,
+            ownerSymbol: iterableInterfaceSymbol,
+            ownerFQName: iterableFQName,
+            receiverType: receiverType,
+            parameterTypes: [predicateType],
+            parameterNames: ["predicate"],
+            returnType: types.booleanType,
+            externalLinkName: "kk_iterable_all",
+            flags: [.synthetic, .inlineFunction],
+            typeParameterSymbols: [iterableTypeParamSymbol],
+            classTypeParameterCount: 1,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats,
+            symbols: symbols,
+            interner: interner
         )
     }
 
@@ -305,7 +304,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName,
               let iterableTypeParamSymbol = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first
@@ -330,51 +331,23 @@ extension DataFlowSemaPhase {
         )))
 
         func registerAnyOverload(parameterTypes: [TypeID], parameterNames: [String]) {
-            let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == receiverType
-                    && signature.parameterTypes == parameterTypes
-                    && signature.returnType == types.booleanType
-            }
-            guard !alreadyRegistered else { return }
-
-            let memberSymbol = symbols.define(
-                kind: .function,
+            _ = registerSyntheticMemberFunctionStub(
                 name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_iterable_any", for: memberSymbol)
-
-            var parameterSymbols: [SymbolID] = []
-            for parameterNameString in parameterNames {
-                let parameterName = interner.intern(parameterNameString)
-                let parameterSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: parameterName,
-                    fqName: memberFQName + [parameterName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-                parameterSymbols.append(parameterSymbol)
-            }
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: types.booleanType,
-                    valueParameterSymbols: parameterSymbols,
-                    valueParameterIsVararg: Array(repeating: false, count: parameterTypes.count),
-                    typeParameterSymbols: [iterableTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
+                memberFQName: memberFQName,
+                ownerSymbol: iterableInterfaceSymbol,
+                ownerFQName: iterableFQName,
+                receiverType: receiverType,
+                parameterTypes: parameterTypes,
+                parameterNames: parameterNames,
+                returnType: types.booleanType,
+                externalLinkName: "kk_iterable_any",
+                flags: [.synthetic, .inlineFunction],
+                typeParameterSymbols: [iterableTypeParamSymbol],
+                classTypeParameterCount: 1,
+                bundledIndex: bundledIndex,
+                skipStats: skipStats,
+                symbols: symbols,
+                interner: interner
             )
         }
 

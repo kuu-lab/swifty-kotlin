@@ -7,8 +7,8 @@ symbol fq=golden.sema.useWith kind=function vis=public flags=_ sig=recv=_ params
 symbol fq=golden.sema.useWithThis kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 symbol fq=kotlin.io.println#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
 symbol fq=kotlin.io.println.message kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.length kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
-file f14 package=golden.sema
+symbol fq=kotlin.length.$get kind=function vis=public flags=synthetic sig=recv=String params=[] ret=Int
+file f0 package=golden.sema
   decl golden.sema.useLet fun useLet sym=golden.sema.useLet
   decl golden.sema.useRun fun useRun sym=golden.sema.useRun
   decl golden.sema.useRunWithThis fun useRunWithThis sym=golden.sema.useRunWithThis
@@ -16,37 +16,37 @@ file f14 package=golden.sema
   decl golden.sema.useAlso fun useAlso sym=golden.sema.useAlso
   decl golden.sema.useWith fun useWith sym=golden.sema.useWith
   decl golden.sema.useWithThis fun useWithThis sym=golden.sema.useWithThis
-expr e@3:21#0 string(hello) type=String
-expr e@3:35#2 name(it) type=String ref=s-0
-expr e@3:35#3 memberCall recv=e@3:35#2 callee=length args=[] type=Int call=kotlin.text.length
-expr e@3:33 lambda params=[] body=e@3:35#3 label=let type=(String) -> Int
-expr e@3:21#1 memberCall recv=e@3:21#0 callee=let args=[_:e@3:33] type=Int
-expr e@4:21#0 string(hello) type=String
-expr e@4:35#1 name(length) type=Int
-expr e@4:33 lambda params=[] body=e@4:35#1 label=run type=String.() -> Int
-expr e@4:21#1 memberCall recv=e@4:21#0 callee=run args=[_:e@4:33] type=Int
-expr e@5:29#0 string(hello) type=String
-expr e@5:43#2 this type=String
-expr e@5:43#3 memberCall recv=e@5:43#2 callee=length args=[] type=Int call=kotlin.text.length
-expr e@5:41 lambda params=[] body=e@5:43#3 label=run type=String.() -> Int
-expr e@5:29#1 memberCall recv=e@5:29#0 callee=run args=[_:e@5:41] type=Int
-expr e@6:26#0 string(hello) type=String
-expr e@6:50#2 this type=String
-expr e@6:50#3 memberCall recv=e@6:50#2 callee=length args=[] type=Int call=kotlin.text.length
-expr e@6:42#3 call callee=e@6:42#2 args=[_:e@6:50#3] type=Unit call=kotlin.io.println#1
-expr e@6:40 lambda params=[] body=e@6:42#3 label=apply type=String.() -> Unit
-expr e@6:26#1 memberCall recv=e@6:26#0 callee=apply args=[_:e@6:40] type=String
-expr e@7:25#2 string(hello) type=String
-expr e@7:48#1 name(it) type=String ref=s-1
-expr e@7:40#4 call callee=e@7:40#3 args=[_:e@7:48#1] type=Unit call=kotlin.io.println#1
-expr e@7:38 lambda params=[] body=e@7:40#4 label=also type=(String) -> Unit
-expr e@7:25#3 memberCall recv=e@7:25#2 callee=also args=[_:e@7:38] type=String
+expr e@3:21 string(hello) type=String
+expr e@3:35 name(it) type=String ref=s-0
+expr e@3:35#1 memberCall recv=e@3:35 callee=length args=[] type=Int call=kotlin.length.$get
+expr e@3:33 lambda params=[] body=e@3:35#1 label=let type=(String) -> Int
+expr e@3:21#1 memberCall recv=e@3:21 callee=let args=[_:e@3:33] type=Int
+expr e@4:21 string(hello) type=String
+expr e@4:35 name(length) type=Int
+expr e@4:33 lambda params=[] body=e@4:35 label=run type=String.() -> Int
+expr e@4:21#1 memberCall recv=e@4:21 callee=run args=[_:e@4:33] type=Int
+expr e@5:29 string(hello) type=String
+expr e@5:43 this type=String
+expr e@5:43#1 memberCall recv=e@5:43 callee=length args=[] type=Int call=kotlin.length.$get
+expr e@5:41 lambda params=[] body=e@5:43#1 label=run type=String.() -> Int
+expr e@5:29#1 memberCall recv=e@5:29 callee=run args=[_:e@5:41] type=Int
+expr e@6:26 string(hello) type=String
+expr e@6:50 this type=String
+expr e@6:50#1 memberCall recv=e@6:50 callee=length args=[] type=Int call=kotlin.length.$get
+expr e@6:42 call callee=e@6:42#1 args=[_:e@6:50#1] type=Unit call=kotlin.io.println#1
+expr e@6:40 lambda params=[] body=e@6:42 label=apply type=String.() -> Unit
+expr e@6:26#1 memberCall recv=e@6:26 callee=apply args=[_:e@6:40] type=String
+expr e@7:25 string(hello) type=String
+expr e@7:48 name(it) type=String ref=s-1
+expr e@7:40 call callee=e@7:40#1 args=[_:e@7:48] type=Unit call=kotlin.io.println#1
+expr e@7:38 lambda params=[] body=e@7:40 label=also type=(String) -> Unit
+expr e@7:25#1 memberCall recv=e@7:25 callee=also args=[_:e@7:38] type=String
 expr e@8:27 string(hello) type=String
-expr e@8:38#1 name(length) type=Int
-expr e@8:36 lambda params=[] body=e@8:38#1 label=with type=String.() -> Int
-expr e@8:22#1 call callee=e@8:22#0 args=[_:e@8:27,_:e@8:36] type=Int
+expr e@8:38 name(length) type=Int
+expr e@8:36 lambda params=[] body=e@8:38 label=with type=String.() -> Int
+expr e@8:22 call callee=e@8:22#1 args=[_:e@8:27,_:e@8:36] type=Int
 expr e@9:31 string(hello) type=String
-expr e@9:42#2 this type=String
-expr e@9:42#3 memberCall recv=e@9:42#2 callee=length args=[] type=Int call=kotlin.text.length
-expr e@9:40 lambda params=[] body=e@9:42#3 label=with type=String.() -> Int
-expr e@9:26#1 call callee=e@9:26#0 args=[_:e@9:31,_:e@9:40] type=Int
+expr e@9:42 this type=String
+expr e@9:42#1 memberCall recv=e@9:42 callee=length args=[] type=Int call=kotlin.length.$get
+expr e@9:40 lambda params=[] body=e@9:42#1 label=with type=String.() -> Int
+expr e@9:26 call callee=e@9:26#1 args=[_:e@9:31,_:e@9:40] type=Int

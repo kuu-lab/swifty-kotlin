@@ -118,12 +118,7 @@ extension LoweringPassRegressionTests {
             interner: interner
         )
         ctx.kir = module
-        ctx.sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: bindings,
-            diagnostics: diagnostics
-        )
+        ctx.sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
 
         try LoweringPhase().run(ctx)
 

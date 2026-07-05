@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF (DEBT-DIFF-001): reference target/classpath/runtime-only case tracking
 // JS-specific API smoke test (STDLIB-JS-167)
 // This file exercises the Kotlin/JS annotations and types so that the compiler
 // can parse, type-check, and lower them on native targets.

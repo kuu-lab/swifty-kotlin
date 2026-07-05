@@ -21,6 +21,11 @@ extension LLVMCAPIBindings {
         buildCondBrFn(builder, condition, thenBlock, elseBlock)
     }
 
+    @discardableResult
+    func buildUnreachable(_ builder: LLVMBuilderRef?) -> LLVMValueRef? {
+        buildUnreachableFn(builder)
+    }
+
     func buildICmpEqual(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
         name.withCString { buildICmpFn(builder, 32, lhs, rhs, $0) }
     }
@@ -100,6 +105,44 @@ extension LLVMCAPIBindings {
             return nil
         }
         return name.withCString { buildSelectFn(builder, condition, thenValue, elseValue, $0) }
+    }
+
+    func buildExtractValue(
+        _ builder: LLVMBuilderRef?,
+        aggregate: LLVMValueRef?,
+        index: UInt32,
+        name: String
+    ) -> LLVMValueRef? {
+        guard let buildExtractValueFn else {
+            return nil
+        }
+        return name.withCString { buildExtractValueFn(builder, aggregate, index, $0) }
+    }
+
+    /// `LLVMStructTypeKind` raw value per the stable LLVM-C ABI (`llvm-c/Core.h`).
+    private static let structTypeKind: Int32 = 10
+
+    /// Returns true when `value`'s LLVM type is an aggregate struct type, so callers can
+    /// distinguish a flat string struct from a raw (boxed) Int64 handle before emitting
+    /// struct-field-extraction IR. Returns `false` (safe default) if type info is unavailable.
+    func isAggregateStructValue(_ value: LLVMValueRef?) -> Bool {
+        guard let typeOfFn, let getTypeKindFn, let type = typeOfFn(value) else {
+            return false
+        }
+        return getTypeKindFn(type) == Self.structTypeKind
+    }
+
+    func buildInsertValue(
+        _ builder: LLVMBuilderRef?,
+        aggregate: LLVMValueRef?,
+        element: LLVMValueRef?,
+        index: UInt32,
+        name: String
+    ) -> LLVMValueRef? {
+        guard let buildInsertValueFn else {
+            return nil
+        }
+        return name.withCString { buildInsertValueFn(builder, aggregate, element, index, $0) }
     }
 
     func buildGlobalStringPtr(_ builder: LLVMBuilderRef?, value: String, name: String) -> LLVMValueRef? {
@@ -229,6 +272,14 @@ extension LLVMCAPIBindings {
 
     func constPointerNull(_ type: LLVMTypeRef?) -> LLVMValueRef? {
         constPointerNullFn?(type)
+    }
+
+    func constStruct(context: LLVMContextRef?, values: [LLVMValueRef?], packed: Bool = false) -> LLVMValueRef? {
+        guard let constStructInContextFn else {
+            return nil
+        }
+        var mutable = values
+        return constStructInContextFn(context, &mutable, UInt32(mutable.count), packed ? 1 : 0)
     }
 
     /// Build a global string pointer that correctly handles embedded null bytes.

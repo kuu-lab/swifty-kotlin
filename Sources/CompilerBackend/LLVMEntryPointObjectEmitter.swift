@@ -1,5 +1,11 @@
 import Foundation
 
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
+
 import CompilerCore
 
 enum LLVMEntryPointObjectEmitterError: Error, CustomStringConvertible {
@@ -66,20 +72,37 @@ struct LLVMEntryPointObjectEmitter {
     }
 
     func emit(entrySymbol: String, outputPath: String) throws -> String {
-        let cacheDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("kswiftk", isDirectory: true)
-        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-
-        let cacheKey = CodegenRuntimeSupport.stableFNV1a64Hex(
-            CodegenRuntimeSupport.targetTripleString(target) + "|" + entrySymbol + "|" + outputPath
-        )
-        let objectURL = cacheDir.appendingPathComponent("entry_\(cacheKey).o")
-        if FileManager.default.fileExists(atPath: objectURL.path) {
-            try FileManager.default.removeItem(at: objectURL)
+        // Emit into a per-invocation directory created with mkdtemp (mode 0700, unpredictable
+        // name). This avoids the previous shared, predictable path under the world-writable temp
+        // directory: an attacker cannot pre-plant a symlink at the destination nor replace the
+        // emitted `.o` before the linker consumes it, since the containing directory is private to
+        // the compiling user and not guessable.
+        let objectURL = try makePrivateObjectURL()
+        do {
+            try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
+        } catch {
+            // On success the caller owns the directory and removes it after linking; on failure it
+            // never receives the path, so drop the private directory here to avoid leaking it.
+            try? FileManager.default.removeItem(at: objectURL.deletingLastPathComponent())
+            throw error
         }
-
-        try emitObject(entrySymbol: entrySymbol, objectURL: objectURL)
         return objectURL.path
+    }
+
+    private func makePrivateObjectURL() throws -> URL {
+        let tempDirectory = FileManager.default.temporaryDirectory
+        let template = tempDirectory.appendingPathComponent("kswiftk-entry.XXXXXX").path
+        var templateBytes = template.utf8CString
+        let privateDirectoryPath = try templateBytes.withUnsafeMutableBufferPointer { buffer -> String in
+            guard let baseAddress = buffer.baseAddress, mkdtemp(baseAddress) != nil else {
+                throw LLVMEntryPointObjectEmitterError.emissionFailed(
+                    "failed to create a private temporary directory for the entry wrapper object"
+                )
+            }
+            return String(cString: baseAddress)
+        }
+        return URL(fileURLWithPath: privateDirectoryPath, isDirectory: true)
+            .appendingPathComponent("entry.o", isDirectory: false)
     }
 
     private func emitObject(entrySymbol: String, objectURL: URL) throws {

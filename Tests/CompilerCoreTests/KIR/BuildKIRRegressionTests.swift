@@ -75,13 +75,32 @@ struct BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_string_concat"))
+            #expect(callees.contains("kk_string_concat_flat"))
             #expect(!(body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else {
                     return false
                 }
                 return op == .add
             }))
+        }
+    }
+
+    @Test func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
+        let source = """
+        fun lengthOf(value: String): Int {
+            return value.length
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callees.contains("__string_struct_get_length"))
+            #expect(!callees.contains("kk_string_struct_get_length"))
         }
     }
 

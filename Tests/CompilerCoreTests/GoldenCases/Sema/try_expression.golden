@@ -27,7 +27,7 @@ symbol fq=golden.sema.tryPartialCatchRethrow kind=function vis=public flags=_ si
 symbol fq=golden.sema.tryPartialCatchRethrow.$2.flag kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Exception kind=class vis=public flags=synthetic type=kotlin.Exception
 symbol fq=kotlin.IllegalArgumentException kind=class vis=public flags=synthetic type=kotlin.IllegalArgumentException
-file f14 package=golden.sema
+file f0 package=golden.sema
   decl golden.sema.Handled class Handled sym=golden.sema.Handled
   decl golden.sema.Unhandled class Unhandled sym=golden.sema.Unhandled
   decl golden.sema.tryCatchExpr fun tryCatchExpr sym=golden.sema.tryCatchExpr
@@ -41,75 +41,75 @@ file f14 package=golden.sema
   decl golden.sema.propTryCatch property propTryCatch var=0 sym=golden.sema.propTryCatch
   decl golden.sema.propTryFinally property propTryFinally var=0 sym=golden.sema.propTryFinally
 expr e@7:15 name(flag) type=Boolean ref=golden.sema.tryCatchExpr.$0.flag
-expr e@7:21#1 string(ok) type=String
-expr e@7:47#1 string(fail) type=String
-expr e@7:37#1 call callee=e@7:37#0 args=[_:e@7:47#1] type=<error>
-expr e@7:31 throw value=e@7:37#1 type=Nothing
-expr e@7:11 if cond=e@7:15 then=e@7:21#1 else=e@7:31 type=String
+expr e@7:21 string(ok) type=String
+expr e@7:47 string(fail) type=String
+expr e@7:37 call callee=e@7:37#1 args=[_:e@7:47] type=<error>
+expr e@7:31 throw value=e@7:37 type=Nothing
+expr e@7:11 if cond=e@7:15 then=e@7:21 else=e@7:31 type=String
 expr e@7:9 blockExpr stmts=[] trailing=e@7:11 type=String
 expr e@8:28 string(error) type=String
 expr e@8:26 blockExpr stmts=[] trailing=e@8:28 type=String ref=__try_0_catch_0.e
-expr e@7:5#3 try body=e@7:9 catches=[e@8:26] finally=_ type=String
+expr e@7:5 try body=e@7:9 catches=[e@8:26] finally=_ type=String
 expr e@11:11 string(ok) type=String
 expr e@11:9 blockExpr stmts=[] trailing=e@11:11 type=String
-expr e@12:43#1 string(arg) type=String
-expr e@12:41 blockExpr stmts=[] trailing=e@12:43#1 type=String ref=__try_1_catch_0.e
+expr e@12:43 string(arg) type=String
+expr e@12:41 blockExpr stmts=[] trailing=e@12:43 type=String ref=__try_1_catch_0.e
 expr e@13:28 string(other) type=String
-expr e@13:26#2 blockExpr stmts=[] trailing=e@13:28 type=String ref=__try_1_catch_1.e
-expr e@11:5#2 try body=e@11:9 catches=[e@12:41,e@13:26#2] finally=_ type=String
+expr e@13:26 blockExpr stmts=[] trailing=e@13:28 type=String ref=__try_1_catch_1.e
+expr e@11:5 try body=e@11:9 catches=[e@12:41,e@13:26] finally=_ type=String
 expr e@16:11 string(result) type=String
 expr e@16:9 blockExpr stmts=[] trailing=e@16:11 type=String
-expr e@17:13#3 blockExpr stmts=[] trailing=_ type=Unit
-expr e@16:5#6 try body=e@16:9 catches=[] finally=e@17:13#3 type=String
+expr e@17:13 blockExpr stmts=[] trailing=_ type=Unit
+expr e@16:5 try body=e@16:9 catches=[] finally=e@17:13 type=String
 expr e@20:11 string(ok) type=String
-expr e@20:9#2 blockExpr stmts=[] trailing=e@20:11 type=String
-expr e@21:28#1 string(err) type=String
-expr e@21:26 blockExpr stmts=[] trailing=e@21:28#1 type=String ref=__try_2_catch_0.e
-expr e@22:13#2 blockExpr stmts=[] trailing=_ type=Unit
-expr e@20:5#5 try body=e@20:9#2 catches=[e@21:26] finally=e@22:13#2 type=String
+expr e@20:9 blockExpr stmts=[] trailing=e@20:11 type=String
+expr e@21:28 string(err) type=String
+expr e@21:26 blockExpr stmts=[] trailing=e@21:28 type=String ref=__try_2_catch_0.e
+expr e@22:13 blockExpr stmts=[] trailing=_ type=Unit
+expr e@20:5 try body=e@20:9 catches=[e@21:26] finally=e@22:13 type=String
 expr e@25:27 string(ok) type=String
 expr e@25:25 blockExpr stmts=[] trailing=e@25:27 type=String
 expr e@25:57 string(err) type=String
 expr e@25:55 blockExpr stmts=[] trailing=e@25:57 type=String ref=__try_3_catch_0.e
 expr e@25:21 try body=e@25:25 catches=[e@25:55] finally=_ type=String
-expr e@25:5#6 localDecl x mutable=0 type=String init=e@25:21 type=Unit ref=__local_0.x
-expr e@26:12#3 name(x) type=String ref=__local_0.x
-expr e@26:5#6 return value=e@26:12#3 type=Nothing
+expr e@25:5 localDecl x mutable=0 type=String init=e@25:21 type=Unit ref=__local_0.x
+expr e@26:12 name(x) type=String ref=__local_0.x
+expr e@26:5 return value=e@26:12 type=Nothing
 expr e@30:11 string(ok) type=String
-expr e@30:9#3 blockExpr stmts=[] trailing=e@30:11 type=String
+expr e@30:9 blockExpr stmts=[] trailing=e@30:11 type=String
 expr e@31:15 int(123) type=Int
-expr e@31:13#1 blockExpr stmts=[] trailing=e@31:15 type=Int
-expr e@30:5#7 try body=e@30:9#3 catches=[] finally=e@31:13#1 type=String
-expr e@35:13#0 name(flag) type=Int ref=golden.sema.tryMultiCatchJoin.$1.flag
-expr e@35:21#1 int(0) type=Int
-expr e@35:13#1 binary(equal) lhs=e@35:13#0 rhs=e@35:21#1 type=Boolean
+expr e@31:13 blockExpr stmts=[] trailing=e@31:15 type=Int
+expr e@30:5 try body=e@30:9 catches=[] finally=e@31:13 type=String
+expr e@35:13 name(flag) type=Int ref=golden.sema.tryMultiCatchJoin.$1.flag
+expr e@35:21 int(0) type=Int
+expr e@35:13#1 binary(equal) lhs=e@35:13 rhs=e@35:21 type=Boolean
 expr e@35:24 string(ok) type=String
-expr e@35:38#0 name(flag) type=Int ref=golden.sema.tryMultiCatchJoin.$1.flag
+expr e@35:38 name(flag) type=Int ref=golden.sema.tryMultiCatchJoin.$1.flag
 expr e@35:46 int(1) type=Int
-expr e@35:38#1 binary(equal) lhs=e@35:38#0 rhs=e@35:46 type=Boolean
-expr e@35:55#1 call callee=e@35:55#0 args=[] type=golden.sema.Handled call=golden.sema.Handled.<init>
-expr e@35:49#2 throw value=e@35:55#1 type=Nothing
-expr e@35:76#1 call callee=e@35:76#0 args=[] type=golden.sema.Unhandled call=golden.sema.Unhandled.<init>
-expr e@35:70 throw value=e@35:76#1 type=Nothing
-expr e@35:34 if cond=e@35:38#1 then=e@35:49#2 else=e@35:70 type=Nothing
-expr e@35:9#6 if cond=e@35:13#1 then=e@35:24 else=e@35:34 type=String
-expr e@34:9#4 blockExpr stmts=[] trailing=e@35:9#6 type=String
-expr e@37:9#2 string(handled) type=String
-expr e@36:26 blockExpr stmts=[] trailing=e@37:9#2 type=String ref=__try_4_catch_0.e
-expr e@39:9#8 int(7) type=Int
-expr e@38:28#1 blockExpr stmts=[] trailing=e@39:9#8 type=Int ref=__try_4_catch_1.e
-expr e@34:5#7 try body=e@34:9#4 catches=[e@36:26,e@38:28#1] finally=_ type=Any
-expr e@43:5#1 localDecl x mutable=1 type=Int init=_ type=Unit ref=__local_1.x
-expr e@45:13#1 name(flag) type=Boolean ref=golden.sema.tryPartialCatchRethrow.$2.flag
-expr e@45:25#1 call callee=e@45:25#0 args=[] type=golden.sema.Handled call=golden.sema.Handled.<init>
-expr e@45:19 throw value=e@45:25#1 type=Nothing
-expr e@45:46#1 call callee=e@45:46#0 args=[] type=golden.sema.Unhandled call=golden.sema.Unhandled.<init>
-expr e@45:40 throw value=e@45:46#1 type=Nothing
-expr e@45:9#1 if cond=e@45:13#1 then=e@45:19 else=e@45:40 type=Nothing
-expr e@44:9#4 blockExpr stmts=[] trailing=e@45:9#1 type=Nothing
+expr e@35:38#1 binary(equal) lhs=e@35:38 rhs=e@35:46 type=Boolean
+expr e@35:55 call callee=e@35:55#1 args=[] type=golden.sema.Handled call=golden.sema.Handled.<init>
+expr e@35:49 throw value=e@35:55 type=Nothing
+expr e@35:76 call callee=e@35:76#1 args=[] type=golden.sema.Unhandled call=golden.sema.Unhandled.<init>
+expr e@35:70 throw value=e@35:76 type=Nothing
+expr e@35:34 if cond=e@35:38#1 then=e@35:49 else=e@35:70 type=Nothing
+expr e@35:9 if cond=e@35:13#1 then=e@35:24 else=e@35:34 type=String
+expr e@34:9 blockExpr stmts=[] trailing=e@35:9 type=String
+expr e@37:9 string(handled) type=String
+expr e@36:26 blockExpr stmts=[] trailing=e@37:9 type=String ref=__try_4_catch_0.e
+expr e@39:9 int(7) type=Int
+expr e@38:28 blockExpr stmts=[] trailing=e@39:9 type=Int ref=__try_4_catch_1.e
+expr e@34:5 try body=e@34:9 catches=[e@36:26,e@38:28] finally=_ type=Any
+expr e@43:5 localDecl x mutable=1 type=Int init=_ type=Unit ref=__local_1.x
+expr e@45:13 name(flag) type=Boolean ref=golden.sema.tryPartialCatchRethrow.$2.flag
+expr e@45:25 call callee=e@45:25#1 args=[] type=golden.sema.Handled call=golden.sema.Handled.<init>
+expr e@45:19 throw value=e@45:25 type=Nothing
+expr e@45:46 call callee=e@45:46#1 args=[] type=golden.sema.Unhandled call=golden.sema.Unhandled.<init>
+expr e@45:40 throw value=e@45:46 type=Nothing
+expr e@45:9 if cond=e@45:13 then=e@45:19 else=e@45:40 type=Nothing
+expr e@44:9 blockExpr stmts=[] trailing=e@45:9 type=Nothing
 expr e@47:13 int(7) type=Int
-expr e@47:9#4 localAssign x value=e@47:13 type=Unit ref=__local_1.x
-expr e@46:26#4 blockExpr stmts=[e@47:9#4] trailing=_ type=Unit ref=__try_5_catch_0.e
-expr e@44:5#4 try body=e@44:9#4 catches=[e@46:26#4] finally=_ type=Unit
-expr e@49:12#2 name(x) type=Int ref=__local_1.x
-expr e@49:5#2 return value=e@49:12#2 type=Nothing
+expr e@47:9 localAssign x value=e@47:13 type=Unit ref=__local_1.x
+expr e@46:26 blockExpr stmts=[e@47:9] trailing=_ type=Unit ref=__try_5_catch_0.e
+expr e@44:5 try body=e@44:9 catches=[e@46:26] finally=_ type=Unit
+expr e@49:12 name(x) type=Int ref=__local_1.x
+expr e@49:5 return value=e@49:12 type=Nothing

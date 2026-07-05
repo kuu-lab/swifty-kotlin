@@ -135,7 +135,7 @@ extension ConstraintSolverTests {
     @Test func testSolveMultipleIndependentVariableGroups() {
         let (solver, types) = makeDeps()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let t0 = TypeVarID(rawValue: 330)
         let t1 = TypeVarID(rawValue: 331)
         let t2 = TypeVarID(rawValue: 332)

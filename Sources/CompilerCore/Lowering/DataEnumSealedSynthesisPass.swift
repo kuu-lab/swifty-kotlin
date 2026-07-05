@@ -143,7 +143,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             returnType: intType, module: module, sema: sema,
             existingFunctionSymbols: existingFunctionSymbols
         )
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         for (ordinal, entry) in entries.enumerated() {
             let entryName = ctx.interner.resolve(entry.name)
             appendSyntheticCountFunctionIfNeeded(
@@ -343,7 +343,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
         case .primitive(.boolean, _):
             2
-        case .primitive(.string, _):
+        case .stringStruct:
             3
         default:
             1
@@ -407,9 +407,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             body.append(.constValue(result: selfRef, value: .symbolRef(selfParamSymbol)))
 
             let propertyIndex = componentIndex - 1 // 0-based
-            let resultExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: returnType
+            let resultExpr = module.arena.appendTemporary(type: returnType
             )
 
             // Read the primary-constructor-backed field via layout offset.
@@ -568,9 +566,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         existingFunctionSymbols: Set<SymbolID>
     ) {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: returnType
+        let resultExpr = module.arena.appendTemporary(type: returnType
         )
         let body: [KIRInstruction] = [
             .constValue(result: resultExpr, value: .intLiteral(value)),
@@ -598,9 +594,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         existingFunctionSymbols: Set<SymbolID>
     ) {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: returnType
+        let resultExpr = module.arena.appendTemporary(type: returnType
         )
         let body: [KIRInstruction] = [
             .constValue(result: resultExpr, value: .stringLiteral(value)),

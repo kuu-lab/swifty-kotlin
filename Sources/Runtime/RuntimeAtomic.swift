@@ -84,7 +84,7 @@ private func atomicIntBox(from raw: Int) -> AtomicIntBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicIntBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicIntBox.self)
 }
 
 @_cdecl("kk_atomic_int_create")
@@ -280,7 +280,7 @@ private func atomicLongBox(from raw: Int) -> AtomicLongBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicLongBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicLongBox.self)
 }
 
 @_cdecl("kk_atomic_long_create")
@@ -463,7 +463,7 @@ private func atomicBoolBox(from raw: Int) -> AtomicBooleanBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicBooleanBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicBooleanBox.self)
 }
 
 @_cdecl("kk_atomic_bool_create")
@@ -611,7 +611,7 @@ private func atomicRefBox(from raw: Int) -> AtomicRefBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicRefBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicRefBox.self)
 }
 
 @_cdecl("kk_atomic_ref_create")
@@ -786,7 +786,7 @@ private func atomicIntArrayBox(from raw: Int) -> AtomicIntArrayBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicIntArrayBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicIntArrayBox.self)
 }
 
 // (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicIntArray / AtomicLongArray サポート)
@@ -1107,7 +1107,7 @@ private func atomicLongArrayBox(from raw: Int) -> AtomicLongArrayBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicLongArrayBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicLongArrayBox.self)
 }
 
 @_cdecl("kk_atomic_long_array_create")
@@ -1378,12 +1378,13 @@ final class AtomicRefArrayBox {
         return old
     }
 
-    /// Identity-based CAS: succeeds iff storage[index] == expect (pointer identity).
+    /// Identity-based CAS, with string boxes compared structurally because aggregate
+    /// string lowering may materialize an equivalent RuntimeStringBox at ABI edges.
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return false }
-        if storage[index] == expect {
+        if runtimeAtomicRefValuesMatch(storage[index], expect) {
             storage[index] = update
             return true
         }
@@ -1396,7 +1397,7 @@ final class AtomicRefArrayBox {
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
         let old = storage[index]
-        if old == expect {
+        if runtimeAtomicRefValuesMatch(old, expect) {
             storage[index] = update
         }
         return old
@@ -1421,7 +1422,7 @@ private func atomicRefArrayBox(from raw: Int) -> AtomicRefArrayBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    return Unmanaged<AtomicRefArrayBox>.fromOpaque(ptr).takeUnretainedValue()
+    return tryCast(ptr, to: AtomicRefArrayBox.self)
 }
 
 private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
@@ -1430,6 +1431,21 @@ private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
+}
+
+private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
+    if lhs == rhs {
+        return true
+    }
+    guard
+        let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
+        let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs),
+        let lhsString = tryCast(lhsPointer, to: RuntimeStringBox.self),
+        let rhsString = tryCast(rhsPointer, to: RuntimeStringBox.self)
+    else {
+        return false
+    }
+    return lhsString.value == rhsString.value
 }
 
 @_cdecl("kk_atomic_ref_array_new")

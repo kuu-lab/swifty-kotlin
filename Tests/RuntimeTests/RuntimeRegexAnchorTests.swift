@@ -12,10 +12,30 @@ final class RuntimeRegexAnchorTests: XCTestCase {
         super.tearDown()
     }
 
-    private func makeRuntimeString(_ value: String) -> Int {
-        let utf8 = Array(value.utf8)
-        return utf8.withUnsafeBufferPointer { buffer in
-            Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        Array(value.utf8).withUnsafeBufferPointer { buffer in
+            body(buffer.baseAddress, value.unicodeScalars.count, value.utf8.count, 0)
+        }
+    }
+
+    private func makeRegex(_ pattern: String) -> Int {
+        withFlatString(pattern) { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash)
+        }
+    }
+
+    private func find(regexRaw: Int, input: String) -> Int {
+        withFlatString(input) { data, length, byteCount, hash in
+            kk_regex_find_flat(regexRaw, data, length, byteCount, hash)
+        }
+    }
+
+    private func matchEntire(regexRaw: Int, input: String) -> Int {
+        withFlatString(input) { data, length, byteCount, hash in
+            kk_regex_matchEntire_flat(regexRaw, data, length, byteCount, hash)
         }
     }
 
@@ -28,18 +48,18 @@ final class RuntimeRegexAnchorTests: XCTestCase {
     }
 
     func testAnchoredMatchEntireRequiresWholeString() {
-        let regexRaw = kk_regex_create(makeRuntimeString("^abc$"))
-        let full = kk_regex_matchEntire(regexRaw, makeRuntimeString("abc"))
-        let partial = kk_regex_matchEntire(regexRaw, makeRuntimeString("zabc"))
+        let regexRaw = makeRegex("^abc$")
+        let full = matchEntire(regexRaw: regexRaw, input: "abc")
+        let partial = matchEntire(regexRaw: regexRaw, input: "zabc")
 
         XCTAssertNotEqual(full, runtimeNullSentinelInt)
         XCTAssertEqual(partial, runtimeNullSentinelInt)
     }
 
     func testWordBoundaryPatternFindsWholeWordOnly() {
-        let regexRaw = kk_regex_create(makeRuntimeString("\\bcat\\b"))
-        let match = kk_regex_find(regexRaw, makeRuntimeString("a cat naps"))
-        let noMatch = kk_regex_find(regexRaw, makeRuntimeString("concatenate"))
+        let regexRaw = makeRegex("\\bcat\\b")
+        let match = find(regexRaw: regexRaw, input: "a cat naps")
+        let noMatch = find(regexRaw: regexRaw, input: "concatenate")
 
         XCTAssertNotEqual(match, runtimeNullSentinelInt)
         XCTAssertEqual(runtimeString(kk_match_result_value(match)), "cat")
@@ -47,9 +67,9 @@ final class RuntimeRegexAnchorTests: XCTestCase {
     }
 
     func testLookaheadPatternMatchesExpectedPrefix() {
-        let regexRaw = kk_regex_create(makeRuntimeString("foo(?=bar)"))
-        let match = kk_regex_find(regexRaw, makeRuntimeString("foobar"))
-        let noMatch = kk_regex_find(regexRaw, makeRuntimeString("foobaz"))
+        let regexRaw = makeRegex("foo(?=bar)")
+        let match = find(regexRaw: regexRaw, input: "foobar")
+        let noMatch = find(regexRaw: regexRaw, input: "foobaz")
 
         XCTAssertNotEqual(match, runtimeNullSentinelInt)
         XCTAssertEqual(runtimeString(kk_match_result_value(match)), "foo")

@@ -31,8 +31,7 @@ extension CollectionLiteralLoweringPass {
         if call.callee == lookup.toListName, call.arguments.count == 1 {
             let receiverID = call.arguments[0]
             if state.mapExprIDs.contains(receiverID.rawValue) {
-                let toListResult = ctx.module.arena.appendExpr(
-                    .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
+                let toListResult = ctx.module.arena.appendTemporary(type: nil
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -49,8 +48,7 @@ extension CollectionLiteralLoweringPass {
                 return CollectionCallRewriteResult(instructions: instructions)
             }
             if state.setExprIDs.contains(receiverID.rawValue) {
-                let toListResult = ctx.module.arena.appendExpr(
-                    .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
+                let toListResult = ctx.module.arena.appendTemporary(type: nil
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -77,8 +75,7 @@ extension CollectionLiteralLoweringPass {
         if state.listExprIDs.contains(receiverID.rawValue), call.callee != lookup.countName {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
             let kkName = listHOFRuntimeName(for: call.callee, lookup: lookup)
-            let hofResult = ctx.module.arena.appendExpr(
-                .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
+            let hofResult = ctx.module.arena.appendTemporary(type: nil
             )
             instructions.append(.call(
                 symbol: nil,
@@ -101,8 +98,7 @@ extension CollectionLiteralLoweringPass {
            let kkName = mapHOFRuntimeName(for: call.callee, lookup: lookup)
         {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
-            let hofResult = ctx.module.arena.appendExpr(
-                .temporary(Int32(ctx.module.arena.expressions.count)), type: nil
+            let hofResult = ctx.module.arena.appendTemporary(type: nil
             )
             instructions.append(.call(
                 symbol: nil,

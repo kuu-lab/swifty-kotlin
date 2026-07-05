@@ -82,9 +82,8 @@ struct KIRBuildClassLoweringTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let functionNames = module.arena.declarations.compactMap { decl -> String? in
-                guard case let .function(function) = decl else { return nil }
-                return ctx.interner.resolve(function.name)
+            let functionNames = findAllKIRFunctions(in: module).map { function in
+                ctx.interner.resolve(function.name)
             }
 
             #expect(
@@ -107,9 +106,8 @@ struct KIRBuildClassLoweringTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let functionNames = module.arena.declarations.compactMap { decl -> String? in
-                guard case let .function(function) = decl else { return nil }
-                return ctx.interner.resolve(function.name)
+            let functionNames = findAllKIRFunctions(in: module).map { function in
+                ctx.interner.resolve(function.name)
             }
 
             // Secondary constructor defaults should generate a default stub path.
@@ -134,8 +132,7 @@ struct KIRBuildClassLoweringTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let childConstructors = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let childConstructors = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 return ctx.interner.resolve(function.name) == "Child" ? function : nil
             }
 
@@ -169,8 +166,7 @@ struct KIRBuildClassLoweringTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let ownerConstructor = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let ownerConstructor = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 return ctx.interner.resolve(function.name) == "Owner" ? function : nil
             }.first
 
@@ -285,8 +281,7 @@ struct KIRBuildClassLoweringTests {
     }
 
     private func loweredFunctions(in module: KIRModule) -> [KIRFunction] {
-        module.arena.declarations.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl else { return nil }
+        findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
             return function
         }
     }

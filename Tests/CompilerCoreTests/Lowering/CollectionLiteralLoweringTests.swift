@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import XCTest
 
 @Suite
 struct CollectionLiteralLoweringTests {
@@ -62,6 +63,47 @@ struct CollectionLiteralLoweringTests {
         return (module, declID)
     }
 
+    private func makeModuleWithRangeReceiverCall(
+        callee: InternedString,
+        interner: StringInterner,
+        arena: KIRArena
+    ) -> (KIRModule, KIRDeclID) {
+        let start = arena.appendExpr(.temporary(0))
+        let end = arena.appendExpr(.temporary(1))
+        let range = arena.appendExpr(.temporary(2))
+        let result = arena.appendExpr(.temporary(3))
+        let fn = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_rangeTo"),
+                    arguments: [start, end],
+                    result: range,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .call(
+                    symbol: nil,
+                    callee: callee,
+                    arguments: [range],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(fn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        return (module, declID)
+    }
+
     private func runPass(module: KIRModule, kirCtx: KIRContext) throws {
         try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
     }
@@ -69,6 +111,51 @@ struct CollectionLiteralLoweringTests {
     private func calleesInDecl(_ declID: KIRDeclID, module: KIRModule, interner: StringInterner) -> [String] {
         guard case let .function(fn) = module.arena.decl(declID) else { return [] }
         return extractCallees(from: fn.body, interner: interner)
+    }
+
+    func testRangeIteratorOnStringStructParameterRewritesToFlatStringIterator() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, _) = makeKIRContextWithSema(interner: interner)
+
+        let parameterSymbol = SymbolID(rawValue: 100)
+        let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: types.stringType)
+        let iteratorExpr = arena.appendExpr(.temporary(1))
+
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [KIRParameter(symbol: parameterSymbol, type: types.stringType)],
+            returnType: types.unitType,
+            body: [
+                .constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_range_iterator"),
+                    arguments: [parameterExpr],
+                    result: iteratorExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+
+        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        XCTAssertTrue(
+            callees.contains("kk_string_iterator_flat"),
+            "String iterator lowering should target the flat ABI, got: \(callees)"
+        )
+        XCTAssertFalse(
+            callees.contains("kk_string_iterator"),
+            "String iterator lowering must not leave the raw String ABI, got: \(callees)"
+        )
     }
 
     // MARK: - listOf rewriting
@@ -877,10 +964,10 @@ struct CollectionLiteralLoweringTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_split"),
+                    callee: interner.intern("kk_string_split_flat"),
                     arguments: [sourceExpr, delimitersExpr, ignoreCaseExpr, limitExpr],
                     result: splitResult,
-                    canThrow: true,
+                    canThrow: false,
                     thrownResult: nil
                 ),
                 .call(
@@ -903,7 +990,7 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_string_split"))
+        #expect(callees.contains("kk_string_split_flat"))
         #expect(callees.contains("kk_list_to_string"),
                       "split result should be recognized as list and routed through kk_list_to_string")
     }
@@ -968,48 +1055,38 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testRangeReversedRewrittenToKkRangeReversed() throws {
-        let source = """
-        fun main() {
-            val range = 1..10
-            val reversed = range.reversed()
-        }
-        """
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (module, declID) = makeModuleWithRangeReceiverCall(
+            callee: interner.intern("reversed"),
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "RangeReversedRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        try runPass(module: module, kirCtx: ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(!callees.contains("reversed"), "range.reversed should be rewritten")
-            #expect(callees.contains("kk_range_reversed"), "range.reversed should become kk_range_reversed")
-        }
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("reversed"), "range.reversed should be rewritten")
+        #expect(callees.contains("kk_range_reversed"), "range.reversed should become kk_range_reversed")
     }
 
     @Test
     func testRangeEndExclusiveRewrittenToKkRangeEndExclusive() throws {
-        let source = """
-        fun main() {
-            val range = 1..10
-            val exclusive = range.endExclusive
-        }
-        """
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (module, declID) = makeModuleWithRangeReceiverCall(
+            callee: interner.intern("endExclusive"),
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner)
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "RangeEndExclusiveRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        try runPass(module: module, kirCtx: ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-
-            #expect(!callees.contains("endExclusive"), "range.endExclusive should be rewritten")
-            #expect(callees.contains("kk_range_endExclusive"), "range.endExclusive should become kk_range_endExclusive")
-        }
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("endExclusive"), "range.endExclusive should be rewritten")
+        #expect(callees.contains("kk_range_endExclusive"), "range.endExclusive should become kk_range_endExclusive")
     }
 
     @Test
@@ -1079,12 +1156,7 @@ struct CollectionLiteralLoweringTests {
         let symbols = SymbolTable()
         let bindings = BindingTable()
         let diag = DiagnosticEngine()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: bindings,
-            diagnostics: diag
-        )
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diag).ctx
         let options = CompilerOptions(
             moduleName: "CollLiteralTest",
             inputs: [],
@@ -1106,10 +1178,12 @@ struct CollectionLiteralLoweringTests {
     private func defineNominalSymbol(
         name: String,
         interner: StringInterner,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        fqNameComponents: [String]? = nil
     ) -> SymbolID {
         let internedName = interner.intern(name)
-        let fqName = [interner.intern("kotlin"), interner.intern("collections"), internedName]
+        let fqName = (fqNameComponents ?? canonicalStdlibFQNameComponents(for: name))
+            .map { interner.intern($0) }
         return symbols.define(
             kind: .interface,
             name: internedName,
@@ -1120,12 +1194,28 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
+    private func canonicalStdlibFQNameComponents(for name: String) -> [String] {
+        switch name {
+        case "Array", "IntArray", "LongArray", "DoubleArray",
+             "FloatArray", "BooleanArray", "CharArray",
+             "ByteArray", "ShortArray", "UByteArray",
+             "UShortArray", "UIntArray", "ULongArray",
+             "String":
+            ["kotlin", name]
+        case "Sequence":
+            ["kotlin", "sequences", name]
+        default:
+            ["kotlin", "collections", name]
+        }
+    }
+
     /// Build a one-function module with a single virtualCall on a receiver
     /// whose static type is `receiverTypeName` (e.g. "List", "Set", "Map"),
     /// run the lowering pass, and return the resulting callees.
     private func buildAndLowerVirtualCall(
         receiverTypeName: String,
         callee: String,
+        fqNameComponents: [String]? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> [String] {
@@ -1134,7 +1224,10 @@ struct CollectionLiteralLoweringTests {
         let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
 
         let symbolID = defineNominalSymbol(
-            name: receiverTypeName, interner: interner, symbols: symbols
+            name: receiverTypeName,
+            interner: interner,
+            symbols: symbols,
+            fqNameComponents: fqNameComponents
         )
         let receiverType = types.make(.classType(ClassType(classSymbol: symbolID)))
 
@@ -1199,6 +1292,19 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
+    func testVirtualCallOnUserDefinedListTypedParameterDoesNotRewriteToKkListSize() throws {
+        let callees = try buildAndLowerVirtualCall(
+            receiverTypeName: "List",
+            callee: "size",
+            fqNameComponents: ["com", "example", "List"]
+        )
+        #expect(
+            !callees.contains("kk_list_size"),
+            "virtualCall(size) on user-defined List must not be rewritten to kk_list_size, got: \(callees)"
+        )
+    }
+
+    @Test
     func testVirtualCallOnMutableListTypedParameterRewritesToKkListIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "MutableList", callee: "isEmpty")
         #expect(
@@ -1214,9 +1320,7 @@ struct CollectionLiteralLoweringTests {
     private func buildAndLowerVirtualCallWithArgs(
         receiverTypeName: String,
         callee: String,
-        argCount: Int = 0,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        argCount: Int = 0
     ) throws -> [String] {
         let interner = StringInterner()
         let arena = KIRArena()

@@ -173,9 +173,7 @@ extension KIRLoweringDriver {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(offset)), type: shared.sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
 
-            let delegateResultID = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: shared.sema.symbols.propertyType(for: info.fieldSymbol) ?? shared.sema.types.anyType
+            let delegateResultID = arena.appendTemporary(type: shared.sema.symbols.propertyType(for: info.fieldSymbol) ?? shared.sema.types.anyType
             )
             body.append(.call(
                 symbol: nil,
@@ -192,9 +190,7 @@ extension KIRLoweringDriver {
                 callArgExprs.append(arena.appendExpr(.symbolRef(paramSym), type: paramType))
             }
 
-            let delegateTypeIDExpr = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: intType
+            let delegateTypeIDExpr = arena.appendTemporary(type: intType
             )
             body.append(.call(
                 symbol: nil,
@@ -431,7 +427,7 @@ extension KIRLoweringDriver {
             .doubleLiteral(0)
         case .primitive, .nothing:
             .intLiteral(0)
-        case .classType, .functionType, .typeParam, .any, .intersection, .kClassType:
+        case .stringStruct, .classType, .functionType, .typeParam, .any, .intersection, .kClassType:
             .null
         case .error:
             .intLiteral(0)
@@ -475,9 +471,7 @@ extension KIRLoweringDriver {
             let lowered = lowerExpr(arg.expr, shared: shared, emit: &body)
             argIDs.append(lowered)
         }
-        let delegationResultID = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: sema.types.unitType
+        let delegationResultID = arena.appendTemporary(type: sema.types.unitType
         )
         body.append(.call(
             symbol: sema.symbols.lookupAll(fqName: delegationTarget).first,

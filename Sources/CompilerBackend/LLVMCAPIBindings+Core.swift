@@ -61,6 +61,14 @@ extension LLVMCAPIBindings {
         int64TypeFn(context)
     }
 
+    func structType(context: LLVMContextRef?, elements: [LLVMTypeRef?], packed: Bool = false) -> LLVMTypeRef? {
+        guard let structTypeInContextFn else {
+            return nil
+        }
+        var mutable = elements
+        return structTypeInContextFn(context, &mutable, UInt32(mutable.count), packed ? 1 : 0)
+    }
+
     func pointerType(_ pointee: LLVMTypeRef?, addressSpace: UInt32 = 0) -> LLVMTypeRef? {
         pointerTypeFn(pointee, addressSpace)
     }

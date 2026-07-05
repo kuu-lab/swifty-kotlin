@@ -57,21 +57,15 @@ extension CoroutineLoweringPass {
             return spillPlan.slotByExpr[exprID]
         }
 
-        let continuationExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: continuationType
+        let continuationExpr = module.arena.appendTemporary(type: continuationType
         )
         lowered.append(.constValue(result: continuationExpr, value: .symbolRef(continuationParameterSymbol)))
 
-        let functionIDExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: intType
+        let functionIDExpr = module.arena.appendTemporary(type: intType
         )
         lowered.append(.constValue(result: functionIDExpr, value: .intLiteral(Int64(loweredSymbol.rawValue))))
 
-        let resumeLabelExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: intType
+        let resumeLabelExpr = module.arena.appendTemporary(type: intType
         )
         lowered.append(
             .call(
@@ -85,9 +79,7 @@ extension CoroutineLoweringPass {
         )
 
         for block in stateBlocks {
-            let expectedResumeExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: intType
+            let expectedResumeExpr = module.arena.appendTemporary(type: intType
             )
             lowered.append(.constValue(result: expectedResumeExpr, value: .intLiteral(block.resumeLabel)))
             lowered.append(
@@ -138,9 +130,7 @@ extension CoroutineLoweringPass {
                     )
                 }
 
-                let thrownExceptionExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: intType
+                let thrownExceptionExpr = module.arena.appendTemporary(type: intType
                 )
                 lowered.append(
                     .call(
@@ -165,9 +155,7 @@ extension CoroutineLoweringPass {
                 // If cancelled, kk_coroutine_check_cancellation writes a
                 // CancellationException into the original call's thrown slot so
                 // surrounding try/catch blocks can observe it.
-                let cancelCheckResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: intType
+                let cancelCheckResult = module.arena.appendTemporary(type: intType
                 )
                 lowered.append(
                     .call(
@@ -234,9 +222,7 @@ extension CoroutineLoweringPass {
                         )
                     }
 
-                    let resumeLabelExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: intType
+                    let resumeLabelExpr = module.arena.appendTemporary(type: intType
                     )
                     lowered.append(.constValue(result: resumeLabelExpr, value: .intLiteral(nextResumeLabel)))
 
@@ -251,9 +237,7 @@ extension CoroutineLoweringPass {
                         )
                     )
 
-                    let suspensionResult = suspendCallInfo.result ?? module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let suspensionResult = suspendCallInfo.result ?? module.arena.appendTemporary(type: continuationType
                     )
                     let loweredSuspendCallee: InternedString
                     var loweredSuspendArguments: [KIRExprID]
@@ -307,9 +291,7 @@ extension CoroutineLoweringPass {
                         )
                     }
 
-                    let suspendedExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let suspendedExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
                         .call(
@@ -337,9 +319,7 @@ extension CoroutineLoweringPass {
 
                 switch instruction {
                 case let .returnValue(value):
-                    let exitValueExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
                         .call(
@@ -355,9 +335,7 @@ extension CoroutineLoweringPass {
 
                 case .returnUnit:
                     let unitExpr = module.arena.appendExpr(.unit, type: unitType)
-                    let exitValueExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: continuationType
+                    let exitValueExpr = module.arena.appendTemporary(type: continuationType
                     )
                     lowered.append(
                         .call(

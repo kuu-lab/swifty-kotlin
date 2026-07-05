@@ -139,7 +139,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToInt(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToInt",
-            externalLinkName: "kk_string_hexToInt",
+            externalLinkName: "kk_string_hexToInt_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: intType,
@@ -151,7 +151,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToShort(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToShort",
-            externalLinkName: "kk_string_hexToShort",
+            externalLinkName: "kk_string_hexToShort_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: intType,
@@ -163,7 +163,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUByte(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUByte",
-            externalLinkName: "kk_string_hexToUByte",
+            externalLinkName: "kk_string_hexToUByte_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.ubyteType,
@@ -175,7 +175,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUShort(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUShort",
-            externalLinkName: "kk_string_hexToUShort",
+            externalLinkName: "kk_string_hexToUShort_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.ushortType,
@@ -187,7 +187,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUInt(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUInt",
-            externalLinkName: "kk_string_hexToUInt",
+            externalLinkName: "kk_string_hexToUInt_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.uintType,
@@ -199,7 +199,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToULong(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToULong",
-            externalLinkName: "kk_string_hexToULong",
+            externalLinkName: "kk_string_hexToULong_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.ulongType,
@@ -211,7 +211,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToLong(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToLong",
-            externalLinkName: "kk_string_hexToLong",
+            externalLinkName: "kk_string_hexToLong_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: longType,
@@ -223,7 +223,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUInt(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUInt",
-            externalLinkName: "kk_string_hexToUInt",
+            externalLinkName: "kk_string_hexToUInt_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: types.uintType,
@@ -235,7 +235,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToByteArray(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToByteArray",
-            externalLinkName: "kk_string_hexToByteArray",
+            externalLinkName: "kk_string_hexToByteArray_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: listIntType,
@@ -247,7 +247,7 @@ extension DataFlowSemaPhase {
         // --- String.hexToUByteArray(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToUByteArray",
-            externalLinkName: "kk_string_hexToUByteArray",
+            externalLinkName: "kk_string_hexToUByteArray_flat",
             receiverType: stringType,
             parameters: [("format", hexFormatType, true, false)],
             returnType: uByteArrayType,

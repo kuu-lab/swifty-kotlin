@@ -10,9 +10,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
         let resolvedName = interner.resolve(symbol.name)
@@ -46,11 +44,8 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.types.make(.primitive(.string, .nonNull))
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: resultType
-        )
+            ?? sema.types.stringType
+        let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_kproperty_stub_name"),
@@ -71,8 +66,7 @@ extension CallLowerer {
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
         // Check for KFunction class types.
-        if case let .classType(classType) = sema.types.kind(of: nonNullType),
-           let symbol = sema.symbols.symbol(classType.classSymbol)
+        if let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema)
         {
             let resolvedName = interner.resolve(symbol.name)
             return resolvedName == "KFunction" || resolvedName == "KFunction0"
@@ -122,9 +116,7 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: resultType
+        let result = arena.appendTemporary(type: resultType
         )
         instructions.append(.call(
             symbol: nil,
@@ -145,9 +137,7 @@ extension CallLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(receiverType)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return interner.resolve(symbol.name) == "KParameter"
@@ -186,9 +176,7 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-        let result = arena.appendExpr(
-            .temporary(Int32(arena.expressions.count)),
-            type: resultType
+        let result = arena.appendTemporary(type: resultType
         )
         instructions.append(.call(
             symbol: nil,
@@ -252,13 +240,9 @@ extension CallLowerer {
 
         if argExprs.count <= 3 {
             // Direct arity-specific call: kk_kfunction_call_N(handle, arg1, ..., outThrown)
-            let thrownResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
             )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: resultType
+            let result = arena.appendTemporary(type: resultType
             )
             instructions.append(.call(
                 symbol: nil,
@@ -272,9 +256,7 @@ extension CallLowerer {
         } else {
             // Vararg path: pack args into a list, call kk_kfunction_call_vararg.
             // First, create a runtime list with the args.
-            let listExpr = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.anyType
+            let listExpr = arena.appendTemporary(type: sema.types.anyType
             )
             instructions.append(.call(
                 symbol: nil,
@@ -284,13 +266,9 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
-            let thrownResult = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType
             )
-            let result = arena.appendExpr(
-                .temporary(Int32(arena.expressions.count)),
-                type: resultType
+            let result = arena.appendTemporary(type: resultType
             )
             instructions.append(.call(
                 symbol: nil,

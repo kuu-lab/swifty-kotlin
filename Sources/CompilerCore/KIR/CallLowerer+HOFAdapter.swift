@@ -57,9 +57,7 @@ extension CallLowerer {
             callArguments.append(paramExpr)
         }
 
-        let callResult = arena.appendExpr(
-            .temporary(Int32(clamping: arena.expressions.count)),
-            type: functionType.returnType
+        let callResult = arena.appendTemporary(type: functionType.returnType
         )
         body.append(.call(
             symbol: callableInfo.symbol,

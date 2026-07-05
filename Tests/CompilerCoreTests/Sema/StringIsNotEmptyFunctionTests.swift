@@ -4,9 +4,7 @@ import Testing
 /// STDLIB-TEXT-FN-030: Validates that `isNotEmpty` resolves through Sema for
 /// `String` and `CharSequence` receivers, returning a non-null `Boolean`.
 ///
-/// The runtime helper is `kk_string_isNotEmpty` and the Sema-side extension
-/// stub is registered alongside `isEmpty` / `isBlank` / `isNotBlank` in
-/// `HeaderHelpers+SyntheticStringStubs.swift`.
+/// Both String and CharSequence receivers link to the flattened String ABI.
 @Suite
 struct StringIsNotEmptyFunctionTests {
     @Test func testIsNotEmptyFunctionResolvesInSource() throws {
@@ -43,7 +41,7 @@ struct StringIsNotEmptyFunctionTests {
             "Expected kotlin.text.isNotEmpty to be registered"
         )
         #expect(
-            sema.symbols.externalLinkName(for: symbol) == "kk_string_isNotEmpty",
+            sema.symbols.externalLinkName(for: symbol) == "kk_string_isNotEmpty_flat",
             "Expected isNotEmpty extension to link to kk_string_isNotEmpty"
         )
     }

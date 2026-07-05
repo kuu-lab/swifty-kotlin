@@ -23,12 +23,7 @@ struct IntegerNarrowingPassTests {
     }
 
     private func makeSema() -> SemaModule {
-        SemaModule(
-            symbols: SymbolTable(),
-            types: TypeSystem(),
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
-        )
+        makeSemaModule(symbols: SymbolTable(), types: TypeSystem(), bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
     }
 
     private func makeModule(

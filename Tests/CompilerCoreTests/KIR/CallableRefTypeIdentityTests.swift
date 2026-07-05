@@ -136,8 +136,7 @@ struct CallableRefTypeIdentityTests {
 
             let module = try #require(ctx.kir)
             // Property callable refs are lowered inline in main.
-            let allCallees = module.arena.declarations.flatMap { decl -> [String] in
-                guard case let .function(function) = decl else { return [] }
+            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
                 return extractCallees(from: function.body, interner: ctx.interner)
             }
             // Verify the property ref is tagged with the KProperty tag.

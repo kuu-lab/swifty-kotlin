@@ -5,7 +5,8 @@ import Testing
 /// through Sema for `String` receivers across several invocation shapes (variable,
 /// literal, chained call, and conditional contexts). The synthetic stub is
 /// registered in `HeaderHelpers+SyntheticStringStubs.swift` and lowered to the
-/// runtime helper `kk_string_removePrefix` defined in `RuntimeStringStdlib.swift`.
+/// flattened runtime helper `kk_string_removePrefix_flat` defined in
+/// `RuntimeStringStdlib.swift`.
 @Suite
 struct StringRemovePrefixFunctionTests {
     @Test func testRemovePrefixResolvesInSource() throws {
@@ -54,7 +55,7 @@ struct StringRemovePrefixFunctionTests {
                     && signature.parameterTypes == [sema.types.stringType]
             })
             #expect(
-                sema.symbols.externalLinkName(for: symbol) == "kk_string_removePrefix"
+                sema.symbols.externalLinkName(for: symbol) == "kk_string_removePrefix_flat"
             )
             #expect(
                 sema.symbols.functionSignature(for: symbol)?.returnType == sema.types.stringType,

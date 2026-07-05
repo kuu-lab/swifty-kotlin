@@ -19,8 +19,8 @@ extension BuildKIRRegressionTests {
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
-            #expect(callees.contains("kk_string_split"), "Expected direct kk_string_split call, got: \(callees)")
-            #expect(callees.contains("kk_string_startsWith"), "Expected direct kk_string_startsWith call, got: \(callees)")
+            #expect(callees.contains("kk_string_split_flat"), "Expected direct kk_string_split_flat call, got: \(callees)")
+            #expect(callees.contains("kk_string_startsWith_flat"), "Expected direct kk_string_startsWith_flat call, got: \(callees)")
             #expect(!(callees.contains { $0.contains("split$default") || $0.contains("startsWith$default") }),
                            "External string stubs must not route through $default: \(callees)")
         }
@@ -64,8 +64,7 @@ extension BuildKIRRegressionTests {
                           "Expected call to withDep$default stub, got: \(mainCallees)")
 
             // Stub must exist and call the original function
-            let stubFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 return ctx.interner.resolve(function.name) == "withDep$default" ? function : nil
             }.first
             #expect(stubFunction != nil, "Expected withDep$default stub function")
@@ -99,8 +98,7 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            let stubFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 return ctx.interner.resolve(function.name) == "chain$default" ? function : nil
             }.first
             #expect(stubFunction != nil, "Expected chain$default stub function")
@@ -147,8 +145,7 @@ extension BuildKIRRegressionTests {
                           "Expected call to addDefault$default stub, got: \(mainCallees)")
 
             // Stub must exist and include a receiver parameter
-            let stubFunction = module.arena.declarations.compactMap { decl -> KIRFunction? in
-                guard case let .function(function) = decl else { return nil }
+            let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 return ctx.interner.resolve(function.name) == "addDefault$default" ? function : nil
             }.first
             #expect(stubFunction != nil, "Expected addDefault$default stub function")

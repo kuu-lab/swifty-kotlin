@@ -61,9 +61,7 @@ extension DataEnumSealedSynthesisPass {
                 "data class '\(ownerName)' has no primary constructor; copy() returns self unchanged",
                 range: owner.declSite
             )
-            let resultExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: receiverType
+            let resultExpr = module.arena.appendTemporary(type: receiverType
             )
             let body: [KIRInstruction] = [
                 .constValue(result: resultExpr, value: .symbolRef(selfParamSymbol)),
@@ -152,9 +150,7 @@ extension DataEnumSealedSynthesisPass {
         var ctorArgExprs: [KIRExprID] = []
         for (index, paramSymbol) in copyParamSymbols.enumerated() {
             let paramType = propertyParams[index].type
-            let paramExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: paramType
+            let paramExpr = module.arena.appendTemporary(type: paramType
             )
             body.append(.constValue(result: paramExpr, value: .symbolRef(paramSymbol)))
             ctorArgExprs.append(paramExpr)
@@ -171,9 +167,7 @@ extension DataEnumSealedSynthesisPass {
         )
         let classIDExpr = module.arena.appendExpr(.intLiteral(classIDValue), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-        let allocatedObjectExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: receiverType
+        let allocatedObjectExpr = module.arena.appendTemporary(type: receiverType
         )
         body.append(.call(
             symbol: nil,
@@ -184,9 +178,7 @@ extension DataEnumSealedSynthesisPass {
             thrownResult: nil
         ))
 
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: receiverType
+        let resultExpr = module.arena.appendTemporary(type: receiverType
         )
         body.append(.call(
             symbol: resolvedCtorSymbol,
@@ -288,26 +280,20 @@ extension DataEnumSealedSynthesisPass {
             let bitExpr = module.arena.appendExpr(.intLiteral(bitValue), type: intType)
             body.append(.constValue(result: bitExpr, value: .intLiteral(bitValue)))
 
-            let dividedExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: intType
+            let dividedExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.binary(op: .divide, lhs: maskRef, rhs: bitExpr, result: dividedExpr))
 
             let twoExpr = module.arena.appendExpr(.intLiteral(2), type: intType)
             body.append(.constValue(result: twoExpr, value: .intLiteral(2)))
-            let maskedExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: intType
+            let maskedExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.binary(op: .modulo, lhs: dividedExpr, rhs: twoExpr, result: maskedExpr))
 
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: intType)
             body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
 
-            let resolvedExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: propertyParam.type
+            let resolvedExpr = module.arena.appendTemporary(type: propertyParam.type
             )
             let useProvidedLabel = Int32(20000 + index * 2)
             let afterLabel = Int32(20001 + index * 2)
@@ -343,9 +329,7 @@ extension DataEnumSealedSynthesisPass {
             resolvedArgs.append(resolvedExpr)
         }
 
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: receiverType
+        let resultExpr = module.arena.appendTemporary(type: receiverType
         )
         body.append(.call(
             symbol: functionSymbol,
@@ -401,7 +385,7 @@ extension DataEnumSealedSynthesisPass {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let parameterName = interner.intern("$self")
         let fqName = owner.fqName + [name]
         let parameterSymbol = sema.symbols.define(
@@ -413,9 +397,7 @@ extension DataEnumSealedSynthesisPass {
             flags: [.synthetic]
         )
         let parameter = KIRParameter(symbol: parameterSymbol, type: receiverType)
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: stringType
+        let resultExpr = module.arena.appendTemporary(type: stringType
         )
         let body: [KIRInstruction] = [
             .constValue(result: resultExpr, value: .stringLiteral(objectName)),
@@ -490,9 +472,7 @@ extension DataEnumSealedSynthesisPass {
         let otherParam = KIRParameter(symbol: paramSymbol, type: nullableAnyType)
         let receiverRef = module.arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
         let otherRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: nullableAnyType)
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: boolType
+        let resultExpr = module.arena.appendTemporary(type: boolType
         )
         let body: [KIRInstruction] = [
             .constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)),
@@ -585,9 +565,7 @@ extension DataEnumSealedSynthesisPass {
         let addCallee = interner.intern("kk_op_add")
 
         if propertySymbols.isEmpty {
-            let zeroExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: intType
+            let zeroExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             body.append(.returnValue(zeroExpr))
@@ -602,15 +580,11 @@ extension DataEnumSealedSynthesisPass {
                     fieldOffsetValue = Int64(index)
                 }
 
-                let fieldOffsetExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: intType
+                let fieldOffsetExpr = module.arena.appendTemporary(type: intType
                 )
                 body.append(.constValue(result: fieldOffsetExpr, value: .intLiteral(fieldOffsetValue)))
 
-                let propHashExpr = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: intType
+                let propHashExpr = module.arena.appendTemporary(type: intType
                 )
                 body.append(.call(
                     symbol: nil,
@@ -624,15 +598,11 @@ extension DataEnumSealedSynthesisPass {
                 if index == 0 {
                     resultExpr = propHashExpr
                 } else {
-                    let thirtyOneExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: intType
+                    let thirtyOneExpr = module.arena.appendTemporary(type: intType
                     )
                     body.append(.constValue(result: thirtyOneExpr, value: .intLiteral(31)))
 
-                    let mulExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: intType
+                    let mulExpr = module.arena.appendTemporary(type: intType
                     )
                     body.append(.call(
                         symbol: nil,
@@ -643,9 +613,7 @@ extension DataEnumSealedSynthesisPass {
                         thrownResult: nil
                     ))
 
-                    let addExpr = module.arena.appendExpr(
-                        .temporary(Int32(module.arena.expressions.count)),
-                        type: intType
+                    let addExpr = module.arena.appendTemporary(type: intType
                     )
                     body.append(.call(
                         symbol: nil,
@@ -721,7 +689,7 @@ extension DataEnumSealedSynthesisPass {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let builderType = sema.types.anyType
         let layout = sema.symbols.nominalLayout(for: owner.id)
@@ -746,9 +714,7 @@ extension DataEnumSealedSynthesisPass {
             let receiverRef = module.arena.appendExpr(.symbolRef(parameterSymbol), type: receiverType)
             body.append(.constValue(result: receiverRef, value: .symbolRef(parameterSymbol)))
 
-            let superToStringResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: stringType
+            let superToStringResult = module.arena.appendTemporary(type: stringType
             )
 
             // Find super.toString() method symbol
@@ -774,13 +740,11 @@ extension DataEnumSealedSynthesisPass {
             }
 
             // Create string builder from super.toString()
-            builderExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: builderType
+            builderExpr = module.arena.appendTemporary(type: builderType
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string"),
+                callee: interner.intern("kk_string_builder_new_from_string_flat"),
                 arguments: [superToStringResult],
                 result: builderExpr,
                 canThrow: false,
@@ -790,18 +754,14 @@ extension DataEnumSealedSynthesisPass {
             // Start with "ClassName(" for data class with no inheritance
             let className = interner.resolve(owner.name)
             let prefixStr = interner.intern("\(className)(")
-            let prefixExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: stringType
+            let prefixExpr = module.arena.appendTemporary(type: stringType
             )
             body.append(.constValue(result: prefixExpr, value: .stringLiteral(prefixStr)))
-            builderExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: builderType
+            builderExpr = module.arena.appendTemporary(type: builderType
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string"),
+                callee: interner.intern("kk_string_builder_new_from_string_flat"),
                 arguments: [prefixExpr],
                 result: builderExpr,
                 canThrow: false,
@@ -814,9 +774,7 @@ extension DataEnumSealedSynthesisPass {
             // Append "propName=" (or ", propName=" for subsequent properties)
             let labelStr: String = index == 0 ? "\(propName)=" : ", \(propName)="
             let labelInterned = interner.intern(labelStr)
-            let labelExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: stringType
+            let labelExpr = module.arena.appendTemporary(type: stringType
             )
             body.append(.constValue(result: labelExpr, value: .stringLiteral(labelInterned)))
 
@@ -835,9 +793,7 @@ extension DataEnumSealedSynthesisPass {
             body.append(.constValue(result: receiverRef, value: .symbolRef(parameterSymbol)))
 
             let propType = sema.symbols.propertyType(for: property.id) ?? sema.types.anyType
-            let propValue = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: propType
+            let propValue = module.arena.appendTemporary(type: propType
             )
             let backingField = sema.symbols.backingFieldSymbol(for: property.id) ?? property.id
             if let layout,
@@ -869,15 +825,11 @@ extension DataEnumSealedSynthesisPass {
             // Convert to string via kk_any_to_string using the same tag convention
             // as Any.toString lowering.
             let anyTag = anyToStringTag(for: propType, sema: sema)
-            let tagExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: intType
+            let tagExpr = module.arena.appendTemporary(type: intType
             )
             body.append(.constValue(result: tagExpr, value: .intLiteral(anyTag)))
 
-            let propStr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: stringType
+            let propStr = module.arena.appendTemporary(type: stringType
             )
             body.append(.call(
                 symbol: nil,
@@ -903,9 +855,7 @@ extension DataEnumSealedSynthesisPass {
 
         if shouldCloseParen {
             let suffixStr = interner.intern(")")
-            let suffixExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: stringType
+            let suffixExpr = module.arena.appendTemporary(type: stringType
             )
             body.append(.constValue(result: suffixExpr, value: .stringLiteral(suffixStr)))
 
@@ -919,9 +869,7 @@ extension DataEnumSealedSynthesisPass {
             ))
         }
 
-        let resultExpr = module.arena.appendExpr(
-            .temporary(Int32(module.arena.expressions.count)),
-            type: stringType
+        let resultExpr = module.arena.appendTemporary(type: stringType
         )
         body.append(.call(
             symbol: nil,
@@ -1015,9 +963,7 @@ extension DataEnumSealedSynthesisPass {
         if properties.isEmpty {
             let receiverRef = module.arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
             let otherRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: nullableAnyType)
-            let resultExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: boolType
+            let resultExpr = module.arena.appendTemporary(type: boolType
             )
             body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
             body.append(.constValue(result: otherRef, value: .symbolRef(paramSymbol)))
@@ -1074,9 +1020,7 @@ extension DataEnumSealedSynthesisPass {
             let otherAnyRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: nullableAnyType)
             body.append(.constValue(result: otherAnyRef, value: .symbolRef(paramSymbol)))
 
-            let isSameTypeExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: boolType
+            let isSameTypeExpr = module.arena.appendTemporary(type: boolType
             )
             body.append(.call(
                 symbol: nil,
@@ -1090,9 +1034,7 @@ extension DataEnumSealedSynthesisPass {
             let returnFalseLabel = allocateLabel()
             body.append(.jumpIfEqual(lhs: isSameTypeExpr, rhs: falseExpr, target: returnFalseLabel))
 
-            let otherTypedRef = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: receiverType
+            let otherTypedRef = module.arena.appendTemporary(type: receiverType
             )
             body.append(.call(
                 symbol: nil,
@@ -1110,14 +1052,10 @@ extension DataEnumSealedSynthesisPass {
 
                 let selfRef = module.arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
                 body.append(.constValue(result: selfRef, value: .symbolRef(receiverParam.symbol)))
-                let selfProp = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: propType
+                let selfProp = module.arena.appendTemporary(type: propType
                 )
 
-                let otherProp = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: propType
+                let otherProp = module.arena.appendTemporary(type: propType
                 )
                 if let fieldOffset {
                     let offsetExpr = module.arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
@@ -1159,15 +1097,13 @@ extension DataEnumSealedSynthesisPass {
                     ))
                 }
 
-                let cmpResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: boolType
+                let cmpResult = module.arena.appendTemporary(type: boolType
                 )
                 // Use structural equality for reference types (String, class instances, etc.)
                 // to match Kotlin data class equals() semantics. Primitive types can use
                 // pointer/value equality via kk_op_eq.
                 let eqCallee: String = switch sema.types.kind(of: sema.types.makeNonNullable(propType)) {
-                case .primitive(.string, _), .classType, .any:
+                case .stringStruct, .classType, .any:
                     "kk_structural_eq"
                 case .primitive:
                     "kk_op_eq"
@@ -1190,9 +1126,7 @@ extension DataEnumSealedSynthesisPass {
             if let superSymbol = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner) {
                 let receiverRef = module.arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
                 let otherRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: nullableAnyType)
-                let superEqualsResult = module.arena.appendExpr(
-                    .temporary(Int32(module.arena.expressions.count)),
-                    type: boolType
+                let superEqualsResult = module.arena.appendTemporary(type: boolType
                 )
                 body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
                 body.append(.constValue(result: otherRef, value: .symbolRef(paramSymbol)))

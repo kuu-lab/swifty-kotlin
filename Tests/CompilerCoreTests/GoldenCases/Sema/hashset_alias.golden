@@ -29,7 +29,7 @@ symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=nestedSets kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=processSet kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableSet<String>] ret=Unit
 symbol fq=processSet.$1.set kind=valueParameter vis=private flags=_
-file f14 package=_
+file f0 package=_
   decl processSet fun processSet sym=processSet
   decl createSet fun createSet sym=createSet
   decl TagContainer class TagContainer sym=TagContainer
@@ -37,98 +37,98 @@ file f14 package=_
   decl constrain fun constrain sym=constrain
   decl customExtension fun customExtension sym=customExtension
   decl main fun main sym=main
-expr e@2:13#0 name(set) type=kotlin.collections.MutableSet<String> ref=processSet.$1.set
-expr e@2:13#1 memberCall recv=e@2:13#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@2:5#1 call callee=e@2:5#0 args=[_:e@2:13#1] type=Unit call=kotlin.io.println#1
-expr e@6:12#3 call callee=e@6:12#2 args=[] type=kotlin.collections.MutableSet<Int>
-expr e@6:5#3 return value=e@6:12#3 type=Nothing
-expr e@10:33#1 call callee=e@10:33#0 args=[] type=kotlin.collections.MutableSet<String>
-expr e@11:29#1 call callee=e@11:29#0 args=[] type=kotlin.collections.MutableSet<Int>
-expr e@15:44#1 call callee=e@15:44#0 args=[] type=kotlin.collections.MutableSet<kotlin.collections.MutableSet<String>>
-expr e@15:5#6 localDecl nested mutable=0 type=HashSet<HashSet<String>> init=e@15:44#1 type=Unit ref=__local_0.nested
-expr e@16:17#1 call callee=e@16:17#0 args=[] type=kotlin.collections.MutableSet<String>
-expr e@16:5#6 localDecl inner mutable=0 type=_ init=e@16:17#1 type=Unit ref=__local_1.inner
-expr e@17:5#3 name(inner) type=kotlin.collections.MutableSet<String> ref=__local_1.inner
+expr e@2:13 name(set) type=kotlin.collections.MutableSet<String> ref=processSet.$1.set
+expr e@2:13#1 memberCall recv=e@2:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@2:5 call callee=e@2:5#1 args=[_:e@2:13#1] type=Unit call=kotlin.io.println#1
+expr e@6:12 call callee=e@6:12#1 args=[] type=kotlin.collections.MutableSet<Int>
+expr e@6:5 return value=e@6:12 type=Nothing
+expr e@10:33 call callee=e@10:33#1 args=[] type=kotlin.collections.MutableSet<String>
+expr e@11:29 call callee=e@11:29#1 args=[] type=kotlin.collections.MutableSet<Int>
+expr e@15:44 call callee=e@15:44#1 args=[] type=kotlin.collections.MutableSet<kotlin.collections.MutableSet<String>>
+expr e@15:5 localDecl nested mutable=0 type=HashSet<HashSet<String>> init=e@15:44 type=Unit ref=__local_0.nested
+expr e@16:17 call callee=e@16:17#1 args=[] type=kotlin.collections.MutableSet<String>
+expr e@16:5 localDecl inner mutable=0 type=_ init=e@16:17 type=Unit ref=__local_1.inner
+expr e@17:5 name(inner) type=kotlin.collections.MutableSet<String> ref=__local_1.inner
 expr e@17:15 string(nested) type=String
-expr e@17:5#4 memberCall recv=e@17:5#3 callee=add args=[_:e@17:15] type=Boolean call=kotlin.collections.MutableSet.add
-expr e@18:5#4 name(nested) type=kotlin.collections.MutableSet<kotlin.collections.MutableSet<String>> ref=__local_0.nested
-expr e@18:16#1 name(inner) type=kotlin.collections.MutableSet<String> ref=__local_1.inner
-expr e@18:5#5 memberCall recv=e@18:5#4 callee=add args=[_:e@18:16#1] type=Boolean call=kotlin.collections.MutableSet.add
-expr e@19:13#0 name(nested) type=kotlin.collections.MutableSet<kotlin.collections.MutableSet<String>> ref=__local_0.nested
-expr e@19:13#1 memberCall recv=e@19:13#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@19:5#7 call callee=e@19:5#6 args=[_:e@19:13#1] type=Unit call=kotlin.io.println#1
+expr e@17:5#1 memberCall recv=e@17:5 callee=add args=[_:e@17:15] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@18:5 name(nested) type=kotlin.collections.MutableSet<kotlin.collections.MutableSet<String>> ref=__local_0.nested
+expr e@18:16 name(inner) type=kotlin.collections.MutableSet<String> ref=__local_1.inner
+expr e@18:5#1 memberCall recv=e@18:5 callee=add args=[_:e@18:16] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@19:13 name(nested) type=kotlin.collections.MutableSet<kotlin.collections.MutableSet<String>> ref=__local_0.nested
+expr e@19:13#1 memberCall recv=e@19:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#1] type=Unit call=kotlin.io.println#1
 expr e@23:12 name(set) type=constrain.$0.T ref=constrain.$0.set
-expr e@23:5#4 return value=e@23:12 type=Nothing
-expr e@27:25#0 this type=kotlin.collections.MutableSet<String>
-expr e@27:25#1 memberCall recv=e@27:25#0 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@27:12#2 stringTemplate[lit(extended: ),expr(e@27:25#1)] type=String
-expr e@27:5#4 return value=e@27:12#2 type=Nothing
-expr e@31:32#5 call callee=e@31:32#4 args=[] type=kotlin.collections.MutableSet<String>
-expr e@31:5#6 localDecl set mutable=0 type=HashSet<String> init=e@31:32#5 type=Unit ref=__local_2.set
-expr e@32:5#6 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@32:13#3 string(hello) type=String
-expr e@32:5#7 memberCall recv=e@32:5#6 callee=add args=[_:e@32:13#3] type=Boolean call=kotlin.collections.MutableSet.add
-expr e@33:5#5 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
+expr e@23:5 return value=e@23:12 type=Nothing
+expr e@27:25 this type=kotlin.collections.MutableSet<String>
+expr e@27:25#1 memberCall recv=e@27:25 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@27:12 stringTemplate[lit(extended: ),expr(e@27:25#1)] type=String
+expr e@27:5 return value=e@27:12 type=Nothing
+expr e@31:32 call callee=e@31:32#1 args=[] type=kotlin.collections.MutableSet<String>
+expr e@31:5 localDecl set mutable=0 type=HashSet<String> init=e@31:32 type=Unit ref=__local_2.set
+expr e@32:5 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
+expr e@32:13 string(hello) type=String
+expr e@32:5#1 memberCall recv=e@32:5 callee=add args=[_:e@32:13] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@33:5 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
 expr e@33:13 string(world) type=String
-expr e@33:5#6 memberCall recv=e@33:5#5 callee=add args=[_:e@33:13] type=Boolean call=kotlin.collections.MutableSet.add
-expr e@34:13#3 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@34:13#4 memberCall recv=e@34:13#3 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@34:5#8 call callee=e@34:5#7 args=[_:e@34:13#4] type=Unit call=kotlin.io.println#1
-expr e@35:13#0 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@35:26#2 string(hello) type=String
-expr e@35:13#1 memberCall recv=e@35:13#0 callee=contains args=[_:e@35:26#2] type=Boolean call=kotlin.collections.Set.contains
-expr e@35:5#9 call callee=e@35:5#8 args=[_:e@35:13#1] type=Unit call=kotlin.io.println#1
+expr e@33:5#1 memberCall recv=e@33:5 callee=add args=[_:e@33:13] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@34:13 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
+expr e@34:13#1 memberCall recv=e@34:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@34:5 call callee=e@34:5#1 args=[_:e@34:13#1] type=Unit call=kotlin.io.println#1
+expr e@35:13 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
+expr e@35:26 string(hello) type=String
+expr e@35:13#1 memberCall recv=e@35:13 callee=contains args=[_:e@35:26] type=Boolean call=kotlin.collections.Set.contains
+expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13#1] type=Unit call=kotlin.io.println#1
 expr e@37:34 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@37:5#6 localDecl ms mutable=0 type=MutableSet<String> init=e@37:34 type=Unit ref=__local_3.ms
-expr e@38:5#3 name(ms) type=kotlin.collections.MutableSet<String> ref=__local_3.ms
-expr e@38:12#2 string(!) type=String
-expr e@38:5#4 memberCall recv=e@38:5#3 callee=add args=[_:e@38:12#2] type=Boolean call=kotlin.collections.MutableSet.add
-expr e@39:13#1 name(ms) type=kotlin.collections.MutableSet<String> ref=__local_3.ms
-expr e@39:13#2 memberCall recv=e@39:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@39:5#4 call callee=e@39:5#3 args=[_:e@39:13#2] type=Unit call=kotlin.io.println#1
+expr e@37:5 localDecl ms mutable=0 type=MutableSet<String> init=e@37:34 type=Unit ref=__local_3.ms
+expr e@38:5 name(ms) type=kotlin.collections.MutableSet<String> ref=__local_3.ms
+expr e@38:12 string(!) type=String
+expr e@38:5#1 memberCall recv=e@38:5 callee=add args=[_:e@38:12] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@39:13 name(ms) type=kotlin.collections.MutableSet<String> ref=__local_3.ms
+expr e@39:13#1 memberCall recv=e@39:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13#1] type=Unit call=kotlin.io.println#1
 expr e@41:26 int(1) type=Int
 expr e@41:29 int(2) type=Int
 expr e@41:32 int(3) type=Int
-expr e@41:16#3 call callee=e@41:16#2 args=[_:e@41:26,_:e@41:29,_:e@41:32] type=kotlin.collections.MutableSet<Int>
-expr e@41:5#5 localDecl nums mutable=0 type=_ init=e@41:16#3 type=Unit ref=__local_4.nums
-expr e@42:5#3 name(nums) type=kotlin.collections.MutableSet<Int> ref=__local_4.nums
+expr e@41:16 call callee=e@41:16#1 args=[_:e@41:26,_:e@41:29,_:e@41:32] type=kotlin.collections.MutableSet<Int>
+expr e@41:5 localDecl nums mutable=0 type=_ init=e@41:16 type=Unit ref=__local_4.nums
+expr e@42:5 name(nums) type=kotlin.collections.MutableSet<Int> ref=__local_4.nums
 expr e@42:17 int(2) type=Int
-expr e@42:5#4 memberCall recv=e@42:5#3 callee=remove args=[_:e@42:17] type=Boolean call=kotlin.collections.MutableSet.remove
-expr e@43:13#3 name(nums) type=kotlin.collections.MutableSet<Int> ref=__local_4.nums
-expr e@43:13#4 memberCall recv=e@43:13#3 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@43:5#2 call callee=e@43:5#1 args=[_:e@43:13#4] type=Unit call=kotlin.io.println#1
+expr e@42:5#1 memberCall recv=e@42:5 callee=remove args=[_:e@42:17] type=Boolean call=kotlin.collections.MutableSet.remove
+expr e@43:13 name(nums) type=kotlin.collections.MutableSet<Int> ref=__local_4.nums
+expr e@43:13#1 memberCall recv=e@43:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@43:5 call callee=e@43:5#1 args=[_:e@43:13#1] type=Unit call=kotlin.io.println#1
 expr e@45:33 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@45:5#3 localDecl readOnly mutable=0 type=Set<String> init=e@45:33 type=Unit ref=__local_5.readOnly
-expr e@46:13#1 name(readOnly) type=kotlin.collections.Set<String> ref=__local_5.readOnly
-expr e@46:13#2 memberCall recv=e@46:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@46:5#8 call callee=e@46:5#7 args=[_:e@46:13#2] type=Unit call=kotlin.io.println#1
-expr e@48:16#4 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@48:5#4 call callee=e@48:5#3 args=[_:e@48:16#4] type=Unit call=processSet
-expr e@50:19#1 call callee=e@50:19#0 args=[] type=kotlin.collections.MutableSet<Int> call=createSet
-expr e@50:5#2 localDecl created mutable=0 type=_ init=e@50:19#1 type=Unit ref=__local_6.created
-expr e@51:5#2 name(created) type=kotlin.collections.MutableSet<Int> ref=__local_6.created
+expr e@45:5 localDecl readOnly mutable=0 type=Set<String> init=e@45:33 type=Unit ref=__local_5.readOnly
+expr e@46:13 name(readOnly) type=kotlin.collections.Set<String> ref=__local_5.readOnly
+expr e@46:13#1 memberCall recv=e@46:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@46:5 call callee=e@46:5#1 args=[_:e@46:13#1] type=Unit call=kotlin.io.println#1
+expr e@48:16 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
+expr e@48:5 call callee=e@48:5#1 args=[_:e@48:16] type=Unit call=processSet
+expr e@50:19 call callee=e@50:19#1 args=[] type=kotlin.collections.MutableSet<Int> call=createSet
+expr e@50:5 localDecl created mutable=0 type=_ init=e@50:19 type=Unit ref=__local_6.created
+expr e@51:5 name(created) type=kotlin.collections.MutableSet<Int> ref=__local_6.created
 expr e@51:17 int(42) type=Int
-expr e@51:5#3 memberCall recv=e@51:5#2 callee=add args=[_:e@51:17] type=Boolean call=kotlin.collections.MutableSet.add
-expr e@52:13#1 name(created) type=kotlin.collections.MutableSet<Int> ref=__local_6.created
-expr e@52:13#2 memberCall recv=e@52:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@52:5#4 call callee=e@52:5#3 args=[_:e@52:13#2] type=Unit call=kotlin.io.println#1
-expr e@54:21#1 call callee=e@54:21#0 args=[] type=TagContainer call=TagContainer.<init>
-expr e@54:5#4 localDecl container mutable=0 type=_ init=e@54:21#1 type=Unit ref=__local_7.container
-expr e@55:5#1 name(container) type=TagContainer ref=__local_7.container
-expr e@55:5#2 memberCall recv=e@55:5#1 callee=tags args=[] type=kotlin.collections.MutableSet<String> ref=TagContainer.tags
-expr e@55:24#4 string(property) type=String
-expr e@55:5#3 memberCall recv=e@55:5#2 callee=add args=[_:e@55:24#4] type=Boolean call=kotlin.collections.MutableSet.add
-expr e@56:13#0 name(container) type=TagContainer ref=__local_7.container
-expr e@56:13#1 memberCall recv=e@56:13#0 callee=tags args=[] type=kotlin.collections.MutableSet<String> ref=TagContainer.tags
+expr e@51:5#1 memberCall recv=e@51:5 callee=add args=[_:e@51:17] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@52:13 name(created) type=kotlin.collections.MutableSet<Int> ref=__local_6.created
+expr e@52:13#1 memberCall recv=e@52:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@52:5 call callee=e@52:5#1 args=[_:e@52:13#1] type=Unit call=kotlin.io.println#1
+expr e@54:21 call callee=e@54:21#1 args=[] type=TagContainer call=TagContainer.<init>
+expr e@54:5 localDecl container mutable=0 type=_ init=e@54:21 type=Unit ref=__local_7.container
+expr e@55:5 name(container) type=TagContainer ref=__local_7.container
+expr e@55:5#1 memberCall recv=e@55:5 callee=tags args=[] type=kotlin.collections.MutableSet<String> ref=TagContainer.tags
+expr e@55:24 string(property) type=String
+expr e@55:5#2 memberCall recv=e@55:5#1 callee=add args=[_:e@55:24] type=Boolean call=kotlin.collections.MutableSet.add
+expr e@56:13 name(container) type=TagContainer ref=__local_7.container
+expr e@56:13#1 memberCall recv=e@56:13 callee=tags args=[] type=kotlin.collections.MutableSet<String> ref=TagContainer.tags
 expr e@56:13#2 memberCall recv=e@56:13#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@56:5#3 call callee=e@56:5#2 args=[_:e@56:13#2] type=Unit call=kotlin.io.println#1
-expr e@58:5#2 call callee=e@58:5#1 args=[] type=Unit call=nestedSets
+expr e@56:5 call callee=e@56:5#1 args=[_:e@56:13#2] type=Unit call=kotlin.io.println#1
+expr e@58:5 call callee=e@58:5#1 args=[] type=Unit call=nestedSets
 expr e@60:33 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@60:23#1 call callee=e@60:23#0 args=[_:e@60:33] type=kotlin.collections.MutableSet<String> call=constrain targs=[kotlin.collections.MutableSet<String>]
-expr e@60:5#6 localDecl constrained mutable=0 type=_ init=e@60:23#1 type=Unit ref=__local_8.constrained
-expr e@61:13#4 name(constrained) type=kotlin.collections.MutableSet<String> ref=__local_8.constrained
-expr e@61:13#5 memberCall recv=e@61:13#4 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
-expr e@61:5#5 call callee=e@61:5#4 args=[_:e@61:13#5] type=Unit call=kotlin.io.println#1
-expr e@63:13#1 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
-expr e@63:13#2 memberCall recv=e@63:13#1 callee=customExtension args=[] type=String call=customExtension
-expr e@63:5#2 call callee=e@63:5#1 args=[_:e@63:13#2] type=Unit call=kotlin.io.println#1
+expr e@60:23 call callee=e@60:23#1 args=[_:e@60:33] type=kotlin.collections.MutableSet<String> call=constrain targs=[kotlin.collections.MutableSet<String>]
+expr e@60:5 localDecl constrained mutable=0 type=_ init=e@60:23 type=Unit ref=__local_8.constrained
+expr e@61:13 name(constrained) type=kotlin.collections.MutableSet<String> ref=__local_8.constrained
+expr e@61:13#1 memberCall recv=e@61:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
+expr e@61:5 call callee=e@61:5#1 args=[_:e@61:13#1] type=Unit call=kotlin.io.println#1
+expr e@63:13 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
+expr e@63:13#1 memberCall recv=e@63:13 callee=customExtension args=[] type=String call=customExtension
+expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13#1] type=Unit call=kotlin.io.println#1

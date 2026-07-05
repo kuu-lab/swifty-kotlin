@@ -59,14 +59,14 @@ extension CodegenBackendIntegrationTests {
                 HELLO
                 null
                 value:takeIf
-                null
+                takeIf
                 value:takeUnless
                 null
                 make:once
                 once:also
                 value:with
                 with:with
-                null
+                kotlin
                 make:apply
                 apply:done
                 labeled-return

@@ -19,9 +19,7 @@ extension CallLowerer {
                 let captureType = arena.exprType(captureExpr) ?? sema.types.anyType
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
                 body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
-                let loadedExpr = arena.appendExpr(
-                    .temporary(Int32(clamping: arena.expressions.count)),
-                    type: captureType
+                let loadedExpr = arena.appendTemporary(type: captureType
                 )
                 body.append(.call(
                     symbol: nil,
@@ -57,9 +55,7 @@ extension CallLowerer {
             ))
             let classIDExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
             instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
-            let closureObjExpr = arena.appendExpr(
-                .temporary(Int32(clamping: arena.expressions.count)),
-                type: sema.types.anyType
+            let closureObjExpr = arena.appendTemporary(type: sema.types.anyType
             )
             instructions.append(.call(
                 symbol: nil,
@@ -78,9 +74,7 @@ extension CallLowerer {
                     result: offsetExpr,
                     value: .intLiteral(Int64(captureIndex + 2))
                 ))
-                let unusedResult = arena.appendExpr(
-                    .temporary(Int32(clamping: arena.expressions.count)),
-                    type: sema.types.anyType
+                let unusedResult = arena.appendTemporary(type: sema.types.anyType
                 )
                 instructions.append(.call(
                     symbol: nil,
@@ -125,6 +119,13 @@ extension CallLowerer {
                 type: arena.exprType(lambdaID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
+            driver.ctx.registerCallableValue(
+                adaptedExpr,
+                symbol: adaptedInfo.symbol,
+                callee: adaptedInfo.callee,
+                captureArguments: adaptedInfo.captureArguments,
+                hasClosureParam: adaptedInfo.hasClosureParam
+            )
             lambdaID = adaptedExpr
             resolvedCallableInfo = adaptedInfo
         }
@@ -174,6 +175,13 @@ extension CallLowerer {
                 type: arena.exprType(loweredArgID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adapted.symbol)))
+            driver.ctx.registerCallableValue(
+                adaptedExpr,
+                symbol: adapted.symbol,
+                callee: adapted.callee,
+                captureArguments: adapted.captureArguments,
+                hasClosureParam: adapted.hasClosureParam
+            )
             loweredCallableID = adaptedExpr
             callableInfo = adapted
         }
@@ -247,6 +255,13 @@ extension CallLowerer {
                 type: arena.exprType(loweredSelectorID) ?? sema.types.anyType
             )
             instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
+            driver.ctx.registerCallableValue(
+                adaptedExpr,
+                symbol: adaptedInfo.symbol,
+                callee: adaptedInfo.callee,
+                captureArguments: adaptedInfo.captureArguments,
+                hasClosureParam: adaptedInfo.hasClosureParam
+            )
             loweredSelectorID = adaptedExpr
             selectorCallableInfo = adaptedInfo
         }
@@ -280,7 +295,7 @@ extension CallLowerer {
     ) {
         let fnIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2)), type: sema.types.intType)
         instructions.append(.constValue(result: fnIndexExpr, value: .intLiteral(Int64(selectorOffset * 2))))
-        let fnSetResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let fnSetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
@@ -298,7 +313,7 @@ extension CallLowerer {
         )
         let closureIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2 + 1)), type: sema.types.intType)
         instructions.append(.constValue(result: closureIndexExpr, value: .intLiteral(Int64(selectorOffset * 2 + 1))))
-        let closureSetResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let closureSetResult = arena.appendTemporary(type: sema.types.anyType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_set"),
@@ -416,6 +431,30 @@ extension CallLowerer {
             return [loweredArguments[0]] + successArgs + failureArgs
         }
 
+        let atomicReferenceUpdateRuntimeNames: Set<String> = [
+            "kk_atomic_ref_getAndUpdate",
+            "kk_atomic_ref_updateAndGet",
+            "kk_atomic_ref_array_fetchAndUpdateAt",
+            "kk_atomic_ref_array_updateAt",
+            "kk_atomic_ref_array_updateAndFetchAt",
+        ]
+        if atomicReferenceUpdateRuntimeNames.contains(externalLinkName),
+           let transformID = loweredArguments.last,
+           let transformArg = originalArgs.last,
+           let adaptedTransform = makeAtomicReferenceUpdateFunctionValue(
+               loweredArgID: transformID,
+               argExprID: transformArg.expr,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            var finalArguments = loweredArguments
+            finalArguments[finalArguments.count - 1] = adaptedTransform
+            return finalArguments
+        }
+
         guard loweredArguments.count == originalArgs.count else {
             return loweredArguments
         }
@@ -469,9 +508,7 @@ extension CallLowerer {
                case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
                functionType.params.isEmpty
             {
-                let seedResult = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.makeNonNullable(functionType.returnType)
+                let seedResult = arena.appendTemporary(type: sema.types.makeNonNullable(functionType.returnType)
                 )
                 instructions.append(.call(
                     symbol: seedCallableInfo.symbol,
@@ -609,7 +646,7 @@ extension CallLowerer {
             let slotCount = loweredArguments.count * 2
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
-            let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_new"),
@@ -647,7 +684,7 @@ extension CallLowerer {
             let slotCount = selectorCount * 2
             let countExpr = arena.appendExpr(.intLiteral(Int64(slotCount)), type: sema.types.intType)
             instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(slotCount))))
-            let arrayExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+            let arrayExpr = arena.appendTemporary(type: sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_new"),
@@ -735,6 +772,181 @@ extension CallLowerer {
         return loweredArguments
     }
 
+    func makeAtomicReferenceUpdateFunctionValue(
+        loweredArgID: KIRExprID,
+        argExprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let callableInfo = driver.ctx.callableValueInfo(for: loweredArgID) else {
+            return nil
+        }
+        let callableType = arena.exprType(loweredArgID) ?? sema.bindings.exprTypes[argExprID] ?? sema.types.anyType
+        let nonNullCallableType = sema.types.makeNonNullable(callableType)
+        guard case let .functionType(functionType) = sema.types.kind(of: nonNullCallableType),
+              functionType.params.count == 1,
+              isStringRawBridgeType(functionType.params[0], sema: sema)
+                || isStringRawBridgeType(functionType.returnType, sema: sema)
+        else {
+            return nil
+        }
+
+        let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_atomic_ref_update_adapter_\(argExprID.rawValue)_\(adapterSymbol.rawValue)")
+        let closureParam = KIRParameter(
+            symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+            type: sema.types.intType
+        )
+        let rawValueParam = KIRParameter(
+            symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+            type: sema.types.intType
+        )
+
+        var body: [KIRInstruction] = [.beginBlock]
+        let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
+        body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
+        let rawValueExpr = arena.appendExpr(.symbolRef(rawValueParam.symbol), type: rawValueParam.type)
+        body.append(.constValue(result: rawValueExpr, value: .symbolRef(rawValueParam.symbol)))
+
+        var callArguments = appendCallableCaptureLoads(
+            callableInfo: callableInfo,
+            closureExpr: closureExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            body: &body
+        )
+        callArguments.append(bridgeAtomicReferenceUpdateArgument(
+            rawValueExpr,
+            parameterType: functionType.params[0],
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            body: &body
+        ))
+
+        let lambdaCanThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
+        let callResult = arena.appendTemporary(type: functionType.returnType)
+        let thrownResult = lambdaCanThrow
+            ? arena.appendTemporary(type: sema.types.nullableAnyType)
+            : nil
+        body.append(.call(
+            symbol: callableInfo.symbol,
+            callee: callableInfo.callee,
+            arguments: callArguments,
+            result: callResult,
+            canThrow: lambdaCanThrow,
+            thrownResult: thrownResult
+        ))
+        if let thrownResult {
+            let continueLabel = driver.ctx.makeLoopLabel()
+            let rethrowLabel = driver.ctx.makeLoopLabel()
+            body.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+            body.append(.jump(continueLabel))
+            body.append(.label(rethrowLabel))
+            body.append(.rethrow(value: thrownResult))
+            body.append(.label(continueLabel))
+        }
+
+        body.append(.returnValue(callResult))
+        body.append(.endBlock)
+
+        let adapterDecl = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: adapterSymbol,
+                    name: adapterName,
+                    params: [closureParam, rawValueParam],
+                    returnType: functionType.returnType,
+                    body: body,
+                    isSuspend: functionType.isSuspend,
+                    isInline: false
+                )
+            )
+        )
+        driver.ctx.appendGeneratedCallableDecl(adapterDecl)
+
+        let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
+        let closureRaw = makeFunctionValueClosureRawArgument(
+            callableInfo: callableInfo,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        let materialized = arena.appendTemporary(type: callableType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_function_create_1"),
+            arguments: [adapterExpr, closureRaw],
+            result: materialized,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        driver.ctx.registerCallableValue(
+            materialized,
+            symbol: adapterSymbol,
+            callee: adapterName,
+            captureArguments: [closureRaw],
+            hasClosureParam: true
+        )
+        return materialized
+    }
+
+    private func isStringRawBridgeType(_ type: TypeID, sema: SemaModule) -> Bool {
+        sema.types.makeNonNullable(type) == sema.types.stringType
+    }
+
+    private func bridgeAtomicReferenceUpdateArgument(
+        _ rawValueExpr: KIRExprID,
+        parameterType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        body: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard isStringRawBridgeType(parameterType, sema: sema) else {
+            return rawValueExpr
+        }
+        let stringTag = arena.appendExpr(.intLiteral(3), type: sema.types.intType)
+        body.append(.constValue(result: stringTag, value: .intLiteral(3)))
+        let bridged = arena.appendTemporary(type: sema.types.stringType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_any_to_string"),
+            arguments: [rawValueExpr, stringTag],
+            result: bridged,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return bridged
+    }
+
+    private func makeFunctionValueClosureRawArgument(
+        callableInfo: KIRCallableValueInfo,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boxedCaptureArguments = makeBoxedCallableCaptureArguments(
+            callableInfo: callableInfo,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        if let closureRaw = boxedCaptureArguments.first {
+            return closureRaw
+        }
+        let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+        return zeroExpr
+    }
+
     func makeClosureThunkCallableAdapter(
         callableInfo: KIRCallableValueInfo,
         loweredArgID: KIRExprID,
@@ -773,14 +985,10 @@ extension CallLowerer {
         )
 
         let lambdaCanThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
-        let callResult = arena.appendExpr(
-            .temporary(Int32(clamping: arena.expressions.count)),
-            type: functionType.returnType
+        let callResult = arena.appendTemporary(type: functionType.returnType
         )
         let thrownResult = lambdaCanThrow
-            ? arena.appendExpr(
-                .temporary(Int32(clamping: arena.expressions.count)),
-                type: sema.types.nullableAnyType
+            ? arena.appendTemporary(type: sema.types.nullableAnyType
             )
             : nil
         body.append(.call(

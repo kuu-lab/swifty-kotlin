@@ -8,8 +8,10 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
+        let kotlinPkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin")],
+            symbols: symbols
+        )
         let packageSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
 
         registerSyntheticPreconditionFunction(
@@ -272,6 +274,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "block", type: blockFunctionType)],
             returnType: types.longType,
             externalLinkName: "kk_system_measureTimeMicros",
+            stdlibSpecialCallKind: .measureTimeMicros,
             symbols: symbols,
             interner: interner
         )
@@ -282,6 +285,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "block", type: blockFunctionType)],
             returnType: types.longType,
             externalLinkName: "kk_system_measureTimeMillis",
+            stdlibSpecialCallKind: .measureTimeMillis,
             symbols: symbols,
             interner: interner
         )
@@ -1321,27 +1325,5 @@ extension DataFlowSemaPhase {
             args: [.out(elementType)],
             nullability: .nonNull
         )))
-    }
-}
-
-extension DataFlowSemaPhase {
-    fileprivate func ensureSyntheticPackage(
-        fqName: [InternedString],
-        symbols: SymbolTable
-    ) -> SymbolID {
-        if let existing = symbols.lookup(fqName: fqName) {
-            return existing
-        }
-        guard let name = fqName.last else {
-            return .invalid
-        }
-        return symbols.define(
-            kind: .package,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
     }
 }

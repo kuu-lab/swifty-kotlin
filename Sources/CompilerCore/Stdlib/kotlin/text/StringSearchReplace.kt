@@ -1,5 +1,7 @@
 package kotlin.text
 
+import kswiftk.internal.*
+
 // String search and replace functions migrated from Swift Runtime
 // MIGRATION-TEXT-002
 
@@ -12,7 +14,7 @@ package kotlin.text
  * @param ignoreCase `true` to ignore character case when matching [oldValue]. Default is `false`.
  */
 public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {
-    if (oldValue.isEmpty()) {
+    if (__string_struct_get_length(oldValue) == 0) {
         val sb = StringBuilder()
         sb.append(newValue)
         for (i in 0 until length) {
@@ -31,7 +33,7 @@ public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolea
         }
         sb.append(substring(start, idx))
         sb.append(newValue)
-        start = idx + oldValue.length
+        start = idx + __string_struct_get_length(oldValue)
     }
     return sb.toString()
 }
@@ -67,7 +69,7 @@ public fun String.replace(oldChar: Char, newChar: Char, ignoreCase: Boolean = fa
 public fun String.replaceFirst(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {
     val idx = indexOf(oldValue, 0, ignoreCase)
     if (idx == -1) return this
-    return substring(0, idx) + newValue + substring(idx + oldValue.length)
+    return substring(0, idx) + newValue + substring(idx + __string_struct_get_length(oldValue))
 }
 
 /**
@@ -131,7 +133,7 @@ public fun String.removeRange(range: IntRange): String =
  */
 public fun String.removePrefix(prefix: CharSequence): String {
     val p = prefix.toString()
-    if (startsWith(p)) return substring(p.length)
+    if (startsWith(p)) return substring(__string_struct_get_length(p))
     return this
 }
 
@@ -143,7 +145,7 @@ public fun String.removePrefix(prefix: CharSequence): String {
  */
 public fun String.removeSuffix(suffix: CharSequence): String {
     val s = suffix.toString()
-    if (endsWith(s)) return substring(0, length - s.length)
+    if (endsWith(s)) return substring(0, __string_struct_get_length(this) - __string_struct_get_length(s))
     return this
 }
 
@@ -157,8 +159,8 @@ public fun String.removeSuffix(suffix: CharSequence): String {
 public fun String.removeSurrounding(prefix: CharSequence, suffix: CharSequence): String {
     val p = prefix.toString()
     val s = suffix.toString()
-    if (length >= p.length + s.length && startsWith(p) && endsWith(s)) {
-        return substring(p.length, length - s.length)
+    if (length >= __string_struct_get_length(p) + __string_struct_get_length(s) && startsWith(p) && endsWith(s)) {
+        return substring(p.length, __string_struct_get_length(this) - __string_struct_get_length(s))
     }
     return this
 }
