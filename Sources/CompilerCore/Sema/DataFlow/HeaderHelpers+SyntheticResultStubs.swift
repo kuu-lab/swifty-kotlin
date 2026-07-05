@@ -314,17 +314,5 @@ extension DataFlowSemaPhase {
             returnType: makeResultType(for: recoverCatchingRType),
             ownTypeParameterSymbols: [recoverCatchingRParam]
         )
-        registerMemberBridge(
-            named: "__kk_result_component1",
-            externalLinkName: "kk_result_component1",
-            parameterTypes: [],
-            returnType: nullableTType
-        )
-        registerMemberBridge(
-            named: "__kk_result_component2",
-            externalLinkName: "kk_result_component2",
-            parameterTypes: [],
-            returnType: nullableThrowableType
-        )
     }
 }

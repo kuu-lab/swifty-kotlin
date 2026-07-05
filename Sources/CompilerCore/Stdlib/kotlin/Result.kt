@@ -43,10 +43,6 @@ public class Result<T> private constructor() {
     public fun <R> recoverCatching(transform: (Throwable) -> R): Result<R> {
         return __kk_result_recoverCatching(transform)
     }
-
-    public operator fun component1(): T? = __kk_result_component1()
-
-    public operator fun component2(): Throwable? = __kk_result_component2()
 }
 
 public fun <T> runCatching(block: () -> T): Result<T> =
