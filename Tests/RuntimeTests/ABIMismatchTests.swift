@@ -264,7 +264,6 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.nativeRefFunctions,
             RuntimeABISpec.threadLocalFunctions,
             RuntimeABISpec.threadFunctions,
-            RuntimeABISpec.parallelFunctions,
             RuntimeABISpec.bigIntegerFunctions,
             RuntimeABISpec.serializationFunctions,
             RuntimeABISpec.networkFunctions,

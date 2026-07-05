@@ -139,7 +139,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | IO・ネットワーク | `RuntimeFileIO.swift`, `RuntimeNetwork.swift`, `RuntimePath.swift`, `RuntimeURI.swift` | ファイル IO、HTTP、パス操作 |
 | プラットフォーム | `RuntimeHelpers.swift`, `RuntimePlatform.swift`, `RuntimeSystem.swift`, `RuntimeTime.swift`, `RuntimeInstant.swift` | ヘルパー関数、プラットフォーム検出、時間 |
 | Delegate | `RuntimeDelegates.swift` | delegate プロパティランタイムサポート |
-| 並行・同期 | `RuntimeAtomic.swift`, `RuntimeSync.swift`, `RuntimeThread.swift`, `RuntimeParallel.swift` | アトミック操作、ロック、スレッド |
+| 並行・同期 | `RuntimeAtomic.swift`, `RuntimeSync.swift`, `RuntimeThread.swift` | アトミック操作、ロック、スレッド |
 
 ### `Sources/RuntimeABI/`
 
