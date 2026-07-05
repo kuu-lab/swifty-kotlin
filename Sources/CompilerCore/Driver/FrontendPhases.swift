@@ -83,7 +83,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/ranges/RangeIterators",
         "kotlin/ranges/RangeMembership",
         "kotlin/reflect/KClassAnnotationRegistration",
-        "kotlin/sequences/SequenceWindowChunk",
         "kotlin/text/StringBuilder",
         "kotlin/text/StringBasics",
         "kotlin/text/StringEncoding",
