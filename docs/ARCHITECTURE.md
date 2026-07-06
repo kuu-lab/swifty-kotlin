@@ -22,7 +22,6 @@
 
 ```text
 Package.swift
- +-- CLLVM                (system)      LLVM C API ブリッジ (modulemap)
  +-- RuntimeABI           (target)      Runtime ABI 契約と extern view の共有境界
  +-- CompilerCore         (library)     フロントエンド (Lex〜Lowering)、LLVM 非依存
  +-- CompilerBackend      (library)     バックエンド (Codegen + Link)、LLVM 依存
@@ -37,17 +36,20 @@ Package.swift
 ### 依存グラフ
 
 ```text
-KSwiftKCLI           --> CompilerBackend --> CLLVM, CompilerCore, RuntimeABI
+KSwiftKCLI           --> CompilerBackend --> CompilerCore, RuntimeABI
                          CompilerCore    --> RuntimeABI
 KSwiftLSPCLI         --> LSPServer       --> CompilerCore
 GoldenHarnessWorker  --> GoldenHarnessSupport --> CompilerCore
 CompilerCoreTests    --> CompilerCore, GoldenHarnessSupport, GoldenHarnessWorker
 CompilerBackendTests --> CompilerBackend, CompilerCore
-RuntimeTests         --> RuntimeABI
-RuntimeTestsParallel --> RuntimeABI
+RuntimeTests         --> Runtime, RuntimeABI
+RuntimeTestsParallel --> Runtime, RuntimeABI
+KSwiftKCLITests      --> KSwiftKCLI, CompilerCore
 LSPServerTests       --> LSPServer, CompilerCore
 Runtime (独立 — リンク時に結合)
 ```
+
+LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。
 
 ---
 
@@ -69,8 +71,8 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | 5 | **SemaPasses** | AST | `ctx.sema` (SemaModule) | `Sema/Infrastructure/SemaPhase.swift` -> `DataFlow/Phase.swift` + `TypeCheck/TypeCheckSemaPhase.swift` |
 | 6 | **BuildKIR** | AST + Sema | `ctx.kir` (KIRModule) | `KIR/BuildKIRPhase.swift`, `KIR/KIRLoweringDriver.swift` |
 | 7 | **Lowering** | KIR | KIR (in-place 変換) | `Lowering/LoweringPhase.swift` + 各 `*LoweringPass.swift` |
-| 8 | **Codegen** | KIR | `.o` / `.ll` / `.kir` / `.kklib` | `Codegen/CodegenPhase.swift`, `Codegen/LLVMBackend.swift`, `Codegen/NativeEmitter.swift` |
-| 9 | **Link** | `.o` ファイル | 実行ファイル (clang 呼び出し) | `Codegen/LinkPhase.swift` |
+| 8 | **Codegen** | KIR | `.o` / `.ll` / `.kir` / `.kklib` | `CompilerBackend/CodegenPhase.swift`, `CompilerBackend/LLVMBackend.swift`, `CompilerBackend/NativeEmitter.swift` |
+| 9 | **Link** | `.o` ファイル | 実行ファイル (clang 呼び出し) | `CompilerBackend/LinkPhase.swift` |
 
 ---
 
@@ -98,8 +100,8 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `CodegenPhase.swift` | KIR → LLVM IR 変換フェーズ |
 | `LinkPhase.swift` | オブジェクト → 実行ファイルリンクフェーズ |
 | `LLVMBackend.swift` | LLVM バックエンドエントリ |
-| `LLVMCAPIBindings.swift` (+分割4ファイル) | LLVM C API の Swift ラッパー |
-| `NativeEmitter.swift` (+分割4ファイル) | ネイティブコード発行 |
+| `LLVMCAPIBindings.swift` (+分割5ファイル) | LLVM C API の Swift ラッパー。`+Loading.swift` が `libLLVM.dylib` / `libLLVM.so` を `dlopen`/`dlsym` で動的ロード |
+| `NativeEmitter.swift` (+分割6ファイル) | ネイティブコード発行 |
 | `CodegenRuntimeSupport.swift` | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
 
@@ -147,13 +149,6 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 |---|---|
 | `RuntimeABISpec.swift` | Runtime ABI 仕様定数と C ヘッダ生成 |
 | `RuntimeABIExterns.swift` | `RuntimeABISpec` から導出される extern 宣言 view |
-
-### `Sources/CLLVM/`
-
-| ファイル | 責務 |
-|---|---|
-| `include/llvm_shim.h` | LLVM C API ヘッダブリッジ |
-| `module.modulemap` | SwiftPM 用モジュールマップ |
 
 ---
 
@@ -264,7 +259,7 @@ KIRModule (lowered)
 | `StringInterner` | `Driver/CompilationContext.swift` 内 | 文字列 -> InternedString (Int32) の双方向変換 |
 | `SymbolTable` | `Sema/Models/SemanticsModels.swift` | シンボル定義・FQName/ShortName 索引・関数シグネチャ・レイアウト |
 | `TypeSystem` | `Sema/TypeSystem/TypeSystem.swift` | 型の登録・部分型判定・変性・置換 |
-| `NameMangler` | `Codegen/NameMangler.swift` | ABI 安定なマングル名生成 |
+| `NameMangler` | `Sema/NameMangler.swift` | ABI 安定なマングル名生成 |
 | `PhaseTimer` | `Driver/PhaseTimer.swift` | フェーズ実行時間計測 (`-Xfrontend time-phases`) |
 | `IncrementalCompilationCache` | `Driver/IncrementalCompilationCache.swift` | 入力フィンガープリント + build 構成 hash による no-op output artifact 再利用、および file-level frontend state (interner + AST) の復元 |
 
@@ -357,11 +352,11 @@ LLVM 必要: `build`, `smoke-tests`, `CompilerBackendTests`, `KSwiftKCLITests`, 
 
 ### コード生成 / リンクエラーを直す
 
-1. `Codegen/LLVMBackend.swift` — LLVM バックエンド初期化・エラーハンドリング
-2. `Codegen/NativeEmitter.swift` + `NativeEmitter+FunctionEmission.swift` — KIR → LLVM IR エミッション
-3. `Codegen/CodegenPhase.swift` — Codegen フェーズ制御、emit モード分岐
-4. `Codegen/LinkPhase.swift` — リンクコマンド構築、エントリラッパー生成
-5. `Codegen/NameMangler.swift` — シンボル名マングリング
+1. `CompilerBackend/LLVMBackend.swift` — LLVM バックエンド初期化・エラーハンドリング
+2. `CompilerBackend/NativeEmitter.swift` + `NativeEmitter+FunctionEmission.swift` — KIR → LLVM IR エミッション
+3. `CompilerBackend/CodegenPhase.swift` — Codegen フェーズ制御、emit モード分岐
+4. `CompilerBackend/LinkPhase.swift` — リンクコマンド構築、エントリラッパー生成
+5. `CompilerCore/Sema/NameMangler.swift` — シンボル名マングリング
 6. `RuntimeABI/RuntimeABIExterns.swift` — ランタイム ABI extern view
 
 ### ランタイム動作のバグを直す
