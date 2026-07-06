@@ -8,6 +8,10 @@ import Foundation
 /// so lowering even moderately nested expressions there crashes with SIGBUS
 /// (signal 10). Hopping to a thread with a large fixed stack makes recursion
 /// headroom independent of the calling thread.
+///
+/// The caller blocks until the work completes, so a cooperative-pool thread is
+/// occupied for exactly as long as it would have been running the work inline —
+/// the hop trades no parallelism for the larger stack.
 enum LargeStackExecutor {
     /// Virtual allocation only — pages are committed lazily by the kernel.
     private static let stackSize = 64 << 20
