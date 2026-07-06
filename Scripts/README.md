@@ -127,7 +127,8 @@ default). Setting it to a number greater than 1 is deprecated — it prints a
 warning and is treated as `DIFF_WORKERS`.
 
 `DIFF_WORKERS` parallelizes within one machine. To split the case
-set across several machines (CI shards the regression over 4 runners this way),
+set across several machines (CI shards the regression this way; the current
+shard count is the diff-regression matrix in `.github/workflows/ci.yml`),
 use interleaved sharding — case `i` runs only when `i % count == index`:
 
 ```bash
