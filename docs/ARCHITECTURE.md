@@ -22,7 +22,6 @@
 
 ```text
 Package.swift
- +-- CLLVM                (system)      LLVM C API ブリッジ (modulemap)
  +-- RuntimeABI           (target)      Runtime ABI 契約と extern view の共有境界
  +-- CompilerCore         (library)     フロントエンド (Lex〜Lowering)、LLVM 非依存
  +-- CompilerBackend      (library)     バックエンド (Codegen + Link)、LLVM 依存
@@ -37,17 +36,20 @@ Package.swift
 ### 依存グラフ
 
 ```text
-KSwiftKCLI           --> CompilerBackend --> CLLVM, CompilerCore, RuntimeABI
+KSwiftKCLI           --> CompilerBackend --> CompilerCore, RuntimeABI
                          CompilerCore    --> RuntimeABI
 KSwiftLSPCLI         --> LSPServer       --> CompilerCore
 GoldenHarnessWorker  --> GoldenHarnessSupport --> CompilerCore
 CompilerCoreTests    --> CompilerCore, GoldenHarnessSupport, GoldenHarnessWorker
 CompilerBackendTests --> CompilerBackend, CompilerCore
-RuntimeTests         --> RuntimeABI
-RuntimeTestsParallel --> RuntimeABI
+RuntimeTests         --> Runtime, RuntimeABI
+RuntimeTestsParallel --> Runtime, RuntimeABI
+KSwiftKCLITests      --> KSwiftKCLI, CompilerCore
 LSPServerTests       --> LSPServer, CompilerCore
 Runtime (独立 — リンク時に結合)
 ```
+
+LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。
 
 ---
 
@@ -98,8 +100,8 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `CodegenPhase.swift` | KIR → LLVM IR 変換フェーズ |
 | `LinkPhase.swift` | オブジェクト → 実行ファイルリンクフェーズ |
 | `LLVMBackend.swift` | LLVM バックエンドエントリ |
-| `LLVMCAPIBindings.swift` (+分割4ファイル) | LLVM C API の Swift ラッパー |
-| `NativeEmitter.swift` (+分割4ファイル) | ネイティブコード発行 |
+| `LLVMCAPIBindings.swift` (+分割5ファイル) | LLVM C API の Swift ラッパー。`+Loading.swift` が `libLLVM.dylib` / `libLLVM.so` を `dlopen`/`dlsym` で動的ロード |
+| `NativeEmitter.swift` (+分割6ファイル) | ネイティブコード発行 |
 | `CodegenRuntimeSupport.swift` | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
 
@@ -148,13 +150,6 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 |---|---|
 | `RuntimeABISpec.swift` | Runtime ABI 仕様定数と C ヘッダ生成 |
 | `RuntimeABIExterns.swift` | `RuntimeABISpec` から導出される extern 宣言 view |
-
-### `Sources/CLLVM/`
-
-| ファイル | 責務 |
-|---|---|
-| `include/llvm_shim.h` | LLVM C API ヘッダブリッジ |
-| `module.modulemap` | SwiftPM 用モジュールマップ |
 
 ---
 

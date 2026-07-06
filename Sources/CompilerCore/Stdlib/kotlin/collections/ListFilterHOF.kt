@@ -44,7 +44,7 @@ public fun <T : Any> List<T?>.filterNotNull(): List<T> {
     return result
 }
 
-public fun <T> List<T>.filterIndexed(predicate: (index: Int, T) -> Boolean): List<T> {
+public fun <T> List<T>.filterIndexed(predicate: (Int, T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var i = 0
     val sz = size

@@ -89,6 +89,26 @@ struct StringSyntheticMemberLinkTests {
             )
         }
         #expect(
+            !externalLinks(for: "split", sema: sema, interner: interner)
+                .contains("kk_string_split_flat"),
+            "String.split(String) should be source-backed after RF-STDLIB-005"
+        )
+        #expect(
+            externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
+                .contains("kk_string_split_flat"),
+            "String.__kk_string_split should bridge to kk_string_split_flat"
+        )
+        #expect(
+            externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
+                .contains("kk_string_split_limit_flat"),
+            "String.__kk_string_split_limit should bridge to kk_string_split_limit_flat"
+        )
+        #expect(
+            externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
+                .contains("kk_string_splitToSequence_flat"),
+            "String.__kk_string_splitToSequence should bridge to kk_string_splitToSequence_flat"
+        )
+        #expect(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
                 .contains("kk_string_indexOfAny_chars"),
             "CharSequence.indexOfAny(chars, startIndex, ignoreCase) should link to kk_string_indexOfAny_chars"

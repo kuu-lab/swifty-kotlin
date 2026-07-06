@@ -97,7 +97,9 @@ extension DataFlowSemaPhase {
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
             listTypeParamType: listTypeParamType,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
+            collectionInterfaceSymbol: collectionInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerListAggregateMembers(
             symbols: symbols, types: types, interner: interner,

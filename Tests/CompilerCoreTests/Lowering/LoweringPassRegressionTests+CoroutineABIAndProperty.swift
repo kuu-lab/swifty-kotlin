@@ -182,6 +182,72 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
+    func testFlowSymbolPropagationConvergesWhenSymbolExprIsOverwritten() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+
+        let symbolA = SymbolID(rawValue: 820)
+        let symbolB = SymbolID(rawValue: 821)
+        let mainSymbol = SymbolID(rawValue: 822)
+
+        let exprA = arena.appendExpr(.symbolRef(symbolA))
+        let exprB = arena.appendExpr(.symbolRef(symbolB))
+        let lambdaExpr = arena.appendExpr(.symbolRef(SymbolID(rawValue: 823)))
+        let mapResult = arena.appendExpr(.temporary(3))
+
+        let mainFn = KIRFunction(
+            symbol: mainSymbol,
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.nullableAnyType,
+            body: [
+                .constValue(result: exprA, value: .symbolRef(symbolA)),
+                .constValue(result: exprB, value: .symbolRef(symbolB)),
+                .copy(from: exprA, to: exprB),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("map"),
+                    arguments: [exprB, lambdaExpr],
+                    result: mapResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(mapResult),
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(mainFn))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+        let ctx = KIRContext(
+            diagnostics: DiagnosticEngine(),
+            options: CompilerOptions(
+                moduleName: "FlowSymbolPropagationConvergence",
+                inputs: [],
+                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
+                emit: .kirDump,
+                target: defaultTargetTriple()
+            ),
+            interner: interner
+        )
+
+        try CoroutineLoweringPass().run(module: module, ctx: ctx)
+
+        guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
+            Issue.record("expected lowered main function")
+            return
+        }
+        let callees = extractCallees(from: loweredMain.body, interner: interner)
+        #expect(callees.contains("map"))
+        #expect(!callees.contains("kk_flow_emit"))
+    }
+
+    @Test
     func testCreateCoroutineUninterceptedWithoutReceiverLoweringUsesCompletionState() throws {
         let interner = StringInterner()
         let arena = KIRArena()
