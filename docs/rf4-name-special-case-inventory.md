@@ -9,10 +9,8 @@ Baseline command:
 rg -n 'interner\.resolve\([^\n]+\)\s*(==|!=)|((==|!=)\s*interner\.resolve\()' Sources/CompilerCore/Sema/TypeCheck
 ```
 
-On this HEAD the current count is 102 direct comparison lines after the first RF-SEMA-002
-slices. Earlier RF4 notes mentioned 104 and this document previously recorded 110 before
-the first metadata slice; use this document plus the command above as the current
-branch-local source of truth.
+The count drifts as RF-SEMA-002/003 slices land, so no snapshot number is recorded here;
+run the baseline command above to get the current value for the HEAD you are on.
 
 | 機能 | 対応スタブ / 移行先 | スタブ/ソース移行後に削除可能か |
 |---|---|---|
