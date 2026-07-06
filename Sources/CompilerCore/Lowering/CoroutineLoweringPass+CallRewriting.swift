@@ -284,6 +284,12 @@ extension CoroutineLoweringPass {
         for function: KIRFunction,
         callableRefTagFunctionCallee: InternedString
     ) -> [Int32: SymbolID] {
+        // Uses insert-if-absent (not last-write-wins): `to`/`result` can be a
+        // control-flow merge point (e.g. the shared result slot of an if/else
+        // expression) fed by multiple mutually exclusive `.copy` sources.
+        // Overwriting on every mismatch never converges in that case: each
+        // pass flips the slot between the two source symbols forever. See the
+        // identical fix in CoroutineLoweringPass+Flow.swift's symbolByExprRaw.
         var symbolByExprRaw: [Int32: SymbolID] = [:]
         var propagated = true
 
@@ -292,13 +298,13 @@ extension CoroutineLoweringPass {
             for instruction in function.body {
                 switch instruction {
                 case let .constValue(result, .symbolRef(symbol)):
-                    if symbolByExprRaw[result.rawValue] != symbol {
+                    if symbolByExprRaw[result.rawValue] == nil {
                         symbolByExprRaw[result.rawValue] = symbol
                         propagated = true
                     }
                 case let .copy(from, to):
                     if let symbol = symbolByExprRaw[from.rawValue],
-                       symbolByExprRaw[to.rawValue] != symbol
+                       symbolByExprRaw[to.rawValue] == nil
                     {
                         symbolByExprRaw[to.rawValue] = symbol
                         propagated = true
@@ -308,7 +314,7 @@ extension CoroutineLoweringPass {
                           let result,
                           let callableExpr = arguments.first,
                           let symbol = symbolByExprRaw[callableExpr.rawValue],
-                          symbolByExprRaw[result.rawValue] != symbol
+                          symbolByExprRaw[result.rawValue] == nil
                     else {
                         continue
                     }
