@@ -14,7 +14,9 @@ extension DataFlowSemaPhase {
         listFQName: [InternedString],
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
+        listTypeParamType: TypeID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let receiverType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
@@ -215,7 +217,19 @@ extension DataFlowSemaPhase {
         // filterIndexed(predicate: (Int, T) -> Boolean): List<T>
         let filterIndexedName = interner.intern("filterIndexed")
         let filterIndexedFQName = listFQName + [filterIndexedName]
-        if symbols.lookup(fqName: filterIndexedFQName) == nil {
+        if shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: listFQName,
+            name: filterIndexedName,
+            arity: 1
+        ) {
+            skipStats?.recordSkip(
+                ownerFQName: listFQName,
+                name: filterIndexedName,
+                arity: 1,
+                interner: interner
+            )
+        } else if symbols.lookup(fqName: filterIndexedFQName) == nil {
             let predicateType = types.make(.functionType(FunctionType(
                 params: [types.intType, listTypeParamType],
                 returnType: types.booleanType,
