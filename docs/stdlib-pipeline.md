@@ -198,7 +198,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 168 | (c) | Helper-only file for residual comparable registration. |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | 1446 | (b) | M5 comparisons/comparator source migration. |
-| `HeaderHelpers+SyntheticComparisonStubs.swift` | 1083 | (b) | M5 `maxOf`/`minOf` and comparison helpers. |
+| `HeaderHelpers+SyntheticComparisonStubs.swift` | 592 | (b) | M5 top-level `maxOf`/`minOf` source-backed; residual `maxWith`/`minWith`, `compareValues`, and `compareValuesBy` helpers. |
 | `HeaderHelpers+SyntheticConcurrencyStubs.swift` | 186 | (a) | `java.lang.Thread` / JVM-style `kotlin.concurrent.thread`; cleanup candidate. |
 | `HeaderHelpers+SyntheticCoroutineHelpers.swift` | 763 | (c) | Suspend/coroutine compiler/runtime scaffolding; consolidate with coroutine registry. |
 | `HeaderHelpers+SyntheticCoroutineStubs.swift` | 2422 | (c) | `kotlin.coroutines` and supported coroutine runtime surface. |

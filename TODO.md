@@ -71,7 +71,7 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt`
 
 - [x] MIGRATION-COMP-001: Comparator ファクトリ・合成を Kotlin source に移行する（`compareBy`, `compareByDescending`, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`）
-- [ ] MIGRATION-COMP-002: maxOf/minOf 全オーバーロードを Kotlin source に移行する（Comparable版, プリミティブ版, vararg版）
+- [x] MIGRATION-COMP-002: maxOf/minOf 全オーバーロードを Kotlin source に移行する（Comparable版, プリミティブ版, vararg版）
 
 ### Phase M12: kotlin.uuid
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
@@ -511,8 +511,9 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 - [ ] KSP-461: Comparator 群を完遂する（`nullsFirst/Last` 各種, `reversed`, multi-selector `compareBy`×3, `compareValues(By)`×6, `CASE_INSENSITIVE_ORDER`, primitive selector 版）
   - 削除 kk_*: `RuntimeComparator.swift` の残存全関数（trampoline 含む 53 − KSP-309 分。`rg -o '@_cdecl\("kk_(comparator|compareValues|comparable)[a-zA-Z_]*"\)' Sources/Runtime` で列挙）。比較コア `kk_comparable_compareTo` のみ `__kk_` 降格可
-- [ ] KSP-462: maxOf/minOf 全オーバーロードを Kotlin 化 [MIGRATION-COMP-002]（Comparable 版・プリミティブ版・vararg 版）
-  - 対象確認: `rg -ln 'maxOf|minOf' Sources/CompilerCore/Sema/DataFlow` で登録スタブを特定してから着手
+- [x] KSP-462: maxOf/minOf 全オーバーロードを Kotlin 化 [MIGRATION-COMP-002]（Comparable 版・プリミティブ版・vararg 版）
+  - Kotlin source: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt`
+  - 実態確認: top-level `maxOf`/`minOf` は `HeaderHelpers+SyntheticComparisonStubs.swift` から削除済み。collection/sequence member HOF stubs は別タスク。
 
 #### kotlin.random [M7 実行体]
 

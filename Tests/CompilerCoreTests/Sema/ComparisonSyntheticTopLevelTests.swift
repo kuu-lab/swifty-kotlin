@@ -6,7 +6,7 @@ import Testing
 @Suite
 struct ComparisonSyntheticTopLevelTests {
     @Test
-    func testMaxOfAndMinOfResolveToSyntheticComparisonFunctions() throws {
+    func testMaxOfAndMinOfResolveToSourceBackedComparisonFunctions() throws {
         let source = """
         fun sample(): Int {
             val hi = maxOf(3, 7)
@@ -152,7 +152,7 @@ struct ComparisonSyntheticTopLevelTests {
 
     // STDLIB-614: 3-arg minOf / maxOf overloads
     @Test
-    func testThreeArgMaxOfMinOfResolveToSyntheticComparisonFunctions() throws {
+    func testThreeArgMaxOfMinOfResolveToSourceBackedComparisonFunctions() throws {
         let source = """
         fun sample(): Int {
             val hi = maxOf(1, 5, 3)
@@ -264,7 +264,7 @@ struct ComparisonSyntheticTopLevelTests {
     }
 
     @Test
-    func testRemainingMaxOfOverloadsResolveToSyntheticComparisonFunctions() throws {
+    func testRemainingMaxOfOverloadsResolveToSourceBackedComparisonFunctions() throws {
         let source = """
         fun sample() {
             val generic2 = maxOf("b", "a")
@@ -322,9 +322,9 @@ struct ComparisonSyntheticTopLevelTests {
         }
     }
 
-    // STDLIB-COMP-FN-051: minOf unsigned overloads (UByte, UShort, UInt, ULong) resolve to synthetic comparison functions
+    // STDLIB-COMP-FN-051: minOf unsigned overloads (UByte, UShort, UInt, ULong) resolve to source-backed comparison functions
     @Test
-    func testRemainingMinOfUnsignedOverloadsResolveToSyntheticComparisonFunctions() throws {
+    func testRemainingMinOfUnsignedOverloadsResolveToSourceBackedComparisonFunctions() throws {
         let source = """
         fun sample() {
             val unsignedMin2 = minOf(1u, 4000000000u)
@@ -941,7 +941,7 @@ struct ComparisonSyntheticTopLevelTests {
 
     // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte and related unsigned overloads
     @Test
-    func testRemainingMinOfOverloadsResolveToSyntheticComparisonFunctions() throws {
+    func testRemainingMinOfOverloadsResolveToSourceBackedComparisonFunctions() throws {
         let source = """
         fun sample() {
             val generic2 = minOf("b", "a")
