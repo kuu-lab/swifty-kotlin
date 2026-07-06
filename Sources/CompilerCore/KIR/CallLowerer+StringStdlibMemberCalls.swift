@@ -871,18 +871,6 @@ extension CallLowerer {
                         // toByteArray(startIndex, endIndex) — shares the ArrayBox-returning range function with encodeToByteArray.
                         ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     }
-                case "commonPrefixWith":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_commonPrefixWith_ignoreCase", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_commonPrefixWith", [loweredReceiverID, loweredArgIDs[0]])
-                    }
-                case "commonSuffixWith":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_commonSuffixWith_ignoreCase", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_commonSuffixWith", [loweredReceiverID, loweredArgIDs[0]])
-                    }
                 case "removePrefix":
                     ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":

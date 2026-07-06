@@ -182,6 +182,14 @@ final class ObjectLiteralLowerer {
             interner: interner,
             instructions: &instructions
         )
+        appendObjectVtableMethodRegistrations(
+            objectValue: objectValue,
+            nominalSymbol: objectSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
 
         let savedReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         let savedReceiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
@@ -477,6 +485,14 @@ final class ObjectLiteralLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        appendObjectVtableMethodRegistrations(
+            objectValue: objectEntityExpr,
+            nominalSymbol: symbols.nominalSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
         body.append(.returnValue(objectEntityExpr))
         body.append(.endBlock)
 

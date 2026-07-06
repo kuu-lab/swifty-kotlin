@@ -3,7 +3,7 @@ description: Install Swift toolchain and LLVM dev packages; set C_INCLUDE_PATH a
 
 inputs:
   swift-version:
-    description: Swift version string for swift-actions/setup-swift
+    description: Swift version string for SwiftyLab/setup-swift
     required: false
     default: "6.2"
 
@@ -11,7 +11,7 @@ runs:
   using: composite
   steps:
     - name: Install Swift
-      uses: swift-actions/setup-swift@v2.4.0
+      uses: SwiftyLab/setup-swift@v1
       with:
         swift-version: ${{ inputs.swift-version }}
     - name: Install LLVM

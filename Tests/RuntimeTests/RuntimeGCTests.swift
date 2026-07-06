@@ -47,7 +47,7 @@ private func withDummyTypeInfo(_ body: (UnsafeRawPointer) -> Void) {
 
 final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
-    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
+    override class var requiredLockSet: RuntimeLockSet { .gcAndMetadata }
     func testGCCollectsUnreachableAllocation() {
         withDummyTypeInfo { ti in
             _ = kk_alloc(16, ti)
@@ -161,6 +161,37 @@ final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
                 kk_gc_collect()
                 XCTAssertEqual(kk_runtime_heap_object_count(), 0)
                 kk_unregister_global_root(rootSlot)
+            }
+        }
+    }
+
+    func testGCRemovesPerObjectDispatchMetadataForSweptHeapObject() {
+        withDummyTypeInfo { ti in
+            let object = kk_alloc(16, ti)
+            let objectRaw = Int(bitPattern: object)
+            let objectKey = UInt(bitPattern: object)
+            let itableKey = (UInt64(UInt32(2)) << 32) | UInt64(UInt32(3))
+
+            runtimeRegisterObjectType(rawValue: objectRaw, classID: 42)
+            _ = kk_object_register_itable_iface(objectRaw, 7, 2)
+            _ = kk_object_register_itable_method(objectRaw, 2, 3, 0x1000)
+            _ = kk_object_register_vtable_method(objectRaw, 4, 0x2000)
+
+            runtimeStorage.withMetadataLock { state in
+                XCTAssertEqual(state.objectTypeByPointer[objectKey], 42)
+                XCTAssertEqual(state.objectInterfaceSlots[objectKey]?[7], 2)
+                XCTAssertEqual(state.objectItableMethods[objectKey]?[itableKey], 0x1000)
+                XCTAssertEqual(state.objectVtableMethods[objectKey]?[4], 0x2000)
+            }
+
+            kk_gc_collect()
+
+            XCTAssertEqual(kk_runtime_heap_object_count(), 0)
+            runtimeStorage.withMetadataLock { state in
+                XCTAssertNil(state.objectTypeByPointer[objectKey])
+                XCTAssertNil(state.objectInterfaceSlots[objectKey])
+                XCTAssertNil(state.objectItableMethods[objectKey])
+                XCTAssertNil(state.objectVtableMethods[objectKey])
             }
         }
     }

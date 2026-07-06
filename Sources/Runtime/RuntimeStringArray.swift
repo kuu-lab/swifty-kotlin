@@ -1386,6 +1386,27 @@ public func kk_object_register_itable_method(
     return 0
 }
 
+@_cdecl("kk_object_register_vtable_method")
+public func kk_object_register_vtable_method(
+    _ objectRaw: Int,
+    _ methodSlot: Int,
+    _ functionRaw: Int
+) -> Int {
+    guard methodSlot >= 0,
+          functionRaw != 0,
+          let objectPtr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return 0
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    runtimeStorage.withMetadataLock { state in
+        var methods = state.objectVtableMethods[objectKey] ?? [:]
+        methods[methodSlot] = functionRaw
+        state.objectVtableMethods[objectKey] = methods
+    }
+    return 0
+}
+
 @_cdecl("kk_array_get")
 public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
