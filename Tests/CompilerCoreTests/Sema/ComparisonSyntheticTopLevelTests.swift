@@ -47,7 +47,7 @@ struct ComparisonSyntheticTopLevelTests {
     }
 
     @Test
-    func testCompareByAndCompareByDescendingResolveToSyntheticComparisonFunctions() throws {
+    func testCompareByAndCompareByDescendingResolveToBundledStdlibFunctions() throws {
         let source = """
         fun sample() {
             val ascending = compareBy<Int> { it % 10 }
@@ -65,10 +65,7 @@ struct ComparisonSyntheticTopLevelTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            for (name, expectedResolvedName, expectedLink) in [
-                ("compareBy", "compareByPrimitive", "kk_comparator_from_selector_primitive"),
-                ("compareByDescending", "compareByDescendingPrimitive", "kk_comparator_from_selector_primitive_descending"),
-            ] {
+            for name in ["compareBy", "compareByDescending"] {
                 let callExpr = try #require(lastExprID(in: ast) { _, expr in
                         guard case let .call(calleeExpr, _, _, _) = expr,
                               case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
@@ -80,14 +77,14 @@ struct ComparisonSyntheticTopLevelTests {
 
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 let symbol = try #require(sema.symbols.symbol(chosenCallee))
-                #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", expectedResolvedName], "Expected \(name) to resolve to kotlin.comparisons.\(expectedResolvedName)")
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedLink, "Expected \(name) to link to \(expectedLink)")
+                #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", name], "Expected \(name) to resolve to kotlin.comparisons.\(name)")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected \(name) to be source-backed without a runtime comparator link")
             }
         }
     }
 
     @Test
-    func testCompareByDescendingComparatorSelectorResolvesToSyntheticFunction() throws {
+    func testCompareByDescendingComparatorSelectorResolvesToBundledStdlibFunction() throws {
         let source = """
         fun sample() {
             val cmp = compareByDescending<String, Int>(compareBy<Int> { it }) { it.length }
@@ -114,12 +111,14 @@ struct ComparisonSyntheticTopLevelTests {
                 })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_comparator_selector_descending")
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", "compareByDescending"])
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
     }
 
     @Test
-    func testCompareByComparatorSelectorResolvesToSyntheticFunction() throws {
+    func testCompareByComparatorSelectorResolvesToBundledStdlibFunction() throws {
         let source = """
         fun sample() {
             val cmp = compareBy<String, Int>(compareBy<Int> { it }) { it.length }
@@ -146,7 +145,9 @@ struct ComparisonSyntheticTopLevelTests {
                 })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_comparator_from_comparator_selector")
+            let symbol = try #require(sema.symbols.symbol(chosenCallee))
+            #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", "compareBy"])
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
         }
     }
 

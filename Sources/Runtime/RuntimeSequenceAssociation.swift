@@ -478,19 +478,14 @@ private func runtimeSequenceExtremumWith(
 ) -> Int {
     var bestElement: Int?
     var didThrow = false
+    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
     let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: caller, outThrown: outThrown) { elem in
         guard let current = bestElement else {
             bestElement = elem
             return true
         }
         var thrown = 0
-        let comparison = runtimeInvokeCollectionLambda2(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            lhs: elem,
-            rhs: current,
-            outThrown: &thrown
-        )
+        let comparison = comparatorInvoke(elem, current, &thrown)
         if thrown != 0 {
             _ = handleCollectionLambdaThrow(thrown, outThrown)
             didThrow = true

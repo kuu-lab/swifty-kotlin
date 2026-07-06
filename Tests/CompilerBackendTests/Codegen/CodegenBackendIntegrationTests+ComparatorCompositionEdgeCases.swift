@@ -132,11 +132,9 @@ extension CodegenBackendIntegrationTests {
     }
 
     // The 1-arg composition variants (thenByDescending { selector }, thenDescending { a, b -> },
-    // thenComparator { a, b -> }) share the same lowering path as thenBy: the receiver comparator
-    // is expanded into a (trampolineFn, closureRaw) pair before being handed to the runtime
-    // kk_comparator_then_* entry points (STDLIB-COMP-002, #3802). Only thenBy was previously
-    // exercised end-to-end; these tests lock in the fix for the remaining three callees, which
-    // crashed at runtime before the receiver-expansion was added.
+    // thenComparator { a, b -> }) now lower through bundled Kotlin comparator source and are
+    // consumed by sortedWith as Comparator objects. These tests keep the composition behavior
+    // covered after the old kk_comparator_then_* runtime helpers were removed.
 
     func testCodegenCompilesComparatorThenByDescendingSelector() throws {
         let source = """
@@ -239,4 +237,3 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-
