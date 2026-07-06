@@ -76,18 +76,21 @@ extension ExprTypeChecker {
 
         var directSuperSymbols: [SymbolID] = []
         directSuperSymbols.reserveCapacity(superTypes.count)
+        var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
         for superTypeRef in superTypes {
             let resolved = driver.helpers.resolveTypeRef(
                 superTypeRef,
                 ast: ast,
                 sema: sema,
                 interner: interner,
+                scope: ctx.scope,
                 diagnostics: ctx.semaCtx.diagnostics
             )
             if case let .classType(classType) = sema.types.kind(of: resolved),
                !directSuperSymbols.contains(classType.classSymbol)
             {
                 directSuperSymbols.append(classType.classSymbol)
+                directSuperTypeArgs[classType.classSymbol] = classType.args
             }
         }
         let concreteClassSupers = directSuperSymbols.filter { symbolID in
@@ -112,6 +115,11 @@ extension ExprTypeChecker {
             )
         }
         sema.symbols.setDirectSupertypes(directSuperSymbols, for: objectSymbol)
+        sema.types.setNominalDirectSupertypes(directSuperSymbols, for: objectSymbol)
+        for (superSymbol, args) in directSuperTypeArgs {
+            sema.symbols.setSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
+            sema.types.setNominalSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
+        }
 
         var propertySymbolsByDecl: [DeclID: SymbolID] = [:]
         for propertyDeclID in objectDecl.memberProperties {
@@ -143,7 +151,10 @@ extension ExprTypeChecker {
                     ast: ast,
                     sema: sema,
                     interner: interner,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    scope: ctx.scope,
+                    diagnostics: ctx.semaCtx.diagnostics,
+                    inferenceContext: ctx,
+                    usageRange: propertyDecl.range
                 )
             } ?? sema.types.anyType
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
@@ -155,8 +166,28 @@ extension ExprTypeChecker {
             args: [],
             nullability: .nonNull
         )))
-        var objectCtx = ctx.with(implicitReceiverType: objectType)
-        objectCtx = objectCtx.with(enclosingClassSymbol: objectSymbol)
+        let objectScope = ClassMemberScope(
+            parent: ctx.scope,
+            symbols: sema.symbols,
+            ownerSymbol: objectSymbol,
+            thisType: objectType
+        )
+        for propertySymbol in propertySymbolsByDecl.values {
+            objectScope.insert(propertySymbol)
+        }
+        let memberFunctionSymbolsByDecl = collectObjectLiteralMemberFunctions(
+            objectDecl.memberFunctions,
+            objectDecl: objectDecl,
+            objectSymbol: objectSymbol,
+            objectType: objectType,
+            objectScope: objectScope,
+            ctx: ctx
+        )
+        let objectCtx = ctx.copying(
+            scope: objectScope,
+            implicitReceiverType: objectType,
+            enclosingClassSymbol: objectSymbol
+        )
 
         for propertyDeclID in objectDecl.memberProperties {
             guard let propertySymbol = propertySymbolsByDecl[propertyDeclID],
@@ -172,7 +203,10 @@ extension ExprTypeChecker {
                     ast: ast,
                     sema: sema,
                     interner: interner,
-                    diagnostics: ctx.semaCtx.diagnostics
+                    scope: objectScope,
+                    diagnostics: ctx.semaCtx.diagnostics,
+                    inferenceContext: objectCtx,
+                    usageRange: propertyDecl.range
                 )
             }
 
@@ -213,6 +247,22 @@ extension ExprTypeChecker {
                 finalType = sema.types.errorType
             }
             sema.symbols.setPropertyType(finalType, for: propertySymbol)
+        }
+
+        for functionDeclID in objectDecl.memberFunctions {
+            guard let functionSymbol = memberFunctionSymbolsByDecl[functionDeclID],
+                  let decl = ast.arena.decl(functionDeclID),
+                  case let .funDecl(functionDecl) = decl
+            else {
+                continue
+            }
+            driver.declChecker.typeCheckFunctionDecl(
+                functionDecl,
+                symbol: functionSymbol,
+                ctx: objectCtx.with(currentDeclSymbol: functionSymbol),
+                solver: driver.solver,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
         }
 
         let superClass = directSuperSymbols.first { superSymbol in
@@ -259,5 +309,92 @@ extension ExprTypeChecker {
             for: objectSymbol
         )
         return objectSymbol
+    }
+
+    private func collectObjectLiteralMemberFunctions(
+        _ memberFunctions: [DeclID],
+        objectDecl: ObjectDecl,
+        objectSymbol: SymbolID,
+        objectType: TypeID,
+        objectScope: ClassMemberScope,
+        ctx: TypeInferenceContext
+    ) -> [DeclID: SymbolID] {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
+        var result: [DeclID: SymbolID] = [:]
+
+        for functionDeclID in memberFunctions {
+            guard let decl = ast.arena.decl(functionDeclID),
+                  case let .funDecl(functionDecl) = decl
+            else {
+                continue
+            }
+
+            let memberSymbol = sema.symbols.define(
+                kind: .function,
+                name: functionDecl.name,
+                fqName: [objectDecl.name, functionDecl.name],
+                declSite: functionDecl.range,
+                visibility: objectLiteralVisibility(from: functionDecl.modifiers),
+                flags: objectLiteralFunctionFlags(from: functionDecl)
+            )
+            sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
+            sema.symbols.setParentSymbol(objectSymbol, for: memberSymbol)
+            sema.symbols.setSourceFileID(ctx.currentFileID, for: memberSymbol)
+            objectScope.insert(memberSymbol)
+
+            let returnType: TypeID
+            if let returnTypeRef = functionDecl.returnType {
+                returnType = driver.helpers.resolveTypeRef(
+                    returnTypeRef,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner,
+                    scope: objectScope,
+                    diagnostics: ctx.semaCtx.diagnostics,
+                    inferenceContext: ctx
+                )
+            } else {
+                switch functionDecl.body {
+                case .unit, .block:
+                    returnType = sema.types.unitType
+                case .expr:
+                    returnType = sema.types.anyType
+                }
+            }
+
+            sema.symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: objectType,
+                    parameterTypes: [],
+                    returnType: returnType,
+                    isSuspend: functionDecl.isSuspend
+                ),
+                for: memberSymbol
+            )
+            result[functionDeclID] = memberSymbol
+        }
+
+        return result
+    }
+
+    private func objectLiteralVisibility(from modifiers: Modifiers) -> Visibility {
+        if modifiers.contains(.private) { return .private }
+        if modifiers.contains(.internal) { return .internal }
+        if modifiers.contains(.protected) { return .protected }
+        return .public
+    }
+
+    private func objectLiteralFunctionFlags(from functionDecl: FunDecl) -> SymbolFlags {
+        var flags: SymbolFlags = [.synthetic]
+        if functionDecl.isSuspend { flags.insert(.suspendFunction) }
+        if functionDecl.isInline { flags.insert(.inlineFunction) }
+        if functionDecl.modifiers.contains(.operator) { flags.insert(.operatorFunction) }
+        if functionDecl.modifiers.contains(.override) { flags.insert(.overrideMember) }
+        if functionDecl.modifiers.contains(.abstract) { flags.insert(.abstractType) }
+        if functionDecl.modifiers.contains(.open) { flags.insert(.openType) }
+        if functionDecl.modifiers.contains(.final) { flags.insert(.finalMember) }
+        return flags
     }
 }

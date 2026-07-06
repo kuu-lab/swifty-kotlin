@@ -78,6 +78,99 @@ func appendObjectVtableMethodRegistrations(
     }
 }
 
+func appendObjectItableMethodRegistrations(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
+        return
+    }
+
+    let intType = sema.types.intType
+    let interfaceSupertypes = sema.symbols.directSupertypes(for: nominalSymbol).filter { superSymbol in
+        sema.symbols.symbol(superSymbol)?.kind == .interface
+    }
+    for interfaceSymbol in interfaceSupertypes {
+        guard let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol) else {
+            continue
+        }
+
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: interfaceSymbol,
+            sema: sema,
+            interner: interner
+        )
+        let interfaceTypeExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: intType)
+        instructions.append(.constValue(result: interfaceTypeExpr, value: .intLiteral(interfaceTypeID)))
+
+        let ifaceSlot = Int64(objectLayout.itableSlots[interfaceSymbol] ?? 0)
+        let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
+        instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
+
+        let registerIfaceResult = arena.appendTemporary(type: intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_object_register_itable_iface"),
+            arguments: [objectValue, interfaceTypeExpr, ifaceSlotExpr],
+            result: registerIfaceResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots {
+            let implementationSymbol = kirFindOverrideMethod(
+                for: methodSymbol,
+                in: nominalSymbol,
+                sema: sema
+            ) ?? methodSymbol
+            let methodSlot = Int64(methodSlotInt)
+            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
+            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
+
+            let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
+
+            let registerMethodResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_object_register_itable_method"),
+                arguments: [objectValue, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
+                result: registerMethodResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+}
+
+func kirFindOverrideMethod(
+    for interfaceMethod: SymbolID,
+    in nominalSymbol: SymbolID,
+    sema: SemaModule
+) -> SymbolID? {
+    guard let methodSym = sema.symbols.symbol(interfaceMethod),
+          let ownerSym = sema.symbols.symbol(nominalSymbol)
+    else {
+        return nil
+    }
+
+    let overrideFQName = ownerSym.fqName + [methodSym.name]
+    for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+        guard let candidateSym = sema.symbols.symbol(candidate),
+              candidateSym.kind == .function,
+              sema.symbols.parentSymbol(for: candidate) == nominalSymbol
+        else {
+            continue
+        }
+        return candidate
+    }
+    return nil
+}
+
 private func kirNominalDistance(
     from nominalSymbol: SymbolID,
     to targetSymbol: SymbolID,
