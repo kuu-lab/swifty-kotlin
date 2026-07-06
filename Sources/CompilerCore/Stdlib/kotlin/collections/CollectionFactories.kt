@@ -5,127 +5,105 @@ import kotlin.internal.KsSymbolName
 // MIGRATION-COL-001
 // Collection factory functions.
 // Migration source: Sources/Runtime/RuntimeCollections.swift, RuntimeSetAndMap.swift
-//
-// NOTE: Not yet wired into the compiler pipeline (RF-STDLIB-004+).
-// CollectionLiteralLoweringPass still intercepts all factory call sites and
-// rewrites them to kk_* ABI calls. This file is the migration target; wiring
-// (and removal of sema stubs STDLIB-410) happens in RF-STDLIB-004+.
 
-// ─── ABI bridges ─────────────────────────────────────────────────────────────
+// --- ABI bridges -------------------------------------------------------------
 //
 // These map directly to @_cdecl functions in RuntimeCollections.swift and
 // RuntimeSetAndMap.swift. Each external declaration matches the Swift-side
 // parameter layout: null array + count=0 produces a fresh mutable collection.
 
 @KsSymbolName("kk_emptyList")
-private external fun kk_emptyList(): List<Nothing>
+private external fun <T> __kk_emptyList(): List<T>
 
 @KsSymbolName("kk_list_of")
-private external fun kk_list_of(array: Any?, count: Int): MutableList<Any?>
+private external fun <T> __kk_list_of(array: Any?, count: Int): MutableList<T>
 
 @KsSymbolName("kk_emptySet")
-private external fun kk_emptySet(): Set<Nothing>
+private external fun <T> __kk_emptySet(): Set<T>
 
 @KsSymbolName("kk_set_of")
-private external fun kk_set_of(array: Any?, count: Int): MutableSet<Any?>
+private external fun <T> __kk_set_of(array: Any?, count: Int): MutableSet<T>
 
 @KsSymbolName("kk_emptyMap")
-private external fun kk_emptyMap(): Map<Nothing, Nothing>
+private external fun <K, V> __kk_emptyMap(): Map<K, V>
 
 @KsSymbolName("kk_map_of")
-private external fun kk_map_of(keys: Any?, values: Any?, count: Int): MutableMap<Any?, Any?>
+private external fun <K, V> __kk_map_of_readonly(keys: Any?, values: Any?, count: Int): Map<K, V>
 
-// ─── emptyList / emptySet / emptyMap ─────────────────────────────────────────
+@KsSymbolName("kk_map_of")
+private external fun <K, V> __kk_map_of_mutable(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
 
-@Suppress("UNCHECKED_CAST")
-public fun <T> emptyList(): List<T> = kk_emptyList() as List<T>
+// --- emptyList / emptySet / emptyMap -----------------------------------------
 
-@Suppress("UNCHECKED_CAST")
-public fun <T> emptySet(): Set<T> = kk_emptySet() as Set<T>
+public fun <T> emptyList(): List<T> = __kk_emptyList()
 
-@Suppress("UNCHECKED_CAST")
-public fun <K, V> emptyMap(): Map<K, V> = kk_emptyMap() as Map<K, V>
+public fun <T> emptySet(): Set<T> = __kk_emptySet()
 
-// ─── List factories ──────────────────────────────────────────────────────────
+public fun <K, V> emptyMap(): Map<K, V> = __kk_emptyMap()
+
+// --- List factories ----------------------------------------------------------
 
 public fun <T> listOf(): List<T> = emptyList()
 
-public fun <T> listOf(vararg elements: T): List<T> {
-    if (elements.size == 0) return emptyList()
-    val result = mutableListOf<T>()
-    var i = 0
-    while (i < elements.size) {
-        result.add(elements[i])
-        i++
-    }
-    return result
-}
+public fun <T> listOf(vararg elements: T): List<T> = elements
 
-@Suppress("UNCHECKED_CAST")
-public fun <T> mutableListOf(): MutableList<T> = kk_list_of(null, 0) as MutableList<T>
+public fun <T> mutableListOf(): MutableList<T> = __kk_list_of(null, 0)
 
 public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
-    val result = mutableListOf<T>()
-    var i = 0
-    while (i < elements.size) {
-        result.add(elements[i])
-        i++
+    val result: MutableList<T> = __kk_list_of(null, 0)
+    for (element in elements) {
+        result.add(element)
     }
     return result
 }
 
-// ─── Set factories ───────────────────────────────────────────────────────────
+// --- Set factories -----------------------------------------------------------
 
 public fun <T> setOf(): Set<T> = emptySet()
 
 public fun <T> setOf(vararg elements: T): Set<T> {
-    if (elements.size == 0) return emptySet()
-    val result = mutableSetOf<T>()
-    var i = 0
-    while (i < elements.size) {
-        result.add(elements[i])
-        i++
+    if (elements.size == 0) return emptySet<T>()
+    val result: MutableSet<T> = __kk_set_of(null, 0)
+    for (element in elements) {
+        result.add(element)
     }
     return result
 }
 
-@Suppress("UNCHECKED_CAST")
-public fun <T> mutableSetOf(): MutableSet<T> = kk_set_of(null, 0) as MutableSet<T>
+public fun <T> mutableSetOf(): MutableSet<T> = __kk_set_of(null, 0)
 
 public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
-    val result = mutableSetOf<T>()
-    var i = 0
-    while (i < elements.size) {
-        result.add(elements[i])
-        i++
+    val result: MutableSet<T> = __kk_set_of(null, 0)
+    for (element in elements) {
+        result.add(element)
     }
     return result
 }
 
-// ─── Map factories ───────────────────────────────────────────────────────────
+// --- Map factories -----------------------------------------------------------
 
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
 
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
-    if (pairs.size == 0) return emptyMap()
-    val result = mutableMapOf<K, V>()
-    var i = 0
-    while (i < pairs.size) {
-        result[pairs[i].first] = pairs[i].second
-        i++
+    if (pairs.size == 0) return emptyMap<K, V>()
+    val count = pairs.size
+    val keys = arrayOfNulls<Any?>(count)
+    val values = arrayOfNulls<Any?>(count)
+    var index = 0
+    for (pair in pairs) {
+        keys[index] = pair.first
+        values[index] = pair.second
+        index += 1
     }
-    return result
+    return __kk_map_of_readonly(keys, values, count)
 }
 
-@Suppress("UNCHECKED_CAST")
-public fun <K, V> mutableMapOf(): MutableMap<K, V> = kk_map_of(null, null, 0) as MutableMap<K, V>
+public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_map_of_mutable(null, null, 0)
 
 public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
-    val result = mutableMapOf<K, V>()
-    var i = 0
-    while (i < pairs.size) {
-        result[pairs[i].first] = pairs[i].second
-        i++
+    val result: MutableMap<K, V> = __kk_map_of_mutable(null, null, 0)
+    for (pair in pairs) {
+        result[pair.first] = pair.second
     }
     return result
 }

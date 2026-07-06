@@ -158,10 +158,10 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
-    // MARK: - listOf rewriting
+    // MARK: - listOf preservation
 
     @Test
-    func testListOfRewrittenToKkListOf() throws {
+    func testListOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("listOf")
@@ -171,12 +171,12 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("listOf"), "listOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "listOf should become kk_list_of")
+        #expect(callees.contains("listOf"), "listOf should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_list_of"), "listOf should not be directly rewritten to kk_list_of")
     }
 
     @Test
-    func testMutableListOfRewrittenToKkListOf() throws {
+    func testMutableListOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -186,8 +186,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mutableListOf"), "mutableListOf should be rewritten")
-        #expect(callees.contains("kk_list_of"), "mutableListOf should become kk_list_of")
+        #expect(callees.contains("mutableListOf"), "mutableListOf should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_list_of"), "mutableListOf should not be directly rewritten to kk_list_of")
     }
 
     @Test
@@ -206,7 +206,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testEmptyListRewrittenToKkListOf() throws {
+    func testEmptyListPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("emptyList")
@@ -216,8 +216,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("emptyList"), "emptyList should be rewritten")
-        #expect(callees.contains("kk_emptyList"), "emptyList should become kk_emptyList")
+        #expect(callees.contains("emptyList"), "emptyList should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_emptyList"), "emptyList should not be directly rewritten to kk_emptyList")
     }
 
     @Test
@@ -238,7 +238,7 @@ struct CollectionLiteralLoweringTests {
     // MARK: - mapOf rewriting
 
     @Test
-    func testMapOfRewrittenToKkMapOf() throws {
+    func testMapOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         // mapOf rewrites each argument as a Pair; argument count becomes the entry count
@@ -265,8 +265,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(callees.contains("mapOf"), "mapOf should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_map_of"), "mapOf should not be directly rewritten to kk_map_of")
     }
 
     @Test
@@ -328,7 +328,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testEmptyMapRewrittenToKkMapOf() throws {
+    func testEmptyMapPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("emptyMap")
@@ -338,8 +338,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("emptyMap"), "emptyMap should be rewritten")
-        #expect(callees.contains("kk_emptyMap"), "emptyMap should become kk_emptyMap")
+        #expect(callees.contains("emptyMap"), "emptyMap should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_emptyMap"), "emptyMap should not be directly rewritten to kk_emptyMap")
     }
 
     @Test
@@ -388,9 +388,9 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(callees.contains("mapOf"), "mapOf should be preserved for the Kotlin source factory")
         #expect(!callees.contains("count"), "map.count should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(!callees.contains("kk_map_of"), "mapOf should not be directly rewritten to kk_map_of")
         #expect(callees.contains("kk_map_count"), "count on map should become kk_map_count")
     }
 
@@ -439,9 +439,9 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(callees.contains("mapOf"), "mapOf should be preserved for the Kotlin source factory")
         #expect(!callees.contains("any"), "map.any should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(!callees.contains("kk_map_of"), "mapOf should not be directly rewritten to kk_map_of")
         #expect(callees.contains("kk_map_any"), "any on map should become kk_map_any")
     }
 
@@ -490,9 +490,9 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(callees.contains("mapOf"), "mapOf should be preserved for the Kotlin source factory")
         #expect(!callees.contains("all"), "map.all should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(!callees.contains("kk_map_of"), "mapOf should not be directly rewritten to kk_map_of")
         #expect(callees.contains("kk_map_all"), "all on map should become kk_map_all")
     }
 
@@ -541,16 +541,16 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
+        #expect(callees.contains("mapOf"), "mapOf should be preserved for the Kotlin source factory")
         #expect(!callees.contains("none"), "map.none should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mapOf should become kk_map_of")
+        #expect(!callees.contains("kk_map_of"), "mapOf should not be directly rewritten to kk_map_of")
         #expect(callees.contains("kk_map_none"), "none on map should become kk_map_none")
     }
 
-    // MARK: - emptySet rewriting
+    // MARK: - emptySet preservation
 
     @Test
-    func testEmptySetRewrittenToKkSetOf() throws {
+    func testEmptySetPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("emptySet")
@@ -560,14 +560,14 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("emptySet"), "emptySet should be rewritten")
-        #expect(callees.contains("kk_emptySet"), "emptySet should become kk_emptySet")
+        #expect(callees.contains("emptySet"), "emptySet should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_emptySet"), "emptySet should not be directly rewritten to kk_emptySet")
     }
 
-    // MARK: - Zero-arg factory rewriting
+    // MARK: - Zero-arg source factory preservation
 
     @Test
-    func testZeroArgListOfRewrittenToKkEmptyList() throws {
+    func testZeroArgListOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("listOf")
@@ -577,12 +577,12 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("listOf"), "listOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptyList"), "listOf() should become kk_emptyList")
+        #expect(callees.contains("listOf"), "listOf() should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_emptyList"), "listOf() should not be directly rewritten to kk_emptyList")
     }
 
     @Test
-    func testZeroArgSetOfRewrittenToKkEmptySet() throws {
+    func testZeroArgSetOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("setOf")
@@ -592,12 +592,12 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("setOf"), "setOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptySet"), "setOf() should become kk_emptySet")
+        #expect(callees.contains("setOf"), "setOf() should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_emptySet"), "setOf() should not be directly rewritten to kk_emptySet")
     }
 
     @Test
-    func testZeroArgMapOfRewrittenToKkEmptyMap() throws {
+    func testZeroArgMapOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mapOf")
@@ -607,14 +607,14 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mapOf"), "mapOf() with zero args should be rewritten")
-        #expect(callees.contains("kk_emptyMap"), "mapOf() should become kk_emptyMap")
+        #expect(callees.contains("mapOf"), "mapOf() should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_emptyMap"), "mapOf() should not be directly rewritten to kk_emptyMap")
     }
 
-    // MARK: - Zero-arg mutable factory rewriting
+    // MARK: - Zero-arg mutable source factory preservation
 
     @Test
-    func testZeroArgMutableListOfRewrittenToKkListOf() throws {
+    func testZeroArgMutableListOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -624,8 +624,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
-        #expect(callees.contains("kk_list_of"), "mutableListOf() should become kk_list_of (fresh mutable)")
+        #expect(callees.contains("mutableListOf"), "mutableListOf() should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_list_of"), "mutableListOf() should not be directly rewritten to kk_list_of")
     }
 
     @Test
@@ -644,7 +644,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testZeroArgMutableSetOfRewrittenToKkSetOf() throws {
+    func testZeroArgMutableSetOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableSetOf")
@@ -654,8 +654,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mutableSetOf"), "mutableSetOf() should be rewritten")
-        #expect(callees.contains("kk_set_of"), "mutableSetOf() should become kk_set_of (fresh mutable)")
+        #expect(callees.contains("mutableSetOf"), "mutableSetOf() should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_set_of"), "mutableSetOf() should not be directly rewritten to kk_set_of")
     }
 
     @Test
@@ -689,7 +689,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testZeroArgMutableMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgMutableMapOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableMapOf")
@@ -699,8 +699,8 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
-        #expect(callees.contains("kk_map_of"), "mutableMapOf() should become kk_map_of (fresh mutable)")
+        #expect(callees.contains("mutableMapOf"), "mutableMapOf() should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_map_of"), "mutableMapOf() should not be directly rewritten to kk_map_of")
     }
 
     @Test
@@ -733,10 +733,10 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("kk_map_of"), "hashMapOf() should become kk_map_of (fresh mutable)")
     }
 
-    // MARK: - setOf rewriting
+    // MARK: - setOf preservation
 
     @Test
-    func testSetOfRewrittenToKkSetOf() throws {
+    func testSetOfPreservedForSourceFactory() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let v0 = arena.appendExpr(.temporary(0))
@@ -761,9 +761,9 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("setOf"), "setOf should be rewritten")
-        #expect(callees.contains("kk_set_of"),
-                      "setOf should be rewritten to kk_set_of, got: \(callees)")
+        #expect(callees.contains("setOf"), "setOf should be preserved for the Kotlin source factory")
+        #expect(!callees.contains("kk_set_of"),
+                      "setOf should not be directly rewritten to kk_set_of, got: \(callees)")
     }
 
     @Test
