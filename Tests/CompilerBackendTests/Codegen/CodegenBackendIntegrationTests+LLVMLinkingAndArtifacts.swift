@@ -473,7 +473,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatIndentRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendUsesSourceBackedIndentCallsForStringOverloads() throws {
         let source = """
         fun main() {
             val value = "  alpha\\n  beta"
@@ -504,7 +504,7 @@ extension CodegenBackendIntegrationTests {
             let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
+            let runtimeNames = [
                 "kk_string_trimIndent",
                 "kk_string_trimMargin_default",
                 "kk_string_trimMargin",
@@ -513,12 +513,6 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_default",
                 "kk_string_replaceIndent",
                 "kk_string_replaceIndentByMargin",
-            ]
-            for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String indent call: \(rawName)")
-            }
-
-            let flatNames = [
                 "kk_string_trimIndent_flat",
                 "kk_string_trimMargin_default_flat",
                 "kk_string_trimMargin_flat",
@@ -528,8 +522,11 @@ extension CodegenBackendIntegrationTests {
                 "kk_string_replaceIndent_flat",
                 "kk_string_replaceIndentByMargin_flat",
             ]
-            for flatName in flatNames {
-                XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String indent call: \(flatName)")
+            for runtimeName in runtimeNames {
+                XCTAssertFalse(
+                    ir.contains("@\(runtimeName)"),
+                    "String indent formatting should lower through bundled Kotlin source, not \(runtimeName)"
+                )
             }
         }
     }

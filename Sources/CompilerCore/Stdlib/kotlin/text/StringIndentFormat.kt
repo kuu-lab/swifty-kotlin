@@ -5,11 +5,29 @@ import kswiftk.internal.*
 // String indent and format functions migrated from Swift Runtime
 // MIGRATION-TEXT-006
 
+private fun String.normalizeLineSeparators(): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < __string_struct_get_length(this)) {
+        val c = this[i]
+        if (c == '\r') {
+            sb.append('\n')
+            if (i + 1 < __string_struct_get_length(this) && this[i + 1] == '\n') {
+                i++
+            }
+        } else {
+            sb.append(c)
+        }
+        i++
+    }
+    return sb.toString()
+}
+
 private fun String.splitIntoLines(): List<String> {
-    val src = replace("\r\n", "\n").replace("\r", "\n")
+    val src = normalizeLineSeparators()
     val result = mutableListOf<String>()
     var start = 0
-    while (start < __string_struct_get_length(src)) {
+    while (start <= __string_struct_get_length(src)) {
         val idx = src.indexOf("\n", start)
         if (idx == -1) {
             result.add(src.substring(start))
