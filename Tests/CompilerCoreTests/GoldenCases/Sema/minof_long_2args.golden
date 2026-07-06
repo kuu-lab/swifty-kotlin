@@ -1,9 +1,6 @@
 symbol fq=golden.sema.minOfLongTwoArg kind=function vis=public flags=_ sig=recv=_ params=[Long,Long] ret=Long
 symbol fq=golden.sema.minOfLongTwoArg.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.minOfLongTwoArg.$0.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#9 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Long,Long] ret=Long
-symbol fq=kotlin.comparisons.minOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$1.b kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.minOfLongTwoArg fun minOfLongTwoArg sym=golden.sema.minOfLongTwoArg
 expr e@3:53 name(a) type=Long ref=golden.sema.minOfLongTwoArg.$0.a

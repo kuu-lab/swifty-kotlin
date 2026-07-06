@@ -2,10 +2,6 @@ symbol fq=golden.sema.threeArgMaxDouble kind=function vis=public flags=_ sig=rec
 symbol fq=golden.sema.threeArgMaxDouble.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMaxDouble.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMaxDouble.$0.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf#2 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Double,Double,Double] ret=Double
-symbol fq=kotlin.comparisons.maxOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$1.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$1.c kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.threeArgMaxDouble fun threeArgMaxDouble sym=golden.sema.threeArgMaxDouble
 expr e@3:72 name(a) type=Double ref=golden.sema.threeArgMaxDouble.$0.a

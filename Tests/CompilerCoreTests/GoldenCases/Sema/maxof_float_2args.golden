@@ -1,9 +1,6 @@
 symbol fq=golden.sema.maxOfFloatTwoArg kind=function vis=public flags=_ sig=recv=_ params=[Float,Float] ret=Float
 symbol fq=golden.sema.maxOfFloatTwoArg.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.maxOfFloatTwoArg.$0.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf#3 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Float,Float] ret=Float
-symbol fq=kotlin.comparisons.maxOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$1.b kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.maxOfFloatTwoArg fun maxOfFloatTwoArg sym=golden.sema.maxOfFloatTwoArg
 expr e@3:57 name(a) type=Float ref=golden.sema.maxOfFloatTwoArg.$0.a

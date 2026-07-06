@@ -3,9 +3,6 @@ symbol fq=golden.sema.varargMaxByte.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMaxByte.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMaxByte.$0.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.varargMaxByte.$0.d kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf#7 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Int,Int] ret=Int vararg=[0,1]
-symbol fq=kotlin.comparisons.maxOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$1.other kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.varargMaxByte fun varargMaxByte sym=golden.sema.varargMaxByte
 expr e@3:69 name(a) type=Int ref=golden.sema.varargMaxByte.$0.a

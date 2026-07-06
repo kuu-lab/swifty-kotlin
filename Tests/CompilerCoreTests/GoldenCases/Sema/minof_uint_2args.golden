@@ -1,9 +1,6 @@
 symbol fq=golden.sema.twoArgMinUInt kind=function vis=public flags=_ sig=recv=_ params=[UInt,UInt] ret=UInt
 symbol fq=golden.sema.twoArgMinUInt.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.twoArgMinUInt.$0.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#15 kind=function vis=public flags=inlineFunction sig=recv=_ params=[UInt,UInt] ret=UInt
-symbol fq=kotlin.comparisons.minOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$1.b kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.twoArgMinUInt fun twoArgMinUInt sym=golden.sema.twoArgMinUInt
 expr e@3:51 name(a) type=UInt ref=golden.sema.twoArgMinUInt.$0.a

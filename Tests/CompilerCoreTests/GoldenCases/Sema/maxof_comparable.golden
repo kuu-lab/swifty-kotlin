@@ -7,18 +7,6 @@ symbol fq=golden.sema.maxOf3ArgString.$1.b kind=valueParameter vis=private flags
 symbol fq=golden.sema.maxOf3ArgString.$1.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.maxOfVarargString kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=kotlin.Comparable kind=interface vis=public flags=synthetic
-symbol fq=kotlin.comparisons.maxOf#24 kind=function vis=public flags=inlineFunction sig=recv=_ params=[kotlin.comparisons.maxOf.$2.T,kotlin.comparisons.maxOf.$2.T] ret=kotlin.comparisons.maxOf.$2.T bounds=[kotlin.Comparable<kotlin.comparisons.maxOf.$2.T>]
-symbol fq=kotlin.comparisons.maxOf#25 kind=function vis=public flags=inlineFunction sig=recv=_ params=[kotlin.comparisons.maxOf.$3.T,kotlin.comparisons.maxOf.$3.T,kotlin.comparisons.maxOf.$3.T] ret=kotlin.comparisons.maxOf.$3.T bounds=[kotlin.Comparable<kotlin.comparisons.maxOf.$3.T>]
-symbol fq=kotlin.comparisons.maxOf#26 kind=function vis=public flags=inlineFunction sig=recv=_ params=[kotlin.comparisons.maxOf.$4.T] ret=kotlin.comparisons.maxOf.$4.T vararg=[1] bounds=[kotlin.Comparable<kotlin.comparisons.maxOf.$4.T>]
-symbol fq=kotlin.comparisons.maxOf.$2.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$2.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$2.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$3.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$3.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$3.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$3.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$4.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$4.values kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.maxOf2ArgString fun maxOf2ArgString sym=golden.sema.maxOf2ArgString
   decl golden.sema.maxOf3ArgString fun maxOf3ArgString sym=golden.sema.maxOf3ArgString

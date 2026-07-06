@@ -2,10 +2,6 @@ symbol fq=golden.sema.threeArgMinFloat kind=function vis=public flags=_ sig=recv
 symbol fq=golden.sema.threeArgMinFloat.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMinFloat.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.threeArgMinFloat.$0.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#5 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Float,Float,Float] ret=Float
-symbol fq=kotlin.comparisons.minOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$1.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$1.c kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.threeArgMinFloat fun threeArgMinFloat sym=golden.sema.threeArgMinFloat
 expr e@3:67 name(a) type=Float ref=golden.sema.threeArgMinFloat.$0.a

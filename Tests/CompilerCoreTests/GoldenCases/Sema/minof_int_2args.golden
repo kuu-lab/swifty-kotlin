@@ -1,9 +1,6 @@
 symbol fq=golden.sema.minOfIntTwoArg kind=function vis=public flags=_ sig=recv=_ params=[Int,Int] ret=Int
 symbol fq=golden.sema.minOfIntTwoArg.$0.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.minOfIntTwoArg.$0.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#6 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Int,Int] ret=Int
-symbol fq=kotlin.comparisons.minOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$1.b kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.minOfIntTwoArg fun minOfIntTwoArg sym=golden.sema.minOfIntTwoArg
 expr e@3:49 name(a) type=Int ref=golden.sema.minOfIntTwoArg.$0.a

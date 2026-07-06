@@ -3,9 +3,6 @@ symbol fq=golden.sema.minOfULongVararg.$0.a kind=valueParameter vis=private flag
 symbol fq=golden.sema.minOfULongVararg.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.minOfULongVararg.$0.c kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.minOfULongVararg.$0.d kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#19 kind=function vis=public flags=inlineFunction sig=recv=_ params=[ULong,ULong] ret=ULong vararg=[0,1]
-symbol fq=kotlin.comparisons.minOf.$1.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$1.other kind=valueParameter vis=private flags=_
 file f0 package=golden.sema
   decl golden.sema.minOfULongVararg fun minOfULongVararg sym=golden.sema.minOfULongVararg
 expr e@3:77 name(a) type=ULong ref=golden.sema.minOfULongVararg.$0.a

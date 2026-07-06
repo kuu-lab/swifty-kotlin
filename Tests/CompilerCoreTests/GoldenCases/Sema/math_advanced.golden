@@ -14,14 +14,6 @@ symbol fq=golden.sema.testMinOf3 kind=function vis=public flags=_ sig=recv=_ par
 symbol fq=golden.sema.testMinOf3.$4.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testMinOf3.$4.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testMinOf3.$4.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf#8 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=kotlin.comparisons.maxOf.$5.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$5.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf.$5.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf#8 kind=function vis=public flags=inlineFunction sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=kotlin.comparisons.minOf.$6.a kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$6.b kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.minOf.$6.c kind=valueParameter vis=private flags=_
 symbol fq=kotlin.math.atan2#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Double,Double] ret=Double
 symbol fq=kotlin.math.atan2.x kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.atan2.y kind=valueParameter vis=private flags=synthetic
