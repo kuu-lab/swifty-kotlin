@@ -88,14 +88,6 @@ extension CallLowerer {
             {
                 return true
             }
-            if resultRuntimeHOFMemberCalleeName(
-                memberName: interner.resolve(calleeName),
-                receiverType: sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) != nil {
-                return true
-            }
             return sema.symbols.symbol(chosenCallee)?.declSite == nil
         }()
         let normalizedArgIDs: [KIRExprID] = {

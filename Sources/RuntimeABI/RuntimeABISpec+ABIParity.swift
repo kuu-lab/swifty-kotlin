@@ -4,24 +4,6 @@
 public extension RuntimeABISpec {
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
         // Compiler-reserved runtime ABI names without @_cdecl implementations yet.
-        abiParitySpec("kk_result_mapCatching", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_result_flatMap", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_result_flatMapCatching", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-            p("p2", .intptr),
-            p("p3", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_kclass_register_annotation", parameters: [
             p("p0", .intptr),
             p("p1", .intptr),

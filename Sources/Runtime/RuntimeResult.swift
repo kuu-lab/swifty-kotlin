@@ -1,5 +1,4 @@
-
-// MARK: - Result Runtime Types (STDLIB-280/281/282/283)
+// MARK: - Result Runtime Types
 
 final class RuntimeResultBox {
     let isSuccess: Bool
@@ -26,81 +25,69 @@ private func resultBoxFromRaw(_ raw: Int) -> RuntimeResultBox? {
     return tryCast(pointer, to: RuntimeResultBox.self)
 }
 
-// MARK: - STDLIB-280: runCatching
-
-/// kk_runCatching(fnPtr, closureRaw, outThrown) -> Int
-/// Calls the lambda wrapping its result in a RuntimeResultBox.
-/// On success: box with isSuccess=true, value=lambda result.
-/// On failure: box with isSuccess=false, exception=thrown value.
-@_cdecl("kk_runCatching")
-public func kk_runCatching(_ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let result = lambda(closureRaw, &thrown)
-    if thrown != 0 {
-        // Lambda threw — wrap as failure Result
-        let box = RuntimeResultBox(isSuccess: false, value: 0, exception: thrown)
-        return registerRuntimeObject(box)
-    }
-    let box = RuntimeResultBox(isSuccess: true, value: result, exception: 0)
-    return registerRuntimeObject(box)
+func runtimeResultSuccess(_ value: Int) -> Int {
+    registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: value, exception: 0))
 }
 
-// MARK: - STDLIB-281: Result properties
-
-@_cdecl("kk_result_isSuccess")
-public func kk_result_isSuccess(_ resultRaw: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw) else { return 0 }
-    return box.isSuccess ? 1 : 0
+func runtimeResultFailure(_ exception: Int) -> Int {
+    registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception))
 }
 
-@_cdecl("kk_result_isFailure")
-public func kk_result_isFailure(_ resultRaw: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw) else { return 1 }
-    return box.isSuccess ? 0 : 1
+func runtimeResultIsSuccess(_ resultRaw: Int) -> Bool {
+    guard let box = resultBoxFromRaw(resultRaw) else { return false }
+    return box.isSuccess
 }
 
-// MARK: - STDLIB-282: Result member functions
+func runtimeResultIsFailure(_ resultRaw: Int) -> Bool {
+    !runtimeResultIsSuccess(resultRaw)
+}
 
-@_cdecl("kk_result_getOrNull")
-public func kk_result_getOrNull(_ resultRaw: Int) -> Int {
+func runtimeResultValueOrNull(_ resultRaw: Int) -> Int {
     guard let box = resultBoxFromRaw(resultRaw), box.isSuccess else {
         return runtimeNullSentinelInt
     }
     return box.value
 }
 
-@_cdecl("kk_result_getOrDefault")
-public func kk_result_getOrDefault(_ resultRaw: Int, _ defaultValue: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw), box.isSuccess else {
-        return defaultValue
+func runtimeResultExceptionOrNull(_ resultRaw: Int) -> Int {
+    guard let box = resultBoxFromRaw(resultRaw) else {
+        return runtimeNullSentinelInt
     }
-    return box.value
+    if box.isSuccess {
+        return runtimeNullSentinelInt
+    }
+    return box.exception
 }
 
-@_cdecl("kk_result_getOrElse")
-public func kk_result_getOrElse(
-    _ resultRaw: Int,
+func runtimeResultRunCatching(
     _ fnPtr: Int,
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return runtimeNullSentinelInt
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    let result = lambda(closureRaw, &thrown)
+    if thrown != 0 {
+        return runtimeResultFailure(thrown)
     }
-    if box.isSuccess {
-        return box.value
-    }
-    guard let result = invokeResultLambda(fnPtr: fnPtr, closureRaw: closureRaw, argument: box.exception, outThrown: outThrown) else {
-        return 0
-    }
-    return result
+    return runtimeResultSuccess(result)
 }
 
-@_cdecl("kk_result_getOrThrow")
-public func kk_result_getOrThrow(
+func runtimeResultSuccessFlag(_ resultRaw: Int) -> Int {
+    runtimeResultIsSuccess(resultRaw) ? 1 : 0
+}
+
+func runtimeResultFailureFlag(_ resultRaw: Int) -> Int {
+    runtimeResultIsFailure(resultRaw) ? 1 : 0
+}
+
+func runtimeResultValueOrDefault(_ resultRaw: Int, _ defaultValue: Int) -> Int {
+    let value = runtimeResultValueOrNull(resultRaw)
+    return value == runtimeNullSentinelInt ? defaultValue : value
+}
+
+func runtimeResultGetOrThrow(
     _ resultRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
@@ -112,206 +99,33 @@ public func kk_result_getOrThrow(
     if box.isSuccess {
         return box.value
     }
-    // Re-throw the stored exception
     outThrown?.pointee = box.exception
     return 0
 }
 
-@_cdecl("kk_result_exceptionOrNull")
-public func kk_result_exceptionOrNull(_ resultRaw: Int) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return runtimeNullSentinelInt
-    }
-    if box.isSuccess {
-        return runtimeNullSentinelInt
-    }
-    return box.exception
+// MARK: - Bundled Result.kt Runtime Bridges
+
+@_cdecl("kk_runtime_result_success")
+public func kk_runtime_result_success(_ value: Int) -> Int {
+    runtimeResultSuccess(value)
 }
 
-// MARK: - Internal Helper: Invoke a (closureRaw, argument, &thrown) -> Int lambda
-
-/// Shared helper for invoking a Result transform/action lambda with a single argument.
-/// Casts `fnPtr` to the expected `@convention(c)` signature, calls it, and propagates
-/// any thrown exception via `outThrown`. Returns `nil` if the lambda threw.
-private func invokeResultLambda(
-    fnPtr: Int,
-    closureRaw: Int,
-    argument: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int? {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let result = lambda(closureRaw, argument, &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return nil
-    }
-    return result
+@_cdecl("kk_runtime_result_failure")
+public func kk_runtime_result_failure(_ exception: Int) -> Int {
+    runtimeResultFailure(exception)
 }
 
-// MARK: - STDLIB-283: Result HOF functions
-
-@_cdecl("kk_result_map")
-public func kk_result_map(
-    _ resultRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: runtimeAllocateThrowable(message: "Result is null")))
-    }
-    if !box.isSuccess {
-        return resultRaw
-    }
-    guard let mapped = invokeResultLambda(fnPtr: fnPtr, closureRaw: closureRaw, argument: box.value, outThrown: outThrown) else {
-        return 0
-    }
-    return registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: mapped, exception: 0))
+@_cdecl("kk_runtime_result_is_success")
+public func kk_runtime_result_is_success(_ resultRaw: Int) -> Int {
+    runtimeResultIsSuccess(resultRaw) ? 1 : 0
 }
 
-@_cdecl("kk_result_fold")
-public func kk_result_fold(
-    _ resultRaw: Int,
-    _ onSuccessFnPtr: Int,
-    _ onSuccessClosureRaw: Int,
-    _ onFailureFnPtr: Int,
-    _ onFailureClosureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return runtimeNullSentinelInt
-    }
-    if box.isSuccess {
-        guard let result = invokeResultLambda(fnPtr: onSuccessFnPtr, closureRaw: onSuccessClosureRaw, argument: box.value, outThrown: outThrown) else {
-            return 0
-        }
-        return result
-    } else {
-        guard let result = invokeResultLambda(fnPtr: onFailureFnPtr, closureRaw: onFailureClosureRaw, argument: box.exception, outThrown: outThrown) else {
-            return 0
-        }
-        return result
-    }
+@_cdecl("kk_runtime_result_value_or_null")
+public func kk_runtime_result_value_or_null(_ resultRaw: Int) -> Int {
+    runtimeResultValueOrNull(resultRaw)
 }
 
-@_cdecl("kk_result_onSuccess")
-public func kk_result_onSuccess(
-    _ resultRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return resultRaw
-    }
-    if box.isSuccess {
-        guard invokeResultLambda(fnPtr: fnPtr, closureRaw: closureRaw, argument: box.value, outThrown: outThrown) != nil else {
-            return 0
-        }
-    }
-    return resultRaw
-}
-
-@_cdecl("kk_result_onFailure")
-public func kk_result_onFailure(
-    _ resultRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return resultRaw
-    }
-    if !box.isSuccess {
-        guard invokeResultLambda(fnPtr: fnPtr, closureRaw: closureRaw, argument: box.exception, outThrown: outThrown) != nil else {
-            return 0
-        }
-    }
-    return resultRaw
-}
-
-// MARK: - STDLIB-589: Result.recover
-
-@_cdecl("kk_result_recover")
-public func kk_result_recover(
-    _ resultRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return resultRaw
-    }
-    if box.isSuccess {
-        // Success — return as-is
-        return resultRaw
-    }
-    // Failure — apply the transform to produce a new success value
-    guard let recovered = invokeResultLambda(fnPtr: fnPtr, closureRaw: closureRaw, argument: box.exception, outThrown: outThrown) else {
-        return 0
-    }
-    return registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: recovered, exception: 0))
-}
-
-// MARK: - STDLIB-RESULT-107: Result advanced operations
-
-/// kk_result_recoverCatching(resultRaw, fnPtr, closureRaw, outThrown) -> Int (Result box)
-/// Like recover(), but the transform lambda itself may throw; if it does, the thrown
-/// exception is captured and returned as a new failure Result rather than propagated.
-@_cdecl("kk_result_recoverCatching")
-public func kk_result_recoverCatching(
-    _ resultRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return resultRaw
-    }
-    if box.isSuccess {
-        // Success — return as-is
-        return resultRaw
-    }
-    // Failure — apply the transform, catching any exception thrown by it
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let recovered = lambda(closureRaw, box.exception, &thrown)
-    if thrown != 0 {
-        // Transform itself threw — wrap as new failure Result
-        let failBox = RuntimeResultBox(isSuccess: false, value: 0, exception: thrown)
-        return registerRuntimeObject(failBox)
-    }
-    return registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: recovered, exception: 0))
-}
-
-private func resultComponent(_ resultRaw: Int, exception: Bool) -> Int {
-    guard let box = resultBoxFromRaw(resultRaw) else {
-        return runtimeNullSentinelInt
-    }
-    if exception {
-        return box.isSuccess ? runtimeNullSentinelInt : box.exception
-    }
-    return box.isSuccess ? box.value : runtimeNullSentinelInt
-}
-
-/// kk_result_component1(resultRaw) -> Int
-/// Destructuring component1(): returns the success value or null-sentinel for failure.
-/// Kotlin destructuring: val (value, exception) = result
-@_cdecl("kk_result_component1")
-public func kk_result_component1(_ resultRaw: Int) -> Int {
-    resultComponent(resultRaw, exception: false)
-}
-
-/// kk_result_component2(resultRaw) -> Int
-/// Destructuring component2(): returns the exception or null-sentinel for success.
-@_cdecl("kk_result_component2")
-public func kk_result_component2(_ resultRaw: Int) -> Int {
-    resultComponent(resultRaw, exception: true)
+@_cdecl("kk_runtime_result_exception_or_null")
+public func kk_runtime_result_exception_or_null(_ resultRaw: Int) -> Int {
+    runtimeResultExceptionOrNull(resultRaw)
 }

@@ -180,9 +180,6 @@ extension ABIMismatchTests {
             "kk_path_reader_default",
             "kk_path_readAttributes_string",
             "kk_path_writeText_options",
-            "kk_result_flatMap",
-            "kk_result_flatMapCatching",
-            "kk_result_mapCatching",
             "kk_uri_toPath",
         ]
     }

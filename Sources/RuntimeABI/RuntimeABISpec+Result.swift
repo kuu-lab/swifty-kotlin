@@ -1,19 +1,25 @@
 public extension RuntimeABISpec {
     static let resultFunctions: [RuntimeABIFunctionSpec] = [
-        // STDLIB-280: runCatching
         RuntimeABIFunctionSpec(
-            name: "kk_runCatching",
+            name: "kk_runtime_result_success",
             parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Result"
+            section: "Result",
+            isThrowing: false
         ),
-        // STDLIB-281: Result properties
         RuntimeABIFunctionSpec(
-            name: "kk_result_isSuccess",
+            name: "kk_runtime_result_failure",
+            parameters: [
+                RuntimeABIParameter(name: "exception", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Result",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_runtime_result_is_success",
             parameters: [
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),
             ],
@@ -22,17 +28,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_result_isFailure",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: false
-        ),
-        // STDLIB-282: Result member functions
-        RuntimeABIFunctionSpec(
-            name: "kk_result_getOrNull",
+            name: "kk_runtime_result_value_or_null",
             parameters: [
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),
             ],
@@ -41,102 +37,13 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_result_getOrDefault",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "defaultValue", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Result",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_result_getOrElse",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_result_getOrThrow",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_result_exceptionOrNull",
+            name: "kk_runtime_result_exception_or_null",
             parameters: [
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Result",
             isThrowing: false
-        ),
-        // STDLIB-283: Result HOF functions
-        RuntimeABIFunctionSpec(
-            name: "kk_result_map",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_result_fold",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "onSuccessFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "onSuccessClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "onFailureFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "onFailureClosureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_result_onSuccess",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_result_onFailure",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result"
-        ),
-        // STDLIB-589: Result.recover
-        RuntimeABIFunctionSpec(
-            name: "kk_result_recover",
-            parameters: [
-                RuntimeABIParameter(name: "resultRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Result"
         ),
     ]
 }

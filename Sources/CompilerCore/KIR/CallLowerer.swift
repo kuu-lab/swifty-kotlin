@@ -1364,15 +1364,6 @@ final class CallLowerer {
     private func needsThrownChannel(calleeName: InternedString, interner: StringInterner) -> Bool {
         let name = interner.resolve(calleeName)
         return [
-            "kk_runCatching",
-            "kk_result_getOrElse",
-            "kk_result_getOrThrow",
-            "kk_result_map",
-            "kk_result_fold",
-            "kk_result_onSuccess",
-            "kk_result_onFailure",
-            "kk_result_recover",
-            "kk_result_recoverCatching",
             "kk_synchronized",
         ].contains(name)
     }
@@ -1407,13 +1398,6 @@ final class CallLowerer {
 
     private func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
         [
-            "kk_result_getOrElse",
-            "kk_result_getOrThrow",
-            "kk_result_map",
-            "kk_result_fold",
-            "kk_result_onSuccess",
-            "kk_result_onFailure",
-            "kk_result_recover",
             "kk_synchronized",
         ].contains(interner.resolve(calleeName))
     }

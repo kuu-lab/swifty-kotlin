@@ -48,10 +48,15 @@ struct ResultSourceMigrationTests {
                 "getOrDefault",
                 "getOrElse",
                 "getOrThrow",
+                "exceptionOrNull",
                 "map",
                 "fold",
                 "onSuccess",
                 "onFailure",
+                "recover",
+                "recoverCatching",
+                "component1",
+                "component2",
             ] {
                 let functionSymbol = try #require(symbol(
                     named: functionName,
@@ -68,11 +73,18 @@ struct ResultSourceMigrationTests {
 
     @Test func testResultCallsResolveToBundledKotlinSourceSymbols() throws {
         let source = """
+        fun failInt(): Int {
+            throw RuntimeException("boom")
+        }
+
         fun useResult(): Int {
             val success: Result<Int> = runCatching { 41 }
-            val mapped: Result<Int> = success.map { value -> value }
+            val mapped: Result<Any?> = success.map { value -> value }
             val tapped = mapped.onSuccess { value -> println(value) }
-            return tapped.getOrDefault(0)
+            val failure: Result<Int> = runCatching { failInt() }
+            val recovered: Result<Any?> = failure.recover { 7 }
+            val recoveredCatching: Result<Any?> = failure.recoverCatching { 8 }
+            return tapped.getOrDefault(0) + recovered.getOrDefault(0) + recoveredCatching.getOrDefault(0)
         }
         """
 
@@ -98,7 +110,7 @@ struct ResultSourceMigrationTests {
             })
             try expectCallUsesBundledResultSource(runCatchingCall, sema: sema, ctx: ctx)
 
-            for memberName in ["map", "onSuccess", "getOrDefault"] {
+            for memberName in ["map", "onSuccess", "recover", "recoverCatching", "getOrDefault"] {
                 let memberCall = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName

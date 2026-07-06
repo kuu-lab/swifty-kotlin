@@ -363,50 +363,6 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
-        let resultSingleLambdaRuntimeCallees: Set<InternedString> = [
-            interner.intern("kk_result_getOrElse"),
-            interner.intern("kk_result_map"),
-            interner.intern("kk_result_onSuccess"),
-            interner.intern("kk_result_onFailure"),
-            interner.intern("kk_result_recover"),
-            interner.intern("kk_result_recoverCatching"),
-        ]
-        if resultSingleLambdaRuntimeCallees.contains(loweredCallee),
-           finalArguments.count == 2,
-           sourceArgExprs.count == 1
-        {
-            let lambdaArgs = makeCollectionHOFExpandedArguments(
-                loweredArgID: finalArguments[1],
-                argExprID: sourceArgExprs[0],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0]] + lambdaArgs
-        }
-        if loweredCallee == interner.intern("kk_result_fold"),
-           finalArguments.count == 3,
-           sourceArgExprs.count == 2
-        {
-            let successArgs = makeCollectionHOFExpandedArguments(
-                loweredArgID: finalArguments[1],
-                argExprID: sourceArgExprs[0],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let failureArgs = makeCollectionHOFExpandedArguments(
-                loweredArgID: finalArguments[2],
-                argExprID: sourceArgExprs[1],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0]] + successArgs + failureArgs
-        }
         // thenBy/thenByDescending/thenDescending/thenComparator (1-arg variants):
         // receiver comparator + lambda/comparison → (c1Fn, c1Closure, fn, closure)
         let thenByOneArgCallees: Set<InternedString> = [
@@ -1088,30 +1044,7 @@ extension CallLowerer {
             || loweredCallee == interner.intern("kk_clock_system_now") {
             callArguments = []
         }
-        let resultHOFCallees = resultSingleLambdaRuntimeCallees.union([
-            interner.intern("kk_result_fold"),
-        ])
-        let resultRethrowingHOFCallees: Set<InternedString> = [
-            interner.intern("kk_result_getOrElse"),
-            interner.intern("kk_result_map"),
-            interner.intern("kk_result_fold"),
-            interner.intern("kk_result_onSuccess"),
-            interner.intern("kk_result_onFailure"),
-            interner.intern("kk_result_recover"),
-        ]
-        var thrownResult: KIRExprID?
-        if resultHOFCallees.contains(loweredCallee) {
-            if resultRethrowingHOFCallees.contains(loweredCallee) {
-                thrownResult = arena.appendExpr(
-                    .temporary(Int32(arena.expressions.count)),
-                    type: sema.types.nullableAnyType
-                )
-            } else {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                callArguments.append(zeroExpr)
-            }
-        }
+        let thrownResult: KIRExprID? = nil
         let throwingCallees = Self.throwingMemberCalleeNames(interner: interner)
         let canThrow = throwingCallees.contains(loweredCallee) || thrownResult != nil
         instructions.append(.call(
@@ -1316,7 +1249,6 @@ extension CallLowerer {
             interner.intern("kk_list_binarySearchBy"),
             interner.intern("kk_list_binarySearchBy_fromIndex"),
             interner.intern("kk_list_binarySearchBy_range"),
-            interner.intern("kk_result_getOrThrow"),
             interner.intern("kk_reentrant_read_write_lock_read"),
         ])
     }

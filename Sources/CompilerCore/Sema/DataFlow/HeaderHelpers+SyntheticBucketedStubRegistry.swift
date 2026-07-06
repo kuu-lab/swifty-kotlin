@@ -141,9 +141,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "HexFormat") { phase, symbols, types, interner, _ in
             phase.registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Result") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticResultStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "KotlinVersion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
         },
