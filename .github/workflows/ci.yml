@@ -471,8 +471,7 @@ jobs:
           # list and the divisor stay in lockstep automatically.
           DIFF_SHARD_COUNT: ${{ strategy.job-total }}
         run: |
-          NCPU=$(nproc)
-          DIFF_PARALLEL="$NCPU" DIFF_WORKERS="$NCPU" \
+          DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh --report "$DIFF_REPORT" Scripts/diff_cases
       - name: Summarize kotlinc diff artifacts
         if: always() && steps.diff_kotlinc.outcome != 'cancelled'
