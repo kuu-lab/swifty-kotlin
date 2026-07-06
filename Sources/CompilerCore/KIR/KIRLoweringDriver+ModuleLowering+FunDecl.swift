@@ -258,8 +258,7 @@ extension KIRLoweringDriver {
             // These string APIs are source-backed for Sema, while call sites
             // are still lowered by the String stdlib member call lowerers.
             switch name {
-            case "commonPrefixWith", "commonSuffixWith",
-                 "trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin",
+            case "trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin",
                  "indent", "kk_drop", "hasPrefix", "splitIntoLines", "leadingWhitespaceCount",
                  "isBlankLine", "trimBlankEdges":
                 return true
@@ -273,10 +272,7 @@ extension KIRLoweringDriver {
             interner.intern("time"),
         ]
         if packageFQName == kotlinTimePackage {
-            // Duration formatting/component APIs still dispatch through the
-            // synthetic Duration ABI while their source declarations keep Sema
-            // overload resolution aligned with Kotlin.
-            return name == "toIsoString" || name == "toComponents"
+            return false
         }
 
         return false
