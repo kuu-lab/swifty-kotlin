@@ -421,67 +421,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "replace",
-            externalLinkName: "kk_string_replace_flat",
-            receiverType: stringType,
-            parameters: [
-                ("oldValue", stringType, false, false),
-                ("newValue", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-FN-055: replace(oldChar, newChar) — Char/Char overload
-        registerSyntheticStringExtensionFunction(
-            named: "replace",
-            externalLinkName: "kk_string_replace_char_flat",
-            receiverType: stringType,
-            parameters: [
-                ("oldChar", charType, false, false),
-                ("newChar", charType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-FN-055: replace(oldValue, newValue, ignoreCase) — String/String with ignoreCase
-        registerSyntheticStringExtensionFunction(
-            named: "replace",
-            externalLinkName: "kk_string_replace_ignoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("oldValue", stringType, false, false),
-                ("newValue", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-FN-055: replace(oldChar, newChar, ignoreCase) — Char/Char with ignoreCase
-        registerSyntheticStringExtensionFunction(
-            named: "replace",
-            externalLinkName: "kk_string_replace_char_ignoreCase_flat",
-            receiverType: stringType,
-            parameters: [
-                ("oldChar", charType, false, false),
-                ("newChar", charType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
             named: "startsWith",
             externalLinkName: "kk_string_startsWith_flat",
             receiverType: stringType,
@@ -1671,33 +1610,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "replace",
-            externalLinkName: "kk_string_replace_regex",
-            receiverType: stringType,
-            parameters: [
-                ("regex", regexType, false, false),
-                ("replacement", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "split",
-            externalLinkName: "kk_string_split_regex_flat",
-            receiverType: stringType,
-            parameters: [
-                ("regex", regexType, false, false),
-            ],
-            returnType: listStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
             named: "toRegex",
             externalLinkName: "kk_string_toRegex_flat",
             receiverType: stringType,
@@ -2025,37 +1937,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-188: replaceFirst / replaceRange ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "replaceFirst",
-            externalLinkName: "kk_string_replaceFirst_flat",
-            receiverType: stringType,
-            parameters: [
-                ("oldValue", stringType, false, false),
-                ("newValue", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-TEXT-FN-060: replaceFirst(oldValue, newValue, ignoreCase) — 3-arg overload
-        registerSyntheticStringExtensionFunction(
-            named: "replaceFirst",
-            externalLinkName: "kk_string_replaceFirst_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("oldValue", stringType, false, false),
-                ("newValue", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // --- STDLIB-188: replaceRange ---
 
         registerSyntheticStringExtensionFunction(
             named: "replaceRange",

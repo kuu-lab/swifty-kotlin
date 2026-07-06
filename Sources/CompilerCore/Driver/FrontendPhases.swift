@@ -122,7 +122,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/text/StringBasics",
         "kotlin/text/StringEncoding",
         "kotlin/text/StringIndentFormat",
-        "kotlin/text/StringSearchReplace",
         "kotlin/text/StringSplitJoin",
     ]
 
