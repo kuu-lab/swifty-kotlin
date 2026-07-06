@@ -745,6 +745,7 @@ extension ABIMismatchTests {
         "kk_notNull_set_value",
         "kk_object_new",
         "kk_object_register_itable_method",
+        "kk_object_register_vtable_method",
         "kk_object_type_id",
         "kk_observable_create",
         "kk_observable_get_value",

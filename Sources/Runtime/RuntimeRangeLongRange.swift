@@ -376,6 +376,15 @@ public func kk_range_reversed(_ rangeRaw: Int) -> Int {
 
 @_cdecl("kk_vtable_lookup")
 public func kk_vtable_lookup(_ receiver: Int, _ slot: Int) -> Int {
+    if let pointer = UnsafeMutableRawPointer(bitPattern: receiver) {
+        let objectKey = UInt(bitPattern: pointer)
+        let registered = runtimeStorage.withMetadataLock { state in
+            state.objectVtableMethods[objectKey]?[slot]
+        }
+        if let registered {
+            return registered
+        }
+    }
     guard slot >= 0,
           let typeInfo = runtimeTypeInfo(from: receiver)
     else {
