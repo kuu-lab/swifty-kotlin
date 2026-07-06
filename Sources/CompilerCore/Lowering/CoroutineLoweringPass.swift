@@ -100,6 +100,8 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeSupervisorScopeRunCallee = ctx.interner.intern("kk_supervisor_scope_run")
         let runtimeDelayCallee = ctx.interner.intern("kk_kxmini_delay")
         let runtimeYieldCallee = ctx.interner.intern("kk_coroutine_yield")
+        let runtimeSequenceBuilderYieldCallee = ctx.interner.intern("kk_sequence_builder_yield")
+        let runtimeIteratorBuilderYieldCallee = ctx.interner.intern("kk_iterator_builder_yield")
         let runtimeWithTimeoutCallee = ctx.interner.intern("kk_with_timeout")
         let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null")
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
@@ -108,6 +110,8 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeDelayCallee,
             kxMiniYieldCallee,
             runtimeYieldCallee,
+            runtimeSequenceBuilderYieldCallee,
+            runtimeIteratorBuilderYieldCallee,
             suspendCoroutineUninterceptedOrReturnCallee,
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
@@ -318,6 +322,11 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeRunBlockingWithContCallee: runtimeRunBlockingWithContCallee,
             kxMiniLauncherRuntimeCallees: kxMiniLauncherRuntimeCallees,
             kxMiniLauncherWithContCallees: kxMiniLauncherWithContCallees,
+            sequenceBuilderBuildCallee: ctx.interner.intern("kk_sequence_builder_build"),
+            sequenceBuilderBuildCoroCallee: ctx.interner.intern("kk_sequence_builder_build_coro"),
+            sequenceBuilderYieldAllCallee: ctx.interner.intern("kk_sequence_builder_yieldAll"),
+            iteratorBuilderBuildCallee: ctx.interner.intern("kk_iterator_builder_build"),
+            iteratorBuilderBuildCoroCallee: ctx.interner.intern("kk_iterator_builder_build_coro"),
             loweredBySymbol: loweredBySymbol,
             continuationTypeByLoweredSymbol: continuationTypeByLoweredSymbol,
             suspendFunctionArityBySymbol: suspendFunctionArityBySymbol,

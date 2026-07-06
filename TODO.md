@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-07-02
+最終更新: 2026-07-06
 
 ---
 
@@ -33,19 +33,20 @@
 Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.internal.*` または `__*` ブリッジに委譲する移行パターンを、残りの stdlib 領域にも適用する。現在の読み込み対象は `Sources/CompilerCore/Stdlib/` 配下の auto-discovered `.kt` と `BundledKotlinStdlib` の residual source。ルート `Stdlib/` 配下は legacy inventory であり、コンパイラの implicit stdlib としては読み込まれない。
 
 ### 移行方針
-- 純ロジック（イテレーション・変換・比較等）は **Kotlin のみ** で実装する
-- OS/ハードウェアアクセスが必要な箇所は `__` prefix ブリッジ経由で RuntimeABI に委譲する
-- 既存の `kk_*` ABI 関数は bridge として存続し、Kotlin 層からのみ呼ばれる形にする
+- M1–M17 は「`.kt` 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」を共通の完了条件にする。`.kt` ファイルの存在だけでは完了扱いにしない
+- 純ロジック（イテレーション・変換・比較等）は **Kotlin のみ** で実装し、対応する `HeaderHelpers+Synthetic*` の public stub 登録を同一 PR で削除する
+- OS/ハードウェアアクセス、ストレージ直アクセス、時刻・乱数・I/O・Foundation 依存など Kotlin だけで持つべきでない箇所は `@KsSymbolName("__kk_*")` 経由の internal bridge に降格する
+- 既存の public `kk_*` runtime/spec エントリは、Kotlin 化できるものは削除し、bridge 残留が必要なものだけ `__kk_*` へ改名して RuntimeABI / 呼び出し側を更新する
 - String 同様に boxed 表現を flat/aggregate 表現に段階的に移行する
-- 完了条件は「`.kt` が implicit stdlib として読み込まれる」「同シグネチャの合成 public stub が二重登録されない」「KIR が public `kk_*` へ直接 dispatch せず Kotlin 層または private bridge 経由になる」「不要になった runtime/spec エントリが削除または bridge 降格される」の 4 点で判定する
+- 完了判定は、対象 API が implicit stdlib として読み込まれる `.kt` から解決され、同シグネチャの合成 public stub と KIR/TypeCheck の public `kk_*` 直接 dispatch が残らず、runtime/spec 側も削除または `__` bridge 降格済みであることを rg とゲートで確認する
 
 ### Phase M1: kotlin.text 残りの String 操作
 > 移行元: `Sources/Runtime/RuntimeStringStdlib.swift` (211 @_cdecl)
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/text/`
 
-- [~] MIGRATION-TEXT-004: String split / join / chunk / window 系を Kotlin source に移行する。2026-07-02 監査: `StringSplitJoin.kt` は `Sources/CompilerCore/Stdlib/` 側に存在するが `LoadSourcesPhase.excludedBundledStdlibFiles` で除外中。`split` / `splitToSequence` / `joinToString` は synthetic stub と `CallLowerer+StringStdlibMemberCalls` から public `kk_string_*` runtime へ直接 dispatch しており、真の状態は未完了寄りの部分完了。
+- [~] MIGRATION-TEXT-004: String split / join / chunk / window 系を Kotlin source に移行する。2026-07-06 監査: `StringSplitJoin.kt` は引き続き `LoadSourcesPhase.excludedBundledStdlibFiles` で除外中。除外解除を試すと `CharSequence.toString` / function `invoke` / `substring` / `IndexedValue` などが未解決で frontend fail する。`split` / `splitToSequence` / `joinToString` は synthetic stub と `CallLowerer+StringStdlibMemberCalls` から public `kk_string_*` runtime へ直接 dispatch しており、真の状態は未完了寄りの部分完了。
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
-- [~] MIGRATION-TEXT-009: `commonPrefixWith` / `commonSuffixWith` を Kotlin source に移行する。2026-07-02 監査: `StringComparison.kt` は implicit stdlib として読み込まれる一方、KIR の direct lowering と `RuntimeABISpec` / `RuntimeStringHOF.swift` の `kk_string_common*` runtime が残存している。Kotlin source 化は着手済みだが、完了条件上は部分完了。
+- [x] MIGRATION-TEXT-009: `commonPrefixWith` / `commonSuffixWith` を Kotlin source に移行する。2026-07-06 完了: `StringComparison.kt` は implicit stdlib として読み込まれ、TypeCheck fallback / KIR direct lowering / `RuntimeABISpec` / `RuntimeStringHOF.swift` / flat runtime wrappers の `kk_string_common*` 経路を削除済み。`common_prefix_with.kt` の `kswiftc` 実行と関連 XCTest は通過。
 
 ### Phase M2: kotlin.text StringBuilder
 > 移行元: `Sources/Runtime/RuntimeStringBuilder.swift` (29 @_cdecl)
@@ -121,11 +122,11 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [x] RF-STDLIB-001: 設計メモ `docs/stdlib-pipeline.md` を作成する（読み込みフェーズ・合成スタブとの優先順位・インクリメンタルキャッシュ / golden への影響・コンパイル時間戦略。実装前に 1 PR でレビュー）
 - [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `-no-default-stdlib-sources` での opt-out、source origin、ユーザー入力との診断パス区別）
 - [ ] RF-STDLIB-003: 宣言の優先規則を実装する（Stdlib ソース由来宣言が存在する場合、同シグネチャの合成スタブ登録をスキップ。二重定義は warning 診断で検知）
-- [ ] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）
+- [x] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）。2026-07-06 完了。
 - [ ] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
-- [ ] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する
+- [x] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する。2026-07-06 再計測では bundled Lex+Parse 中央値が trigger 未満のため cache 追加は見送り。
 - [x] RF-STDLIB-007: golden / `diff_kotlinc.sh` ハーネスが implicit stdlib ソース込みで決定的に動くよう正規化する（fileID 順序・診断ソートの安定性）。2026-07-06 実装確認: `LoadSourcesPhase` は bundled / residual stdlib を path sort 後にユーザー入力より先へ登録し、`BundledStdlibOrderingTests` が不変条件を固定。Sema golden は bundled declSite シンボルを除外し、診断 text/JSON は source location + severity/code/message で render 時ソートする。`diff_kotlinc.sh` は case discovery / sharding / parallel replay を入力順で安定化済み。
-- [ ] RF-STDLIB-008: M1–M17 の完了条件を「.kt 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」に統一し、本ファイル M セクション冒頭の移行方針を更新する
+- [x] RF-STDLIB-008: M1–M17 の完了条件を「.kt 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」に統一し、本ファイル M セクション冒頭の移行方針を更新する
 
 ### Phase RF3: 合成スタブ削減（RF2 完了後に本格化。(a) 群のみ即着手可）
 > 背景: `HeaderHelpers+Synthetic*` 約100ファイル/~9万行。ボイラープレート率 60–70%。登録呼び出しは `registerSyntheticDelegateStubs` に 85+ 連鎖。
@@ -139,8 +140,8 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### Phase RF4: 名前文字列ベース特殊処理の排除（Sema / KIR）
 > 背景: TypeCheck に `interner.resolve(...) == "名前"` が 104 箇所、`CallLowerer+LegacyMemberLikeCalls.swift` は 4,055 行・`kk_` リテラル 601 個。
-- [ ] RF-SEMA-001: TypeCheck の名前比較特例 104 箇所の台帳を作る（機能・対応スタブ・スタブ/ソース移行後に削除可能か、の 3 列）
-- [ ] RF-SEMA-002: `markStdlibSpecialCallExpr` 系特例（repeat / measureTime* / Array コンストラクタ等）をシンボル登録時メタデータ（flags / annotation）駆動の共通機構へ置換し、2–3 例を移して実証する
+- [x] RF-SEMA-001: TypeCheck の名前比較特例 104 箇所の台帳を作る（機能・対応スタブ・スタブ/ソース移行後に削除可能か、の 3 列）。台帳: [`docs/rf4-name-special-case-inventory.md`](docs/rf4-name-special-case-inventory.md)。2026-07-06 現在の直接比較は 102 行（元メモの 104 はブランチ差分で変動）
+- [~] RF-SEMA-002: `markStdlibSpecialCallExpr` 系特例（repeat / measureTime* / Array コンストラクタ等）をシンボル登録時メタデータ（flags / annotation）駆動の共通機構へ置換し、2–3 例を移して実証する。2026-07-06: `repeat` と `kotlin.system.measureTimeMillis/measureTimeMicros/measureNanoTime` は `StdlibSpecialCallKind` metadata 駆動の入口へ移行済み。残: `kotlin.time.measureTime/measureTimedValue`、Array/primitive array constructor、atomic array factory、`typeOf` 等
 - [ ] RF-SEMA-003: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift`（2,157 行・17 特例）を、宣言充実に合わせて特例単位で段階削除する
 - [ ] RF-SEMA-004: `+CollectionMemberFallback` / `+MemberCallInferenceCollectionFlow`（計 ~5.5k 行）に散在するレシーバ判定述語（isArrayReceiver / isIterableReceiver / isMapReceiver 等）を単一の ReceiverClassifier へ抽出する
 - [ ] RF-SEMA-005: `CallTypeChecker.swift`（3,896 行）の特例ブロックをレジストリ移行済み分から削除し 3,000 行未満にする（以降 SwiftLint baseline のバジェットで維持）
@@ -188,7 +189,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### Runtime 正確性（fatalError → catch 可能例外）
 > kotlinc では catch 可能な例外になるべき箇所がプロセス即死する。SPEC-NUM-0002（ゼロ除算 SIGFPE）と同型の問題系。
 
-- [ ] DEBT-RT-001: `Sources/Runtime/RuntimeStringBuilder.swift` の境界チェック 11 箇所の `fatalError("StringIndexOutOfBoundsException: ...")` を catch 可能な Kotlin 例外送出へ置換する。`sb.insert(99, "x")` 等のユーザーコード 1 行でプロセスが落ちる最も再現容易な箇所。`try/catch (e: IndexOutOfBoundsException)` の diff ケースで kotlinc と挙動一致を検証する
+- [x] DEBT-RT-001: `Sources/Runtime/RuntimeStringBuilder.swift` の境界チェック 11 箇所の `fatalError("StringIndexOutOfBoundsException: ...")` を catch 可能な Kotlin 例外送出へ置換する。`sb.insert(99, "x")` 等のユーザーコード 1 行でプロセスが落ちる最も再現容易な箇所。`try/catch (e: IndexOutOfBoundsException)` の diff ケースで kotlinc と挙動一致を検証する
 - [x] DEBT-RT-003: `Sources/Runtime/RuntimeRegex.swift` の正規表現フォールバック失敗時 `fatalError` 4 箇所（238 / 439 / 471 / 755 付近）を整理する。pattern はユーザー入力直通。静的フォールバック `(?!)` が失敗し得ないことの検証コメント化、または例外送出化
 - [x] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
 
@@ -197,7 +198,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift` — `withContext` の coroutine caller 経路は caller continuation を捕捉し、dispatched block 完了時に `callerState.resume(...)` で再開する continuation ベース実装へ移行済み。同期 API 互換の non-coroutine fallback のみ semaphore を維持する
 
 ### KIR / Lowering
-- [ ] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift:1085-1094` で vtable dispatch が無効化され常に static dispatch へフォールバックしている（「TODO: Re-enable once kk_alloc-based object allocation is in place」）。ブロッカーとされた `kk_alloc` は `Sources/Runtime/RuntimeGC.swift:151` に実装済みのため、前提充足を監査して再有効化を検討する。再有効化時は `VirtualDispatchTests` へ該当経路のケースを追加する
+- [x] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift` の vtable dispatch gate を解除。`kk_alloc` / `KTypeInfo` vtable は raw heap object fallback として残しつつ、既存 `kk_object_new` ベースの class/object/object-literal allocation は itable と同型の object-local vtable method registry を登録し、`kk_vtable_lookup` が override 実装を取得できるようにした。`VirtualDispatchTests` と backend 実行テストで open-class / safe-call 経路を検証済み
 - [x] DEBT-KIR-003: `Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift` の手書き約 1,300 行 Set リテラルを `RuntimeABISpec` 由来の導出へ置換する。`RuntimeABIFunctionSpec` に throwing 属性が無いため throwing 情報が二重管理になっている — spec へ `isThrowing` フィールドを追加し、既存手書きリストとの全件突き合わせ検証を経て自動導出へ移行する（non-throwing callee cleanup と runtime/compiler ABI validation とも整合）
 
 ### RuntimeABISpec 本体の分割完遂
@@ -205,6 +206,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
 
 #### Diff skip 追跡（DEBT-TEST-005）
+> 2026-07-06 棚卸し: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md)。現時点の `DEBT-DIFF-*` タグ付き skip は 66 件（001:22 / 002:8 / 003:14 / 004:5 / 005:14 / 006:3）。各タスクの完了条件は、該当ケースを通常 `diff_kotlinc.sh` に戻すか、JVM kotlinc を oracle にできない理由と代替 runner / unit test owner を同文書へ移すこと。
 - [ ] DEBT-DIFF-001: `Scripts/diff_cases` のうち JVM kotlinc reference では実行不能な target / classpath / runtime-only ケースを、diff harness の除外理由として維持するか、個別 runner / dependency injection で実行可能化するか棚卸しする。対象: Kotlin/Native・Kotlin/JS・KMP・`kotlin.io.path`・JDBC/SQLite・serialization・SLF4J/logging・system time/process API・assert JVM `-ea` 差分・compiler plugin API。
 - [ ] DEBT-DIFF-002: script-style diff cases の kotlinc JVM 起動 timeout / top-level execution parity を整理し、script runner 側で安定比較できるケースから `SKIP-DIFF` を外す。
 - [ ] DEBT-DIFF-003: advanced coroutine / channel / Flow / structured concurrency diff cases を `STDLIB-CORO-001` と `DEBT-CORO-002/003` の残課題へ分解し、実装済み API から順に skip を解除する。
@@ -213,8 +215,8 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-DIFF-006: type inference / variance / boxed numeric lowering 由来の diff skip を、診断期待ケースまたは parity regression として実行可能な形へ分解する。
 
 ### ドキュメント乖離
-- [ ] DEBT-DOC-001: `CLAUDE.md` コーディング規約の「Swift 5.9, macOS 12+」が実態（`Package.swift` は `swift-tools-version: 6.2` / `swiftLanguageModes: [.v6]`）と乖離している。修正する
-- [ ] DEBT-DOC-002: `docs/ARCHITECTURE.md` §4 の KIR テーブルへ未記載の実在ファイルを追記する（`CallSupportLowerer` / `ObjectLiteralLowerer` / `KIRLoweringContext` / `ConstantCollector` / `LateinitReadWrapping` / `KClassAnnotationRegistrationLowering` / `MutableCaptureCellHelpers` / `RuntimeTypeCheckToken` 等。architecture sync 済み範囲はモジュール構成・CI 表のみでファイルテーブルは未カバー）
+- [x] DEBT-DOC-001: `README.md` / `CLAUDE.md` の Swift toolchain 表記を実態（`Package.swift` は `swift-tools-version: 6.2` / `swiftLanguageModes: [.v6]`）へ同期する
+- [x] DEBT-DOC-002: `docs/ARCHITECTURE.md` §4 の KIR テーブルへ未記載の実在ファイルを追記する（`CallSupportLowerer` / `ObjectLiteralLowerer` / `KIRLoweringContext` / `ConstantCollector` / `LateinitReadWrapping` / `KClassAnnotationRegistrationLowering` / `MutableCaptureCellHelpers` / `RuntimeTypeCheckToken` 等。architecture sync 済み範囲はモジュール構成・CI 表のみでファイルテーブルは未カバー）
 - [x] DEBT-DOC-003: `docs/ARCHITECTURE.md` §10 の Lowering パス実行順序へ未記載の実在パスを実行順付きで追記する（`EnumEntriesLoweringPass` / `EnumNameAccessLoweringPass` / `FlowLoweringPass` / `IntegerNarrowingPass` / `JvmOverloadsLoweringPass` / `JvmStaticLoweringPass` / `TailrecLoweringPass` / `ValueClassUnboxingPass`）
 - [ ] DEBT-DOC-004: `docs/ARCHITECTURE.md` の「CoroutineLoweringPass (+分割3ファイル)」を実態（`+Analysis` / `+CallRewriting` / `+Flow` / `+FlowInstructionRewrite` / `+LauncherSupport` / `+StateMachine` / `+Synthesis` の 7 分割・計 8 ファイル）へ修正する
 ## Dead Code 削除タスク（DEADCODE: 2026-06-12 監査）
@@ -299,12 +301,12 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
   - 変更: `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` の `dumpSema(sourcePath:)`
   - 手順: `Sources/CompilerCore/Sema/Models/MetadataSerializer.swift` の `buildRecords` にある excludedFileIDs（`__bundled_*` の declSite 除外）と同じフィルタを dumpSema に適用 → U で一括更新
   - 完了: `rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が 0 件 + G
-- [ ] KSP-006: bundled stdlib のコンパイル時間を PhaseTimer で分離計測する
+- [x] KSP-006: bundled stdlib のコンパイル時間を PhaseTimer で分離計測する
   - 前提: なし（並列可）
   - 変更: `Sources/CompilerCore/Driver/FrontendPhases.swift`（Lex/Parse ループ）。`PhaseTimer.swift` は変更不要（`recordSubPhase(_:startTime:endTime:)` を利用）
   - 手順: Lex/Parse（および可能なら Sema）で `__bundled_` プレフィックス fileID の処理時間を集計し、各フェーズに `recordSubPhase("bundled-stdlib", ...)` を記録
   - 検証: G + タイミング出力に bundled-stdlib 行が出ること
-- [ ] KSP-007: bundled 注入コストのベースラインを記録する
+- [x] KSP-007: bundled 注入コストのベースラインを記録する
   - 前提: KSP-006
   - 変更: `docs/refactoring-metrics.md`
   - 手順: (1) `rg -n 'phaseRecords' Sources` で PhaseTimer 出力の表示経路を確認 (2) `.build/debug/kswiftc Scripts/diff_cases/hello.kt -o /tmp/ksp_out` で計測 3 回の中央値を取得 (3) 「bundled stdlib 注入コスト」節を追記し、キャッシュ着手トリガー閾値（+100ms）を正式化
@@ -337,12 +339,12 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### KSP-W2: 縦切りテンプレート（1 タスク = 1 PR。以後の移行の見本）
 
-- [ ] KSP-201: StringComparison 縦切り（`commonPrefixWith`/`commonSuffixWith`）[RF-STDLIB-004]
+- [x] KSP-201: StringComparison 縦切り（`commonPrefixWith`/`commonSuffixWith`）[RF-STDLIB-004]
   - 前提: KSP-002, KSP-005
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/StringComparison.kt`（実装済み・配線済み。優先規則で解決されることの確認から）
-  - 削除: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` の `commonPrefixWith`/`commonSuffixWith` 特例 3 箇所（`rg -n 'commonPrefixWith' Sources/CompilerCore`）/ `CallLowerer+StringStdlibMemberCalls.swift` の同 case / `RuntimeStringHOF.swift` の `kk_string_commonPrefixWith`, `kk_string_commonPrefixWith_ignoreCase`, `kk_string_commonSuffixWith`, `kk_string_commonSuffixWith_ignoreCase` / `RuntimeABISpec.swift` の同 4 エントリ
-  - diff: `string_common_prefix_suffix.kt` を新規追加（ignoreCase 込み）
-  - 手順: T / 完了: `rg 'commonPrefixWith|commonSuffixWith' Sources/CompilerCore Sources/Runtime Sources/RuntimeABI` が Stdlib/*.kt 以外 0 件 + G
+  - 削除: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` の `commonPrefixWith`/`commonSuffixWith` 特例 / `CallLowerer+StringStdlibMemberCalls.swift` と `CallLowerer+LegacyMemberLikeCalls.swift` の同 direct case / `NativeEmitter+FunctionEmission.swift` の flat call spec / `RuntimeStringHOF.swift` の raw `kk_string_common*` / `RuntimeStringFlat.swift` と `RuntimeABISpec.swift` の flat `kk_string_common*` 4 エントリ
+  - diff: 既存 `common_prefix_with.kt` が prefix / suffix / ignoreCase をカバー
+  - 完了(2026-07-06): `rg 'commonPrefixWith|commonSuffixWith' Sources/CompilerCore Sources/Runtime Sources/RuntimeABI` は `StringComparison.kt` 以外 0 件。`common_prefix_with.kt` の `kswiftc` 実行、`testKKStringCommonPrefixSuffixRuntimeABIRemoved`、`testLLVMBackendDoesNotEmitCommonPrefixSuffixRuntimeCallsForSourceBackedOverloads`、`testStringFunctionCount` 通過。
 - [ ] KSP-202: StringSplitJoin 縦切り（初の除外リスト解消 + `__kk_` 降格）[RF-STDLIB-005]
   - 前提: KSP-201, KSP-101
   - 手順: T。`excludedBundledStdlibFiles` から `kotlin/text/StringSplitJoin` を削除

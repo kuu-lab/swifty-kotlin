@@ -2,6 +2,36 @@
 import Foundation
 import XCTest
 
+private let cpsSequenceBuilderFunctionID = 730_001
+private let cpsSequenceBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, _ in
+    let builderRaw = Int(kk_coroutine_launcher_arg_get(continuation, 1))
+    switch kk_coroutine_state_enter(continuation, cpsSequenceBuilderFunctionID) {
+    case 0:
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_sequence_builder_yield(builderRaw, 7)
+    case 1:
+        _ = kk_coroutine_state_set_label(continuation, 2)
+        return kk_sequence_builder_yield(builderRaw, 11)
+    default:
+        return kk_coroutine_state_exit(continuation, 0)
+    }
+}
+
+private let cpsIteratorBuilderFunctionID = 730_002
+private let cpsIteratorBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, _ in
+    let builderRaw = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    switch kk_coroutine_state_enter(continuation, cpsIteratorBuilderFunctionID) {
+    case 0:
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_iterator_builder_yield(builderRaw, 5)
+    case 1:
+        _ = kk_coroutine_state_set_label(continuation, 2)
+        return kk_iterator_builder_yield(builderRaw, 8)
+    default:
+        return kk_coroutine_state_exit(continuation, 0)
+    }
+}
+
 /// Sequence builder / advanced operator / SharedFlow / StateFlow
 /// tests, split out from `RuntimeSequenceTests` to keep each test
 /// source focused.
@@ -17,6 +47,23 @@ extension RuntimeSequenceTests {
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
         let seqHandle = kk_sequence_builder_build(fnPtr)
         XCTAssertEqual(sequenceElements(seqHandle), [1, 2, 3])
+    }
+
+    func testSequenceBuilderBuildCoroYieldsElementsThroughCPSProducer() {
+        let entryPoint = unsafeBitCast(cpsSequenceBuilderEntry, to: Int.self)
+        let seqHandle = kk_sequence_builder_build_coro(entryPoint, cpsSequenceBuilderFunctionID, 0)
+        XCTAssertEqual(sequenceElements(seqHandle), [7, 11])
+    }
+
+    func testIteratorBuilderBuildCoroYieldsElementsThroughCPSProducer() {
+        let entryPoint = unsafeBitCast(cpsIteratorBuilderEntry, to: Int.self)
+        let iterHandle = kk_iterator_builder_build_coro(entryPoint, cpsIteratorBuilderFunctionID, 0)
+
+        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 1)
+        XCTAssertEqual(kk_iterator_builder_next(iterHandle), 5)
+        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 1)
+        XCTAssertEqual(kk_iterator_builder_next(iterHandle), 8)
+        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 0)
     }
 
     func testSequenceBuilderBuildEmptyBlock() {

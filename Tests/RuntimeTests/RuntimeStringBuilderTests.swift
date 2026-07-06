@@ -201,6 +201,9 @@ final class RuntimeStringBuilderTests: XCTestCase {
         let box = Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: thrown)!)
             .takeUnretainedValue() as? RuntimeThrowableBox
         XCTAssertNotNil(box)
+        XCTAssertTrue(box is RuntimeStringIndexOutOfBoundsExceptionBox)
+        XCTAssertEqual(box?.exceptionFQName, "kotlin.StringIndexOutOfBoundsException")
+        XCTAssertTrue(box?.exceptionHierarchyFQNames.contains("kotlin.IndexOutOfBoundsException") ?? false)
         XCTAssertTrue(
             box?.message.contains("index=99") ?? false,
             "expected index=99 in message, got: \(box?.message ?? "<nil>")"

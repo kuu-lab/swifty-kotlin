@@ -450,7 +450,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName,
               let iterableTypeParamSymbol = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first
@@ -469,6 +471,23 @@ extension DataFlowSemaPhase {
             args: [.out(elementType)],
             nullability: .nonNull
         )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 0,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) || shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: iterableFQName,
+            name: memberName,
+            arity: 0
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 0, interner: interner)
+            return
+        }
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,
@@ -915,7 +934,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName,
               let iterableTypeParamSymbol = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first
@@ -929,6 +950,28 @@ extension DataFlowSemaPhase {
             symbol: iterableTypeParamSymbol,
             nullability: .nonNull
         )))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: iterableInterfaceSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+        if BundledSyntheticStubRegistration.shouldSkipRegistration(
+            declaredOwnerFQName: iterableFQName,
+            receiverType: receiverType,
+            name: memberName,
+            arity: 1,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) || shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: iterableFQName,
+            name: memberName,
+            arity: 1
+        ) {
+            skipStats?.recordSkip(ownerFQName: iterableFQName, name: memberName, arity: 1, interner: interner)
+            return
+        }
         let accumulatorTypeParamName = interner.intern("S")
         let accumulatorTypeParamSymbol = symbols.define(
             kind: .typeParameter,
@@ -940,11 +983,6 @@ extension DataFlowSemaPhase {
         )
         let accumulatorType = types.make(.typeParam(TypeParamType(
             symbol: accumulatorTypeParamSymbol,
-            nullability: .nonNull
-        )))
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: iterableInterfaceSymbol,
-            args: [.out(elementType)],
             nullability: .nonNull
         )))
         let operationType = types.make(.functionType(FunctionType(

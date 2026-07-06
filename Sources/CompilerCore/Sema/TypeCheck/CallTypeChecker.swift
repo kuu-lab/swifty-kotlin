@@ -1014,79 +1014,30 @@ final class CallTypeChecker {
             return unitType
         }
 
-        // --- Stdlib measureTimeMillis { ... } (STDLIB-131) ---
+        // --- Stdlib system timing calls: measureTimeMillis / measureTimeMicros / measureNanoTime ---
         if let calleeName,
            args.count == 1,
-           shouldUseRuntimeStdlibSpecialCall(
-               calleeName,
-               fqComponents: ["kotlin", "system", "measureTimeMillis"],
+           let timingKind = topLevelStdlibSpecialCallKind(
+               calleeName: calleeName,
+               argCount: args.count,
                locals: locals,
-               ctx: ctx
-           )
+               ctx: ctx,
+               rejectNonSyntheticShadow: true
+           ),
+           timingKind == .measureTimeMillis
+               || timingKind == .measureTimeMicros
+               || timingKind == .measureNanoTime
         {
             let longType = sema.types.longType
-            // Intentionally passing expectedType:nil — the block's return type is
-            // not constrained here because KIR lowering discards the lambda result.
-            // The synthetic stub already declares the parameter as () -> Unit,
-            // which is enforced during overload resolution.
+            // Intentionally passing expectedType:nil: KIR lowering discards the
+            // lambda result and the synthetic stub enforces the () -> Unit shape.
             _ = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
                 locals: &locals,
                 expectedType: nil
             )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: .measureTimeMillis)
-            sema.bindings.bindExprType(id, type: longType)
-            return longType
-        }
-
-        // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-FN-006) ---
-        if let calleeName,
-           args.count == 1,
-           shouldUseRuntimeStdlibSpecialCall(
-               calleeName,
-               fqComponents: ["kotlin", "system", "measureTimeMicros"],
-               locals: locals,
-               ctx: ctx
-           )
-        {
-            let longType = sema.types.longType
-            // Intentionally passing expectedType:nil — same rationale as
-            // measureTimeMillis above: KIR lowering discards the lambda result
-            // and the synthetic stub enforces the () -> Unit contract.
-            _ = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: nil
-            )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: .measureTimeMicros)
-            sema.bindings.bindExprType(id, type: longType)
-            return longType
-        }
-
-        // --- Stdlib measureNanoTime { ... } (STDLIB-550) ---
-        if let calleeName,
-           interner.resolve(calleeName) == "measureNanoTime",
-           args.count == 1,
-           shouldUseRuntimeStdlibSpecialCall(
-               calleeName,
-               fqComponents: ["kotlin", "system", "measureNanoTime"],
-               locals: locals,
-               ctx: ctx
-           )
-        {
-            let longType = sema.types.longType
-            // Intentionally passing expectedType:nil — same rationale as
-            // measureTimeMillis above: KIR lowering discards the lambda result
-            // and the synthetic stub enforces the () -> Unit contract.
-            _ = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: nil
-            )
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: .measureNanoTime)
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: timingKind)
             sema.bindings.bindExprType(id, type: longType)
             return longType
         }
