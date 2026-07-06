@@ -8,9 +8,9 @@ extension KIRLoweringDriver {
     /// registered via `registerCompanionInitializer` so that it is called once
     /// during module initialization (injected into `main`).
     ///
-    /// When the object implements interfaces, this also allocates a heap object
-    /// via `kk_object_new`, stores it in the object's global slot, and registers
-    /// itable methods so that interface-typed virtual dispatch works at runtime.
+    /// When the object participates in runtime dispatch, this also allocates a
+    /// heap object via `kk_object_new`, stores it in the object's global slot,
+    /// and registers vtable/itable methods for virtual dispatch.
     func synthesizeObjectInitializer(
         _ objectDecl: ObjectDecl,
         objectSymbol: SymbolID,
@@ -18,12 +18,14 @@ extension KIRLoweringDriver {
     ) -> [KIRDeclID] {
         let sema = shared.sema
 
-        // Determine whether this object implements any interfaces.
+        // Determine whether this object implements any interfaces or has vtable entries.
         let interfaceSupertypes = sema.symbols.directSupertypes(for: objectSymbol).filter { superSym in
             sema.symbols.symbol(superSym)?.kind == .interface
         }
+        let needsDispatchObject = !interfaceSupertypes.isEmpty
+            || !kirVtableImplementations(for: objectSymbol, sema: sema).isEmpty
 
-        guard !objectDecl.memberProperties.isEmpty || !objectDecl.initBlocks.isEmpty || !interfaceSupertypes.isEmpty else {
+        guard !objectDecl.memberProperties.isEmpty || !objectDecl.initBlocks.isEmpty || needsDispatchObject else {
             return []
         }
 
@@ -44,10 +46,9 @@ extension KIRLoweringDriver {
 
         var body: KIRLoweringEmitContext = [.beginBlock]
 
-        // When the object implements interfaces, allocate a heap object and
-        // store it in the global slot so that interface-typed virtual dispatch
-        // can look up the itable at runtime.
-        if !interfaceSupertypes.isEmpty {
+        // When the object participates in virtual dispatch, allocate a heap object
+        // and store it in the global slot so lookup can find the registered methods.
+        if needsDispatchObject {
             let intType = sema.types.intType
             let layout = sema.symbols.nominalLayout(for: objectSymbol)
             let slotCount = Int64(max(layout?.instanceSizeWords ?? 1, 1))
@@ -146,6 +147,14 @@ extension KIRLoweringDriver {
                     }
                 }
             }
+            appendObjectVtableMethodRegistrations(
+                objectValue: allocatedObj,
+                nominalSymbol: objectSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
         } else {
             body.append(.constValue(result: objectReceiverExpr, value: .symbolRef(objectSymbol)))
         }

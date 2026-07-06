@@ -13,7 +13,7 @@ struct ReflectKMutableProperty0SyntheticTests {
             try runSema(ctx)
             let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
             #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KMutableProperty0 surface to resolve cleanly, got: \(diagnostics)"))
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
         return try #require(result)
     }

@@ -19,6 +19,26 @@ struct StringToDoubleOrNullFunctionTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
+    private func externalLink(
+        for member: String,
+        receiverType: TypeID,
+        parameterCount: Int,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        let fq = ["kotlin", "text", member].map { interner.intern($0) }
+        guard let sym = sema.symbols.lookupAll(fqName: fq).first(where: { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes.count == parameterCount
+        }) else {
+            return nil
+        }
+        return sema.symbols.externalLinkName(for: sym)
+    }
+
     private func externalLinks(for member: String, sema: SemaModule, interner: StringInterner) -> Set<String> {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
         return Set(
@@ -34,7 +54,13 @@ struct StringToDoubleOrNullFunctionTests {
             let sema = try #require(ctx.sema)
 
             #expect(
-                externalLink(for: "toDoubleOrNull", sema: sema, interner: ctx.interner) == "kk_string_toDoubleOrNull",
+                externalLink(
+                    for: "toDoubleOrNull",
+                    receiverType: sema.types.stringType,
+                    parameterCount: 0,
+                    sema: sema,
+                    interner: ctx.interner
+                ) == "kk_string_toDoubleOrNull",
                 "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
             )
 

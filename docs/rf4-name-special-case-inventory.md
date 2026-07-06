@@ -9,16 +9,17 @@ Baseline command:
 rg -n 'interner\.resolve\([^\n]+\)\s*(==|!=)|((==|!=)\s*interner\.resolve\()' Sources/CompilerCore/Sema/TypeCheck
 ```
 
-On this HEAD the baseline was 110 direct comparison lines before the first RF-SEMA-002
-slice. The original RF4 brief mentions 104; use this document plus the command above as
-the current branch-local source of truth.
+On this HEAD the current count is 102 direct comparison lines after the first RF-SEMA-002
+slices. Earlier RF4 notes mentioned 104 and this document previously recorded 110 before
+the first metadata slice; use this document plus the command above as the current
+branch-local source of truth.
 
 | 機能 | 対応スタブ / 移行先 | スタブ/ソース移行後に削除可能か |
 |---|---|---|
 | `repeat(times) {}` top-level loop special path (`CallTypeChecker.swift`) | `HeaderHelpers+SyntheticStdlibLoopStubs`; now carries `.repeatLoop` via `SymbolTable.setStdlibSpecialCallKind` | Yes for name guard: migrated in RF-SEMA-002 slice 1. Remaining TypeCheck block is for lambda expected type and KIR special lowering until ordinary resolution can bind both. |
 | `measureTimeMillis {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureTimeMillis` via symbol metadata | Yes for name guard: migrated in RF-SEMA-002 slice 1. Remaining block exists because KIR lowering consumes `stdlibSpecialCallKind` and discards lambda result. |
 | `measureTimeMicros {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureTimeMicros` via symbol metadata | Yes for name guard: migrated in RF-SEMA-002 slice 1. Same remaining lowering constraint as `measureTimeMillis`. |
-| `measureNanoTime {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; should add `.measureNanoTime` metadata | Yes after same metadata migration as millis/micros. |
+| `measureNanoTime {}` (`kotlin.system`) | `HeaderHelpers+SyntheticTODOAndIOStubs`; now carries `.measureNanoTime` via symbol metadata | Yes for name guard: migrated with the system timing common path. Same remaining lowering constraint as millis/micros. |
 | `measureTime {}` / `measureTimedValue {}` (`kotlin.time`) | `HeaderHelpers+SyntheticTODOAndIOStubs` Duration/TimedValue stubs | Yes after kind metadata is attached and return-type construction is driven by resolved stub signature. |
 | `Array(size)`, primitive array constructors, atomic array factories | Array/atomic synthetic constructor stubs; `KnownCompilerNames.isPrimitiveArrayConstructorTypeName` already avoids raw string for the entry guard | Partially. Constructor element-type inference still needs special code; name-to-element switch can move to constructor metadata. |
 | `typeOf<T>()` | CInterop/typeOf synthetic stub and `.typeOf` lowering | Yes after typeOf stub carries kind and reified type result metadata. |

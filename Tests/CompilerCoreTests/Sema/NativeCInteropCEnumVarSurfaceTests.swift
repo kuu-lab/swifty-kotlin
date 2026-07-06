@@ -16,7 +16,7 @@ struct NativeCInteropCEnumVarSurfaceTests {
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
                 let found = sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) })
-            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
+            return try requireTestValue(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let cEnumVarSymbol = try cinteropSymbol("CEnumVar")

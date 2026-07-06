@@ -2057,6 +2057,22 @@ extension DataFlowSemaPhase {
         if includeGetAndSetAlias {
             registerAtomicMember(
                 ownerSymbol: ownerSymbol, ownerType: ownerType,
+                name: "get", externalLinkName: "\(prefix)_load",
+                returnType: valueType, parameters: [],
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols, interner: interner
+            )
+            registerAtomicMember(
+                ownerSymbol: ownerSymbol, ownerType: ownerType,
+                name: "set", externalLinkName: "\(prefix)_store",
+                returnType: unitType, parameters: [(name: "value", type: valueType)],
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols, interner: interner
+            )
+            registerAtomicMember(
+                ownerSymbol: ownerSymbol, ownerType: ownerType,
                 name: "getAndSet", externalLinkName: "\(prefix)_exchange",
                 returnType: valueType, parameters: [(name: "newValue", type: valueType)],
                 typeParameterSymbols: typeParameterSymbols,
@@ -2394,6 +2410,19 @@ extension DataFlowSemaPhase {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: ownerInfo.fqName,
+               receiverType: ownerType,
+               name: memberName,
+               arity: parameters.count,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return
+        }
         guard symbols.lookupAll(fqName: memberFQName).first(where: { id in
             guard let sig = symbols.functionSignature(for: id) else { return false }
             return sig.parameterTypes == parameters.map(\.type) &&

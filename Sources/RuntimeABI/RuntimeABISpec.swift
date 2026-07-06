@@ -9,10 +9,7 @@ public enum RuntimeABICType: String, Equatable, Sendable {
     case nullableOpaquePointer = "void * _Nullable"
     case constUInt8Pointer = "const uint8_t *"
     case nullableConstUInt8Pointer = "const uint8_t * _Nullable"
-    case uint8Pointer = "uint8_t *"
     case nullableUInt8Pointer = "uint8_t * _Nullable"
-    case constCCharPointer = "const char *"
-    case fieldAddrPointer = "void **"
     case constTypeInfoPointer = "const KTypeInfo *"
     case nullableRawPointerPointer = "void ** _Nullable"
     case int64 = "int64_t"
@@ -79,7 +76,7 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 
 // swiftlint:disable:next type_body_length
 public enum RuntimeABISpec {
-    public static let specVersion = "J34"
+    public static let specVersion = "J35"
 
 
 
@@ -456,47 +453,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_instant_to_js_date",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_double_toJsNumber",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .double),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_toJsNumber",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .int32),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_jsclass_kotlin",
-            parameters: [
-                RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_boolean_toJsBoolean",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -1552,86 +1509,6 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-318: commonPrefixWith / commonSuffixWith
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonPrefixWith_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonSuffixWith_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: false
-        ),
-        // STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonPrefixWith_ignoreCase_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonSuffixWith_ignoreCase_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "otherLength", type: .intptr),
-                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
-                RuntimeABIParameter(name: "otherHash", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String",
-            isThrowing: false
-        ),
         // STDLIB-317: String.asSequence / asIterable
         RuntimeABIFunctionSpec(
             name: "kk_string_asSequence_flat",
@@ -2382,18 +2259,6 @@ public enum RuntimeABISpec {
     ///
     /// When adding a new sub-array, insert its name in alphabetical position.
     /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
-
-
-    /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
-    ///
-    /// The sub-arrays are listed in alphabetical order, one entry per line, so that
-    /// parallel branches adding a new category insert their entry at a unique
-    /// alphabetic position rather than all appending to the same trailing line.
-    /// This is purely a merge-conflict-prevention layout: the resulting element
-    /// set is unchanged from any other ordering.
-    ///
-    /// When adding a new sub-array, insert its name in alphabetical position.
-    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
     public static let allFunctions: [RuntimeABIFunctionSpec] = ([
         abiParityFunctions,
         arrayFunctions,
@@ -2432,7 +2297,6 @@ public enum RuntimeABISpec {
         networkFunctions,
         numericRuntimeBridgeFunctions,
         operatorFunctions,
-        parallelFunctions,
         pathFunctions,
         primitiveNumericConversionFunctions,
         randomFunctions,

@@ -100,7 +100,18 @@ extension DataFlowSemaPhase {
         // mapIndexed(transform: (Int, E) -> R): List<R>
         let mapIndexedName = interner.intern("mapIndexed")
         let mapIndexedFQName = listFQName + [mapIndexedName]
-        if symbols.lookup(fqName: mapIndexedFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: mapIndexedName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: mapIndexedFQName) == nil
+        {
             // mapIndexed is tricky because of the generic R.
             // For synthetic stub, we might simplify to List<Any?> or just have it resolve via fallback if generic R is hard to define here.
             // But let's try to define a local type parameter R for the function.
@@ -314,7 +325,18 @@ extension DataFlowSemaPhase {
         // scan(initial: R, operation: (R, T) -> R): List<R>
         let scanName = interner.intern("scan")
         let scanFQName = listFQName + [scanName]
-        if symbols.lookup(fqName: scanFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: scanName,
+               arity: 2,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: scanFQName) == nil
+        {
             let rName = interner.intern("R")
             let rFQName = scanFQName + [rName]
             let rSymbol = symbols.define(kind: .typeParameter, name: rName, fqName: rFQName, declSite: nil, visibility: .private, flags: [])
@@ -357,7 +379,18 @@ extension DataFlowSemaPhase {
         // foldRight(initial: R, operation: (T, acc: R) -> R): R
         let foldRightName = interner.intern("foldRight")
         let foldRightFQName = listFQName + [foldRightName]
-        if symbols.lookup(fqName: foldRightFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: foldRightName,
+               arity: 2,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: foldRightFQName) == nil
+        {
             let rName = interner.intern("R")
             let rFQName = foldRightFQName + [rName]
             let rSymbol = symbols.define(kind: .typeParameter, name: rName, fqName: rFQName, declSite: nil, visibility: .private, flags: [])

@@ -36,6 +36,7 @@ struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
+    var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -328,12 +329,22 @@ func kk_runtime_reset_metadata() {
         state.kClassBoxCache.removeAll(keepingCapacity: false)
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
+        state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
     }
     runtimeKClassMetadataRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
+}
+
+private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
+    runtimeStorage.withMetadataLock { state in
+        state.objectTypeByPointer.removeValue(forKey: key)
+        state.objectVtableMethods.removeValue(forKey: key)
+        state.objectItableMethods.removeValue(forKey: key)
+        state.objectInterfaceSlots.removeValue(forKey: key)
+    }
 }
 
 func kk_runtime_reset_flow() {
@@ -392,6 +403,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
             header.pointee.flags &= ~kkObjMarkFlag
             survivors[key] = object
         } else {
+            removeRuntimeObjectMetadata(forObjectKey: key)
             object.pointer.deallocate()
         }
     }

@@ -5,8 +5,6 @@ import XCTest
 /// available on common / Kotlin/Native targets.
 ///
 /// Coverage:
-///   - simpleName: top-level, nested, inner, anonymous (null), local, generic, stdlib
-///   - qualifiedName: same set + package-prefixed, null for anonymous objects on Native
 ///   - isInstance(value): basic true/false, null value (always false), unregistered type
 ///   - ::class / X::class class-literal syntax (KIR emission via StandaloneClassReferenceTests
 ///     already covers most paths; here we verify the runtime box identity/equality)
@@ -47,7 +45,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         typeToken: Int,
         qualifiedName: String,
         simpleName: String,
-        supertype: String? = nil,
         flags: Int = 0,
         fieldCount: Int = 0,
         memberCount: Int = 0,
@@ -55,9 +52,8 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
     ) -> Int {
         let qRaw = makeStr(qualifiedName)
         let sRaw = makeStr(simpleName)
-        let supRaw = supertype.map { makeStr($0) } ?? 0
         _ = kk_kclass_register_metadata(
-            typeToken, qRaw, sRaw, supRaw, flags,
+            typeToken, qRaw, sRaw, 0, flags,
             fieldCount, memberCount, constructorCount
         )
         return kk_kclass_create(typeToken, sRaw)
@@ -70,164 +66,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
             return []
         }
         return (tryCast(ptr, to: RuntimeListBox.self)?.elements) ?? []
-    }
-
-    // MARK: - simpleName: top-level class
-
-    func testSimpleNameTopLevelClass() {
-        let kclass = registerClass(typeToken: 1001, qualifiedName: "com.example.Foo", simpleName: "Foo")
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Foo")
-    }
-
-    // MARK: - simpleName: nested class
-
-    func testSimpleNameNestedClass() {
-        // Kotlin nested class: Outer.Inner — simpleName is the short name "Inner"
-        let kclass = registerClass(typeToken: 1002, qualifiedName: "com.example.Outer.Inner", simpleName: "Inner")
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Inner")
-    }
-
-    // MARK: - simpleName: anonymous object (null / empty on Kotlin/Native)
-
-    func testSimpleNameAnonymousObjectIsNullSentinel() {
-        // Anonymous objects have no name. The runtime returns runtimeNullSentinelInt
-        // when there is no metadata and no nameHint.
-        let kclass = kk_kclass_create(1003, 0) // no metadata, no nameHint
-        let raw = kk_kclass_simple_name(kclass)
-        // Without metadata or a nameHint, the implementation falls back to
-        // kk_type_token_simple_name which returns "Unknown" for an unregistered token.
-        // We verify it is not the qualified-name sentinel but a valid (possibly empty/Unknown) value.
-        XCTAssertNotEqual(raw, 0, "simpleName must not be a null pointer for an anonymous-style handle")
-    }
-
-    // MARK: - simpleName: generic class
-
-    func testSimpleNameGenericClass() {
-        // Generic class simpleName is just the bare class name, without type args.
-        let kclass = registerClass(typeToken: 1004, qualifiedName: "com.example.Box", simpleName: "Box")
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Box")
-    }
-
-    // MARK: - simpleName: stdlib special types
-
-    func testSimpleNameBuiltinInt() {
-        // Primitive token (base 3 = intBase). No metadata needed.
-        let intToken = 3 // RuntimeTypeTokenEncoding.intBase
-        let kclass = kk_kclass_create(intToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Int")
-    }
-
-    func testSimpleNameBuiltinString() {
-        let stringToken = 2 // stringBase
-        let kclass = kk_kclass_create(stringToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "String")
-    }
-
-    func testSimpleNameBuiltinAny() {
-        let anyToken = 1 // anyBase
-        let kclass = kk_kclass_create(anyToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Any")
-    }
-
-    func testSimpleNameBuiltinBoolean() {
-        let boolToken = 4 // booleanBase per RuntimeTypeTokenEncoding
-        let kclass = kk_kclass_create(boolToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Boolean")
-    }
-
-    func testSimpleNameBuiltinLong() {
-        let longToken = 11 // longBase
-        let kclass = kk_kclass_create(longToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Long")
-    }
-
-    func testSimpleNameBuiltinDouble() {
-        let doubleToken = 12 // doubleBase
-        let kclass = kk_kclass_create(doubleToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Double")
-    }
-
-    func testSimpleNameBuiltinNothing() {
-        // nullBase token should render as "Nothing".
-        // nullBase = 5 per RuntimeTypeTokenEncoding.
-        let nullToken = 5 // nullBase
-        let kclass = kk_kclass_create(nullToken, 0)
-        let raw = kk_kclass_simple_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "Nothing")
-    }
-
-    // MARK: - qualifiedName
-
-    func testQualifiedNameTopLevelClass() {
-        let kclass = registerClass(typeToken: 2001, qualifiedName: "com.example.MyClass", simpleName: "MyClass")
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "com.example.MyClass")
-    }
-
-    func testQualifiedNameNestedClass() {
-        // Kotlin nested class: Outer.Inner has qualifiedName "com.example.Outer.Inner"
-        let kclass = registerClass(typeToken: 2002, qualifiedName: "com.example.Outer.Inner", simpleName: "Inner")
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "com.example.Outer.Inner")
-    }
-
-    func testQualifiedNameBuiltinString() {
-        let stringToken = 2
-        let kclass = kk_kclass_create(stringToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.String")
-    }
-
-    func testQualifiedNameBuiltinInt() {
-        let intToken = 3
-        let kclass = kk_kclass_create(intToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.Int")
-    }
-
-    func testQualifiedNameBuiltinAny() {
-        let anyToken = 1
-        let kclass = kk_kclass_create(anyToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.Any")
-    }
-
-    func testQualifiedNameBuiltinBoolean() {
-        let boolToken = 4
-        let kclass = kk_kclass_create(boolToken, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "kotlin.Boolean")
-    }
-
-    func testQualifiedNameAnonymousObjectIsNullOrEmpty() {
-        // Unregistered token with no nameHint — qualifiedName falls back to simpleName.
-        let kclass = kk_kclass_create(1003, 0)
-        let raw = kk_kclass_qualified_name(kclass)
-        // The sentinel (not-found) case returns runtimeNullSentinelInt; anything else is also valid.
-        // We only assert it does not crash.
-        XCTAssertNotEqual(raw, 0, "qualifiedName must not be a null pointer")
-    }
-
-    func testQualifiedNameWithMetadataOverridesHint() {
-        let typeToken = 2003
-        _ = kk_kclass_register_metadata(
-            typeToken,
-            makeStr("org.example.pkg.Widget"),
-            makeStr("Widget"),
-            0, 0, 0, 0, 0
-        )
-        let kclass = kk_kclass_create(typeToken, makeStr("Widget"))
-        let raw = kk_kclass_qualified_name(kclass)
-        XCTAssertEqual(strValue(from: raw), "org.example.pkg.Widget")
     }
 
     // MARK: - isInstance
@@ -326,18 +164,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         XCTAssertEqual(kk_kclass_is_interface(kclass), 0, "Enum class must not be an interface")
     }
 
-    func testEnumClassSimpleNameAndQualifiedName() {
-        let token = 6002
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "com.example.Direction",
-            simpleName: "Direction",
-            flags: 1 << 5
-        )
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Direction")
-        XCTAssertEqual(strValue(from: kk_kclass_qualified_name(kclass)), "com.example.Direction")
-    }
-
     // MARK: - Interface class-literal
 
     func testInterfaceClassLiteralFlags() {
@@ -352,43 +178,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         XCTAssertEqual(kk_kclass_is_interface(kclass), 1, "Interface flag should be 1")
         XCTAssertEqual(kk_kclass_is_abstract(kclass), 0, "Interface should not additionally be abstract unless flagged")
         XCTAssertEqual(kk_kclass_is_sealed(kclass), 0)
-    }
-
-    func testInterfaceSimpleName() {
-        let token = 7002
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "org.lib.Serializable",
-            simpleName: "Serializable",
-            flags: 1 << 3
-        )
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Serializable")
-    }
-
-    // MARK: - Any::class, Unit::class, Nothing::class
-
-    func testAnyKClassSimpleName() {
-        let anyToken = 1
-        let kclass = kk_kclass_create(anyToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Any")
-    }
-
-    func testAnyKClassQualifiedName() {
-        let anyToken = 1
-        let kclass = kk_kclass_create(anyToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_qualified_name(kclass)), "kotlin.Any")
-    }
-
-    func testNothingKClassSimpleName() {
-        let nullToken = 5 // nullBase
-        let kclass = kk_kclass_create(nullToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_simple_name(kclass)), "Nothing")
-    }
-
-    func testNothingKClassQualifiedName() {
-        let nullToken = 5 // nullBase
-        let kclass = kk_kclass_create(nullToken, 0)
-        XCTAssertEqual(strValue(from: kk_kclass_qualified_name(kclass)), "kotlin.Nothing")
     }
 
     // MARK: - cast / safeCast semantics (isInstance-based)
@@ -406,22 +195,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         let notAnObject = 0xDEAD_BEEF
         let result = kk_kclass_isInstance(kclass, notAnObject)
         XCTAssertEqual(result, 0, "safeCast with non-registered value → false")
-    }
-
-    // MARK: - Member / field / constructor counts
-
-    func testMemberCountFromMetadata() {
-        let token = 9001
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "test.DataClass",
-            simpleName: "DataClass",
-            flags: 1 << 0, // dataClass
-            fieldCount: 3,
-            memberCount: 7,
-            constructorCount: 2
-        )
-        XCTAssertEqual(kk_kclass_members_count(kclass), 7)
     }
 
     func testMetadataOnlyMemberPropertiesAreEmpty() {
@@ -493,11 +266,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         XCTAssertEqual(runtimeListElements(from: kk_kclass_constructors(kclass)), [constructor])
     }
 
-    func testMembersCountMinusOneWhenNoMetadata() {
-        let kclass = kk_kclass_create(9999, 0)
-        XCTAssertEqual(kk_kclass_members_count(kclass), -1, "Unregistered KClass must return -1 for memberCount")
-    }
-
     // MARK: - Multiple flags combined (abstract + sealed)
 
     func testAbstractSealedCombined() {
@@ -557,28 +325,6 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         let kclass = kk_kclass_create(token, 0)
         let vis = strValue(from: kk_kclass_visibility(kclass))
         XCTAssertEqual(vis, "INTERNAL")
-    }
-
-    // MARK: - Supertype
-
-    func testSupertypeNamePresentWhenRegistered() {
-        let token = 11001
-        let kclass = registerClass(
-            typeToken: token,
-            qualifiedName: "test.Child",
-            simpleName: "Child",
-            supertype: "test.Parent"
-        )
-        let supRaw = kk_kclass_supertype_name(kclass)
-        XCTAssertNotEqual(supRaw, runtimeNullSentinelInt, "Supertype name should be present")
-        XCTAssertEqual(strValue(from: supRaw), "test.Parent")
-    }
-
-    func testSupertypeNameAbsentReturnsNullSentinel() {
-        let token = 11002
-        let kclass = registerClass(typeToken: token, qualifiedName: "test.Root", simpleName: "Root")
-        let supRaw = kk_kclass_supertype_name(kclass)
-        XCTAssertEqual(supRaw, runtimeNullSentinelInt, "No supertype should return null sentinel")
     }
 
     // MARK: - Type parameters

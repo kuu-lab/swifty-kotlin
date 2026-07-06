@@ -31,12 +31,40 @@ extension VirtualDispatchTests {
                 if case .virtualCall = instruction { return true }
                 return false
             }
-            // GEN-VTABLE-DISABLE (DEBT-KIR-001): open-class calls fall back to static
-            // dispatch until kk_alloc + KTypeInfo emission land.  When the gate is
-            // lifted, replace this assertion with vtable virtualCall expectations.
-            XCTAssertFalse(
+            XCTAssertTrue(
                 hasVirtualCall,
-                "Open class with subtypes should use static .call while GEN-VTABLE-DISABLE is active"
+                "Open class with subtypes should use vtable virtualCall"
+            )
+        }
+    }
+
+    func testSafeCallOpenClassMethodUsesVtableDispatch() throws {
+        let source = """
+        open class Animal {
+            open fun speak(): String = "..."
+        }
+        class Dog : Animal() {
+            override fun speak(): String = "Woof"
+        }
+        fun callSpeak(a: Animal?): String? = a?.speak()
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            do {
+                try runToKIR(ctx)
+            } catch {
+                throw XCTSkip("Frontend failed: \(error)")
+            }
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "callSpeak", in: module, interner: ctx.interner)
+            let hasVirtualCall = body.contains { instruction in
+                if case .virtualCall = instruction { return true }
+                return false
+            }
+            XCTAssertTrue(
+                hasVirtualCall,
+                "Safe call on open class should use vtable virtualCall on the non-null branch"
             )
         }
     }
