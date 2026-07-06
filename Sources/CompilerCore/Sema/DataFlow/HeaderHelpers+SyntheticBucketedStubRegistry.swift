@@ -213,8 +213,14 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "Path") { phase, symbols, types, interner, _ in
             phase.registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "LateListIndexedMembers") { phase, symbols, types, interner, _ in
-            phase.registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "LateListIndexedMembers") { phase, symbols, types, interner, context in
+            phase.registerLateListIndexedMembers(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                bundledIndex: context.bundledIndex,
+                skipStats: context.skipStats
+            )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Coercion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
