@@ -108,8 +108,13 @@ struct NothingTypeFlowTests {
             // 2 user if-expressions (ifCase + tryCase), plus bundled stdlib if-expressions
             // that also merge to Int -- including the step-sign branches in
             // Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt's six count()
-            // implementations (MIGRATION-RANGE-002).
-            #expect(ifExprIDs.count == 19, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB, plus bundled stdlib if-expressions")
+            // implementations (MIGRATION-RANGE-002), plus the six Int-typed
+            // if-expressions in Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt's
+            // maxOf(Int, Int)/maxOf(Int, Int, Int)/minOf(Int, Int)/minOf(Int, Int, Int)
+            // overloads (MIGRATION-COMP-002; the vararg overloads' loop-body if-statements
+            // are Unit-typed and excluded by the intType filter, as are the Long/Float/
+            // Double/UByte/UShort/UInt/ULong overloads' if-expressions).
+            #expect(ifExprIDs.count == 25, "Expected 2 user if-expressions typed as Int via Nothing-as-bottom LUB, plus bundled stdlib if-expressions")
             #expect(!whenExprIDs.isEmpty)
             #expect(!tryExprIDs.isEmpty)
 
