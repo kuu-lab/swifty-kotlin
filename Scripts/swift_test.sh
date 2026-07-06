@@ -8,7 +8,6 @@ source "$SCRIPT_DIR/lib/common.sh"
 parallel_mode="${SWIFT_TEST_PARALLEL:-}"
 workers_override="${SWIFT_TEST_WORKERS:-}"
 build_jobs_override="${SWIFT_TEST_BUILD_JOBS:-}"
-junit_xml_path="${SWIFT_TEST_JUNIT_XML:-}"
 
 has_parallel_flag=false
 has_workers_flag=false
@@ -115,13 +114,12 @@ while IFS= read -r line; do
     fi
 done < "$tmpout"
 
-# Deduplicate while preserving order (bash 3.2 compatible — no declare -A)
+# Deduplicate while preserving order
 declare -a unique_failures=()
-_dedup_seen=""
+declare -A _dedup_seen=()
 for t in "${failed_tests[@]+"${failed_tests[@]}"}"; do
-    # Use a delimited sentinel so partial names don't accidentally match
-    if [[ "$_dedup_seen" != *"|${t}|"* ]]; then
-        _dedup_seen="${_dedup_seen}|${t}|"
+    if [[ -z "${_dedup_seen[$t]:-}" ]]; then
+        _dedup_seen[$t]=1
         unique_failures+=("$t")
     fi
 done
@@ -142,32 +140,18 @@ emit_failure_summary() {
     printf >&2 "\n${RED}${BOLD}── Test Failures (%d) ──────────────────────────────────────────${RESET}\n" "$count"
 
     # Group by suite prefix (first component before '.' or '/').
-    # Use parallel arrays for bash 3.2 compatibility (no declare -A).
-    declare -a suite_order=()
-    declare -a suite_entries=()
-    _suite_seen=""
+    local suite
+    local -a suite_order=()
+    local -A suite_entries=()
     for t in "${unique_failures[@]}"; do
-        local suite="${t%%[./]*}"
-        if [[ "$_suite_seen" != *"|${suite}|"* ]]; then
-            _suite_seen="${_suite_seen}|${suite}|"
+        suite="${t%%[./]*}"
+        if [[ -z "${suite_entries[$suite]:-}" ]]; then
             suite_order+=("$suite")
-            suite_entries+=("${t}"$'\n')
-        else
-            # Append to existing entry for this suite
-            local idx=0
-            for (( idx=0; idx < ${#suite_order[@]}; idx++ )); do
-                if [[ "${suite_order[$idx]}" == "$suite" ]]; then
-                    suite_entries[$idx]+="${t}"$'\n'
-                    break
-                fi
-            done
         fi
+        suite_entries[$suite]+="${t}"$'\n'
     done
-    unset _suite_seen
 
-    local idx=0
-    for (( idx=0; idx < ${#suite_order[@]}; idx++ )); do
-        local suite="${suite_order[$idx]}"
+    for suite in "${suite_order[@]}"; do
         printf >&2 "\n${YELLOW}${BOLD}[%s]${RESET}\n" "$suite"
         while IFS= read -r entry; do
             [[ -z "$entry" ]] && continue
@@ -176,7 +160,7 @@ emit_failure_summary() {
             if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
                 printf '::error title=Test Failure::%s\n' "$entry"
             fi
-        done <<< "${suite_entries[$idx]}"
+        done <<< "${suite_entries[$suite]}"
     done
 
     printf >&2 "\n${RED}${BOLD}%d test(s) failed.${RESET}\n" "$count"
@@ -185,7 +169,7 @@ emit_failure_summary() {
     for t in "${unique_failures[@]}"; do
         if [[ "$t" == *Golden* || "$t" == *golden* || "$t" == *matchesGolden* ]]; then
             printf >&2 "\n${YELLOW}Hint: golden mismatch detected — regenerate with:${RESET}\n"
-            printf >&2 "  UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden\n"
+            printf >&2 "  %s\n" "$GOLDEN_UPDATE_CMD"
             break
         fi
     done
@@ -205,33 +189,6 @@ emit_failure_summary() {
     fi
 }
 
-# ---------------------------------------------------------------------------
-# Optionally emit JUnit XML (set SWIFT_TEST_JUNIT_XML=/path/report.xml)
-# ---------------------------------------------------------------------------
-emit_junit_xml() {
-    [[ -z "$junit_xml_path" ]] && return
-    local count="${#unique_failures[@]}"
-    local timestamp
-    timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")"
-
-    {
-        printf '<?xml version="1.0" encoding="UTF-8"?>\n'
-        printf '<testsuites failures="%d" timestamp="%s">\n' "$count" "$timestamp"
-        printf '  <testsuite name="SwiftTests" failures="%d" tests="%d">\n' "$count" "$count"
-        for t in "${unique_failures[@]}"; do
-            local classname="${t%%[./]*}"
-            local testname="${t}"
-            printf '    <testcase classname="%s" name="%s">\n' "$classname" "$testname"
-            printf '      <failure message="Test failed">%s</failure>\n' "$testname"
-            printf '    </testcase>\n'
-        done
-        printf '  </testsuite>\n'
-        printf '</testsuites>\n'
-    } > "$junit_xml_path"
-    printf >&2 "JUnit XML written to: %s\n" "$junit_xml_path"
-}
-
 emit_failure_summary
-emit_junit_xml
 
 exit "$test_exit"

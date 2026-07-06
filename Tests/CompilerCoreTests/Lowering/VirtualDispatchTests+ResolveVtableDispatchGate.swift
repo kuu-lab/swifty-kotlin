@@ -2,14 +2,15 @@
 import Foundation
 import XCTest
 
-// DEBT-KIR-001 / GEN-VTABLE-DISABLE: vtable dispatch resolution is gated until
-// codegen emits KTypeInfo vtables and class construction uses kk_alloc.
+// DEBT-KIR-001: vtable dispatch is enabled for compiler-created objects via
+// allocation-time vtable method registration, with kk_alloc/KTypeInfo remaining
+// as the runtime fallback path.
 
 extension VirtualDispatchTests {
     /// Isolated unit test for `resolveVirtualDispatch` on an open-class hierarchy.
-    /// While GEN-VTABLE-DISABLE is active the resolver must return `nil` so that
-    /// lowering falls back to static `.call` dispatch.
-    func testResolveVtableDispatchReturnsNilWhileGENVTABLEDisabled() {
+    /// Open-class hierarchies must select vtable dispatch when the callee has a
+    /// layout slot and the parent has known subtypes.
+    func testResolveVtableDispatchReturnsVtableForOpenClassWithSubtypes() {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
@@ -29,10 +30,7 @@ extension VirtualDispatchTests {
             sema: sema
         )
 
-        XCTAssertNil(
-            dispatch,
-            "GEN-VTABLE-DISABLE: open class with subtypes must not select vtable dispatch yet"
-        )
+        XCTAssertEqual(dispatch, .vtable(slot: 0))
     }
 
     /// Confirms that a class without known subtypes also skips vtable dispatch.
@@ -89,11 +87,7 @@ extension VirtualDispatchTests {
         XCTAssertNil(dispatch, "Class without subtypes should use static dispatch")
     }
 
-    /// When DEBT-KIR-001 is resolved, flip this test to assert `.vtable(slot:)`.
     func testResolveVtableDispatchExpectedSlotWhenEnabled() throws {
-        throw XCTSkip(
-            "GEN-VTABLE-DISABLE (DEBT-KIR-001): re-enable after codegen emits KTypeInfo vtables and class ctor uses kk_alloc"
-        )
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
         let loweringContext = KIRLoweringContext()
@@ -122,11 +116,7 @@ extension VirtualDispatchTests {
 
     /// Verifies vtable slot selection is per-callee, not always slot 0.
     /// A class with two virtual methods must dispatch each to its own slot.
-    /// Gated on the same prerequisites as the single-method case.
     func testResolveVtableDispatchSelectsCorrectNonZeroSlot() throws {
-        throw XCTSkip(
-            "GEN-VTABLE-DISABLE (DEBT-KIR-001): re-enable after codegen emits KTypeInfo vtables and class ctor uses kk_alloc"
-        )
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()

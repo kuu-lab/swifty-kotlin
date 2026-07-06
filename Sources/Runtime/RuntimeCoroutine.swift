@@ -154,14 +154,15 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        runtimeTraverseSequenceWithState; that function must become
 //        suspension-aware to activate this path.
 //
-//        Remaining (CORO-004 Phase 3): CPS-transform sequence/iterator builder
-//        lambdas in CollectionLiteralLoweringPass so yield() returns
-//        COROUTINE_SUSPENDED.  Once the compiler emits that check, the runtime
-//        can use invokeBuilderLambda() as a per-element re-entry point, install
-//        a continuation in producerGate, and eliminate the dedicated thread
-//        entirely — reducing to zero blocked threads per iteration step.
+// [DEBT-CORO-002 PHASE 3 DONE] RuntimeTypes.swift / RuntimeSequenceBuilders.swift /
+//        CoroutineLoweringPass.swift — compiler-generated sequence/iterator
+//        builders now route through kk_*_builder_build_coro.  yield() returns
+//        COROUTINE_SUSPENDED from the builder body and the consumer resumes the
+//        stored continuation on demand, so generated producers no longer need a
+//        dedicated thread.  The old Thread-backed entry points remain as a
+//        compatibility fallback for direct non-CPS runtime callbacks/tests.
 //
-// Priority order (remaining): Channel > sequence builders > flow
+// Priority order (remaining): Channel > flow
 // (await/join completed in Phase 2; withContext completed in Phase 3.)
 
 // MARK: - CORO-004: Cooperative Sync Gate

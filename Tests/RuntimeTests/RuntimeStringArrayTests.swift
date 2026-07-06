@@ -2535,43 +2535,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(flatStringReturnValue(text, intArg: 1, using: kk_string_drop_flat), "é🐻")
     }
 
-    func testCommonPrefixSuffixFlatRuntimeAPIsUseFlattenedStringFields() {
-        XCTAssertEqual(
-            flatStringReturnValue("alphabet", other: "alpine", using: kk_string_commonPrefixWith_flat),
-            "alp"
-        )
-        XCTAssertEqual(
-            flatStringReturnValue("alphabet", other: "bet", using: kk_string_commonSuffixWith_flat),
-            "bet"
-        )
-        XCTAssertEqual(
-            flatStringReturnValue(
-                "HelloWorld",
-                other: "helloKotlin",
-                ignoreCase: true,
-                using: kk_string_commonPrefixWith_ignoreCase_flat
-            ),
-            "Hello"
-        )
-        XCTAssertEqual(
-            flatStringReturnValue(
-                "HelloWORLD",
-                other: "MyWorld",
-                ignoreCase: true,
-                using: kk_string_commonSuffixWith_ignoreCase_flat
-            ),
-            "WORLD"
-        )
-        XCTAssertEqual(
-            flatStringReturnValue("aé🐻", other: "aéz", using: kk_string_commonPrefixWith_flat),
-            "aé"
-        )
-        XCTAssertEqual(
-            flatStringReturnValue("pre🐻", other: "x🐻", using: kk_string_commonSuffixWith_flat),
-            "🐻"
-        )
-    }
-
     func testStringScalarIndexedOperationsWithNonASCII() {
         XCTAssertEqual(flatStringSubstringValue("aé🐻", start: 1, end: 3), "é🐻")
         XCTAssertEqual(

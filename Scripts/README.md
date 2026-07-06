@@ -1,5 +1,21 @@
 # Scripts workflow
 
+## Inventory
+
+| Script | CI | Purpose |
+|---|---|---|
+| `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations |
+| `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
+| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
+| `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
+| `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
+| `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
+| `check_todo_ids.sh` | – | Detect duplicate task IDs in `TODO.md` |
+| `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
+| `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing |
+
+## swift_test.sh
+
 `Scripts/swift_test.sh` wraps `swift test` with parallel execution enabled by default.
 
 - Tune workers: `SWIFT_TEST_WORKERS=4 bash Scripts/swift_test.sh`
@@ -43,10 +59,11 @@ bash Scripts/swift_test.sh --filter Golden
 git diff -- Tests/CompilerCoreTests/GoldenCases
 ```
 
-3. If the parser/sema/lowering change is intentional, update fixtures:
+3. If the parser/sema/lowering change is intentional, update fixtures
+   (the `-swift-version` flags match the CI language mode):
 
 ```bash
-UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden
+UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6
 ```
 
 4. Re-review fixture changes and ensure only intended files changed:
@@ -94,6 +111,13 @@ You can control the cached path and version with:
 ```bash
 export KOTLINC_COROUTINES_VERSION=1.10.2
 export KOTLINC_DEP_DIR=/path/to/.runtime-build/deps
+```
+
+Downloads are checksum-verified. For versions without a checksum baked into
+the script, also set:
+
+```bash
+export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
 ```
 
 Emit a machine-readable report (TSV) for CI tooling:
@@ -144,4 +168,36 @@ Render a markdown summary from that report:
 
 ```bash
 bash Scripts/diff_kotlinc_ci_summary.sh --report /tmp/diff_report.tsv --summary /tmp/step_summary.md
+```
+
+## CI test sharding
+
+`shard_swift_tests.sh` splits one test target across several CI jobs using the
+same interleaved rule as `diff_kotlinc.sh` sharding. Pure XCTest targets can
+shard per-test (`--mode dynamic`, backed by `swift test list`); targets that
+mix Swift Testing shard per-suite (`--mode static`, backed by source scanning):
+
+```bash
+bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackendTests\.' \
+  --shard-index 0 --shard-count 6
+bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerCoreTests \
+  --target-prefix CompilerCoreTests --shard-index 0 --shard-count 4
+```
+
+## Refactoring guard metrics
+
+`loc_report.sh` emits the metrics used as the RF-series refactor gate
+(see `docs/refactoring-metrics.md` for the tracked baseline):
+
+```bash
+bash Scripts/loc_report.sh > after.tsv
+```
+
+## Dead-code audit
+
+`dead_code_audit.sh` lists `@_cdecl kk_*` runtime symbols that no compiler
+path can emit (see `docs/dead-code-audit.md` for the exclusion pipeline):
+
+```bash
+bash Scripts/dead_code_audit.sh --verbose
 ```

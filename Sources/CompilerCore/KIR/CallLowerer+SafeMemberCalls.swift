@@ -1279,19 +1279,12 @@ extension CallLowerer {
         // In Kotlin, classes are final by default; virtual dispatch is only
         // needed when the class is open/abstract (has known subtypes).
         //
-        // GEN-VTABLE-DISABLE (DEBT-KIR-001): kk_alloc (RuntimeGC.swift) is done.
-        // Two prerequisites remain before enabling:
-        //   1. Codegen emits per-class KTypeInfo globals with populated vtable arrays.
-        //   2. Class construction calls kk_alloc(size, &typeInfo) instead of
-        //      kk_object_new (RuntimeObjectBox has no KKObjHeader.typeInfo field).
-        // kk_vtable_lookup reads typeInfo via KKObjHeader set only by kk_alloc;
-        // enabling before (1)+(2) panics at runtime.
-        // TODO(DEBT-KIR-001): when both land, replace `return nil` with:
-        //   return layout.vtableSlots[callee].map { .vtable(slot: $0) }
+        // Compiler-created objects register their concrete vtable slot methods at
+        // allocation time, mirroring the existing itable method registry.  Raw
+        // kk_alloc-backed objects can still use KTypeInfo vtables via the runtime
+        // lookup fallback.
         let subtypes = sema.symbols.directSubtypes(of: parentID)
         guard !subtypes.isEmpty else { return nil }
-        _ = layout
-        _ = callee
-        return nil
+        return layout.vtableSlots[callee].map { .vtable(slot: $0) }
     }
 }

@@ -169,6 +169,18 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 - `diff_kotlinc.sh`: 移行した各 API に対応する diff ケースを `Scripts/diff_cases/` に**必ず追加**する。
   kotlinc と意図的に挙動を変えない限り `// SKIP-DIFF` は使わない
 
+実装ステータス（2026-07-06）:
+
+- `LoadSourcesPhase` は bundled / residual stdlib sources を `__bundled_*` path の辞書順に登録し、
+  `Tests/CompilerCoreTests/Driver/BundledStdlibOrderingTests.swift` が「bundled がユーザー入力より先」
+  と「bundled 同士が辞書順」を固定している
+- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` で bundled declSite symbols を
+  除外し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が 0 件になる状態を維持する
+- Diagnostics golden / CLI diagnostics は `DiagnosticEngine.render` / `renderJSON` が source location、
+  severity、code、message で render 時ソートする
+- `Scripts/diff_kotlinc.sh` は `find | sort` の case discovery、interleaved sharding、parallel worker logs の
+  input-order replay で report / console output の順序を安定化している
+
 ## 9. 合成スタブ 3 分類棚卸し (RF-STUB-001)
 
 分類基準:
@@ -190,7 +202,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticBigIntegerStubs.swift` | 620 | (a) | `java.math.BigInteger` compatibility; target-out cleanup candidate. |
 | `HeaderHelpers+SyntheticBuilderDSLStubs.swift` | 414 | (b) | M3 collection builder source migration. |
 | `HeaderHelpers+SyntheticCInteropStubs.swift` | 3065 | (c) | Kotlin/Native interop compiler/runtime surface; table-driven residual candidate. |
-| `HeaderHelpers+SyntheticCharStubs.swift` | 987 | (c) | Primitive `Char` shell plus helpers; keep as built-in until a dedicated source split exists. |
+| `HeaderHelpers+SyntheticCharStubs.swift` | 889 | (c) | Primitive `Char` shell plus helpers; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticClockStubs.swift` | 451 | (b) | M8 time source migration. |
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
 | `HeaderHelpers+SyntheticCoercionStubs.swift` | 1349 | (b) | M6 range/coercion source migration; many overloads already source-backed. |
@@ -200,14 +212,12 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | 1446 | (b) | M5 comparisons/comparator source migration. |
 | `HeaderHelpers+SyntheticComparisonStubs.swift` | 1083 | (b) | M5 `maxOf`/`minOf` and comparison helpers. |
 | `HeaderHelpers+SyntheticConcurrencyStubs.swift` | 186 | (a) | `java.lang.Thread` / JVM-style `kotlin.concurrent.thread`; cleanup candidate. |
-| `HeaderHelpers+SyntheticCoroutineHelpers.swift` | 763 | (c) | Suspend/coroutine compiler/runtime scaffolding; consolidate with coroutine registry. |
-| `HeaderHelpers+SyntheticCoroutineStubs.swift` | 2422 | (c) | `kotlin.coroutines` and supported coroutine runtime surface. |
-| `HeaderHelpers+SyntheticCoroutinesStubs.swift` | 365 | (c) | ABI-facing coroutine support; RF-STUB-005 naming consolidation. |
+| `HeaderHelpers+SyntheticCoroutineRegistry.swift` | 3552 | (c) | RF-STUB-005 consolidated coroutine package, ABI, and helper registry. |
 | `HeaderHelpers+SyntheticDeepRecursiveStubs.swift` | 324 | (b) | Public stdlib surface; source migration before removal. |
 | `HeaderHelpers+SyntheticDurationStubs.swift` | 1390 | (b) | M8 duration source migration; bridge-only `__kk_*` declarations may remain private. |
 | `HeaderHelpers+SyntheticDynamicStubs.swift` | 101 | (a) | Kotlin/JS `dynamic`; cleanup candidate. |
 | `HeaderHelpers+SyntheticEnumStubs.swift` | 474 | (c) | Enum compiler surface. |
-| `HeaderHelpers+SyntheticExceptionStubs.swift` | 907 | (c) | Core exception shells required by diagnostics/lowering; declarative residual candidate. |
+| `HeaderHelpers+SyntheticExceptionStubs.swift` | 787 | (c) | Core exception shells required by diagnostics/lowering; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticExperimentalBitwiseStubs.swift` | 99 | (b) | Experimental bitwise stdlib helpers; source migration owner. |
 | `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` | 367 | (c) | Common opt-in markers stay; split JS/Wasm markers into (a) cleanup first. |
 | `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 828 | (b) | M8 experimental time source migration. |
@@ -219,9 +229,8 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticGroupingStubs.swift` | 373 | (b) | M3 grouping/HOF source migration. |
 | `HeaderHelpers+SyntheticHexFormatStubs.swift` | 589 | (b) | MIGRATION-ENC owner; source exists but not fully wired. |
 | `HeaderHelpers+SyntheticInstantStubs.swift` | 441 | (b) | M8 time source migration. |
-| `HeaderHelpers+SyntheticIterableMembers.swift` | 1497 | (b) | M3 collection HOF/member source migration; RF-STUB-005 naming cleanup after bucket split. |
-| `HeaderHelpers+SyntheticIterableStubs.swift` | 1326 | (b) | M3 iterable/collection shells and members. |
-| `HeaderHelpers+SyntheticIteratorStubs.swift` | 310 | (c) | Iterator and primitive iterator compiler surface. |
+| `HeaderHelpers+SyntheticIterableRegistry.swift` | 2741 | (b) | RF-STUB-005 consolidated Iterable/Collection shells and member registrations. |
+| `HeaderHelpers+SyntheticIteratorStubs.swift` | 272 | (c) | Iterator and primitive iterator compiler surface; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift` | 80 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayStubs.swift` | 71 | (a) | Kotlin/JS surface; cleanup candidate. |
@@ -245,24 +254,8 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticMutableCollectionIterableAddAll.swift` | 104 | (b) | M3 mutable collection helper source migration. |
 | `HeaderHelpers+SyntheticMutableCollectionSequenceAddAll.swift` | 101 | (b) | M3/M4 mutable collection helper source migration. |
 | `HeaderHelpers+SyntheticMutableListStubs.swift` | 1549 | (b) | M3 mutable list shell and member migration. |
-| `HeaderHelpers+SyntheticNativeConcurrentAtomicLazy.swift` | 96 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentAtomicReference.swift` | 152 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentCommon.swift` | 737 | (c) | RF-STUB-004 NativeConcurrent shared table body. |
-| `HeaderHelpers+SyntheticNativeConcurrentContinuation.swift` | 297 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentDetachedObjectGraph.swift` | 190 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentEnsureNeverFrozen.swift` | 54 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentExceptions.swift` | 128 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentFreezableAtomicReference.swift` | 136 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentFreeze.swift` | 156 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentFuture.swift` | 106 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentLegacyAtomicScalars.swift` | 360 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentMutableData.swift` | 218 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentStubs.swift` | 312 | (c) | RF-STUB-004 NativeConcurrent entry point. |
-| `HeaderHelpers+SyntheticNativeConcurrentWaitForMultipleFutures.swift` | 96 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentWaitWorkerTermination.swift` | 37 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentWithWorker.swift` | 69 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentWorker.swift` | 172 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
-| `HeaderHelpers+SyntheticNativeConcurrentWorkerBoundReference.swift` | 106 | (c) | RF-STUB-004 NativeConcurrent table consolidation. |
+| `HeaderHelpers+SyntheticNativeConcurrentCommon.swift` | 736 | (c) | RF-STUB-004 shared NativeConcurrent helper body. |
+| `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` | 2715 | (c) | RF-STUB-004 consolidated NativeConcurrent registration table and entry point. |
 | `HeaderHelpers+SyntheticNativeDataStubs.swift` | 821 | (c) | Native data/runtime support; declarative residual candidate. |
 | `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` | 85 | (a) | `kotlin.js.nativeGetter/nativeSetter/nativeInvoke`; cleanup candidate. |
 | `HeaderHelpers+SyntheticNativeInteropHelpers.swift` | 1292 | (c) | Kotlin/Native interop helper surface; table-driven residual candidate. |
@@ -274,7 +267,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticPathStubs+SymbolRegistration.swift` | 488 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup with path surface. |
 | `HeaderHelpers+SyntheticPathStubs+TypeCreation.swift` | 337 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup with path surface. |
 | `HeaderHelpers+SyntheticPathStubs.swift` | 2102 | (a) | `java.nio.file`/`kotlin.io.path`; cleanup candidate. |
-| `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift` | 56 | (c) | Temporary registry artifact; RF-STUB-006 will replace it with bucketed registries. |
+| `HeaderHelpers+SyntheticBucketedStubRegistry.swift` | 325 | (a/b/c) | RF-STUB-006 bucketed registry for delegate and former ExtendedStdlib calls. |
 | `HeaderHelpers+SyntheticPlatformObjectHelpers.swift` | 216 | (a) | Java class/platform object helpers; cleanup unless needed by residual annotations. |
 | `HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` | 261 | (a) | JVM/JS platform time conversion; cleanup candidate. |
 | `HeaderHelpers+SyntheticPreconditionStubs.swift` | 205 | (b) | `check`/`require`/`error` source migration. |
@@ -312,9 +305,11 @@ table migration.
 
 ### RF-STUB-002 reference cleanup recipe
 
-`CLEANUP-STUB-033/034` already removed the old PlatformAndJS phase file and the
-JS/Wasm/JVM calls that were in `SyntheticPhase_ExtendedStdlib`. The remaining
-(a) work should follow the same shape:
+`CLEANUP-STUB-033/034` already removed the old PlatformAndJS phase file. RF-STUB-006
+now routes the central delegate sequence and the remaining former ExtendedStdlib calls
+through `HeaderHelpers+SyntheticBucketedStubRegistry.swift`, where entries are tagged
+as (a)/(b)/(c) while preserving historical registration order. The remaining (a) work
+should follow the same shape:
 
 1. Remove the registration call from `registerSyntheticDelegateStubs` or the
    relevant phase batch.
@@ -338,7 +333,7 @@ JS/Wasm/JVM calls that were in `SyntheticPhase_ExtendedStdlib`. The remaining
    `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`, `SyntheticAtomicStubs`.
 3. After RF-STDLIB-003, migrate one narrow (b) slice end-to-end and use it as the
    template for the remaining M1-M17 rows.
-4. Start RF-STUB-003/004 only on files classified (c); do not table-drive code
+4. Continue RF-STUB-003 residual table migration only on files classified (c); do not table-drive code
    that is already scheduled for deletion or Kotlin source migration.
 
 ## 10. モジュール移行プレイブック

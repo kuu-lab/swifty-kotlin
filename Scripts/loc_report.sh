@@ -27,13 +27,18 @@ fi
 
 cd "$ROOT_DIR"
 
+# File lists are fed to xargs as NUL-separated stdin (printf is a builtin, so
+# no exec() argument limit applies); xargs may split them across several tool
+# invocations, so per-invocation counts are summed afterwards.
 count_lines() {
   if [[ $# -eq 0 ]]; then
     printf '0\n'
     return
   fi
 
-  awk 'END { print NR + 0 }' "$@"
+  printf '%s\0' "$@" \
+    | xargs -0 awk 'END { print NR + 0 }' \
+    | awk '{ total += $1 } END { print total + 0 }'
 }
 
 count_regex_occurrences() {
@@ -45,37 +50,41 @@ count_regex_occurrences() {
     return
   fi
 
-  { grep -hEo "$pattern" "$@" || true; } | awk 'END { print NR + 0 }'
+  { printf '%s\0' "$@" | xargs -0 grep -hEo "$pattern" || true; } \
+    | awk 'END { print NR + 0 }'
 }
 
 emit_directory_loc() {
-  local tracked_files=()
-  while IFS= read -r file; do
-    if [[ -f "$file" ]]; then
-      tracked_files+=("$file")
-    fi
-  done < <(git ls-files)
-
-  if [[ ${#tracked_files[@]} -eq 0 ]]; then
-    return
-  fi
-
-  awk '
-    FNR == 1 {
-      dir = FILENAME
-      if (index(dir, "/") > 0) {
-        sub(/\/.*/, "", dir)
-      } else {
-        dir = "."
-      }
-    }
-    { totals[dir] += 1 }
-    END {
-      for (dir in totals) {
-        printf "%s\t%d\n", dir, totals[dir]
-      }
-    }
-  ' "${tracked_files[@]}" \
+  git ls-files -z \
+    | while IFS= read -r -d '' file; do
+        if [[ -f "$file" ]]; then
+          printf '%s\0' "$file"
+        fi
+      done \
+    | xargs -0 awk '
+        FNR == 1 {
+          dir = FILENAME
+          if (index(dir, "/") > 0) {
+            sub(/\/.*/, "", dir)
+          } else {
+            dir = "."
+          }
+        }
+        { totals[dir] += 1 }
+        END {
+          for (dir in totals) {
+            printf "%s\t%d\n", dir, totals[dir]
+          }
+        }
+      ' \
+    | awk -F '\t' '
+        { totals[$1] += $2 }
+        END {
+          for (dir in totals) {
+            printf "%s\t%d\n", dir, totals[dir]
+          }
+        }
+      ' \
     | LC_ALL=C sort \
     | awk -F '\t' '{ printf "loc_by_directory\t%s\t%s\n", $1, $2 }'
 }

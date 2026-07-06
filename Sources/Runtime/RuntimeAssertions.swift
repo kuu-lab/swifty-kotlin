@@ -3,9 +3,9 @@
 //
 // Typed RuntimeThrowableBox subclasses for AssertionError, IllegalStateException,
 // IllegalArgumentException, NoWhenBranchMatchedException, and
-// ConcurrentModificationException, and ArrayIndexOutOfBoundsException. These enable
-// proper type-discriminated catch blocks in compiled Kotlin code (e.g.,
-// `catch (e: IllegalArgumentException)`).
+// ConcurrentModificationException, StringIndexOutOfBoundsException, and
+// ArrayIndexOutOfBoundsException. These enable proper type-discriminated catch
+// blocks in compiled Kotlin code (e.g., `catch (e: IllegalArgumentException)`).
 //
 // The message stored in each box is the *user-visible* message (without the
 // exception-type prefix). The `renderedMessage` property adds the type prefix
@@ -125,6 +125,26 @@ final class RuntimeArrayIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeStringIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.StringIndexOutOfBoundsException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.StringIndexOutOfBoundsException",
+            "kotlin.IndexOutOfBoundsException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        "StringIndexOutOfBoundsException: \(message)"
+    }
+}
+
 final class RuntimeNumberFormatExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.NumberFormatException"
@@ -216,6 +236,15 @@ func runtimeAllocateConcurrentModificationException(message: String, cause: Int 
 
 func runtimeAllocateArrayIndexOutOfBoundsException(message: String) -> Int {
     let throwable = RuntimeArrayIndexOutOfBoundsExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+func runtimeAllocateStringIndexOutOfBoundsException(message: String) -> Int {
+    let throwable = RuntimeStringIndexOutOfBoundsExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))

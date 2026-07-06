@@ -144,7 +144,8 @@ struct NativeEmitter {
     private func runtimeCallbackArgumentPositionsByCallee() -> [InternedString: [Int]] {
         var positionsByCallee: [InternedString: [Int]] = [:]
         for spec in RuntimeABISpec.allFunctions {
-            if spec.name == "kk_object_register_itable_method" {
+            if spec.name == "kk_object_register_itable_method"
+                || spec.name == "kk_object_register_vtable_method" {
                 continue
             }
             var positions: [Int] = []
