@@ -124,7 +124,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-STDLIB-003: 宣言の優先規則を実装する（Stdlib ソース由来宣言が存在する場合、同シグネチャの合成スタブ登録をスキップ。二重定義は warning 診断で検知）
 - [ ] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）
 - [ ] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
-- [ ] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する
+- [x] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する。2026-07-06 再計測では bundled Lex+Parse 中央値が trigger 未満のため cache 追加は見送り。
 - [ ] RF-STDLIB-007: golden / `diff_kotlinc.sh` ハーネスが implicit stdlib ソース込みで決定的に動くよう正規化する（fileID 順序・診断ソートの安定性）
 - [x] RF-STDLIB-008: M1–M17 の完了条件を「.kt 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」に統一し、本ファイル M セクション冒頭の移行方針を更新する
 
@@ -301,12 +301,12 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
   - 変更: `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` の `dumpSema(sourcePath:)`
   - 手順: `Sources/CompilerCore/Sema/Models/MetadataSerializer.swift` の `buildRecords` にある excludedFileIDs（`__bundled_*` の declSite 除外）と同じフィルタを dumpSema に適用 → U で一括更新
   - 完了: `rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が 0 件 + G
-- [ ] KSP-006: bundled stdlib のコンパイル時間を PhaseTimer で分離計測する
+- [x] KSP-006: bundled stdlib のコンパイル時間を PhaseTimer で分離計測する
   - 前提: なし（並列可）
   - 変更: `Sources/CompilerCore/Driver/FrontendPhases.swift`（Lex/Parse ループ）。`PhaseTimer.swift` は変更不要（`recordSubPhase(_:startTime:endTime:)` を利用）
   - 手順: Lex/Parse（および可能なら Sema）で `__bundled_` プレフィックス fileID の処理時間を集計し、各フェーズに `recordSubPhase("bundled-stdlib", ...)` を記録
   - 検証: G + タイミング出力に bundled-stdlib 行が出ること
-- [ ] KSP-007: bundled 注入コストのベースラインを記録する
+- [x] KSP-007: bundled 注入コストのベースラインを記録する
   - 前提: KSP-006
   - 変更: `docs/refactoring-metrics.md`
   - 手順: (1) `rg -n 'phaseRecords' Sources` で PhaseTimer 出力の表示経路を確認 (2) `.build/debug/kswiftc Scripts/diff_cases/hello.kt -o /tmp/ksp_out` で計測 3 回の中央値を取得 (3) 「bundled stdlib 注入コスト」節を追記し、キャッシュ着手トリガー閾値（+100ms）を正式化
