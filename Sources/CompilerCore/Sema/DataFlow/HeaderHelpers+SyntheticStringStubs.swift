@@ -363,27 +363,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // RF-STDLIB-005: private split bridges called from
+        // Stdlib/kotlin/text/StringSplitJoin.kt.
         registerSyntheticStringExtensionFunction(
-            named: "split",
+            named: "__kk_string_split",
             externalLinkName: "kk_string_split_flat",
             receiverType: stringType,
             parameters: [
-                ("delimiters", stringType, false, false),
-            ],
-            returnType: listStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-EDGE-001: split with limit / ignoreCase ---
-        registerSyntheticStringExtensionFunction(
-            named: "split",
-            externalLinkName: "kk_string_split_limit_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiters", stringType, false, false),
-                ("limit", intType, false, false),
+                ("delimiter", stringType, false, false),
             ],
             returnType: listStringType,
             packageFQName: kotlinTextPkg,
@@ -392,25 +379,11 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "split",
+            named: "__kk_string_split_limit",
             externalLinkName: "kk_string_split_limit_flat",
             receiverType: stringType,
             parameters: [
-                ("delimiters", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: listStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "split",
-            externalLinkName: "kk_string_split_limit_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiters", stringType, false, false),
+                ("delimiter", stringType, false, false),
                 ("ignoreCase", boolType, false, false),
                 ("limit", intType, false, false),
             ],
@@ -2758,7 +2731,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
-            named: "splitToSequence",
+            named: "__kk_string_splitToSequence",
             externalLinkName: "kk_string_splitToSequence_flat",
             receiverType: stringType,
             parameters: [("delimiter", stringType, false, false)],
