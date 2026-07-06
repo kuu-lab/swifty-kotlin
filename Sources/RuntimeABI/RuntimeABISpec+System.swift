@@ -199,47 +199,7 @@ public extension RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_instant_to_js_date",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_double_toJsNumber",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .double),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_int_toJsNumber",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .int32),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_jsclass_kotlin",
-            parameters: [
-                RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_boolean_toJsBoolean",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
