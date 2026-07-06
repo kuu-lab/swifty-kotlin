@@ -128,18 +128,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Stable gate for the required "Smoke Tests" status check: the smoke tests
-  # themselves run inside the build job above, so this job only republishes
-  # the result under the name branch protection expects.
-  smoke-tests:
-    name: Smoke Tests
-    runs-on: ubuntu-latest
-    needs: [build]
-    timeout-minutes: 10
-    steps:
-      - name: Smoke tests ran in the Build job
-        run: echo "Smoke tests passed as part of the Build job."
-
   # CompilerCoreTests mixes Swift Testing (@Suite/@Test) and XCTest, so it is
   # split at the suite level via shard_swift_tests.sh's "static" mode (safe
   # regardless of listing-format differences between the two frameworks;
