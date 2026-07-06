@@ -240,20 +240,20 @@ struct BundledDeclarationIndexTests {
             sourceManager: ctx.sourceManager,
             interner: ctx.interner
         )
-        DataFlowSemaPhase().diagnoseSyntheticBundledDeclarationOverlaps(
-            bundledIndex: bundledIndex,
+        bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
 
-        let descriptor = DiagnosticRegistry.lookup("KSWIFTK-SEMA-0006")
+        let descriptor = DiagnosticRegistry.lookup("KSWIFTK-SEMA-0102")
         #expect(descriptor?.defaultSeverity == .warning)
-        let warnings = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0006" }
+        let warnings = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0102" }
         #expect(warnings.count == 1)
         #expect(warnings.first?.severity == .warning)
-        #expect(warnings.first?.message.contains("kotlin.collections.List.any(arity=1)") == true)
+        #expect(warnings.first?.message.contains("Synthetic stub 'any'") == true)
+        #expect(warnings.first?.message.contains("'kotlin.collections.List' (arity 1)") == true)
     }
 
     private func buildBundledAST(_ source: String) throws -> (ASTModule, CompilationContext) {

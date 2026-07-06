@@ -6,7 +6,7 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID?,
         sourceFileID: FileID,
-        sourceManager: SourceManager,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -15,6 +15,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(companionDeclID),
               case let .objectDecl(companionObject) = decl
         else {
@@ -31,14 +32,27 @@ extension DataFlowSemaPhase {
         }
 
         let companionFQName = ownerFQName + [companionName]
-        let companionSymbol = symbols.define(
-            kind: .object,
-            name: companionName,
+        let companionSymbol: SymbolID
+        if let reusableSymbol = reusableSyntheticUuidSourceCompanionSymbol(
             fqName: companionFQName,
-            declSite: companionObject.range,
-            visibility: visibility(from: companionObject.modifiers),
-            flags: flags(from: companionObject.modifiers)
-        )
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+        } else {
+            companionSymbol = symbols.define(
+                kind: .object,
+                name: companionName,
+                fqName: companionFQName,
+                declSite: companionObject.range,
+                visibility: visibility(from: companionObject.modifiers),
+                flags: flags(from: companionObject.modifiers)
+            )
+        }
         symbols.setSourceFileID(sourceFileID, for: companionSymbol)
         registerAnnotations(
             for: decl,
@@ -80,7 +94,7 @@ extension DataFlowSemaPhase {
             ),
             owner: OwnerContext(fqName: companionFQName, symbol: companionSymbol, type: companionType),
             sourceFileID: sourceFileID,
-            sourceManager: sourceManager,
+            ctx: ctx,
             ast: ast,
             symbols: symbols,
             types: types,

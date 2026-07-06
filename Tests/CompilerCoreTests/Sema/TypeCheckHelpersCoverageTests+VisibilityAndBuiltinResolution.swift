@@ -25,13 +25,13 @@ extension TypeCheckHelpersCoverageTests {
         let privateSymbol = fixture.symbols.symbol(privateSymbolID)
         let protectedSymbol = fixture.symbols.symbol(protectedSymbolID)
 
-        try helpers.emitVisibilityError(
+        helpers.emitVisibilityError(
             for: try #require(privateSymbol),
             name: "privateFn",
             range: makeRange(),
             diagnostics: fixture.diagnostics
         )
-        try helpers.emitVisibilityError(
+        helpers.emitVisibilityError(
             for: try #require(protectedSymbol),
             name: "protectedFn",
             range: makeRange(),

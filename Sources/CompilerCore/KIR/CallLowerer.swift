@@ -1019,6 +1019,14 @@ final class CallLowerer {
                         }
                     }
                 }
+                appendObjectVtableMethodRegistrations(
+                    objectValue: allocatedObj,
+                    nominalSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 // REFL-005: Register KClass metadata for this nominal type.
                 emitKClassMetadataRegistration(
                     objectSymbol: ownerNominalSymbol,

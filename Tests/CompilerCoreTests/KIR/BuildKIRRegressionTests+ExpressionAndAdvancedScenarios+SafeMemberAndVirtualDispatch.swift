@@ -540,16 +540,21 @@ extension BuildKIRRegressionTests {
             if case .virtualCall = instruction { return true }
             return false
         }
-        #expect(!(hasVirtualCall), "Virtual dispatch is currently disabled and should fall back to static call emission.")
-        let directInstruction = try? #require(emit.instructions.first { instruction in
-            if case .call = instruction { return true }
+        #expect(hasVirtualCall, "Open class safe calls should emit vtable virtualCall.")
+        guard let virtualInstruction = emit.instructions.first(where: { instruction in
+            if case .virtualCall = instruction { return true }
             return false
-        })
-        guard case let .call(_, _, arguments, _, _, _, _, _)? = directInstruction else {
-            Issue.record("Expected direct call fallback instruction")
+        }) else {
+            Issue.record("Expected virtualCall instruction")
             return
         }
-        #expect(arguments.count == 2, "Static fallback should pass receiver plus one value argument.")
+        guard case let .virtualCall(_, _, virtualReceiver, arguments, _, _, _, dispatch) = virtualInstruction else {
+            Issue.record("Expected virtualCall instruction payload")
+            return
+        }
+        #expect(arguments.count == 1, "virtualCall should keep the receiver separate from value arguments.")
+        #expect(!arguments.contains(virtualReceiver))
+        #expect(dispatch == .vtable(slot: 3))
     }
 
     @Test func testDirectSafeMemberCallSuperCallSkipsVirtualDispatch() {
@@ -876,7 +881,7 @@ extension BuildKIRRegressionTests {
                 callee: method,
                 receiverTypeID: nil,
                 sema: fixture.sema
-            ) == nil
+            ) == .vtable(slot: 1)
         )
 
         let objectOwner = defineSemanticSymbol(in: fixture, kind: .object, fqName: ["pkg", "Singleton"])

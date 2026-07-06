@@ -137,14 +137,14 @@ extension CompanionObjectTests {
         )
 
         let module = try #require(ctx.kir)
-        // Verify companion init function exists
+        let expectedInitName = try companionInitializerName(forOwnerNamed: "Host", in: ctx)
         let companionInits = findAllKIRFunctions(in: module).compactMap { function -> String? in
             let name = ctx.interner.resolve(function.name)
-            return name.hasPrefix("__companion_init_") ? name : nil
+            return name == expectedInitName ? name : nil
         }
         #expect(
             companionInits.count == 1,
-            "Expected exactly one companion initializer, got \(companionInits.count): \(companionInits)"
+            "Expected exactly one Host companion initializer, got \(companionInits.count): \(companionInits)"
         )
     }
 
@@ -216,9 +216,10 @@ extension CompanionObjectTests {
             let module = try #require(ctx.kir)
             // Find the companion init function and verify it has a copy instruction
             // (property initialization writes the initial value)
+            let expectedInitName = try companionInitializerName(forOwnerNamed: "Config", in: ctx)
             let companionInitFn = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 let name = ctx.interner.resolve(function.name)
-                return name.hasPrefix("__companion_init_") ? function : nil
+                return name == expectedInitName ? function : nil
             }.first
             let initBody = try #require(companionInitFn, "Expected companion init function").body
             let hasCopy = initBody.contains { instruction in
@@ -227,6 +228,16 @@ extension CompanionObjectTests {
             }
             #expect(hasCopy, "Expected copy instruction in companion init body for property initialization")
         }
+    }
+
+    private func companionInitializerName(
+        forOwnerNamed ownerName: String,
+        in ctx: CompilationContext
+    ) throws -> String {
+        let sema = try #require(ctx.sema)
+        let ownerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(ownerName)]))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
+        return "__companion_init_\(ownerSymbol.rawValue)_\(companionSymbol.rawValue)"
     }
 }
 #endif

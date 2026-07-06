@@ -27,15 +27,20 @@ struct UuidAPISurfaceInventoryTests {
 
     // MARK: - Shared sema fixture
 
-    private func makeSema() throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
+    private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
+        var result: (CompilationContext, SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let sema = try #require(ctx.sema)
-            result = (sema, ctx.interner)
+            result = (ctx, sema, ctx.interner)
         }
         return try #require(result)
+    }
+
+    private func makeSema() throws -> (SemaModule, StringInterner) {
+        let (_, sema, interner) = try makeSemaWithContext()
+        return (sema, interner)
     }
 
     // MARK: - Lookup helpers
@@ -140,6 +145,48 @@ struct UuidAPISurfaceInventoryTests {
     }
 
     @Test
+    func testUuidKotlinSourceIsBundledIntoFrontend() throws {
+        let (ctx, _, _) = try makeSemaWithContext()
+        #expect(
+            ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt") != nil,
+            "MIGRATION-UUID-001 requires Stdlib/kotlin/uuid/Uuid.kt to be bundled"
+        )
+    }
+
+    @Test
+    func testMigratedUuidClassAPISymbolsComeFromKotlinSource() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        let uuidSourceFileID = try #require(
+            ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
+        )
+        let migratedAPIs: [(fqPath: [String], linkName: String)] = [
+            (["kotlin", "uuid", "Uuid", "Companion", "random"], "kk_uuid_random"),
+            (["kotlin", "uuid", "Uuid", "Companion", "parse"], "kk_uuid_parse"),
+            (["kotlin", "uuid", "Uuid", "toString"], "kk_uuid_toString"),
+            (["kotlin", "uuid", "Uuid", "toLongs"], "kk_uuid_toLongs"),
+            (["kotlin", "uuid", "Uuid", "toByteArray"], "kk_uuid_toByteArray"),
+        ]
+
+        for api in migratedAPIs {
+            let symbol = try #require(
+                symbols(fqPath: api.fqPath, sema: sema, interner: interner).first {
+                    sema.symbols.externalLinkName(for: $0) == api.linkName
+                },
+                "\(api.fqPath.joined(separator: ".")) must link to \(api.linkName)"
+            )
+            let info = try #require(sema.symbols.symbol(symbol))
+            #expect(
+                sema.symbols.sourceFileID(for: symbol) == uuidSourceFileID,
+                "\(api.fqPath.joined(separator: ".")) must be declared by Uuid.kt"
+            )
+            #expect(
+                !info.flags.contains(.synthetic),
+                "\(api.fqPath.joined(separator: ".")) must be source-backed, not synthetic"
+            )
+        }
+    }
+
+    @Test
     func testUuidCompanionObjectIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion"].map { interner.intern($0) }
@@ -147,6 +194,39 @@ struct UuidAPISurfaceInventoryTests {
             sema.symbols.lookup(fqName: fq) != nil,
             "kotlin.uuid.Uuid.Companion object must be registered in symbol table"
         )
+    }
+
+    @Test
+    func testUuidSourceCompanionReusesSyntheticCompanionSymbol() throws {
+        let (ctx, sema, interner) = try makeSemaWithContext()
+        let uuidSourceFileID = try #require(
+            ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
+        )
+        let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        let companionFQ = uuidFQ + [interner.intern("Companion")]
+        let uuidSymbol = try #require(sema.symbols.lookup(fqName: uuidFQ))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: uuidSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+
+        #expect(
+            sema.symbols.lookupAll(fqName: companionFQ) == [companionSymbol],
+            "Uuid source migration must not leave split synthetic/source companion symbols"
+        )
+        #expect(companionInfo.kind == .object)
+        #expect(!companionInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.sourceFileID(for: companionSymbol) == uuidSourceFileID)
+
+        for memberName in ["random", "parse", "parseOrNull", "parseHex", "NIL", "LEXICAL_ORDER"] {
+            let memberFQ = companionFQ + [interner.intern(memberName)]
+            let memberSymbols = sema.symbols.lookupAll(fqName: memberFQ)
+            #expect(!memberSymbols.isEmpty, "Uuid.Companion.\(memberName) must be registered")
+            for memberSymbol in memberSymbols {
+                #expect(
+                    sema.symbols.parentSymbol(for: memberSymbol) == companionSymbol,
+                    "Uuid.Companion.\(memberName) must share the unified companion parent"
+                )
+            }
+        }
     }
 
     // MARK: - 2. Companion factory methods
@@ -790,6 +870,34 @@ struct UuidAPISurfaceInventoryTests {
                     $0.arguments.contains("level=RequiresOptIn.Level.ERROR")
             },
             "ExperimentalUuidApi must carry @RequiresOptIn(ERROR), got \(annotations)"
+        )
+    }
+
+    @Test
+    func testExperimentalUuidApiAnnotationCarriesOfficialTargets() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "uuid", "ExperimentalUuidApi"].map { interner.intern($0) }
+        let sym = try #require(sema.symbols.lookup(fqName: fq))
+        let annotations = sema.symbols.annotations(for: sym)
+
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Target" &&
+                    $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.ANNOTATION_CLASS",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.FIELD",
+                        "AnnotationTarget.LOCAL_VARIABLE",
+                        "AnnotationTarget.VALUE_PARAMETER",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+            },
+            "ExperimentalUuidApi must carry the official @Target list, got \(annotations)"
         )
     }
 

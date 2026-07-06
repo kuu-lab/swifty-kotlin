@@ -17,7 +17,7 @@ extension DataFlowSemaPhase {
         members: MemberDeclarations,
         owner: OwnerContext,
         sourceFileID: FileID,
-        sourceManager: SourceManager,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -28,6 +28,7 @@ extension DataFlowSemaPhase {
         classTypeParameterSymbols: [SymbolID] = [],
         classLocalTypeParameters: [InternedString: SymbolID] = [:]
     ) {
+        let sourceManager = ctx.sourceManager
         let sourceFile = ast.files.first { $0.fileID == sourceFileID }
         let sourcePackageFQName = sourceFile?.packageFQName
         let sourceImports = sourceFile?.imports ?? []
@@ -195,6 +196,14 @@ extension DataFlowSemaPhase {
                     classTypeParameterCount: classTPCount
                 ),
                 for: memberSymbol
+            )
+            attachUuidSourceMigrationBridgeIfNeeded(
+                to: memberSymbol,
+                fqName: memberFQName,
+                sourceFileID: sourceFileID,
+                ctx: ctx,
+                symbols: symbols,
+                interner: interner
             )
             checkAndReportJVMErasedCallableConflict(
                 for: memberSymbol,
@@ -429,7 +438,7 @@ extension DataFlowSemaPhase {
                 ownerFQName: ownerFQName,
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
-                sourceManager: sourceManager,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -446,7 +455,7 @@ extension DataFlowSemaPhase {
                 ownerFQName: ownerFQName,
                 ownerSymbol: ownerSymbol,
                 sourceFileID: sourceFileID,
-                sourceManager: sourceManager,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -513,7 +522,7 @@ extension DataFlowSemaPhase {
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
-        sourceManager: SourceManager,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -522,6 +531,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(declID) else {
             return
         }
@@ -722,7 +732,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
                 sourceFileID: sourceFileID,
-                sourceManager: sourceManager,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -754,7 +764,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: nestedSymbol,
                     ownerType: nestedType,
                     sourceFileID: sourceFileID,
-                    sourceManager: sourceManager,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -821,7 +831,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
                 sourceFileID: sourceFileID,
-                sourceManager: sourceManager,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -837,7 +847,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: nestedSymbol,
                     ownerType: nestedType,
                     sourceFileID: sourceFileID,
-                    sourceManager: sourceManager,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -857,7 +867,7 @@ extension DataFlowSemaPhase {
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
         sourceFileID: FileID,
-        sourceManager: SourceManager,
+        ctx: CompilationContext,
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
@@ -866,6 +876,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(declID),
               case let .objectDecl(nestedObject) = decl
         else {
@@ -918,7 +929,7 @@ extension DataFlowSemaPhase {
             ),
             owner: OwnerContext(fqName: nestedFQName, symbol: nestedSymbol, type: nestedType),
             sourceFileID: sourceFileID,
-            sourceManager: sourceManager,
+            ctx: ctx,
             ast: ast,
             symbols: symbols,
             types: types,

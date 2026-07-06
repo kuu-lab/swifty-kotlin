@@ -162,7 +162,9 @@ extension DataFlowSemaPhase {
         )
         registerIterableLastMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableJoinToStringMember(
             symbols: symbols, types: types, interner: interner,
@@ -170,7 +172,9 @@ extension DataFlowSemaPhase {
         )
         registerIterableReduceMember(
             symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerIterableReduceRightMember(
             symbols: symbols, types: types, interner: interner,

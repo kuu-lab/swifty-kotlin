@@ -16,7 +16,7 @@ struct NativeCInteropByteVarTypeAliasTests {
         let interner = ctx.interner
         func symbol(_ fqPath: [String]) throws -> SymbolID {
             let found = sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) })
-            return try #require(found, "\(fqPath.joined(separator: ".")) must be registered")
+            return try requireTestValue(found, "\(fqPath.joined(separator: ".")) must be registered")
         }
 
         let aliasSymbol = try symbol(["kotlinx", "cinterop", "ByteVar"])
@@ -45,7 +45,7 @@ struct NativeCInteropByteVarTypeAliasTests {
         let interner = ctx.interner
         func cinteropSymbol(_ name: String) throws -> SymbolID {
                 let found = sema.symbols.lookup(fqName: ["kotlinx", "cinterop", name].map { interner.intern($0) })
-            return try #require(found, "kotlinx.cinterop.\(name) must be registered")
+            return try requireTestValue(found, "kotlinx.cinterop.\(name) must be registered")
         }
 
         let byteVarOfSymbol = try cinteropSymbol("ByteVarOf")

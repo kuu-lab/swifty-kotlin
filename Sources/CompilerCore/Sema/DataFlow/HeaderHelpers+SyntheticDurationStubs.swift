@@ -1269,6 +1269,20 @@ extension DataFlowSemaPhase {
             return
         }
 
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: companionFQName,
+               receiverType: receiverType,
+               name: propertyName,
+               arity: 0,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return
+        }
+
         let propertySymbol = symbols.define(
             kind: .property,
             name: propertyName,

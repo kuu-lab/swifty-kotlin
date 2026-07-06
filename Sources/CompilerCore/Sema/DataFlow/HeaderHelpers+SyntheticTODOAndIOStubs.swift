@@ -296,6 +296,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "block", type: blockFunctionType)],
             returnType: types.longType,
             externalLinkName: "kk_system_measureNanoTime",
+            stdlibSpecialCallKind: .measureNanoTime,
             symbols: symbols,
             interner: interner
         )
@@ -1248,9 +1249,45 @@ extension DataFlowSemaPhase {
         additionalTypeParameterUpperBoundsList: [[TypeID]] = [],
         flags: SymbolFlags = [.synthetic, .operatorFunction]
     ) {
+        if BundledSyntheticStubRegistration.preBundledPass {
+            return
+        }
+
         let memberName = interner.intern(name)
         let memberFQName = sequenceFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        let requestedParameterTypes = parameters.map(\.type)
+        let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
+            ownerKind: .sequence,
+            memberName: name,
+            arity: parameters.count,
+            fallback: externalLinkName
+        )
+
+        if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes == requestedParameterTypes
+                && signature.returnType == returnType
+        }) {
+            symbols.setExternalLinkName(resolvedExternalLinkName, for: existing)
+            return
+        }
+
+        if let types = BundledSyntheticStubRegistration.types,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: sequenceFQName,
+               receiverType: receiverType,
+               name: memberName,
+               arity: parameters.count,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return
+        }
 
         let memberSymbol = symbols.define(
             kind: .function,
@@ -1261,12 +1298,6 @@ extension DataFlowSemaPhase {
             flags: flags
         )
         symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-        let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
-            ownerKind: .sequence,
-            memberName: name,
-            arity: parameters.count,
-            fallback: externalLinkName
-        )
         symbols.setExternalLinkName(resolvedExternalLinkName, for: memberSymbol)
         if !annotations.isEmpty {
             symbols.setAnnotations(annotations, for: memberSymbol)

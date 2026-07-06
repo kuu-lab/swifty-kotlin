@@ -65,14 +65,6 @@ public enum StdlibSurfaceLambdaExpectation: Equatable, Hashable, Sendable {
     case mapValue(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
 }
 
-public enum StdlibSurfaceLoweringCategory: String, Equatable, Hashable, Sendable {
-    case collectionHOF
-    case setHOF
-    case mapHOF
-    case sequenceHOF
-    case futureUse
-}
-
 public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
     public let package: StdlibSurfacePackage
     public let ownerKind: StdlibSurfaceOwnerKind
@@ -81,7 +73,6 @@ public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
     public let runtimeLinkName: String
     public let returnStrategy: StdlibSurfaceReturnStrategy
     public let lambdaExpectation: StdlibSurfaceLambdaExpectation
-    public let loweringCategory: StdlibSurfaceLoweringCategory
 
     /// All HOF surface members across owner kinds.
     ///

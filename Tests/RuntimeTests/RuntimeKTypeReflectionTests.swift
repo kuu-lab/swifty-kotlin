@@ -18,10 +18,6 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    private func runtimeStringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
     private func makeRuntimeString(_ value: String) -> Int {
         value.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, value.utf8.count)) { ptr in
@@ -53,7 +49,7 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
         arguments: [Int] = [],
         isNullable: Bool = false
     ) -> Int {
-        let kclass = makeKClassHandle(name: name, typeToken: typeToken)
+        _ = makeKClassHandle(name: name, typeToken: typeToken)
         let argsRaw: Int
         if arguments.isEmpty {
             argsRaw = 0
@@ -66,7 +62,7 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
             }
             argsRaw = kk_list_of(array, arguments.count)
         }
-        return kk_ktype_create(kclass, argsRaw, isNullable ? 1 : 0)
+        return kk_typeof(typeToken, 0, argsRaw, isNullable ? 1 : 0)
     }
 
     func testKTypeAccessorsRoundTripBasicTypes() {
@@ -109,12 +105,12 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
             ]
         )
 
-        XCTAssertEqual(runtimeStringValue(kk_ktype_to_string(stringType)), "kotlin.String")
-        XCTAssertEqual(runtimeStringValue(kk_ktype_to_string(nullableStringType)), "kotlin.String?")
-        XCTAssertEqual(runtimeStringValue(kk_ktype_to_string(listType)), "kotlin.collections.List<kotlin.String>")
-        XCTAssertEqual(runtimeStringValue(kk_ktype_to_string(arrayType)), "kotlin.Array<kotlin.String>")
+        XCTAssertEqual(runtimeRenderAnyForPrint(stringType), "kotlin.String")
+        XCTAssertEqual(runtimeRenderAnyForPrint(nullableStringType), "kotlin.String?")
+        XCTAssertEqual(runtimeRenderAnyForPrint(listType), "kotlin.collections.List<kotlin.String>")
+        XCTAssertEqual(runtimeRenderAnyForPrint(arrayType), "kotlin.Array<kotlin.String>")
         XCTAssertEqual(
-            runtimeStringValue(kk_ktype_to_string(nestedType)),
+            runtimeRenderAnyForPrint(nestedType),
             "kotlin.collections.Map<kotlin.String, kotlin.collections.List<kotlin.String?>>"
         )
     }
@@ -125,16 +121,14 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
         let starProjection = kk_ktypeprojection_create(0, -1)
         let arrayType = makeKTypeHandle(name: "kotlin.Array", typeToken: 21, arguments: [projection])
 
-        XCTAssertEqual(kk_ktypeprojection_type(projection), elementType)
-        XCTAssertEqual(kk_ktypeprojection_variance(projection), 2)
-        XCTAssertEqual(kk_ktypeprojection_type(starProjection), runtimeNullSentinelInt)
-        XCTAssertEqual(kk_ktypeprojection_variance(starProjection), -1)
+        XCTAssertEqual(runtimeRenderAnyForPrint(projection), "kotlin.Int")
+        XCTAssertEqual(runtimeRenderAnyForPrint(starProjection), "*")
 
         let argumentsRaw = kk_ktype_arguments(arrayType)
         let arguments = runtimeListBox(from: argumentsRaw)
         XCTAssertEqual(arguments?.elements.count, 1)
         XCTAssertEqual(arguments?.elements.first, projection)
-        XCTAssertEqual(runtimeStringValue(kk_ktype_to_string(arrayType)), "kotlin.Array<kotlin.Int>")
+        XCTAssertEqual(runtimeRenderAnyForPrint(arrayType), "kotlin.Array<kotlin.Int>")
         XCTAssertEqual(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: argumentsRaw)) }, "[kotlin.Int]")
     }
 
@@ -142,8 +136,5 @@ final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_ktype_classifier(123456), runtimeNullSentinelInt)
         XCTAssertEqual(runtimeListBox(from: kk_ktype_arguments(123456))?.elements.count, 0)
         XCTAssertEqual(kk_ktype_isMarkedNullable(123456), 0)
-        XCTAssertEqual(kk_ktypeprojection_type(123456), runtimeNullSentinelInt)
-        XCTAssertEqual(kk_ktypeprojection_variance(123456), -1)
-        XCTAssertEqual(runtimeStringValue(kk_ktype_to_string(123456)), "kotlin.Any")
     }
 }

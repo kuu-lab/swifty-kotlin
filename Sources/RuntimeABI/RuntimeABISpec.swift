@@ -8,10 +8,7 @@ public enum RuntimeABICType: String, Equatable, Sendable {
     case nullableOpaquePointer = "void * _Nullable"
     case constUInt8Pointer = "const uint8_t *"
     case nullableConstUInt8Pointer = "const uint8_t * _Nullable"
-    case uint8Pointer = "uint8_t *"
     case nullableUInt8Pointer = "uint8_t * _Nullable"
-    case constCCharPointer = "const char *"
-    case fieldAddrPointer = "void **"
     case constTypeInfoPointer = "const KTypeInfo *"
     case nullableRawPointerPointer = "void ** _Nullable"
     case int64 = "int64_t"
@@ -77,7 +74,7 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 }
 
 public enum RuntimeABISpec {
-    public static let specVersion = "J34"
+    public static let specVersion = "J35"
 
     /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.
     ///
@@ -86,6 +83,7 @@ public enum RuntimeABISpec {
     /// alphabetic position instead of appending to the same trailing line.
     ///
     /// When adding a new sub-array, insert its name in alphabetical position.
+    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
     public static let allFunctions: [RuntimeABIFunctionSpec] = ([
         abiParityFunctions,
         arrayFunctions,
@@ -124,7 +122,6 @@ public enum RuntimeABISpec {
         networkFunctions,
         numericRuntimeBridgeFunctions,
         operatorFunctions,
-        parallelFunctions,
         pathFunctions,
         primitiveNumericConversionFunctions,
         randomFunctions,

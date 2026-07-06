@@ -549,6 +549,10 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
+        if BundledSyntheticStubRegistration.preBundledPass {
+            return
+        }
+
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
         let parameterTypes = parameters.map(\.type)
