@@ -2054,14 +2054,6 @@ public func kk_string_isNullOrEmpty_flat(
     return str.isEmpty ? 1 : 0
 }
 
-@_cdecl("kk_string_isNullOrEmpty")
-public func kk_string_isNullOrEmpty(_ strRaw: Int) -> Int {
-    guard let str = runtimeStringFromRaw(strRaw) else {
-        return 1
-    }
-    return str.isEmpty ? 1 : 0
-}
-
 @_cdecl("kk_string_isNullOrBlank_flat")
 public func kk_string_isNullOrBlank_flat(
     _ data: UnsafePointer<UInt8>?,

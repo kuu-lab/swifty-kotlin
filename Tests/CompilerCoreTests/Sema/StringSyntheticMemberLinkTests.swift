@@ -415,8 +415,6 @@ struct StringSyntheticMemberLinkTests {
             ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
             ("toCollection", 1, "kk_string_toCollection_flat"),
             ("asIterable", 0, "kk_string_asIterable_flat"),
-            ("lines", 0, "kk_string_lines_flat"),
-            ("lineSequence", 0, "kk_string_lineSequence_flat"),
             ("toByteArray", 0, "kk_string_toByteArray_flat"),
             ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),
             ("toByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
@@ -447,6 +445,33 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testKSP401StringHelpersAreBundledKotlinMembers() throws {
+        let (sema, interner) = try makeSema()
+
+        for member in [
+            "isEmpty",
+            "isNotEmpty",
+            "isBlank",
+            "isNotBlank",
+            "isNullOrEmpty",
+            "isNullOrBlank",
+            "ifEmpty",
+            "ifBlank",
+            "orEmpty",
+            "lines",
+            "lineSequence",
+        ] {
+            let fq = ["kotlin", "text", member].map { interner.intern($0) }
+            let symbols = sema.symbols.lookupAll(fqName: fq)
+            #expect(!symbols.isEmpty, "kotlin.text.\(member) should be registered as a bundled Kotlin symbol")
+            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+            #expect(
+                links.isEmpty,
+                "kotlin.text.\(member) must not have C external links after KSP-401 migration, got \(links.sorted())"
+            )
+        }
+    }
+
     @Test func testNewSlicingStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
@@ -464,21 +489,21 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testIfBlankStubHasCorrectExternalLink() throws {
+    @Test func testIfBlankStubIsBundledKotlin() throws {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "ifBlank", sema: sema, interner: interner) == "kk_string_ifBlank",
-            "CharSequence.ifBlank should link to kk_string_ifBlank"
+            externalLink(for: "ifBlank", sema: sema, interner: interner) == nil,
+            "CharSequence.ifBlank should be bundled Kotlin without a C external link"
         )
     }
 
-    @Test func testIfEmptyStubHasCorrectExternalLink() throws {
+    @Test func testIfEmptyStubIsBundledKotlin() throws {
         let (sema, interner) = try makeSema()
 
         #expect(
-            externalLink(for: "ifEmpty", sema: sema, interner: interner) == "kk_string_ifEmpty",
-            "CharSequence.ifEmpty should link to kk_string_ifEmpty"
+            externalLink(for: "ifEmpty", sema: sema, interner: interner) == nil,
+            "CharSequence.ifEmpty should be bundled Kotlin without a C external link"
         )
     }
 
@@ -537,8 +562,8 @@ struct StringSyntheticMemberLinkTests {
                     "Expected call binding for ifBlank"
                 )
                 #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_ifBlank",
-                    "Expected ifBlank to resolve to kk_string_ifBlank"
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected ifBlank to resolve to bundled Kotlin without a C external link"
                 )
             }
         }
@@ -565,8 +590,8 @@ struct StringSyntheticMemberLinkTests {
                 "Expected call binding for ifEmpty"
             )
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_ifEmpty",
-                "Expected ifEmpty to resolve to kk_string_ifEmpty"
+                sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                "Expected ifEmpty to resolve to bundled Kotlin without a C external link"
             )
         }
     }

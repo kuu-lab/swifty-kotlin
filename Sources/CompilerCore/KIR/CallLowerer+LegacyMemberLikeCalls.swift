@@ -1238,39 +1238,23 @@ extension CallLowerer {
             return tableDrivenStringMember
         }
 
-        // String stdlib: nullable-receiver 0-arg methods (NULL-002)
-        // isNullOrEmpty/isNullOrBlank pass the raw (potentially null) receiver pointer to C runtime.
+        // Collection nullable-receiver isNullOrEmpty fallback.
+        // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
             if sema.bindings.callBindings[exprID] == nil,
-               calleeStr == "isNullOrEmpty" || calleeStr == "isNullOrBlank"
+               calleeStr == "isNullOrEmpty"
             {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                if calleeStr == "isNullOrEmpty",
-                   let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(
+                if let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(
                     receiverType: receiverType,
                     sema: sema,
                     interner: interner
-                   )
+                )
                 {
                     instructions.append(.call(
                         symbol: nil,
                         callee: runtimeCallee,
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                    let runtimeCallee = calleeStr == "isNullOrEmpty"
-                        ? "kk_string_isNullOrEmpty"
-                        : "kk_string_isNullOrBlank_flat"
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1283,17 +1267,6 @@ extension CallLowerer {
             if sema.bindings.callBindings[exprID] == nil, calleeStr == "orEmpty" {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_orEmpty_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                     instructions.append(.call(
                         symbol: nil,
@@ -1487,6 +1460,36 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(rtName),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
+                    let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
+                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
+                        : calleeStr == "last" ? "kk_string_last_flat"
+                        : "kk_string_single_flat"
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(kkName),
+                        arguments: [loweredReceiverID, thrownExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
+                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
+                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
+                        : "kk_string_singleOrNull_flat"
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(kkName),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1893,16 +1896,6 @@ extension CallLowerer {
                     ("kk_string_findLast_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "ifBlank":
-                    (
-                        usesStringFlatABI ? "kk_string_ifBlank_flat" : "kk_string_ifBlank",
-                        [loweredReceiverID] + normalizedArgIDs
-                    )
-                case "ifEmpty":
-                    (
-                        usesStringFlatABI ? "kk_string_ifEmpty_flat" : "kk_string_ifEmpty",
-                        [loweredReceiverID] + normalizedArgIDs
-                    )
                 case "chunked":
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":

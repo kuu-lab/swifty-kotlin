@@ -719,7 +719,8 @@ public func kk_string_lines_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_lines(kk_string_from_flat(data, length, byteCount, hash))
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
 }
 
 @_cdecl("kk_string_toBoolean_flat")
@@ -1063,7 +1064,10 @@ public func kk_string_lineSequence_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_lineSequence(kk_string_from_flat(data, length, byteCount, hash))
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    let lineRaws = runtimeNormalizedMultilineString(source).map(runtimeMakeStringRaw)
+    let seq = RuntimeSequenceBox(steps: [.source(elements: lineRaws)])
+    return registerRuntimeObject(seq)
 }
 
 @_cdecl("kk_string_trimStart_flat")
