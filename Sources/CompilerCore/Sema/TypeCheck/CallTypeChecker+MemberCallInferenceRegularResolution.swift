@@ -117,7 +117,19 @@ extension CallTypeChecker {
             }
         }
 
-        let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? lookupReceiverType
+        let rangeSourceMemberLookupType: TypeID? = if !isSuperCall,
+                                                      isBundledRangeSourceMember(calleeName, interner: interner)
+        {
+            sourceLevelRangeMemberLookupType(
+                receiverExpr: receiverID,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        let memberLookupType = (isSuperCall ? ctx.implicitReceiverType : nil) ?? rangeSourceMemberLookupType ?? lookupReceiverType
 
         // Detect class-name receiver: when the receiver is a name reference to
         // a class/interface/enumClass symbol, only companion members should be
@@ -531,13 +543,21 @@ extension CallTypeChecker {
             // companion fallback via collectMemberFunctionCandidates.
             let allowedOwnerSymbols = isSuperCall && !supertypeSymbols.isEmpty ?
                 (qualifiedSuperType != nil ? [qualifiedSuperType!] : supertypeSymbols) : nil
-            let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+            let rangeSourceCandidates = rangeSourceMemberLookupType.map {
+                collectRangeSourceExtensionCandidates(
+                    named: calleeName,
+                    receiverType: $0,
+                    sema: sema,
+                    interner: interner
+                )
+            } ?? []
+            let memberCandidates = rangeSourceCandidates.isEmpty ? driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
                 allowedOwnerSymbols: allowedOwnerSymbols,
                 interner: interner
-            )
+            ) : rangeSourceCandidates
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
@@ -780,7 +800,7 @@ extension CallTypeChecker {
 
         // Use the companion type as implicit receiver when the candidates were
         // redirected from the owner class to its companion object.
-        let effectiveReceiverType = companionReceiverType ?? lookupReceiverType
+        let effectiveReceiverType = companionReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
         // Synthetic collection members need to short-circuit before the generic
         // overload resolver so their trailing-lambda expectations stay concrete.
         if let fallbackType = tryCollectionMemberFallback(
@@ -1270,6 +1290,107 @@ extension CallTypeChecker {
         let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
+    }
+
+    private func isBundledRangeSourceMember(
+        _ calleeName: InternedString,
+        interner: StringInterner
+    ) -> Bool {
+        switch interner.resolve(calleeName) {
+        case "contains", "isEmpty", "iterator":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func sourceLevelRangeMemberLookupType(
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: receiverExpr,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) else {
+            return nil
+        }
+
+        let typeName: String
+        switch rangeKind {
+        case .intRange:
+            typeName = "IntRange"
+        case .longRange:
+            typeName = "LongRange"
+        case .charRange:
+            typeName = "CharRange"
+        case .uintRange:
+            typeName = "UIntRange"
+        case .ulongRange:
+            typeName = "ULongRange"
+        case .intProgression:
+            typeName = "IntProgression"
+        case .longProgression:
+            typeName = "LongProgression"
+        case .charProgression:
+            typeName = "CharProgression"
+        case .uintProgression:
+            typeName = "UIntProgression"
+        case .ulongProgression:
+            typeName = "ULongProgression"
+        case .iterable, .list, .set, .collection, .map, .sequence:
+            return nil
+        }
+
+        guard let symbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern(typeName),
+        ]) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func collectRangeSourceExtensionCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let rangesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+        ]
+        guard let rangesPackageSymbol = sema.symbols.lookup(fqName: rangesFQName) else {
+            return []
+        }
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        return sema.symbols.lookupAll(fqName: rangesFQName + [calleeName])
+            .filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic),
+                      sema.symbols.parentSymbol(for: candidate) == rangesPackageSymbol,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            .sorted { $0.rawValue < $1.rawValue }
     }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length
