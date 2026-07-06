@@ -113,6 +113,7 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/collections/CollectionFactories",
         "kotlin/collections/ListWindowChunk",
         "kotlin/comparisons/Comparators",
+        "kotlin/logging/AdvancedLogger",
         "kotlin/ranges/RangeIterators",
         "kotlin/ranges/RangeMembership",
         "kotlin/text/StringBuilder",

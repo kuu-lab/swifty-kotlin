@@ -1058,6 +1058,17 @@ final class CallLowerer {
         {
             finalArgIDs.insert(implicitReceiver, at: 0)
         }
+        if loweredCallable == nil {
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArgIDs
+            )
+        }
         if loweredCallable == nil, let chosen {
             finalArgIDs = appendClosureArgumentsIfNeeded(
                 finalArgIDs,

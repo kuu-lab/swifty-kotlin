@@ -59,10 +59,9 @@ extension ABIMismatchTests {
         "kk_no_when_branch_matched_exception_new_message_cause",
     ]
 
-    // MARK: Comparator (STDLIB-176)
-    private static let comparatorStubLinkNames: Set<String> = [
-        "kk_comparator_then_comparator",
-    ]
+    // MARK: Comparator
+    // KSP-309 migrated comparator composition factories to bundled Kotlin source.
+    private static let comparatorStubLinkNames: Set<String> = []
 
     // MARK: Collection HOF / conversion / windowing
     private static let collectionStubLinkNames: Set<String> = [

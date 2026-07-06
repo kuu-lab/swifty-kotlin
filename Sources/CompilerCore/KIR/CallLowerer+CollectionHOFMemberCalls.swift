@@ -125,43 +125,8 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: [KIRInstruction]
     ) -> String? {
-        func primitiveCompareKind(
-            for comparatorExprID: ExprID?,
-            loweredComparatorID: KIRExprID
-        ) -> PrimitiveCompareABIKind? {
-            func comparatorElementType(from type: TypeID) -> TypeID? {
-                guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema),
-                      interner.resolve(symbol.name) == "Comparator",
-                      let firstArg = classType.args.first
-                else {
-                    return nil
-                }
-                switch firstArg {
-                case let .invariant(type), let .out(type), let .in(type):
-                    return type
-                case .star:
-                    return sema.types.anyType
-                }
-            }
-
-            if let comparatorExprID,
-               let exprType = sema.bindings.exprType(for: comparatorExprID),
-               let elementType = comparatorElementType(from: exprType),
-               let kind = primitiveCompareABIKind(for: elementType, sema: sema)
-            {
-                return kind
-            }
-            return nil
-        }
-
         func trampolineName(for externalLinkName: String) -> String? {
             switch externalLinkName {
-            case "kk_comparator_from_selector":
-                return "kk_comparator_from_selector_trampoline"
-            case "kk_comparator_from_selector_descending":
-                return "kk_comparator_from_selector_descending_trampoline"
-            case "kk_comparator_from_selector_primitive":
-                return "kk_comparator_from_selector_primitive_trampoline"
             case "kk_comparator_from_multi_selectors",
                  "kk_comparator_from_multi_selectors3",
                  "kk_comparator_from_multi_selectors_vararg":
@@ -172,60 +137,6 @@ extension CallLowerer {
                 return "kk_comparator_nulls_last_trampoline"
             case "kk_comparator_nulls_last_natural":
                 return "kk_comparator_nulls_last_natural_trampoline"
-            case "kk_comparator_then_by":
-                return "kk_comparator_then_by_trampoline"
-            case "kk_comparator_then_by_comparator_selector":
-                return "kk_comparator_then_by_comparator_selector_trampoline"
-            case "kk_comparator_then_by_descending":
-                return "kk_comparator_then_by_descending_trampoline"
-            case "kk_comparator_then_by_descending_comparator_selector":
-                return "kk_comparator_then_by_descending_comparator_selector_trampoline"
-            case "kk_comparator_then_descending":
-                return "kk_comparator_then_descending_trampoline"
-            case "kk_comparator_then_comparator":
-                return "kk_comparator_then_comparator_trampoline"
-            case "kk_comparator_reversed":
-                return "kk_comparator_reversed_trampoline"
-            case "kk_comparator_natural_order":
-                return "kk_comparator_natural_order_trampoline"
-            case "kk_comparator_reverse_order":
-                return "kk_comparator_reverse_order_trampoline"
-            default:
-                return nil
-            }
-        }
-
-        func trampolineName(for comparatorSymbol: SymbolID) -> String? {
-            guard let symbol = sema.symbols.symbol(comparatorSymbol) else {
-                return nil
-            }
-            switch interner.resolve(symbol.name) {
-            case "compareBy":
-                return "kk_comparator_from_selector_trampoline"
-            case "compareByPrimitive":
-                return "kk_comparator_from_selector_primitive_trampoline"
-            case "compareByDescending":
-                return "kk_comparator_from_selector_descending_trampoline"
-            case "compareByDescendingPrimitive":
-                return "kk_comparator_from_selector_primitive_descending_trampoline"
-            case "thenBy":
-                return "kk_comparator_then_by_trampoline"
-            case "thenByDescending":
-                return "kk_comparator_then_by_descending_trampoline"
-            case "thenDescending":
-                return "kk_comparator_then_descending_trampoline"
-            case "thenComparator":
-                return "kk_comparator_then_comparator_trampoline"
-            case "nullsFirst":
-                return "kk_comparator_nulls_first_trampoline"
-            case "nullsLast":
-                return "kk_comparator_nulls_last_trampoline"
-            case "reversed":
-                return "kk_comparator_reversed_trampoline"
-            case "naturalOrder":
-                return "kk_comparator_natural_order_trampoline"
-            case "reverseOrder":
-                return "kk_comparator_reverse_order_trampoline"
             default:
                 return nil
             }
@@ -234,39 +145,9 @@ extension CallLowerer {
         if let comparatorExprID,
            let chosenCallee = sema.bindings.callBinding(for: comparatorExprID)?.chosenCallee
         {
-            if let primitiveKind = primitiveCompareKind(
-                for: comparatorExprID,
-                loweredComparatorID: loweredComparatorID
-            ) {
-                if let symbol = sema.symbols.symbol(chosenCallee) {
-                    switch interner.resolve(symbol.name) {
-                    case "compareBy":
-                        return "kk_comparator_from_selector_primitive_trampoline"
-                    case "compareByDescending":
-                        return "kk_comparator_from_selector_primitive_descending_trampoline"
-                    default:
-                        break
-                    }
-                }
-                if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee) {
-                    switch externalLinkName {
-                    case "kk_comparator_from_selector":
-                        _ = primitiveKind
-                        return "kk_comparator_from_selector_primitive_trampoline"
-                    case "kk_comparator_from_selector_descending":
-                        _ = primitiveKind
-                        return "kk_comparator_from_selector_primitive_descending_trampoline"
-                    default:
-                        break
-                    }
-                }
-            }
             if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
                let trampolineName = trampolineName(for: externalLinkName)
             {
-                return trampolineName
-            }
-            if let trampolineName = trampolineName(for: chosenCallee) {
                 return trampolineName
             }
         }

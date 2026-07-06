@@ -305,6 +305,147 @@ extension CallLowerer {
         return makeClosureRawArgument(callableInfo: callableInfo, sema: sema, arena: arena, instructions: &instructions)
     }
 
+    func materializeFunctionValueArgument(
+        loweredArgID: KIRExprID,
+        argExprID: ExprID,
+        functionType: FunctionType,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        var loweredCallableID = loweredArgID
+        var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+        if callableInfo == nil,
+           case let .symbolRef(symbol)? = arena.expr(loweredCallableID),
+           let function = arena.function(for: symbol)
+        {
+            callableInfo = KIRCallableValueInfo(
+                symbol: function.symbol,
+                callee: function.name,
+                captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
+                hasClosureParam: function.params.count >= functionType.params.count + 1
+            )
+        }
+
+        guard var resolvedCallableInfo = callableInfo else {
+            return loweredArgID
+        }
+
+        if !resolvedCallableInfo.hasClosureParam,
+           let adaptedInfo = makeCollectionHOFCallableAdapter(
+                callableInfo: resolvedCallableInfo,
+                loweredArgID: loweredCallableID,
+                argExprID: argExprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                namePrefix: "kk_function_value_adapter",
+                symbolIDOffsetBase: -720_000
+           )
+        {
+            let adaptedExpr = arena.appendExpr(
+                .symbolRef(adaptedInfo.symbol),
+                type: arena.exprType(loweredCallableID) ?? sema.types.anyType
+            )
+            instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
+            driver.ctx.registerCallableValue(
+                adaptedExpr,
+                symbol: adaptedInfo.symbol,
+                callee: adaptedInfo.callee,
+                captureArguments: adaptedInfo.captureArguments,
+                hasClosureParam: adaptedInfo.hasClosureParam
+            )
+            loweredCallableID = adaptedExpr
+            resolvedCallableInfo = adaptedInfo
+        }
+
+        let valueArity = functionType.params.count + (functionType.receiver == nil ? 0 : 1)
+        let createCallee: InternedString
+        switch valueArity {
+        case 0:
+            createCallee = interner.intern("kk_function_create_0")
+        case 1:
+            createCallee = interner.intern("kk_function_create_1")
+        case 2:
+            createCallee = interner.intern("kk_function_create_2")
+        default:
+            return loweredArgID
+        }
+
+        let fnPtrExpr = arena.appendExpr(
+            .symbolRef(resolvedCallableInfo.symbol),
+            type: sema.types.intType
+        )
+        instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(resolvedCallableInfo.symbol)))
+        let closureRaw = makeFunctionValueClosureRawArgument(
+            callableInfo: resolvedCallableInfo,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        let materialized = arena.appendTemporary(type: sema.types.make(.functionType(functionType)))
+        instructions.append(.call(
+            symbol: nil,
+            callee: createCallee,
+            arguments: [fnPtrExpr, closureRaw],
+            result: materialized,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        driver.ctx.registerCallableValue(
+            materialized,
+            symbol: resolvedCallableInfo.symbol,
+            callee: resolvedCallableInfo.callee,
+            captureArguments: [closureRaw],
+            hasClosureParam: true
+        )
+        return materialized
+    }
+
+    func materializeSourceBackedFunctionValueArguments(
+        chosenCallee: SymbolID?,
+        sourceArgExprs: [ExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction],
+        arguments: inout [KIRExprID]
+    ) {
+        guard let chosenCallee,
+              sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true,
+              let signature = sema.symbols.functionSignature(for: chosenCallee)
+        else {
+            return
+        }
+
+        let valueArgOffset = signature.receiverType == nil ? 0 : 1
+        for parameterIndex in signature.parameterTypes.indices {
+            let finalArgIndex = valueArgOffset + parameterIndex
+            guard finalArgIndex < arguments.count,
+                  parameterIndex < sourceArgExprs.count,
+                  !signature.valueParameterIsVararg.indices.contains(parameterIndex)
+                    || !signature.valueParameterIsVararg[parameterIndex]
+            else {
+                continue
+            }
+            let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
+            guard case let .functionType(functionType) = sema.types.kind(of: parameterType) else {
+                continue
+            }
+            arguments[finalArgIndex] = materializeFunctionValueArgument(
+                loweredArgID: arguments[finalArgIndex],
+                argExprID: sourceArgExprs[parameterIndex],
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+    }
+
     private func appendCollectionHOFSelectorPair(
         _ selector: (loweredArgID: KIRExprID, callableInfo: KIRCallableValueInfo?),
         to arrayExpr: KIRExprID,

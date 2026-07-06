@@ -219,6 +219,15 @@ extension CallLowerer {
             instructions: &instructions,
             arguments: &finalArguments
         )
+        materializeSourceBackedFunctionValueArguments(
+            chosenCallee: chosenCallee,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: &finalArguments
+        )
 
         var loweredCallee = loweredMemberCalleeName(
             chosenCallee: chosenCallee,
@@ -409,6 +418,52 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments = primaryComparatorArgs + [finalArguments[1], selectorFnExpr, selectorEnvExpr]
+        }
+
+        let resultSingleLambdaRuntimeCallees: Set<InternedString> = [
+            interner.intern("kk_result_getOrElse"),
+            interner.intern("kk_result_map"),
+            interner.intern("kk_result_onSuccess"),
+            interner.intern("kk_result_onFailure"),
+            interner.intern("kk_result_recover"),
+            interner.intern("kk_result_recoverCatching"),
+        ]
+        if resultSingleLambdaRuntimeCallees.contains(loweredCallee),
+           finalArguments.count == 2,
+           sourceArgExprs.count == 1
+        {
+            let lambdaArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs[0],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + lambdaArgs
+        }
+        if loweredCallee == interner.intern("kk_result_fold"),
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let successArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[1],
+                argExprID: sourceArgExprs[0],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            let failureArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[2],
+                argExprID: sourceArgExprs[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0]] + successArgs + failureArgs
+        }
         }
         if normalized.defaultMask != 0,
            loweredCallee == interner.intern("kk_array_binarySearch_compare")
@@ -898,6 +953,8 @@ extension CallLowerer {
             interner.intern("kk_list_maxWithOrNull"),
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_minWithOrNull"),
+            interner.intern("kk_sequence_maxWith"),
+            interner.intern("kk_sequence_maxWithOrNull"),
             interner.intern("kk_sequence_minWithOrNull"),
             interner.intern("kk_sequence_minWith"),
             interner.intern("kk_list_sortedWith"),

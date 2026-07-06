@@ -135,14 +135,8 @@ extension ABIMismatchTests {
         }
     }
 
-    func testComparatorNullsAndThenByDescSymbolsPresent() {
+    func testComparatorNullsSymbolsPresent() {
         let requiredComparatorSymbols: Set<String> = [
-            "kk_comparator_then_comparator",
-            "kk_comparator_then_comparator_trampoline",
-            "kk_comparator_then_by_descending",
-            "kk_comparator_then_by_descending_trampoline",
-            "kk_comparator_then_by_descending_comparator_selector",
-            "kk_comparator_then_by_descending_comparator_selector_trampoline",
             "kk_comparator_nulls_first",
             "kk_comparator_nulls_first_trampoline",
             "kk_comparator_nulls_last",
@@ -162,18 +156,12 @@ extension ABIMismatchTests {
         }
     }
 
-    func testComparatorNullsThenBySignaturesMatchExpectedShape() {
+    func testComparatorNullsSignaturesMatchExpectedShape() {
         let expectedFunctionTypes: [String: [String]] = [
-            "kk_comparator_then_comparator": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue],
-            "kk_comparator_then_by_descending": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue],
-            "kk_comparator_then_by_descending_comparator_selector": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue],
             "kk_comparator_nulls_first": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue],
             "kk_comparator_nulls_last": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue],
         ]
         let expectedTrampolineTypes: [String: [String]] = [
-            "kk_comparator_then_comparator_trampoline": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.nullableIntptrPointer.rawValue],
-            "kk_comparator_then_by_descending_trampoline": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.nullableIntptrPointer.rawValue],
-            "kk_comparator_then_by_descending_comparator_selector_trampoline": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.nullableIntptrPointer.rawValue],
             "kk_comparator_nulls_first_trampoline": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.nullableIntptrPointer.rawValue],
             "kk_comparator_nulls_last_trampoline": [RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.intptr.rawValue, RuntimeABICType.nullableIntptrPointer.rawValue],
         ]
