@@ -338,6 +338,15 @@ func kk_runtime_reset_metadata() {
     runtimeKMemberRegistry.reset()
 }
 
+private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
+    runtimeStorage.withMetadataLock { state in
+        state.objectTypeByPointer.removeValue(forKey: key)
+        state.objectVtableMethods.removeValue(forKey: key)
+        state.objectItableMethods.removeValue(forKey: key)
+        state.objectInterfaceSlots.removeValue(forKey: key)
+    }
+}
+
 func kk_runtime_reset_flow() {
     runtimeStorage.withFlowLock { state in
         state.flowHandles.removeAll(keepingCapacity: false)
@@ -394,6 +403,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
             header.pointee.flags &= ~kkObjMarkFlag
             survivors[key] = object
         } else {
+            removeRuntimeObjectMetadata(forObjectKey: key)
             object.pointer.deallocate()
         }
     }

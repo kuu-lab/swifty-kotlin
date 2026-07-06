@@ -493,7 +493,6 @@ public extension RuntimeABISpec {
     static let dispatchBridgeFunctions: [RuntimeABIFunctionSpec] = [
         bridgeSpec("kk_itable_lookup", section: "Delegate", params: ["receiver", "ifaceSlot", "methodSlot"]),
         bridgeSpec("kk_vtable_lookup", section: "Delegate", params: ["receiver", "slot"]),
-        bridgeSpec("kk_object_register_vtable_method", section: "TypeCheck", params: ["objectRaw", "methodSlot", "functionRaw"]),
     ]
 
     static let stringBridgeFunctions: [RuntimeABIFunctionSpec] = [
