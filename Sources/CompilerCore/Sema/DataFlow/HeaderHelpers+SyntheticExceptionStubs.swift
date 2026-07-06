@@ -423,214 +423,94 @@ extension DataFlowSemaPhase {
 
         let throwableFQName = kotlinPkg + [interner.intern("Throwable")]
 
-        // message: String?
-        let messageName = interner.intern("message")
-        let messageFQName = throwableFQName + [messageName]
-        if symbols.lookup(fqName: messageFQName) == nil {
-            let messagePropSymbol = symbols.define(
-                kind: .property,
-                name: messageName,
-                fqName: messageFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(throwableSymbol, for: messagePropSymbol)
-            symbols.setExternalLinkName("kk_throwable_message", for: messagePropSymbol)
-            let nullableStringType = types.makeNullable(types.stringType)
-            symbols.setPropertyType(nullableStringType, for: messagePropSymbol)
-        }
-
-        // cause: Throwable?
-        let causeName = interner.intern("cause")
-        let causeFQName = throwableFQName + [causeName]
-        if symbols.lookup(fqName: causeFQName) == nil {
-            let causePropSymbol = symbols.define(
-                kind: .property,
-                name: causeName,
-                fqName: causeFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(throwableSymbol, for: causePropSymbol)
-            symbols.setExternalLinkName("kk_throwable_cause", for: causePropSymbol)
-            let nullableThrowableType = types.make(.classType(ClassType(
-                classSymbol: throwableSymbol, args: [], nullability: .nullable
-            )))
-            symbols.setPropertyType(nullableThrowableType, for: causePropSymbol)
-        }
-
-        // stackTraceToString(): String
-        let stackTraceName = interner.intern("stackTraceToString")
-        let stackTraceFQName = throwableFQName + [stackTraceName]
-        if symbols.lookup(fqName: stackTraceFQName) == nil {
-            let stackTraceSymbol = symbols.define(
-                kind: .function,
-                name: stackTraceName,
-                fqName: stackTraceFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(throwableSymbol, for: stackTraceSymbol)
-            symbols.setExternalLinkName("kk_throwable_stackTraceToString", for: stackTraceSymbol)
-            let throwableType = types.make(.classType(ClassType(
-                classSymbol: throwableSymbol, args: [], nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: throwableType,
-                    parameterTypes: [],
-                    returnType: types.stringType
-                ),
-                for: stackTraceSymbol
-            )
-        }
-
-        // printStackTrace(): Unit
-        let printStackTraceName = interner.intern("printStackTrace")
-        let printStackTraceFQName = throwableFQName + [printStackTraceName]
-        if symbols.lookup(fqName: printStackTraceFQName) == nil {
-            let printStackTraceSymbol = symbols.define(
-                kind: .function,
-                name: printStackTraceName,
-                fqName: printStackTraceFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(throwableSymbol, for: printStackTraceSymbol)
-            symbols.setExternalLinkName("kk_throwable_printStackTrace", for: printStackTraceSymbol)
-            let throwableType = types.make(.classType(ClassType(
-                classSymbol: throwableSymbol, args: [], nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: throwableType,
-                    parameterTypes: [],
-                    returnType: types.unitType
-                ),
-                for: printStackTraceSymbol
-            )
-        }
-
         // MARK: - Advanced exception features (STDLIB-EXCEPT-105)
 
         let throwableType = types.make(.classType(ClassType(
             classSymbol: throwableSymbol, args: [], nullability: .nonNull
         )))
-        let nullableThrowableType = types.make(.classType(ClassType(
-            classSymbol: throwableSymbol, args: [], nullability: .nullable
-        )))
-
-        // initCause(cause: Throwable?): Throwable
-        let initCauseName = interner.intern("initCause")
-        let initCauseFQName = throwableFQName + [initCauseName]
-        if symbols.lookup(fqName: initCauseFQName) == nil {
-            let initCauseSymbol = symbols.define(
-                kind: .function,
-                name: initCauseName,
-                fqName: initCauseFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(throwableSymbol, for: initCauseSymbol)
-            symbols.setExternalLinkName("kk_throwable_initCause", for: initCauseSymbol)
-
-            let causeParamName = interner.intern("cause")
-            let causeParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: causeParamName,
-                fqName: initCauseFQName + [causeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(initCauseSymbol, for: causeParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: throwableType,
-                    parameterTypes: [nullableThrowableType],
-                    returnType: throwableType,
-                    valueParameterSymbols: [causeParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false]
+        let throwableRef = SyntheticStubTypeRef.namedClass(["kotlin", "Throwable"])
+        let nullableThrowableRef = SyntheticStubTypeRef.namedClass(
+            ["kotlin", "Throwable"],
+            nullability: .nullable
+        )
+        let throwableContext = SyntheticStubRegistrationContext(
+            ownerFQName: throwableFQName,
+            parentSymbol: throwableSymbol
+        )
+        registerSyntheticPropertyStubs(
+            [
+                // message: String?
+                SyntheticPropertyStubSpec(
+                    name: "message",
+                    propertyType: .nullable(.string),
+                    externalLinkName: "kk_throwable_message"
                 ),
-                for: initCauseSymbol
-            )
-        }
-
-        // addSuppressed(exception: Throwable): Unit
-        let addSuppressedName = interner.intern("addSuppressed")
-        let addSuppressedFQName = throwableFQName + [addSuppressedName]
-        if symbols.lookup(fqName: addSuppressedFQName) == nil {
-            let addSuppressedSymbol = symbols.define(
-                kind: .function,
-                name: addSuppressedName,
-                fqName: addSuppressedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(throwableSymbol, for: addSuppressedSymbol)
-            symbols.setExternalLinkName("kk_throwable_addSuppressed", for: addSuppressedSymbol)
-
-            let exceptionParamName = interner.intern("exception")
-            let exceptionParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: exceptionParamName,
-                fqName: addSuppressedFQName + [exceptionParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(addSuppressedSymbol, for: exceptionParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: throwableType,
-                    parameterTypes: [throwableType],
-                    returnType: types.unitType,
-                    valueParameterSymbols: [exceptionParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false]
+                // cause: Throwable?
+                SyntheticPropertyStubSpec(
+                    name: "cause",
+                    propertyType: nullableThrowableRef,
+                    externalLinkName: "kk_throwable_cause"
                 ),
-                for: addSuppressedSymbol
-            )
-        }
-
-        // getSuppressed(): Array<Throwable>
-        let getSuppressedName = interner.intern("getSuppressed")
-        let getSuppressedFQName = throwableFQName + [getSuppressedName]
-        if symbols.lookup(fqName: getSuppressedFQName) == nil {
-            let getSuppressedSymbol = symbols.define(
-                kind: .function,
-                name: getSuppressedName,
-                fqName: getSuppressedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(throwableSymbol, for: getSuppressedSymbol)
-            symbols.setExternalLinkName("kk_throwable_getSuppressed", for: getSuppressedSymbol)
-            let returnType = makeSyntheticArrayType(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                elementType: throwableType
-            )
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: throwableType,
-                    parameterTypes: [],
-                    returnType: returnType
+            ],
+            context: throwableContext,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticFunctionStubs(
+            [
+                // stackTraceToString(): String
+                SyntheticFunctionStubSpec(
+                    name: "stackTraceToString",
+                    externalLinkName: "kk_throwable_stackTraceToString",
+                    receiverType: throwableRef,
+                    returnType: .string
                 ),
-                for: getSuppressedSymbol
-            )
-        }
+                // printStackTrace(): Unit
+                SyntheticFunctionStubSpec(
+                    name: "printStackTrace",
+                    externalLinkName: "kk_throwable_printStackTrace",
+                    receiverType: throwableRef,
+                    returnType: .unit
+                ),
+                // initCause(cause: Throwable?): Throwable
+                SyntheticFunctionStubSpec(
+                    name: "initCause",
+                    externalLinkName: "kk_throwable_initCause",
+                    receiverType: throwableRef,
+                    parameters: [
+                        SyntheticStubParameterSpec(name: "cause", type: nullableThrowableRef),
+                    ],
+                    returnType: throwableRef
+                ),
+                // addSuppressed(exception: Throwable): Unit
+                SyntheticFunctionStubSpec(
+                    name: "addSuppressed",
+                    externalLinkName: "kk_throwable_addSuppressed",
+                    receiverType: throwableRef,
+                    parameters: [
+                        SyntheticStubParameterSpec(name: "exception", type: throwableRef),
+                    ],
+                    returnType: .unit
+                ),
+                // getSuppressed(): Array<Throwable>
+                SyntheticFunctionStubSpec(
+                    name: "getSuppressed",
+                    externalLinkName: "kk_throwable_getSuppressed",
+                    receiverType: throwableRef,
+                    returnType: .typeID(makeSyntheticArrayType(
+                        symbols: symbols,
+                        types: types,
+                        interner: interner,
+                        elementType: throwableType
+                    ))
+                ),
+            ],
+            context: throwableContext,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         // suppressedExceptions: List<Throwable>
         let suppressedExceptionsName = interner.intern("suppressedExceptions")

@@ -1,8 +1,7 @@
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: shared helpers (symbol/type/property registration utilities) used across all native-concurrent topic files.
 ///
-/// Split out from `HeaderHelpers+SyntheticNativeConcurrentStubs.swift` to isolate
-/// merge conflicts between parallel stdlib PRs adding new entries to this package.
+/// Shared helpers for the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
     func ensureNativeConcurrentEnum(
