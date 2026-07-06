@@ -406,7 +406,6 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let expectedExternalLinks = [
-                "filterNot": "kk_list_filterNot",
                 "sum": "kk_list_sum",
                 // sumOf / minByOrNull / maxByOrNull are bundled Kotlin source (KSP-002).
                 "maxOfWith": "kk_list_maxOfWith",
@@ -422,8 +421,6 @@ struct ListSyntheticMemberLinkTests {
                 "maxBy": "kk_list_maxBy",
                 "minOfWithOrNull": "kk_list_minOfWithOrNull",
                 "maxOfOrNull": "kk_list_maxOfOrNull",
-                "filterNotTo": "kk_list_filterNotTo",
-                "filterNotNullTo": "kk_list_filterNotNullTo",
                 "find": "kk_list_find",
             ]
 
@@ -587,7 +584,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListFilterIsInstanceToUsesRuntimeExternalLink() throws {
+    func testListFilterIsInstanceToBindsBundledSource() throws {
         let source = """
         fun collect(values: List<Any>, dest: MutableList<String>) {
             values.filterIsInstanceTo(dest)
@@ -607,7 +604,8 @@ struct ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "filterIsInstanceTo"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIsInstanceTo")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil)
             #expect(sema.bindings.isCollectionExpr(callExpr), "Expected filterIsInstanceTo result to be tracked as a collection expression")
         }
     }

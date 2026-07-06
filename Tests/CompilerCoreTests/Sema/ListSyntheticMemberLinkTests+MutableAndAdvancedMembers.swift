@@ -1492,7 +1492,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListFilterIndexedUsesRuntimeExternalLink() throws {
+    func testListFilterIndexedBindsBundledSource() throws {
         let source = """
         fun main() {
             val list = listOf(10, 20, 30)
@@ -1511,12 +1511,13 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "filterIndexed"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIndexed")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil)
         }
     }
 
     @Test
-    func testListFilterIsInstanceUsesRuntimeExternalLink() throws {
+    func testListFilterIsInstanceBindsBundledSource() throws {
         let source = """
         fun main() {
             val list: List<Any> = listOf(1, "two", 3)
@@ -1534,7 +1535,8 @@ extension ListSyntheticMemberLinkTests {
                 return ctx.interner.resolve(callee) == "filterIsInstance"
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_filterIsInstance")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil)
         }
     }
 

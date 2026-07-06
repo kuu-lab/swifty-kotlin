@@ -1157,7 +1157,14 @@ extension CallLowerer {
         }
 
         // filterIsInstance<R>() — encode type token from result type (STDLIB-114 / STDLIB-SEQ-FN-026)
-        if args.isEmpty, interner.resolve(calleeName) == "filterIsInstance" {
+        if args.isEmpty,
+           interner.resolve(calleeName) == "filterIsInstance",
+           isSequenceLikeType(
+            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+            sema: sema,
+            interner: interner
+           )
+        {
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
             // Extract element type from List<R> or Sequence<R>.
@@ -1175,13 +1182,9 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let runtimeCallee = isSequenceLikeType(sema.types.makeNonNullable(receiverType), sema: sema, interner: interner)
-                ? "kk_sequence_filterIsInstance"
-                : "kk_list_filterIsInstance"
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern(runtimeCallee),
+                callee: interner.intern("kk_sequence_filterIsInstance"),
                 arguments: [loweredReceiverID, tokenExpr],
                 result: result,
                 canThrow: false,
@@ -1191,7 +1194,14 @@ extension CallLowerer {
         }
 
         // filterIsInstanceTo<R>(destination) — encode type token from result type (STDLIB-021)
-        if args.count == 1, interner.resolve(calleeName) == "filterIsInstanceTo" {
+        if args.count == 1,
+           interner.resolve(calleeName) == "filterIsInstanceTo",
+           isSequenceLikeType(
+            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+            sema: sema,
+            interner: interner
+           )
+        {
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let nonNullResultType = sema.types.makeNonNullable(resultType)
             // Extract element type from MutableCollection<R>
@@ -1209,15 +1219,9 @@ extension CallLowerer {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            let nonNullReceiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType)
-            let runtimeCallee = if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                interner.intern("kk_sequence_filterIsInstanceTo")
-            } else {
-                interner.intern("kk_list_filterIsInstanceTo")
-            }
             instructions.append(.call(
                 symbol: nil,
-                callee: runtimeCallee,
+                callee: interner.intern("kk_sequence_filterIsInstanceTo"),
                 arguments: [loweredReceiverID, loweredArgIDs[0], tokenExpr],
                 result: result,
                 canThrow: false,

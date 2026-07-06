@@ -375,20 +375,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         super.tearDown()
     }
 
-    func testFilterThenMapMatchesExpectedChain() {
-        let source = makeList([1, 2, 3])
-        XCTAssertEqual(kk_list_get(source, 1), 2)
-        let filtered = kk_list_filter(source, unsafeBitCast(filterGreaterThanOne, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        let mapped = kk_list_map(filtered, unsafeBitCast(mapTimesTwo, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        XCTAssertEqual(listElements(mapped), [4, 6])
-    }
-
-    func testFilterIndexedMatchesIndexPredicate() {
-        let source = makeList([10, 20, 30, 40])
-        let filtered = kk_list_filterIndexed(source, unsafeBitCast(filterEvenIndex, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        XCTAssertEqual(listElements(filtered), [10, 30])
-    }
-
     func testMapIndexedNotNullFiltersNullResults() {
         let source = makeList([10, 20, 30, 40])
         let mapped = kk_list_mapIndexedNotNull(
@@ -398,12 +384,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
             nil as UnsafeMutablePointer<Int>?
         )
         XCTAssertEqual(listElements(mapped), [10, 32])
-    }
-
-    func testFilterIsInstanceCollectsMatchingRuntimeTypes() {
-        let source = makeList([1, runtimeStringRaw("two"), 3])
-        let filtered = kk_list_filterIsInstance(source, 3)
-        XCTAssertEqual(listElements(filtered), [1, 3])
     }
 
     func testCaptureLambdaForMapAndForEach() {
@@ -1093,16 +1073,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(listElements(arrayMapped), [2, 99, 6])
     }
 
-    func testFilterIsInstanceToAppendsMatchingElementsToDestination() {
-        let source = makeList([runtimeStringRaw("skip"), 1, 2, runtimeStringRaw("skip-again"), 3])
-        let destination = makeList([99])
-
-        let result = kk_list_filterIsInstanceTo(source, destination, 3)
-
-        XCTAssertEqual(result, destination)
-        XCTAssertEqual(listElements(destination), [99, 1, 2, 3])
-    }
-
     func testIterableFirstNotNullOfReturnsFirstNonNullTransformResult() {
         var thrown = 0
         let listSource = makeList([1, 2, 4])
@@ -1156,53 +1126,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         let arraySource = makeArray([0, 1, 2])
         let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
         XCTAssertEqual(listElements(arrayMapped), [0, 1, 2])
-    }
-
-    func testListFilterNotToAppendsRejectedElementsToDestination() {
-        let source = makeList([1, 2, 3, 4])
-        let destination = makeList([99])
-
-        let result = kk_list_filterNotTo(source, destination, unsafeBitCast(countEven, to: Int.self), 0, nil)
-
-        XCTAssertEqual(result, destination)
-        XCTAssertEqual(listElements(destination), [99, 1, 3])
-    }
-
-    func testListFilterToAppendsMatchingElementsToDestination() {
-        let source = makeList([1, 2, 3, 4])
-        let destination = makeList([99])
-
-        let result = kk_list_filterTo(source, destination, unsafeBitCast(countEven, to: Int.self), 0, nil)
-
-        XCTAssertEqual(result, destination)
-        XCTAssertEqual(listElements(destination), [99, 2, 4])
-    }
-
-    func testCollectionFilterNotNullPreservesZeroAfterMapNotNull() {
-        let source = makeList([0, 1, 2])
-        let mapped = kk_list_mapNotNull(source, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
-        let filtered = kk_list_filterNotNull(mapped)
-        XCTAssertEqual(listElements(filtered), [0, 1, 2])
-
-        let setSource = kk_set_of(makeArray([0, 1, 2]), 3)
-        let setMapped = kk_set_mapNotNull(setSource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
-        let setFiltered = kk_list_filterNotNull(setMapped)
-        XCTAssertEqual(Set(listElements(setFiltered)), Set([0, 1, 2]))
-
-        let arraySource = makeArray([0, 1, 2])
-        let arrayMapped = kk_array_mapNotNull(arraySource, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
-        let arrayFiltered = kk_list_filterNotNull(arrayMapped)
-        XCTAssertEqual(listElements(arrayFiltered), [0, 1, 2])
-    }
-
-    func testCollectionFilterNotNullToAppendsToDestination() {
-        let source = makeList([0, runtimeNullSentinelInt, 1, runtimeNullSentinelInt, 2])
-        let destination = makeList([99])
-
-        let result = kk_list_filterNotNullTo(source, destination)
-
-        XCTAssertEqual(result, destination)
-        XCTAssertEqual(listElements(destination), [99, 0, 1, 2])
     }
 
     func testIterableFirstNotNullOfOrNullReturnsFirstNonNullTransformResult() {
@@ -1415,14 +1338,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
 
         XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
         XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testListFilterNotKeepsElementsRejectedByPredicate() {
-        let source = makeList([1, 2, 3, 4])
-
-        let filtered = kk_list_filterNot(source, unsafeBitCast(countEven, to: Int.self), 0, nil)
-
-        XCTAssertEqual(listElements(filtered), [1, 3])
     }
 
     func testListTakeWhileKeepsMatchingPrefixAndPropagatesThrow() {

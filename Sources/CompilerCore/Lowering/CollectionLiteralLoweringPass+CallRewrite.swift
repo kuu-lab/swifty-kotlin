@@ -1,6 +1,6 @@
 
 extension CollectionLiteralLoweringPass {
-    private func shouldPreserveSourceBackedAggregateCall(
+    private func shouldPreserveSourceBackedCollectionHOFCall(
         symbol: SymbolID?,
         callee: InternedString,
         lookup: CollectionLiteralLookupTables,
@@ -17,7 +17,17 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.groupByName
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName,
+            || callee == lookup.minByOrNullName
+            || callee == lookup.filterName
+            || callee == lookup.filterNotName
+            || callee == lookup.filterNotNullName
+            || callee == lookup.filterIndexedName
+            || callee == lookup.filterIsInstanceName
+            || callee == lookup.filterToName
+            || callee == lookup.filterNotToName
+            || callee == lookup.filterNotNullToName
+            || callee == lookup.filterIndexedToName
+            || callee == lookup.filterIsInstanceToName,
             let symbol,
             let sema = ctx.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),
@@ -131,7 +141,7 @@ extension CollectionLiteralLoweringPass {
                         continue
                     }
 
-                    if shouldPreserveSourceBackedAggregateCall(
+                    if shouldPreserveSourceBackedCollectionHOFCall(
                         symbol: symbol,
                         callee: callee,
                         lookup: lookup,
