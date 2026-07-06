@@ -14,14 +14,6 @@ symbol fq=golden.sema.testMinOf3 kind=function vis=public flags=_ sig=recv=_ par
 symbol fq=golden.sema.testMinOf3.$4.a kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testMinOf3.$4.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testMinOf3.$4.c kind=valueParameter vis=private flags=_
-symbol fq=kotlin.comparisons.maxOf#6 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=kotlin.comparisons.maxOf.a kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.maxOf.b kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.maxOf.c kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.minOf#7 kind=function vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int,Int] ret=Int
-symbol fq=kotlin.comparisons.minOf.a kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.minOf.b kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.comparisons.minOf.c kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.atan2#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Double,Double] ret=Double
 symbol fq=kotlin.math.atan2.x kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.math.atan2.y kind=valueParameter vis=private flags=synthetic
@@ -55,8 +47,8 @@ expr e@10:37#1 memberCall recv=e@10:37 callee=coerceAtMost args=[_:e@10:52] type
 expr e@12:53 name(a) type=Int ref=golden.sema.testMaxOf3.$3.a
 expr e@12:56 name(b) type=Int ref=golden.sema.testMaxOf3.$3.b
 expr e@12:59 name(c) type=Int ref=golden.sema.testMaxOf3.$3.c
-expr e@12:47 call callee=e@12:47#1 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf#6
+expr e@12:47 call callee=e@12:47#1 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf#8
 expr e@13:53 name(a) type=Int ref=golden.sema.testMinOf3.$4.a
 expr e@13:56 name(b) type=Int ref=golden.sema.testMinOf3.$4.b
 expr e@13:59 name(c) type=Int ref=golden.sema.testMinOf3.$4.c
-expr e@13:47 call callee=e@13:47#1 args=[_:e@13:53,_:e@13:56,_:e@13:59] type=Int call=kotlin.comparisons.minOf#7
+expr e@13:47 call callee=e@13:47#1 args=[_:e@13:53,_:e@13:56,_:e@13:59] type=Int call=kotlin.comparisons.minOf#8

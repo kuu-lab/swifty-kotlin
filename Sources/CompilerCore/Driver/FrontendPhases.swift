@@ -110,7 +110,6 @@ final class LoadSourcesPhase: CompilerPhase {
 
     private static let excludedBundledStdlibFiles: Set<String> = [
         "kotlin/ResultExtensions",
-        "kotlin/collections/ListFilterHOF",
         "kotlin/collections/ListWindowChunk",
         "kotlin/comparisons/Comparators",
         "kotlin/logging/AdvancedLogger",
@@ -122,7 +121,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/text/StringEncoding",
         "kotlin/text/StringIndentFormat",
         "kotlin/text/StringSearchReplace",
-        "kotlin/text/StringSplitJoin",
     ]
 
     private func injectBundledStdlib(into sourceManager: SourceManager) {
