@@ -1159,22 +1159,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        flatStringReturnSpec(
-            name: "kk_string_trimIndent_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_trimMargin_default_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_trimMargin_flat",
-            trailingStringPrefixes: ["marginPrefix"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceIndentByMargin_flat",
-            trailingStringPrefixes: ["newIndent", "marginPrefix"]
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_format_flat",
             parameters: [
@@ -2515,23 +2499,6 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
-        // STDLIB-191
-        flatStringReturnSpec(
-            name: "kk_string_prependIndent_default_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_prependIndent_flat",
-            trailingStringPrefixes: ["indent"]
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceIndent_default_flat",
-            trailingStringPrefixes: []
-        ),
-        flatStringReturnSpec(
-            name: "kk_string_replaceIndent_flat",
-            trailingStringPrefixes: ["newIndent"]
-        ),
         // STDLIB-192
         // STDLIB-190
         // STDLIB-187
@@ -3040,53 +3007,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
-        RuntimeABIFunctionSpec(
-            name: "__string_trimIndent",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__string_trimMargin",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "marginPrefixRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__string_prependIndent",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "indentRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__string_replaceIndent",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "newIndentRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__string_replaceIndentByMargin",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "newIndentRaw", type: .intptr),
-                RuntimeABIParameter(name: "marginPrefixRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,

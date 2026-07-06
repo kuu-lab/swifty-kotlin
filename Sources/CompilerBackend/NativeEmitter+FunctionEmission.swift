@@ -762,24 +762,6 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_trimIndent_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trimIndent_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_trimMargin_default_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trimMargin_default_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_trimMargin_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trimMargin_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
                 "kk_string_lowercase_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_lowercase_flat",
                     stringArgumentCount: 1,
@@ -1005,36 +987,6 @@ extension NativeEmitter {
                 ),
                 "kk_string_removeSurrounding_pair_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_removeSurrounding_pair_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_prependIndent_default_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_prependIndent_default_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_prependIndent_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_prependIndent_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceIndent_default_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceIndent_default_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceIndent_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceIndent_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replaceIndentByMargin_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceIndentByMargin_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 0,
                     canThrow: false

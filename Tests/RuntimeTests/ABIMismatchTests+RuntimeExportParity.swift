@@ -77,7 +77,6 @@ extension ABIMismatchTests {
             "kk_regex_create_with_options",
             "kk_string_chunked_sequence",
             "kk_string_chunked_sequence_transform",
-            "kk_string_replaceIndentByMargin",
             "kk_string_toByte",
             "kk_string_toByte_radix",
             "kk_string_toCharArray",

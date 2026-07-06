@@ -1560,67 +1560,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "trimIndent" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimIndent_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimMargin" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimMargin_default_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "prependIndent" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_prependIndent_default_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "replaceIndent" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_replaceIndent_default_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "replaceIndentByMargin" {
-                    let emptyString = interner.intern("")
-                    let emptyExpr = arena.appendExpr(.stringLiteral(emptyString), type: sema.types.stringType)
-                    instructions.append(.constValue(result: emptyExpr, value: .stringLiteral(emptyString)))
-                    let pipeString = interner.intern("|")
-                    let pipeExpr = arena.appendExpr(.stringLiteral(pipeString), type: sema.types.stringType)
-                    instructions.append(.constValue(result: pipeExpr, value: .stringLiteral(pipeString)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_replaceIndentByMargin_flat"),
-                        arguments: [loweredReceiverID, emptyExpr, pipeExpr],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "trim" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1927,19 +1866,6 @@ extension CallLowerer {
                     ("kk_string_removeSuffix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSurrounding":
                     ("kk_string_removeSurrounding_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "trimMargin":
-                    ("kk_string_trimMargin_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "prependIndent":
-                    ("kk_string_prependIndent_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "replaceIndent":
-                    ("kk_string_replaceIndent_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "replaceIndentByMargin":
-                    {
-                        let pipeString = interner.intern("|")
-                        let pipeExpr = arena.appendExpr(.stringLiteral(pipeString), type: sema.types.stringType)
-                        instructions.append(.constValue(result: pipeExpr, value: .stringLiteral(pipeString)))
-                        return ("kk_string_replaceIndentByMargin_flat", [loweredReceiverID, loweredArgIDs[0], pipeExpr])
-                    }()
                 case "trim":
                     ("kk_string_trim_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "trimStart":
@@ -2169,19 +2095,6 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_compareToIgnoreCase_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "replaceIndentByMargin"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_replaceIndentByMargin_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,
