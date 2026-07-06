@@ -85,8 +85,10 @@ final class RuntimeNotNullAssertionTests: XCTestCase {
         let box = try XCTUnwrap(throwableBox(from: thrown))
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException",
                        "checkNotNull must throw IllegalStateException on null")
-        XCTAssertFalse(box is RuntimeIllegalArgumentExceptionBox,
-                       "checkNotNull must NOT throw IllegalArgumentException")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+            "checkNotNull must NOT throw IllegalArgumentException"
+        )
     }
 
     func testCheckNotNullDefaultMessage() throws {
@@ -116,8 +118,10 @@ final class RuntimeNotNullAssertionTests: XCTestCase {
         let box = try XCTUnwrap(throwableBox(from: thrown))
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException",
                        "requireNotNull must throw IllegalArgumentException on null")
-        XCTAssertFalse(box is RuntimeIllegalStateExceptionBox,
-                       "requireNotNull must NOT throw IllegalStateException")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
+            "requireNotNull must NOT throw IllegalStateException"
+        )
     }
 
     func testRequireNotNullDefaultMessage() throws {
@@ -193,7 +197,7 @@ final class RuntimeNotNullAssertionTests: XCTestCase {
         _ = kk_check_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullCountingThunk), 0, &thrown)
         let box = try XCTUnwrap(throwableBox(from: thrown))
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException")
-        XCTAssertFalse(box is RuntimeIllegalArgumentExceptionBox)
+        XCTAssertFalse(runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self))
     }
 
     func testRequireNotNullLazyThrowsIllegalArgumentException() throws {
@@ -201,6 +205,6 @@ final class RuntimeNotNullAssertionTests: XCTestCase {
         _ = kk_require_not_null_lazy(runtimeNullSentinelInt, fnPtrInt(notNullCountingThunk), 0, &thrown)
         let box = try XCTUnwrap(throwableBox(from: thrown))
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
-        XCTAssertFalse(box is RuntimeIllegalStateExceptionBox)
+        XCTAssertFalse(runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self))
     }
 }
