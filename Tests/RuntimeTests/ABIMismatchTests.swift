@@ -119,7 +119,6 @@ final class ABIMismatchTests: XCTestCase {
         // kk_regex_containsMatchIn_flat,
         // kk_match_result_groups, kk_match_group_collection_get,
         // kk_match_group_value, kk_match_group_range,
-        // kk_string_commonPrefixWith_flat, kk_string_commonSuffixWith_flat
         // STDLIB-REGEX-097: kk_regex_group_names
         // STDLIB-REGEX-094: kk_regex_matches, kk_regex_from_literal, kk_string_replaceFirst_regex
         // STDLIB-TEXT-FN-105: kk_string_toRegex_with_option_flat, kk_string_toRegex_with_options_flat
@@ -836,62 +835,22 @@ final class ABIMismatchTests: XCTestCase {
         ])
     }
 
-    func testKKStringCommonPrefixSuffixPointerABIRemoved() {
-        let legacyNames = [
+    func testKKStringCommonPrefixSuffixRuntimeABIRemoved() {
+        let migratedNames = [
             "kk_string_commonPrefixWith",
             "kk_string_commonSuffixWith",
             "kk_string_commonPrefixWith_ignoreCase",
             "kk_string_commonSuffixWith_ignoreCase",
-        ]
-        for legacyName in legacyNames {
-            XCTAssertFalse(
-                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
-                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
-            )
-        }
-    }
-
-    func testKKStringCommonPrefixSuffixFlatSignatures() throws {
-        let twoStringTypes: [RuntimeABICType] = [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ]
-        for name in ["kk_string_commonPrefixWith_flat", "kk_string_commonSuffixWith_flat"] {
-            let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.map(\.type), twoStringTypes)
-        }
-
-        let ignoreCaseTypes: [RuntimeABICType] = [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ]
-        for name in [
+            "kk_string_commonPrefixWith_flat",
+            "kk_string_commonSuffixWith_flat",
             "kk_string_commonPrefixWith_ignoreCase_flat",
             "kk_string_commonSuffixWith_ignoreCase_flat",
-        ] {
-            let spec = try requireSpec(name)
-            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
-            XCTAssertEqual(spec.parameters.map(\.type), ignoreCaseTypes)
+        ]
+        for migratedName in migratedNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == migratedName },
+                "\(migratedName) should be provided by bundled Kotlin source, not runtime ABI"
+            )
         }
     }
 
