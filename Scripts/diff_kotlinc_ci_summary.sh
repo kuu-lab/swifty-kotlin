@@ -115,7 +115,7 @@ resolve_artifact_dir() {
 }
 
 # ---------------------------------------------------------------------------
-# Parse the TSV report into parallel arrays (bash 3.2 compatible)
+# Parse the TSV report into index-parallel arrays (cases and artifact dirs)
 # ---------------------------------------------------------------------------
 total=0
 passed=0

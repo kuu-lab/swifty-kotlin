@@ -59,10 +59,11 @@ bash Scripts/swift_test.sh --filter Golden
 git diff -- Tests/CompilerCoreTests/GoldenCases
 ```
 
-3. If the parser/sema/lowering change is intentional, update fixtures:
+3. If the parser/sema/lowering change is intentional, update fixtures
+   (the `-swift-version` flags match the CI language mode):
 
 ```bash
-UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden
+UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6
 ```
 
 4. Re-review fixture changes and ensure only intended files changed:

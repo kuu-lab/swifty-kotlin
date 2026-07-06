@@ -3,9 +3,18 @@
 [[ -n "${_KSWIFTK_SCRIPTS_COMMON_SH:-}" ]] && return 0
 _KSWIFTK_SCRIPTS_COMMON_SH=1
 
-# Canonical golden-update command, shown in failure hints. Keep in sync with
-# the "Golden update workflow" section of Scripts/README.md.
-GOLDEN_UPDATE_CMD="UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden"
+# Scripts sourcing this file rely on bash >= 4 features (associative arrays,
+# mapfile). macOS ships bash 3.2 at /bin/bash; the `#!/usr/bin/env bash`
+# shebangs pick up a newer bash from PATH (e.g. Homebrew's).
+if (( BASH_VERSINFO[0] < 4 )); then
+    echo "Scripts/*.sh require bash >= 4 (found $BASH_VERSION; on macOS: brew install bash)" >&2
+    exit 1
+fi
+
+# Canonical golden-update command, shown in failure hints. The -swift-version
+# flags match the CI (Full Swift Tests) language mode; keep in sync with the
+# "Golden update workflow" section of Scripts/README.md.
+GOLDEN_UPDATE_CMD="UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6"
 
 # Map a diff case path to its artifact directory name: basename, drop the .kt
 # extension, replace anything outside [A-Za-z0-9._-]. diff_kotlinc.sh writes
