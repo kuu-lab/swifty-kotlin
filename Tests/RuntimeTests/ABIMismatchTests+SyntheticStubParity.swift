@@ -157,26 +157,12 @@ extension ABIMismatchTests {
 
     // MARK: UUID (kotlin.uuid)
     private static let uuidStubLinkNames: Set<String> = [
-        "kk_uuid_fromByteArray",
-        "kk_uuid_fromLongs",
-        "kk_uuid_leastSignificantBits",
-        "kk_uuid_mostSignificantBits",
-        "kk_uuid_nameUUIDFromBytes",
-        "kk_uuid_nil",
-        "kk_uuid_parse",
-        "kk_uuid_parseHex",
-        "kk_uuid_parseHexDash",
-        "kk_uuid_parseHexDashOrNull",
-        "kk_uuid_parseHexOrNull",
-        "kk_uuid_parseOrNull",
-        "kk_uuid_random",
-        "kk_uuid_toByteArray",
-        "kk_uuid_toHexString",
+        "__kk_uuid_nameUUIDFromBytes",
+        "__kk_uuid_random",
+        "kk_byteArray_putUuid",
+        "kk_byteArray_uuid",
+        "kk_uuid_getUuid",
         "kk_uuid_toKotlinUuid",
-        "kk_uuid_toLongs",
-        "kk_uuid_toString",
-        "kk_uuid_variant",
-        "kk_uuid_version",
     ]
 
     // MARK: Instant / Clock / time conversions

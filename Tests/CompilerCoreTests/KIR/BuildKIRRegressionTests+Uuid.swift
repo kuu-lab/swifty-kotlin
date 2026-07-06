@@ -4,76 +4,38 @@ import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
-    @Test func testUuidCompanionAndInstanceCallsLowerToRuntimeCallees() throws {
-        let source = """
-        @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
-
-        import kotlin.uuid.Uuid
-
-        fun main() {
-            val nil = Uuid.NIL
-            val lexicalOrder = Uuid.LEXICAL_ORDER
-            val uuid = Uuid.parse("550e8400-e29b-41d4-a716-446655440000")
-            val maybeUuid = Uuid.parseOrNull("550e8400-e29b-41d4-a716-446655440000")
-            val hexUuid = Uuid.parseHex("550e8400e29b41d4a716446655440000")
-            val maybeHexUuid = Uuid.parseHexOrNull("550e8400e29b41d4a716446655440000")
-            val dashUuid = Uuid.parseHexDash("550e8400-e29b-41d4-a716-446655440000")
-            val maybeDashUuid = Uuid.parseHexDashOrNull("550e8400-e29b-41d4-a716-446655440000")
-            nil.toString()
-            uuid.toString()
-            maybeUuid?.toString()
-            hexUuid.toString()
-            maybeHexUuid?.toString()
-            dashUuid.toString()
-            maybeDashUuid?.toString()
-            uuid.toHexString()
-            uuid.toLongs()
-            uuid.toByteArray()
-            uuid.version()
-            uuid.variant()
-            val msb = uuid.mostSignificantBits
-            val lsb = uuid.leastSignificantBits
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callees.contains("kk_uuid_nil"), "Expected Uuid.NIL runtime call")
-            #expect(callees.contains("kk_uuid_lexicalOrder"), "Expected Uuid.LEXICAL_ORDER runtime call")
-            #expect(callees.contains("kk_uuid_parse"), "Expected Uuid.parse runtime call")
-            #expect(callees.contains("kk_uuid_parseOrNull"), "Expected Uuid.parseOrNull runtime call")
-            #expect(callees.contains("kk_uuid_parseHex"), "Expected Uuid.parseHex runtime call")
-            #expect(callees.contains("kk_uuid_parseHexOrNull"), "Expected Uuid.parseHexOrNull runtime call")
-            #expect(callees.contains("kk_uuid_parseHexDash"), "Expected Uuid.parseHexDash runtime call")
-            #expect(callees.contains("kk_uuid_parseHexDashOrNull"), "Expected Uuid.parseHexDashOrNull runtime call")
-            #expect(callees.contains("kk_uuid_toString"), "Expected Uuid.toString runtime call")
-            #expect(callees.contains("kk_uuid_toHexString"), "Expected Uuid.toHexString runtime call")
-            #expect(callees.contains("kk_uuid_toLongs"), "Expected Uuid.toLongs runtime call")
-            #expect(callees.contains("kk_uuid_toByteArray"), "Expected Uuid.toByteArray runtime call")
-            #expect(callees.contains("kk_uuid_version"), "Expected Uuid.version runtime call")
-            #expect(callees.contains("kk_uuid_variant"), "Expected Uuid.variant runtime call")
-            #expect(callees.contains("kk_uuid_mostSignificantBits"), "Expected Uuid.mostSignificantBits runtime call")
-            #expect(callees.contains("kk_uuid_leastSignificantBits"), "Expected Uuid.leastSignificantBits runtime call")
-        }
-    }
-
-    @Test func testUuidAdditionalFactoriesLowerToRuntimeCallees() throws {
+    @Test func testUuidClassApisLowerThroughKotlinSource() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
         import kotlin.uuid.Uuid
 
         fun main(bytes: ByteArray) {
-            Uuid.random()
-            Uuid.nameUUIDFromBytes(bytes)
-            Uuid.fromLongs(0L, 1L)
-            Uuid.fromByteArray(bytes)
+            val nil = Uuid.NIL
+            val random = Uuid.random()
+            val named = Uuid.nameUUIDFromBytes(bytes)
+            val uuid = Uuid.parse("550e8400-e29b-41d4-a716-446655440000")
+            val maybeUuid = Uuid.parseOrNull("550e8400-e29b-41d4-a716-446655440000")
+            val hexUuid = Uuid.parseHex("550e8400e29b41d4a716446655440000")
+            val maybeHexUuid = Uuid.parseHexOrNull("550e8400e29b41d4a716446655440000")
+            val dashUuid = Uuid.parseHexDash("550e8400-e29b-41d4-a716-446655440000")
+            val maybeDashUuid = Uuid.parseHexDashOrNull("550e8400-e29b-41d4-a716-446655440000")
+            val fromLongs = Uuid.fromLongs(uuid.mostSignificantBits, uuid.leastSignificantBits)
+            val fromBytes = Uuid.fromByteArray(uuid.toByteArray())
+            nil.toString()
+            random.toString()
+            named.toHexString()
+            uuid.toString()
+            maybeUuid?.toString()
+            hexUuid.toString()
+            maybeHexUuid?.toString()
+            dashUuid.toString()
+            maybeDashUuid?.toString()
+            fromLongs.toLongs()
+            fromBytes.toByteArray()
+            uuid.version()
+            uuid.variant()
+            Uuid.LEXICAL_ORDER.compare(uuid, nil)
         }
         """
 
@@ -83,12 +45,40 @@ extension BuildKIRRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            #expect(callees.contains("kk_uuid_random"), "Expected Uuid.random runtime call")
-            #expect(callees.contains("kk_uuid_nameUUIDFromBytes"), "Expected Uuid.nameUUIDFromBytes runtime call")
-            #expect(callees.contains("kk_uuid_fromLongs"), "Expected Uuid.fromLongs runtime call")
-            #expect(callees.contains("kk_uuid_fromByteArray"), "Expected Uuid.fromByteArray runtime call")
+            #expect(callees.contains("__kk_uuid_random"), "Uuid.random should call the downgraded entropy bridge")
+            #expect(
+                callees.contains("__kk_uuid_nameUUIDFromBytes"),
+                "Uuid.nameUUIDFromBytes should call the downgraded MD5 bridge"
+            )
+
+            let removedRuntimeCallees: Set<String> = [
+                "kk_uuid_fromByteArray",
+                "kk_uuid_fromLongs",
+                "kk_uuid_leastSignificantBits",
+                "kk_uuid_lexicalOrder",
+                "kk_uuid_mostSignificantBits",
+                "kk_uuid_nameUUIDFromBytes",
+                "kk_uuid_nil",
+                "kk_uuid_parse",
+                "kk_uuid_parseHex",
+                "kk_uuid_parseHexDash",
+                "kk_uuid_parseHexDashOrNull",
+                "kk_uuid_parseHexOrNull",
+                "kk_uuid_parseOrNull",
+                "kk_uuid_random",
+                "kk_uuid_toByteArray",
+                "kk_uuid_toHexString",
+                "kk_uuid_toLongs",
+                "kk_uuid_toString",
+                "kk_uuid_variant",
+                "kk_uuid_version",
+            ]
+            #expect(
+                callees.isDisjoint(with: removedRuntimeCallees),
+                "Uuid pure logic should be Kotlinized; unexpected removed callees: \(callees.intersection(removedRuntimeCallees))"
+            )
         }
     }
 
@@ -119,67 +109,27 @@ extension BuildKIRRegressionTests {
                 }
                 return intValue
             }
-            let loadGlobalNames = body.compactMap { instruction -> String? in
-                guard case let .loadGlobal(_, symbol) = instruction,
-                      let symbolInfo = ctx.sema?.symbols.symbol(symbol)
-                else {
-                    return nil
-                }
-                let fqName = symbolInfo.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
-                return fqName
-            }
 
-            #expect(
-                intConstants.contains(128),
-                "Expected Uuid.SIZE_BITS to lower as int literal 128; load globals: \(loadGlobalNames)"
-            )
-            #expect(
-                intConstants.contains(16),
-                "Expected Uuid.SIZE_BYTES to lower as int literal 16; load globals: \(loadGlobalNames)"
-            )
-            #expect(
-                !(extractCallees(from: body, interner: ctx.interner).contains { $0.hasPrefix("kk_uuid_size") }),
-                "Uuid size constants must not require runtime ABI calls"
-            )
+            #expect(intConstants.contains(128), "Expected Uuid.SIZE_BITS to lower as int literal 128")
+            #expect(intConstants.contains(16), "Expected Uuid.SIZE_BYTES to lower as int literal 16")
         }
     }
 
-    @Test func testABILoweringMarksUuidPureRuntimeHelpersAsNonThrowing() {
+    @Test func testABILoweringMarksResidualUuidBridgesAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        let nonThrowingUuidCallees = [
-            "kk_uuid_random",
-            "kk_uuid_nil",
-            "kk_uuid_lexicalOrder",
-            "kk_uuid_parseOrNull",
-            "kk_uuid_parseHexOrNull",
-            "kk_uuid_parseHexDashOrNull",
-            "kk_uuid_toString",
-            "kk_uuid_toHexString",
-            "kk_uuid_toKotlinUuid",
-            "kk_uuid_toLongs",
-            "kk_uuid_toByteArray",
-            "kk_uuid_version",
-            "kk_uuid_variant",
-            "kk_uuid_mostSignificantBits",
-            "kk_uuid_leastSignificantBits",
-            "kk_uuid_nameUUIDFromBytes",
-            "kk_uuid_fromLongs",
-        ]
-
-        for callee in nonThrowingUuidCallees {
+        for callee in ["__kk_uuid_random", "__kk_uuid_nameUUIDFromBytes", "kk_uuid_toKotlinUuid"] {
             #expect(
                 callees.contains(interner.intern(callee)),
                 "\(callee) should not receive an outThrown slot during ABI lowering"
             )
         }
 
-        #expect(!(callees.contains(interner.intern("kk_uuid_parse"))))
-        #expect(!(callees.contains(interner.intern("kk_uuid_parseHex"))))
-        #expect(!(callees.contains(interner.intern("kk_uuid_parseHexDash"))))
-        #expect(!(callees.contains(interner.intern("kk_uuid_fromByteArray"))))
+        for removed in ["kk_uuid_random", "kk_uuid_parse", "kk_uuid_toString", "kk_uuid_fromLongs"] {
+            #expect(!(callees.contains(interner.intern(removed))), "\(removed) should not remain in UUID ABI")
+        }
     }
 }
 #endif

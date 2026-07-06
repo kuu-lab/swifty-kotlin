@@ -103,7 +103,49 @@ private func runtimeCompareUuidLexically(_ lhs: RuntimeUuidBox, _ rhs: RuntimeUu
 
 /// Extract a RuntimeUuidBox from a raw receiver value.
 private func runtimeUuidBox(from rawValue: Int) -> RuntimeUuidBox? {
-    resolveRuntimeHandle(rawValue, as: RuntimeUuidBox.self)
+    if let legacyBox = resolveRuntimeHandle(rawValue, as: RuntimeUuidBox.self) {
+        return legacyBox
+    }
+    guard let arrayBox = runtimeArrayBox(from: rawValue) else {
+        return nil
+    }
+    let elements = arrayBox.elements
+    if elements.count >= 4 {
+        return RuntimeUuidBox(
+            mostSignificantBits: Int64(elements[2]),
+            leastSignificantBits: Int64(elements[3])
+        )
+    }
+    if elements.count >= 2 {
+        return RuntimeUuidBox(
+            mostSignificantBits: Int64(elements[0]),
+            leastSignificantBits: Int64(elements[1])
+        )
+    }
+    return nil
+}
+
+private let runtimeUuidClassID: Int64 = runtimeStableNominalTypeID("kotlin.uuid.Uuid")
+
+private func runtimeStableNominalTypeID(_ fqName: String) -> Int64 {
+    let payloadMask: Int64 = (1 << 55) - 1
+    var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+    for byte in fqName.utf8 {
+        hash ^= UInt64(byte)
+        hash &*= 0x100_0000_01B3
+    }
+    let payload = Int64(bitPattern: hash) & payloadMask
+    return payload == 0 ? 1 : payload
+}
+
+private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBits: Int64) -> Int {
+    let raw = kk_object_new(4, Int(runtimeUuidClassID))
+    guard let box = runtimeArrayBox(from: raw), box.elements.count >= 4 else {
+        return raw
+    }
+    box.elements[2] = Int(mostSignificantBits)
+    box.elements[3] = Int(leastSignificantBits)
+    return raw
 }
 
 /// Helper to create a runtime string from a Swift String, returning Int.
@@ -117,8 +159,8 @@ private func uuidMakeStringRaw(_ value: String) -> Int {
 
 // MARK: - Uuid.random()
 
-@_cdecl("kk_uuid_random")
-func kk_uuid_random() -> Int {
+@_cdecl("__kk_uuid_random")
+public func __kk_uuid_random() -> Int {
     // Generate a version-4 (random) UUID
     var rng = SystemRandomNumberGenerator()
     var msb = Int64(bitPattern: rng.next() as UInt64)
@@ -129,380 +171,15 @@ func kk_uuid_random() -> Int {
     // Set variant to IETF (bits 62-63 of clock_seq)
     lsb = lsb & ~(0x3 << 62) | (Int64(2) << 62)
 
-    let box = RuntimeUuidBox(mostSignificantBits: msb, leastSignificantBits: lsb)
-    return registerRuntimeObject(box)
-}
-
-// MARK: - Uuid.NIL
-
-@_cdecl("kk_uuid_nil")
-func kk_uuid_nil() -> Int {
-    let box = RuntimeUuidBox(mostSignificantBits: 0, leastSignificantBits: 0)
-    return registerRuntimeObject(box)
-}
-
-// MARK: - Uuid.LEXICAL_ORDER
-
-@_cdecl("kk_uuid_lexicalOrder")
-func kk_uuid_lexicalOrder() -> Int {
-    let raw = registerRuntimeObject(RuntimeUuidLexicalOrderComparatorBox())
-    _ = kk_object_register_itable_method(
-        raw,
-        0,
-        0,
-        unsafeBitCast(kkUuidLexicalOrderComparator, to: Int.self)
-    )
-    return raw
-}
-
-private func kk_uuid_makeInvalidArgument(
-    message: String,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = runtimeAllocateThrowable(message: message)
-    return 0
-}
-
-private func kk_uuid_parseHexBody(
-    _ hex: String,
-    invalidMessage: String,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let parsed = kk_uuid_parseHexBodyOrNull(hex)
-    if parsed == runtimeNullSentinelInt {
-        return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
-    }
-    return parsed
-}
-
-private func kk_uuid_parseHexBodyOrNull(_ hex: String) -> Int {
-    guard hex.count == 32,
-          hex.allSatisfy({ $0.isHexDigit })
-    else {
-        return runtimeNullSentinelInt
-    }
-
-    let msbHex = String(hex.prefix(16))
-    let lsbHex = String(hex.suffix(16))
-
-    guard let msbValue = UInt64(msbHex, radix: 16),
-          let lsbValue = UInt64(lsbHex, radix: 16)
-    else {
-        return runtimeNullSentinelInt
-    }
-
-    let box = RuntimeUuidBox(
-        mostSignificantBits: Int64(bitPattern: msbValue),
-        leastSignificantBits: Int64(bitPattern: lsbValue)
-    )
-    return registerRuntimeObject(box)
-}
-
-private func kk_uuid_isHexDashSeparatorOffset(_ offset: Int) -> Bool {
-    offset == 8 || offset == 13 || offset == 18 || offset == 23
-}
-
-private func kk_uuid_hexFromHexDashString(_ hexDashString: String) -> String? {
-    guard hexDashString.count == 36 else {
-        return nil
-    }
-
-    var hex = ""
-    hex.reserveCapacity(32)
-    for (offset, character) in hexDashString.enumerated() {
-        if kk_uuid_isHexDashSeparatorOffset(offset) {
-            guard character == "-" else {
-                return nil
-            }
-        } else {
-            guard character.isHexDigit else {
-                return nil
-            }
-            hex.append(character)
-        }
-    }
-    return hex
-}
-
-private func kk_uuid_parseStringOrNull(_ uuidString: String) -> Int {
-    if uuidString.count == 36 {
-        guard let hex = kk_uuid_hexFromHexDashString(uuidString) else {
-            return runtimeNullSentinelInt
-        }
-        return kk_uuid_parseHexBodyOrNull(hex)
-    }
-    if uuidString.count == 32 {
-        return kk_uuid_parseHexBodyOrNull(uuidString)
-    }
-    return runtimeNullSentinelInt
-}
-
-// MARK: - Uuid.parse(string)
-
-@_cdecl("kk_uuid_parse")
-func kk_uuid_parse(_ stringRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-
-    // Extract the string from raw
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
-    else {
-        return kk_uuid_makeInvalidArgument(
-            message: "IllegalArgumentException: Invalid UUID string: null",
-            outThrown: outThrown
-        )
-    }
-
-    let uuidString = stringBox.value
-    let invalidMessage = "IllegalArgumentException: Invalid UUID string: \(uuidString)"
-
-    // Parse standard format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    // or hex format: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    let hex: String
-    if uuidString.count == 36 {
-        guard let parsedHex = kk_uuid_hexFromHexDashString(uuidString) else {
-            return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
-        }
-        hex = parsedHex
-    } else if uuidString.count == 32 {
-        hex = uuidString
-    } else {
-        return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
-    }
-
-    return kk_uuid_parseHexBody(hex, invalidMessage: invalidMessage, outThrown: outThrown)
-}
-
-// MARK: - Uuid.parseOrNull(uuidString)
-
-@_cdecl("kk_uuid_parseOrNull")
-func kk_uuid_parseOrNull(_ stringRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
-    else {
-        return runtimeNullSentinelInt
-    }
-
-    return kk_uuid_parseStringOrNull(stringBox.value)
-}
-
-// MARK: - Uuid.parseHex(hexString)
-
-@_cdecl("kk_uuid_parseHex")
-func kk_uuid_parseHex(_ stringRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
-    else {
-        return kk_uuid_makeInvalidArgument(
-            message: "IllegalArgumentException: Invalid UUID hex string: null",
-            outThrown: outThrown
-        )
-    }
-
-    let hexString = stringBox.value
-    return kk_uuid_parseHexBody(
-        hexString,
-        invalidMessage: "IllegalArgumentException: Invalid UUID hex string: \(hexString)",
-        outThrown: outThrown
-    )
-}
-
-// MARK: - Uuid.parseHexOrNull(hexString)
-
-@_cdecl("kk_uuid_parseHexOrNull")
-func kk_uuid_parseHexOrNull(_ stringRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
-    else {
-        return runtimeNullSentinelInt
-    }
-
-    return kk_uuid_parseHexBodyOrNull(stringBox.value)
-}
-
-// MARK: - Uuid.parseHexDash(hexDashString)
-
-@_cdecl("kk_uuid_parseHexDash")
-func kk_uuid_parseHexDash(_ stringRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
-    else {
-        return kk_uuid_makeInvalidArgument(
-            message: "IllegalArgumentException: Invalid UUID hex-and-dash string: null",
-            outThrown: outThrown
-        )
-    }
-
-    let hexDashString = stringBox.value
-    let invalidMessage = "IllegalArgumentException: Invalid UUID hex-and-dash string: \(hexDashString)"
-    guard let hex = kk_uuid_hexFromHexDashString(hexDashString) else {
-        return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
-    }
-    return kk_uuid_parseHexBody(hex, invalidMessage: invalidMessage, outThrown: outThrown)
-}
-
-// MARK: - Uuid.parseHexDashOrNull(hexDashString)
-
-@_cdecl("kk_uuid_parseHexDashOrNull")
-func kk_uuid_parseHexDashOrNull(_ stringRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
-    else {
-        return runtimeNullSentinelInt
-    }
-
-    guard let hex = kk_uuid_hexFromHexDashString(stringBox.value) else {
-        return runtimeNullSentinelInt
-    }
-    return kk_uuid_parseHexBodyOrNull(hex)
-}
-
-// MARK: - Uuid.toString()
-
-@_cdecl("kk_uuid_toString")
-func kk_uuid_toString(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return uuidMakeStringRaw("00000000-0000-0000-0000-000000000000")
-    }
-    return uuidMakeStringRaw(box.uuidString)
-}
-
-// MARK: - Uuid.toHexString()
-
-@_cdecl("kk_uuid_toHexString")
-func kk_uuid_toHexString(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return uuidMakeStringRaw("00000000000000000000000000000000")
-    }
-    return uuidMakeStringRaw(box.hexString)
-}
-
-// MARK: - Uuid.toLongs() -> Pair<Long, Long>
-
-@_cdecl("kk_uuid_toLongs")
-func kk_uuid_toLongs(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return kk_pair_new(0, 0)
-    }
-    return kk_pair_new(Int(box.mostSignificantBits), Int(box.leastSignificantBits))
-}
-
-// MARK: - Uuid.toByteArray() -> ByteArray
-
-@_cdecl("kk_uuid_toByteArray")
-func kk_uuid_toByteArray(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        let emptyArray = RuntimeArrayBox(length: 16)
-        return registerRuntimeObject(emptyArray)
-    }
-    let bytes = box.byteArray
-    let arrayBox = RuntimeArrayBox(length: 16)
-    for i in 0..<16 {
-        arrayBox.elements[i] = Int(bytes[i])
-    }
-    return registerRuntimeObject(arrayBox)
-}
-
-// MARK: - Uuid.version() / variant()
-
-@_cdecl("kk_uuid_version")
-func kk_uuid_version(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return 0
-    }
-    return box.version
-}
-
-@_cdecl("kk_uuid_variant")
-func kk_uuid_variant(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return 0
-    }
-    return box.variant
-}
-
-// MARK: - Uuid.mostSignificantBits / leastSignificantBits
-
-@_cdecl("kk_uuid_mostSignificantBits")
-func kk_uuid_mostSignificantBits(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return 0
-    }
-    return Int(box.mostSignificantBits)
-}
-
-@_cdecl("kk_uuid_leastSignificantBits")
-func kk_uuid_leastSignificantBits(_ receiver: Int) -> Int {
-    guard let box = runtimeUuidBox(from: receiver) else {
-        return 0
-    }
-    return Int(box.leastSignificantBits)
-}
-
-// MARK: - Uuid.fromLongs(mostSignificantBits, leastSignificantBits)
-
-/// Create a Uuid from two Long values (MSB and LSB).
-/// Maps directly to kotlin.uuid.Uuid.fromLongs().
-@_cdecl("kk_uuid_fromLongs")
-func kk_uuid_fromLongs(_ msb: Int, _ lsb: Int) -> Int {
-    let box = RuntimeUuidBox(
-        mostSignificantBits: Int64(bitPattern: UInt64(bitPattern: Int64(msb))),
-        leastSignificantBits: Int64(bitPattern: UInt64(bitPattern: Int64(lsb)))
-    )
-    return registerRuntimeObject(box)
-}
-
-// MARK: - Uuid.fromByteArray(byteArray: ByteArray)
-
-/// Create a Uuid from a 16-byte array (big-endian, MSB first).
-/// Throws IllegalArgumentException if the array is not exactly 16 bytes.
-@_cdecl("kk_uuid_fromByteArray")
-func kk_uuid_fromByteArray(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
-          let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self)
-    else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: byteArray.size must be 16, was 0"
-        )
-        return 0
-    }
-
-    let size = arrayBox.elements.count
-    guard size == 16 else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: byteArray.size must be 16, was \(size)"
-        )
-        return 0
-    }
-
-    var msb: UInt64 = 0
-    var lsb: UInt64 = 0
-    for i in 0..<8 {
-        msb = (msb << 8) | UInt64(arrayBox.elements[i] & 0xFF)
-    }
-    for i in 8..<16 {
-        lsb = (lsb << 8) | UInt64(arrayBox.elements[i] & 0xFF)
-    }
-
-    let box = RuntimeUuidBox(
-        mostSignificantBits: Int64(bitPattern: msb),
-        leastSignificantBits: Int64(bitPattern: lsb)
-    )
-    return registerRuntimeObject(box)
+    return runtimeUuidObjectRaw(mostSignificantBits: msb, leastSignificantBits: lsb)
 }
 
 // MARK: - Uuid.nameUUIDFromBytes(name: ByteArray)
 
 /// Generate a version-3 (MD5-based) UUID from a name byte array.
 /// Follows RFC 4122 name-based UUID generation.
-@_cdecl("kk_uuid_nameUUIDFromBytes")
-func kk_uuid_nameUUIDFromBytes(_ nameArrayRaw: Int) -> Int {
+@_cdecl("__kk_uuid_nameUUIDFromBytes")
+public func __kk_uuid_nameUUIDFromBytes(_ nameArrayRaw: Int) -> Int {
     var inputBytes: [UInt8]
     if let ptr = UnsafeMutableRawPointer(bitPattern: nameArrayRaw),
        let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self)
@@ -528,28 +205,25 @@ func kk_uuid_nameUUIDFromBytes(_ nameArrayRaw: Int) -> Int {
     // Set variant to IETF RFC 4122
     lsb = (lsb & 0x3FFF_FFFF_FFFF_FFFF) | 0x8000_0000_0000_0000
 
-    let box = RuntimeUuidBox(
+    return runtimeUuidObjectRaw(
         mostSignificantBits: Int64(bitPattern: msb),
         leastSignificantBits: Int64(bitPattern: lsb)
     )
-    return registerRuntimeObject(box)
 }
 
 // MARK: - java.util.UUID.toKotlinUuid()
 
-// java.util.UUID and kotlin.uuid.Uuid share the same native runtime representation
-// (RuntimeUuidBox with mostSignificantBits / leastSignificantBits), so this is an
-// identity-style conversion: copy the bits into a fresh Uuid box.
+// Copy UUID bits from a java.util.UUID-style value into the Kotlin source Uuid
+// object shape (object header slots plus most/least significant bits).
 @_cdecl("kk_uuid_toKotlinUuid")
 func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     guard let box = runtimeUuidBox(from: receiver) else {
-        return kk_uuid_nil()
+        return runtimeUuidObjectRaw(mostSignificantBits: 0, leastSignificantBits: 0)
     }
-    let newBox = RuntimeUuidBox(
+    return runtimeUuidObjectRaw(
         mostSignificantBits: box.mostSignificantBits,
         leastSignificantBits: box.leastSignificantBits
     )
-    return registerRuntimeObject(newBox)
 }
 
 // MARK: - ByteArray.putUuid(at: Int, uuid: Uuid)
@@ -642,11 +316,10 @@ public func kk_byteArray_uuid(
         lsb = (lsb << 8) | UInt64(arrayBox.elements[at + i] & 0xFF)
     }
 
-    let box = RuntimeUuidBox(
+    return runtimeUuidObjectRaw(
         mostSignificantBits: Int64(bitPattern: msb),
         leastSignificantBits: Int64(bitPattern: lsb)
     )
-    return registerRuntimeObject(box)
 }
 
 // MARK: - ByteArray.getUuid(offset: Int)
@@ -683,11 +356,10 @@ public func kk_uuid_getUuid(_ arrayRaw: Int, _ offset: Int, _ outThrown: UnsafeM
         lsb = (lsb << 8) | UInt64(arrayBox.elements[offset + i] & 0xFF)
     }
 
-    let box = RuntimeUuidBox(
+    return runtimeUuidObjectRaw(
         mostSignificantBits: Int64(bitPattern: msb),
         leastSignificantBits: Int64(bitPattern: lsb)
     )
-    return registerRuntimeObject(box)
 }
 
 /// Compute MD5 digest of input bytes, returning 16 bytes.
