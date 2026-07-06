@@ -15,15 +15,14 @@ extension CallTypeChecker {
             return nil
         }
         let expectedPrefix = [ctx.interner.intern("kotlin"), ctx.interner.intern("comparisons")]
-        let onlySyntheticComparisonCandidates = visibleCandidates.allSatisfy { symbolID in
+        let onlyStdlibComparisonCandidates = visibleCandidates.allSatisfy { symbolID in
             guard let symbol = ctx.sema.symbols.symbol(symbolID) else {
                 return false
             }
-            return symbol.flags.contains(.synthetic)
-                && symbol.fqName.count >= expectedPrefix.count
+            return symbol.fqName.count >= expectedPrefix.count
                 && Array(symbol.fqName.prefix(expectedPrefix.count)) == expectedPrefix
         }
-        guard onlySyntheticComparisonCandidates else {
+        guard onlyStdlibComparisonCandidates else {
             return nil
         }
         let resolvedName = ctx.interner.resolve(calleeName)

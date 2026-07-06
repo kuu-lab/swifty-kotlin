@@ -105,14 +105,15 @@ extension CallTypeChecker {
             && !(interner.resolve(calleeName) == "binarySearch"
                 && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner))
 
-        func bindBundledListFilterSource(
+        @discardableResult
+        func bindBundledListSourceFunction(
             typeArguments: [TypeID],
             parameterMapping: [Int: Int] = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-        ) {
+        ) -> Bool {
             guard (!isSequenceReceiver || isListFactoryReceiver),
                   isConcreteListLikeType(receiverType, sema: sema, interner: interner) || isListFactoryReceiver
             else {
-                return
+                return false
             }
             let sourceFQName = [
                 interner.intern("kotlin"),
@@ -132,7 +133,7 @@ extension CallTypeChecker {
                 }
                 return isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner)
             }) else {
-                return
+                return false
             }
             sema.bindings.bindCall(id, binding: CallBinding(
                 chosenCallee: chosenCallee,
@@ -140,6 +141,7 @@ extension CallTypeChecker {
                 parameterMapping: parameterMapping
             ))
             sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            return true
         }
 
         if interner.resolve(calleeName) == "asFlow",
@@ -203,20 +205,37 @@ extension CallTypeChecker {
             if resultType != sema.types.anyType {
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.markCollectionExpr(id)
-                if isSequenceReceiver {
-                    let memberFQName = [interner.intern("kotlin"), interner.intern("sequences"), interner.intern("Sequence"), calleeName]
-                    if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-                        sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == args.count
-                    }) {
-                        sema.bindings.bindCall(id, binding: CallBinding(
-                            chosenCallee: chosenCallee,
-                            substitutedTypeArguments: [receiverElementType, filterType],
-                            parameterMapping: [:]
-                        ))
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-                    }
-                } else {
-                    bindBundledListFilterSource(typeArguments: [filterType], parameterMapping: [:])
+                let didBindSource = !isSequenceReceiver && bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:])
+                let ownerFQName = isSequenceReceiver
+                    ? [interner.intern("kotlin"), interner.intern("sequences"), interner.intern("Sequence")]
+                    : KnownCompilerNames(interner: interner).kotlinCollectionsListFQName
+                if !didBindSource,
+                   let chosenCallee = sema.symbols.lookupAll(fqName: ownerFQName + [calleeName]).first(where: { symbolID in
+                       guard let signature = sema.symbols.functionSignature(for: symbolID),
+                             signature.parameterTypes.count == args.count
+                       else {
+                           return false
+                       }
+                       // Bundled Kotlin-source declarations (e.g. List<T>.filter) share
+                       // this fqName with Map/Set/Iterable fallback candidates once their
+                       // synthetic stub is suppressed. Skip a receiver-specific bundled
+                       // declaration when the concrete receiver kind doesn't match it, so
+                       // non-List collection fallbacks (Map.filter, etc.) aren't
+                       // incorrectly bound to the List-only bundled function.
+                       if let signatureReceiver = signature.receiverType,
+                          (sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty,
+                          isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner),
+                          !isConcreteListLikeType(receiverType, sema: sema, interner: interner) {
+                           return false
+                       }
+                       return true
+                   }) {
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: chosenCallee,
+                        substitutedTypeArguments: [receiverElementType, filterType],
+                        parameterMapping: [:]
+                    ))
+                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
                 }
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
@@ -276,7 +295,7 @@ extension CallTypeChecker {
                     sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
                 }
             } else {
-                bindBundledListFilterSource(
+                bindBundledListSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
                 )
@@ -318,7 +337,7 @@ extension CallTypeChecker {
                 sema.types.anyType
             }
             if !isSequenceReceiver {
-                bindBundledListFilterSource(typeArguments: [resultElementType])
+                bindBundledListSourceFunction(typeArguments: [resultElementType])
             }
             sema.bindings.markCollectionExpr(id)
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -344,7 +363,7 @@ extension CallTypeChecker {
                 sema.types.anyType
             }
             if !isSequenceReceiver {
-                bindBundledListFilterSource(
+                bindBundledListSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
                 )
@@ -727,40 +746,6 @@ extension CallTypeChecker {
                 return (keyType, valueType)
             }()
 
-            func bindBundledListAggregateSource(typeArguments: [TypeID]) {
-                guard (!isSequenceReceiver || isListFactoryReceiver),
-                      isConcreteListLikeType(receiverType, sema: sema, interner: interner) || isListFactoryReceiver
-                else {
-                    return
-                }
-                let sourceFQName = [
-                    interner.intern("kotlin"),
-                    interner.intern("collections"),
-                    calleeName,
-                ]
-                guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate),
-                          symbol.kind == .function,
-                          symbol.declSite != nil,
-                          (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
-                          let signature = sema.symbols.functionSignature(for: candidate),
-                          signature.parameterTypes.count == args.count,
-                          let signatureReceiver = signature.receiverType
-                    else {
-                        return false
-                    }
-                    return isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner)
-                }) else {
-                    return
-                }
-                sema.bindings.bindCall(id, binding: CallBinding(
-                    chosenCallee: chosenCallee,
-                    substitutedTypeArguments: typeArguments,
-                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
-                ))
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
-            }
-
             func bindBundledSequenceAggregateSource(typeArguments: [TypeID]) {
                 guard isSequenceReceiver else {
                     return
@@ -967,7 +952,7 @@ extension CallTypeChecker {
                 if ["filterTo", "filterNotTo", "filterIndexedTo"].contains(calleeStr),
                    !isSequenceReceiver
                 {
-                    bindBundledListFilterSource(
+                    bindBundledListSourceFunction(
                         typeArguments: [collectionElementType, nonNullableDestinationType]
                     )
                 }
@@ -1107,6 +1092,15 @@ extension CallTypeChecker {
                                 interner: interner,
                                 elementType: collectionElementType
                             )
+                        } else if isMapReceiver {
+                            // Map.filter/filterNot return Map<K, V>, not List<Map.Entry<K, V>>.
+                            resultType = receiverType
+                        } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                            resultType = sema.types.make(.classType(ClassType(
+                                classSymbol: listSymbol,
+                                args: [.invariant(collectionElementType)],
+                                nullability: .nonNull
+                            )))
                         } else {
                             resultType = receiverType
                         }
@@ -2490,6 +2484,12 @@ extension CallTypeChecker {
                             interner: interner,
                             elementType: collectionElementType
                         )
+                    } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                        resultType = sema.types.make(.classType(ClassType(
+                            classSymbol: listSymbol,
+                            args: [.invariant(collectionElementType)],
+                            nullability: .nonNull
+                        )))
                     } else {
                         resultType = receiverType
                     }
@@ -2910,11 +2910,37 @@ extension CallTypeChecker {
                 resultType = sema.types.anyType
             }
 
-            if ["filter", "filterNot", "filterIndexed"].contains(calleeStr),
-               isCollectionReceiver,
-               !isSequenceReceiver
-            {
-                bindBundledListFilterSource(typeArguments: [collectionElementType])
+            let sourceBackedListFilterNames: Set = ["filter", "filterNot", "filterIndexed"]
+            let didBindListFilterSource = sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
+                ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                : false
+            if didBindListFilterSource {
+                // The lambda argument was speculatively marked (above) as a
+                // native collection HOF lambda expecting the (closureObj, it)
+                // two-argument ABI. It is actually being passed to a bundled
+                // Kotlin-source declaration as an ordinary boxed callable
+                // value, so undo that so LambdaLowerer materializes it via
+                // kk_function_create_N instead. Otherwise multi-capture
+                // lambdas crash: the callee never packs captures into a
+                // closure object (appendClosureArgumentsIfNeeded only runs
+                // for calls with an externalLinkName), so the lambda's own
+                // (closureObj, it) parameters read out-of-bounds.
+                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+            }
+
+            if !didBindListFilterSource, calleeStr == "filterIndexed", isCollectionReceiver {
+                let knownNames = KnownCompilerNames(interner: interner)
+                let memberFQName = knownNames.kotlinCollectionsListFQName + [calleeName]
+                if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+                    sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == args.count
+                }) {
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: chosenCallee,
+                        substitutedTypeArguments: [collectionElementType],
+                        parameterMapping: [0: 0]
+                    ))
+                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+                }
             }
 
             if calleeStr == "scan" || calleeStr == "runningFold", !isSequenceReceiver {
@@ -2935,9 +2961,9 @@ extension CallTypeChecker {
 
             if ["fold", "foldRight", "scan", "runningFold"].contains(calleeStr), args.count == 2 {
                 let initialType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-                bindBundledListAggregateSource(typeArguments: [collectionElementType, initialType])
+                bindBundledListSourceFunction(typeArguments: [collectionElementType, initialType])
             } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull"), args.count == 1 {
-                bindBundledListAggregateSource(typeArguments: [collectionElementType])
+                bindBundledListSourceFunction(typeArguments: [collectionElementType])
             }
             if let sourceBackedSequenceAggregateTypeArguments {
                 bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments)

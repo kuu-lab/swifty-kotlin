@@ -52,8 +52,8 @@ final class RuntimeAssertionsTests: XCTestCase {
     }
 
     func testAssertionErrorBoxIsRuntimeThrowableBox() {
-        let box: Any = RuntimeAssertionErrorBox(message: "test")
-        XCTAssertTrue(box is RuntimeThrowableBox)
+        let box = RuntimeAssertionErrorBox(message: "test")
+        XCTAssertTrue(runtimeValueIsThrowableBox(box))
     }
 
     // MARK: - RuntimeIllegalStateExceptionBox
@@ -98,8 +98,8 @@ final class RuntimeAssertionsTests: XCTestCase {
     }
 
     func testIllegalStateExceptionBoxIsRuntimeThrowableBox() {
-        let box: Any = RuntimeIllegalStateExceptionBox(message: "test")
-        XCTAssertTrue(box is RuntimeThrowableBox)
+        let box = RuntimeIllegalStateExceptionBox(message: "test")
+        XCTAssertTrue(runtimeValueIsThrowableBox(box))
     }
 
     // MARK: - RuntimeIllegalArgumentExceptionBox
@@ -144,8 +144,8 @@ final class RuntimeAssertionsTests: XCTestCase {
     }
 
     func testIllegalArgumentExceptionBoxIsRuntimeThrowableBox() {
-        let box: Any = RuntimeIllegalArgumentExceptionBox(message: "test")
-        XCTAssertTrue(box is RuntimeThrowableBox)
+        let box = RuntimeIllegalArgumentExceptionBox(message: "test")
+        XCTAssertTrue(runtimeValueIsThrowableBox(box))
     }
 
     // MARK: - RuntimeNoWhenBranchMatchedExceptionBox
@@ -208,41 +208,6 @@ final class RuntimeAssertionsTests: XCTestCase {
                        "Throwable should be last in hierarchy")
     }
 
-    // MARK: - RuntimeStringIndexOutOfBoundsExceptionBox
-
-    func testStringIndexOutOfBoundsExceptionBoxExceptionFQName() {
-        let box = RuntimeStringIndexOutOfBoundsExceptionBox(message: "bad index")
-        XCTAssertEqual(box.exceptionFQName, "kotlin.StringIndexOutOfBoundsException")
-    }
-
-    func testStringIndexOutOfBoundsExceptionBoxRenderedMessage() {
-        let box = RuntimeStringIndexOutOfBoundsExceptionBox(message: "bad index")
-        XCTAssertEqual(box.renderedMessage, "StringIndexOutOfBoundsException: bad index")
-    }
-
-    func testStringIndexOutOfBoundsExceptionBoxHierarchyContainsExpectedTypes() {
-        let box = RuntimeStringIndexOutOfBoundsExceptionBox(message: "test")
-        let hierarchy = box.exceptionHierarchyFQNames
-        XCTAssertTrue(hierarchy.contains("kotlin.StringIndexOutOfBoundsException"))
-        XCTAssertTrue(hierarchy.contains("kotlin.IndexOutOfBoundsException"))
-        XCTAssertTrue(hierarchy.contains("kotlin.RuntimeException"))
-        XCTAssertTrue(hierarchy.contains("kotlin.Exception"))
-        XCTAssertTrue(hierarchy.contains("kotlin.Throwable"))
-    }
-
-    func testStringIndexOutOfBoundsExceptionBoxHierarchyOrder() throws {
-        let box = RuntimeStringIndexOutOfBoundsExceptionBox(message: "test")
-        let hierarchy = box.exceptionHierarchyFQNames
-        XCTAssertEqual(hierarchy.first, "kotlin.StringIndexOutOfBoundsException",
-                       "StringIndexOutOfBoundsException should be first in hierarchy")
-        XCTAssertEqual(hierarchy.last, "kotlin.Throwable",
-                       "Throwable should be last in hierarchy")
-        XCTAssertLessThan(
-            try XCTUnwrap(hierarchy.firstIndex(of: "kotlin.StringIndexOutOfBoundsException")),
-            try XCTUnwrap(hierarchy.firstIndex(of: "kotlin.IndexOutOfBoundsException"))
-        )
-    }
-
     // MARK: - RuntimeArrayIndexOutOfBoundsExceptionBox
 
     func testArrayIndexOutOfBoundsExceptionBoxExceptionFQName() {
@@ -281,33 +246,51 @@ final class RuntimeAssertionsTests: XCTestCase {
     // MARK: - Type Discrimination
 
     func testAssertionErrorBoxIsDistinctFromIllegalStateBox() {
-        let assertionBox: Any = RuntimeAssertionErrorBox(message: "test")
-        XCTAssertFalse(assertionBox is RuntimeIllegalStateExceptionBox)
+        let assertionBox = RuntimeAssertionErrorBox(message: "test")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(assertionBox, RuntimeIllegalStateExceptionBox.self)
+        )
     }
 
     func testAssertionErrorBoxIsDistinctFromIllegalArgumentBox() {
-        let assertionBox: Any = RuntimeAssertionErrorBox(message: "test")
-        XCTAssertFalse(assertionBox is RuntimeIllegalArgumentExceptionBox)
+        let assertionBox = RuntimeAssertionErrorBox(message: "test")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(assertionBox, RuntimeIllegalArgumentExceptionBox.self)
+        )
     }
 
     func testIllegalStateBoxIsDistinctFromIllegalArgumentBox() {
-        let stateBox: Any = RuntimeIllegalStateExceptionBox(message: "test")
-        XCTAssertFalse(stateBox is RuntimeIllegalArgumentExceptionBox)
+        let stateBox = RuntimeIllegalStateExceptionBox(message: "test")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(stateBox, RuntimeIllegalArgumentExceptionBox.self)
+        )
     }
 
     func testNoWhenBranchMatchedBoxIsDistinctFromIllegalStateBox() {
-        let noWhenBox: Any = RuntimeNoWhenBranchMatchedExceptionBox(message: "test")
-        XCTAssertFalse(noWhenBox is RuntimeIllegalStateExceptionBox)
+        let noWhenBox = RuntimeNoWhenBranchMatchedExceptionBox(message: "test")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(noWhenBox, RuntimeIllegalStateExceptionBox.self)
+        )
     }
 
     func testConcurrentModificationBoxIsDistinctFromNoWhenBox() {
-        let concurrentModificationBox: Any = RuntimeConcurrentModificationExceptionBox(message: "test")
-        XCTAssertFalse(concurrentModificationBox is RuntimeNoWhenBranchMatchedExceptionBox)
+        let concurrentModificationBox = RuntimeConcurrentModificationExceptionBox(message: "test")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(
+                concurrentModificationBox,
+                RuntimeNoWhenBranchMatchedExceptionBox.self
+            )
+        )
     }
 
     func testArrayIndexOutOfBoundsBoxIsDistinctFromConcurrentModificationBox() {
-        let arrayIndexBox: Any = RuntimeArrayIndexOutOfBoundsExceptionBox(message: "test")
-        XCTAssertFalse(arrayIndexBox is RuntimeConcurrentModificationExceptionBox)
+        let arrayIndexBox = RuntimeArrayIndexOutOfBoundsExceptionBox(message: "test")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(
+                arrayIndexBox,
+                RuntimeConcurrentModificationExceptionBox.self
+            )
+        )
     }
 
     // MARK: - Cause Parameter

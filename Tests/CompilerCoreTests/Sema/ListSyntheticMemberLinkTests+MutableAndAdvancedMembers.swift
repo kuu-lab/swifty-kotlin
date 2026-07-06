@@ -1492,7 +1492,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testListFilterIndexedBindsBundledSource() throws {
+    func testListFilterIndexedUsesBundledSource() throws {
         let source = """
         fun main() {
             val list = listOf(10, 20, 30)
@@ -1512,12 +1512,16 @@ extension ListSyntheticMemberLinkTests {
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-            #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil)
+            #expect(sema.symbols.symbol(chosenCallee)?.fqName == [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("filterIndexed"),
+            ])
         }
     }
 
     @Test
-    func testListFilterIsInstanceBindsBundledSource() throws {
+    func testListFilterIsInstanceUsesBundledSource() throws {
         let source = """
         fun main() {
             val list: List<Any> = listOf(1, "two", 3)
@@ -1536,7 +1540,45 @@ extension ListSyntheticMemberLinkTests {
             })
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
-            #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil)
+            #expect(sema.symbols.symbol(chosenCallee)?.fqName == [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("filterIsInstance"),
+            ])
+        }
+    }
+
+    @Test
+    func testListFilterHOFsUseBundledSourceCalls() throws {
+        let source = """
+        fun main() {
+            val values = listOf(10, 20, 30)
+            val nullable: List<Int?> = listOf(1, null, 3)
+            val mixed: List<Any> = listOf(1, "two", 3)
+            values.filter { value -> value > 10 }
+            values.filterNot { value -> value == 20 }
+            nullable.filterNotNull()
+            values.filterIndexed { index, value -> index + value > 20 }
+            mixed.filterIsInstance<Int>()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            for name in ["filter", "filterNot", "filterNotNull", "filterIndexed", "filterIsInstance"] {
+                let callExpr = try #require(memberCallExprIDs(named: name, in: ast, interner: ctx.interner).last)
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+                #expect(sema.symbols.symbol(chosenCallee)?.fqName == [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("collections"),
+                    ctx.interner.intern(name),
+                ])
+            }
         }
     }
 

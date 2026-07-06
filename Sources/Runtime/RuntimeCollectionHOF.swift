@@ -1267,19 +1267,6 @@ public func kk_list_find(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outT
     return runtimeNullSentinelInt
 }
 
-// (a) RF-DEAD-002: 配線予定 → List.firstOrNull { predicate } lowering
-@_cdecl("kk_list_firstOrNull_predicate")
-public func kk_list_firstOrNull_predicate(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { return elem }
-    }
-    return runtimeNullSentinelInt
-}
-
 @_cdecl("kk_list_findLast")
 public func kk_list_findLast(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }

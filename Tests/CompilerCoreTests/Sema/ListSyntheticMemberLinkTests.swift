@@ -515,6 +515,32 @@ struct ListSyntheticMemberLinkTests {
                 )
             }
 
+            let sourceBackedFilters: [(name: String, arity: Int)] = [
+                ("filter", 1),
+                ("filterNot", 1),
+                ("filterNotNull", 0),
+                ("filterIndexed", 1),
+                ("filterIsInstance", 0),
+            ]
+            for (name, arity) in sourceBackedFilters {
+                let bundled = bundledListExtensionSymbols(named: name, arity: arity)
+                #expect(!bundled.isEmpty, "Expected bundled Kotlin source for List.\(name)")
+                #expect(
+                    bundled.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil },
+                    "Bundled List.\(name) should not have an external link name"
+                )
+                let synthetic = syntheticMemberSymbols(
+                    ownerFQName: listOwnerFQName,
+                    name: name,
+                    arity: arity,
+                    externalLinkPrefix: "kk_list_"
+                )
+                #expect(
+                    synthetic.isEmpty,
+                    "Expected no synthetic List.\(name) stub when bundled Kotlin source exists, found \(synthetic.count)"
+                )
+            }
+
             for (name, link) in [("any", "kk_iterable_any"), ("all", "kk_iterable_all")] {
                 let synthetic = syntheticMemberSymbols(
                     ownerFQName: iterableOwnerFQName,

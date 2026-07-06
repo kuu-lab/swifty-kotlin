@@ -14,7 +14,9 @@ extension DataFlowSemaPhase {
         listFQName: [InternedString],
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
+        listTypeParamType: TypeID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let receiverType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,

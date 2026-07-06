@@ -285,35 +285,72 @@ extension CoroutineLoweringPass {
         callableRefTagFunctionCallee: InternedString
     ) -> [Int32: SymbolID] {
         var symbolByExprRaw: [Int32: SymbolID] = [:]
+        var ambiguousSymbolExprRaws: Set<Int32> = []
+
+        func markAmbiguousSymbolExpr(_ raw: Int32) -> Bool {
+            var changed = false
+            if symbolByExprRaw.removeValue(forKey: raw) != nil {
+                changed = true
+            }
+            if ambiguousSymbolExprRaws.insert(raw).inserted {
+                changed = true
+            }
+            return changed
+        }
+
+        for instruction in function.body {
+            guard case let .constValue(result, .symbolRef(symbol)) = instruction else {
+                continue
+            }
+            let raw = result.rawValue
+            if let existing = symbolByExprRaw[raw], existing != symbol {
+                _ = markAmbiguousSymbolExpr(raw)
+            } else if !ambiguousSymbolExprRaws.contains(raw) {
+                symbolByExprRaw[raw] = symbol
+            }
+        }
+
+        func propagateSymbol(from source: KIRExprID, to destination: KIRExprID) -> Bool {
+            let sourceRaw = source.rawValue
+            let destinationRaw = destination.rawValue
+            if ambiguousSymbolExprRaws.contains(sourceRaw) {
+                return markAmbiguousSymbolExpr(destinationRaw)
+            }
+            guard let symbol = symbolByExprRaw[sourceRaw],
+                  !ambiguousSymbolExprRaws.contains(destinationRaw)
+            else {
+                return false
+            }
+            if let existing = symbolByExprRaw[destinationRaw] {
+                if existing != symbol {
+                    return markAmbiguousSymbolExpr(destinationRaw)
+                }
+                return false
+            }
+            symbolByExprRaw[destinationRaw] = symbol
+            return true
+        }
+
         var propagated = true
 
         while propagated {
             propagated = false
             for instruction in function.body {
                 switch instruction {
-                case let .constValue(result, .symbolRef(symbol)):
-                    if symbolByExprRaw[result.rawValue] != symbol {
-                        symbolByExprRaw[result.rawValue] = symbol
-                        propagated = true
-                    }
                 case let .copy(from, to):
-                    if let symbol = symbolByExprRaw[from.rawValue],
-                       symbolByExprRaw[to.rawValue] != symbol
-                    {
-                        symbolByExprRaw[to.rawValue] = symbol
+                    if propagateSymbol(from: from, to: to) {
                         propagated = true
                     }
                 case let .call(_, callee, arguments, result, _, _, _, _):
                     guard callee == callableRefTagFunctionCallee,
                           let result,
-                          let callableExpr = arguments.first,
-                          let symbol = symbolByExprRaw[callableExpr.rawValue],
-                          symbolByExprRaw[result.rawValue] != symbol
+                          let callableExpr = arguments.first
                     else {
                         continue
                     }
-                    symbolByExprRaw[result.rawValue] = symbol
-                    propagated = true
+                    if propagateSymbol(from: callableExpr, to: result) {
+                        propagated = true
+                    }
                 default:
                     continue
                 }

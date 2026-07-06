@@ -73,8 +73,6 @@ symbol fq=kotlin.text.replaceFirst.oldValue kind=valueParameter vis=private flag
 symbol fq=kotlin.text.replaceRange#1 kind=function vis=public flags=synthetic sig=recv=String params=[Int,String] ret=String
 symbol fq=kotlin.text.replaceRange.range kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.replaceRange.replacement kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.split#0 kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=kotlin.collections.List<out String>
-symbol fq=kotlin.text.split.delimiters kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.startsWith kind=function vis=public flags=synthetic sig=recv=String params=[String] ret=Boolean
 symbol fq=kotlin.text.startsWith.prefix kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.text.substring#0 kind=function vis=public flags=synthetic sig=recv=String params=[Int] ret=String
@@ -141,7 +139,7 @@ expr e@3:25 string(  hi  ) type=String
 expr e@3:25#1 memberCall recv=e@3:25 callee=trim args=[] type=String call=kotlin.text.trim#0
 expr e@5:32 string(1,2,3) type=String
 expr e@5:46 string(,) type=String
-expr e@5:32#1 memberCall recv=e@5:32 callee=split args=[_:e@5:46] type=kotlin.collections.List<out String> call=kotlin.text.split#0
+expr e@5:32#1 memberCall recv=e@5:32 callee=split args=[_:e@5:46] type=kotlin.collections.List<String> call=kotlin.text.split#0
 expr e@7:28 string(abc) type=String
 expr e@7:42 string(a) type=String
 expr e@7:47 string(z) type=String

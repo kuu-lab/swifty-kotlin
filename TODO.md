@@ -44,7 +44,7 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 > 移行元: `Sources/Runtime/RuntimeStringStdlib.swift` (211 @_cdecl)
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/text/`
 
-- [~] MIGRATION-TEXT-004: String split / join / chunk / window 系を Kotlin source に移行する。2026-07-06 監査: `StringSplitJoin.kt` は引き続き `LoadSourcesPhase.excludedBundledStdlibFiles` で除外中。除外解除を試すと `CharSequence.toString` / function `invoke` / `substring` / `IndexedValue` などが未解決で frontend fail する。`split` / `splitToSequence` / `joinToString` は synthetic stub と `CallLowerer+StringStdlibMemberCalls` から public `kk_string_*` runtime へ直接 dispatch しており、真の状態は未完了寄りの部分完了。
+- [~] MIGRATION-TEXT-004: String split / join / chunk / window 系を Kotlin source に移行する。2026-07-06 RF-STDLIB-005: `StringSplitJoin.kt` を実配線し、`String.split` / `String.splitToSequence` の public overload は Kotlin source wrapper 経由へ移行。`kk_string_split*` / `kk_string_splitToSequence*` runtime 直結は private `__kk_*` bridge 側へ降格済み。`joinToString` / chunk / window 系は未完。
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
 - [x] MIGRATION-TEXT-009: `commonPrefixWith` / `commonSuffixWith` を Kotlin source に移行する。2026-07-06 完了: `StringComparison.kt` は implicit stdlib として読み込まれ、TypeCheck fallback / KIR direct lowering / `RuntimeABISpec` / `RuntimeStringHOF.swift` / flat runtime wrappers の `kk_string_common*` 経路を削除済み。`common_prefix_with.kt` の `kswiftc` 実行と関連 XCTest は通過。
 
@@ -71,7 +71,7 @@ Kotlin ソースで公開 API を定義し、ネイティブ操作は `kswiftk.i
 > 移行先: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt`
 
 - [x] MIGRATION-COMP-001: Comparator ファクトリ・合成を Kotlin source に移行する（`compareBy`, `compareByDescending`, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`）
-- [ ] MIGRATION-COMP-002: maxOf/minOf 全オーバーロードを Kotlin source に移行する（Comparable版, プリミティブ版, vararg版）
+- [x] MIGRATION-COMP-002: maxOf/minOf 全オーバーロードを Kotlin source に移行する（Comparable版, プリミティブ版, vararg版）
 
 ### Phase M12: kotlin.uuid
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
@@ -123,7 +123,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [~] RF-STDLIB-002: `LoadSourcesPhase` に bundled Stdlib ソース読み込みを実装する（`Bundle.module` 列挙 → `sourceManager` 登録は基本配線済み。残: `-no-default-stdlib-sources` での opt-out、source origin、ユーザー入力との診断パス区別）
 - [ ] RF-STDLIB-003: 宣言の優先規則を実装する（Stdlib ソース由来宣言が存在する場合、同シグネチャの合成スタブ登録をスキップ。二重定義は warning 診断で検知）
 - [x] RF-STDLIB-004: E2E 縦切り第1弾: `StringComparison.kt` の `commonPrefixWith`/`commonSuffixWith` をパイプライン実配線し、対応する合成スタブ + TypeCheck フォールバック + runtime `@_cdecl` を同一 PR で削除する（以後の移行のテンプレート）。2026-07-06 完了。
-- [ ] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
+- [x] RF-STDLIB-005: E2E 縦切り第2弾: `StringSplitJoin.kt` を実配線し、`kk_string_split*` 系直接 dispatch を Kotlin 層経由に置換する
 - [x] RF-STDLIB-006: stdlib 常時コンパイルのオーバーヘッドを `PhaseTimer` で計測し、許容超過なら build 時 pre-parse キャッシュ（`IncrementalCompilationCache` 流用）を追加する。2026-07-06 再計測では bundled Lex+Parse 中央値が trigger 未満のため cache 追加は見送り。
 - [x] RF-STDLIB-007: golden / `diff_kotlinc.sh` ハーネスが implicit stdlib ソース込みで決定的に動くよう正規化する（fileID 順序・診断ソートの安定性）。2026-07-06 実装確認: `LoadSourcesPhase` は bundled / residual stdlib を path sort 後にユーザー入力より先へ登録し、`BundledStdlibOrderingTests` が不変条件を固定。Sema golden は bundled declSite シンボルを除外し、診断 text/JSON は source location + severity/code/message で render 時ソートする。`diff_kotlinc.sh` は case discovery / sharding / parallel replay を入力順で安定化済み。
 - [x] RF-STDLIB-008: M1–M17 の完了条件を「.kt 実配線 + 合成スタブ削除 + runtime 関数削除（または `__` ブリッジ降格）」に統一し、本ファイル M セクション冒頭の移行方針を更新する
@@ -203,7 +203,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### RuntimeABISpec 本体の分割完遂
 > 既に 33 ファイルへ +分割済みだが、本体 `RuntimeABISpec.swift`（3,629 行）に 19 個の `static let *Functions` が残存する。
-- [ ] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
+- [x] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
 
 #### Diff skip 追跡（DEBT-TEST-005）
 > 2026-07-06 棚卸し: [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md)。現時点の `DEBT-DIFF-*` タグ付き skip は 66 件（001:22 / 002:8 / 003:14 / 004:5 / 005:14 / 006:3）。各タスクの完了条件は、該当ケースを通常 `diff_kotlinc.sh` に戻すか、JVM kotlinc を oracle にできない理由と代替 runner / unit test owner を同文書へ移すこと。
@@ -345,13 +345,13 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
   - 削除: `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` の `commonPrefixWith`/`commonSuffixWith` 特例 / `CallLowerer+StringStdlibMemberCalls.swift` と `CallLowerer+LegacyMemberLikeCalls.swift` の同 direct case / `NativeEmitter+FunctionEmission.swift` の flat call spec / `RuntimeStringHOF.swift` の raw `kk_string_common*` / `RuntimeStringFlat.swift` と `RuntimeABISpec.swift` の flat `kk_string_common*` 4 エントリ
   - diff: 既存 `common_prefix_with.kt` が prefix / suffix / ignoreCase をカバー
   - 完了(2026-07-06): `rg 'commonPrefixWith|commonSuffixWith' Sources/CompilerCore Sources/Runtime Sources/RuntimeABI` は `StringComparison.kt` 以外 0 件。`common_prefix_with.kt` の `kswiftc` 実行、`testKKStringCommonPrefixSuffixRuntimeABIRemoved`、`testLLVMBackendDoesNotEmitCommonPrefixSuffixRuntimeCallsForSourceBackedOverloads`、`testStringFunctionCount` 通過。
-- [ ] KSP-202: StringSplitJoin 縦切り（初の除外リスト解消 + `__kk_` 降格）[RF-STDLIB-005]
+- [x] KSP-202: StringSplitJoin split 縦切り（初の除外リスト解消 + `__kk_` 降格）[RF-STDLIB-005]
   - 前提: KSP-201, KSP-101
   - 手順: T。`excludedBundledStdlibFiles` から `kotlin/text/StringSplitJoin` を削除
-  - 対象 kk_*: `kk_string_split`, `kk_string_split_limit`, `kk_string_splitToSequence`, `kk_string_joinToString`（完全 Kotlin 化を優先。性能上必要なら単一デリミタ高速路のみ `__kk_string_split` へ降格し `@KsSymbolName` で利用）
-  - 削除: `HeaderHelpers+SyntheticStringStubs.swift` の split/joinToString 登録 / `CallLowerer+StringStdlibMemberCalls.swift` の同 case
+  - 対象 kk_*: `kk_string_split`, `kk_string_split_limit`, `kk_string_splitToSequence`（2026-07-06: public overload は Kotlin source wrapper 化し、runtime ABI は `__kk_string_split*` bridge 側へ降格済み。`kk_string_joinToString` は MIGRATION-TEXT-004 の後続残）
+  - 削除: `HeaderHelpers+SyntheticStringStubs.swift` の public split 登録 / `CallLowerer+StringStdlibMemberCalls.swift` の split direct case
   - diff: `ls Scripts/diff_cases | rg 'split|join'` で既存確認、limit・ignoreCase ケースがなければ追加
-  - 完了: `rg '"kk_string_split|"kk_string_joinToString' Sources/CompilerCore` 0 件 + G
+  - 完了: public `split` / `splitToSequence` が source-backed（no externalLinkName）+ `__kk_string_split*` bridge link 確認 + G
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 

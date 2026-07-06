@@ -11,7 +11,9 @@ extension DataFlowSemaPhase {
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
         listTypeParamType: TypeID,
-        collectionInterfaceSymbol: SymbolID
+        collectionInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let receiverType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
@@ -106,6 +108,26 @@ extension DataFlowSemaPhase {
                 return sig.parameterTypes == parameterTypes
             }
             guard !alreadyRegistered else { return }
+            let sourceBackedFilterNames: Set<InternedString> = [
+                interner.intern("filterNot"),
+                interner.intern("filterIsInstance"),
+            ]
+            if sourceBackedFilterNames.contains(memberName),
+               shouldSkipSyntheticStub(
+                   bundledIndex: bundledIndex,
+                   ownerFQName: listFQName,
+                   name: memberName,
+                   arity: parameterTypes.count
+               )
+            {
+                skipStats?.recordSkip(
+                    ownerFQName: listFQName,
+                    name: memberName,
+                    arity: parameterTypes.count,
+                    interner: interner
+                )
+                return
+            }
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: memberName,

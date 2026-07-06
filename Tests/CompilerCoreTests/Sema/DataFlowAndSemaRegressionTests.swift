@@ -307,6 +307,19 @@ struct DataFlowAndSemaRegressionTests {
 
     // MARK: - HeaderCollection: duplicate declaration diagnostic
 
+    @Test func testFixedAndTrailingVarargOverloadsDoNotConflict() throws {
+        let source = """
+        fun choose(a: Int, b: Int): Int = a
+        fun choose(a: Int, vararg other: Int): Int = a
+        fun main(): Int = choose(1, 2, 3)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0001", in: ctx)
+        }
+    }
+
     @Test func testDuplicateTopLevelDeclarationEmitsDiagnostic() throws {
         let source = """
         val x: Int = 1
