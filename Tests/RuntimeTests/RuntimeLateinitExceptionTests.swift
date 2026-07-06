@@ -76,7 +76,12 @@ final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
             throwable.message,
             "lateinit property name has not been initialized"
         )
-        XCTAssertTrue(throwable is RuntimeUninitializedPropertyAccessExceptionBox)
+        XCTAssertTrue(
+            runtimeThrowableBoxHasExactType(
+                throwable,
+                RuntimeUninitializedPropertyAccessExceptionBox.self
+            )
+        )
     }
 
     func testLateinitExceptionPrintlnIncludesExceptionName() {
