@@ -8,6 +8,47 @@ enum CollectionLiteralTrackedStaticTypeKind {
 }
 
 extension CollectionLiteralLoweringPass {
+    func classifyTrackedExprByStaticType(
+        _ expr: KIRExprID,
+        module: KIRModule,
+        sema: SemaModule?,
+        interner: StringInterner,
+        state: inout CollectionRewriteState
+    ) {
+        let raw = expr.rawValue
+        if state.listExprIDs.contains(raw) || state.setExprIDs.contains(raw)
+            || state.mapExprIDs.contains(raw) || state.arrayExprIDs.contains(raw)
+            || state.sequenceExprIDs.contains(raw) || state.stringExprIDs.contains(raw)
+        {
+            return
+        }
+        guard let sema,
+              let typeID = module.arena.exprType(expr)
+        else {
+            return
+        }
+        let nonNullType = sema.types.makeNonNullable(typeID)
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
+            return
+        }
+        switch trackedStaticTypeKind(of: symbol, interner: interner) {
+        case .list:
+            state.listExprIDs.insert(raw)
+        case .set:
+            state.setExprIDs.insert(raw)
+        case .map:
+            state.mapExprIDs.insert(raw)
+        case .array:
+            state.arrayExprIDs.insert(raw)
+        case .sequence:
+            state.sequenceExprIDs.insert(raw)
+        case .string:
+            state.stringExprIDs.insert(raw)
+        case nil:
+            break
+        }
+    }
+
     func trackedStaticTypeKind(
         of symbol: SemanticSymbol,
         interner: StringInterner

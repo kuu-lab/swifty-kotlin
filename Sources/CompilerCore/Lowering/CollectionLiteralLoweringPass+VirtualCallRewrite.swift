@@ -1303,11 +1303,40 @@ extension CollectionLiteralLoweringPass {
             )
             loweredBody.append(.call(
                 symbol: nil,
-                callee: lookup.kkListZipName,
+                callee: lookup.kkListZipBridgeName,
                 arguments: [receiver] + arguments,
                 result: hofResult,
                 canThrow: false,
                 thrownResult: nil
+            ))
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(hofResult.rawValue)
+                loweredBody.append(.copy(from: hofResult, to: result))
+            }
+            return true
+        }
+
+        if callee == lookup.zipName, arguments.count == 2 || arguments.count == 3 {
+            let otherID = arguments[0]
+            let lambdaID = arguments[1]
+            let closureRawID: KIRExprID
+            if arguments.count == 3 {
+                closureRawID = arguments[2]
+            } else {
+                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                closureRawID = zeroExpr
+            }
+            let hofResult = module.arena.appendTemporary(type: nil
+            )
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkListZipTransformBridgeName,
+                arguments: [receiver, otherID, lambdaID, closureRawID],
+                result: hofResult,
+                canThrow: origCanThrow,
+                thrownResult: origThrownResult
             ))
             if let result {
                 listExprIDs.insert(result.rawValue)
@@ -1323,7 +1352,7 @@ extension CollectionLiteralLoweringPass {
             )
             loweredBody.append(.call(
                 symbol: nil,
-                callee: lookup.kkListZipWithNextName,
+                callee: lookup.kkListZipWithNextBridgeName,
                 arguments: [receiver],
                 result: hofResult,
                 canThrow: false,
@@ -1342,7 +1371,7 @@ extension CollectionLiteralLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: lookup.kkListZipWithNextTransformName,
+                kkName: lookup.kkListZipWithNextTransformBridgeName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result,
@@ -1707,6 +1736,35 @@ extension CollectionLiteralLoweringPass {
         return false
     }
 
+    func supportsIterableWindowedTransformReceiver(
+        receiver: KIRExprID,
+        context: VirtualCallRewriteContext,
+        listExprIDs: Set<Int32>,
+        setExprIDs: Set<Int32>,
+        arrayExprIDs: Set<Int32>
+    ) -> Bool {
+        let raw = receiver.rawValue
+        if listExprIDs.contains(raw) || setExprIDs.contains(raw) || arrayExprIDs.contains(raw) {
+            return true
+        }
+        guard let sema = context.sema,
+              let typeID = context.module.arena.exprType(receiver)
+        else {
+            return false
+        }
+        guard let (_, symbol) = resolveClassTypeSymbol(typeID, sema: sema),
+              let simpleName = symbol.fqName.last
+        else {
+            return false
+        }
+        switch context.interner.resolve(simpleName) {
+        case "Iterable", "Collection", "MutableCollection":
+            return true
+        default:
+            return false
+        }
+    }
+
     private func classifyReceiverByStaticType(
         receiver: KIRExprID,
         context: VirtualCallRewriteContext,
@@ -1752,32 +1810,4 @@ extension CollectionLiteralLoweringPass {
         }
     }
 
-    func supportsIterableWindowedTransformReceiver(
-        receiver: KIRExprID,
-        context: VirtualCallRewriteContext,
-        listExprIDs: Set<Int32>,
-        setExprIDs: Set<Int32>,
-        arrayExprIDs: Set<Int32>
-    ) -> Bool {
-        let raw = receiver.rawValue
-        if listExprIDs.contains(raw) || setExprIDs.contains(raw) || arrayExprIDs.contains(raw) {
-            return true
-        }
-        guard let sema = context.sema,
-              let typeID = context.module.arena.exprType(receiver)
-        else {
-            return false
-        }
-        guard let (_, symbol) = resolveClassTypeSymbol(typeID, sema: sema),
-              let simpleName = symbol.fqName.last
-        else {
-            return false
-        }
-        switch context.interner.resolve(simpleName) {
-        case "Iterable", "Collection", "MutableCollection":
-            return true
-        default:
-            return false
-        }
-    }
 }

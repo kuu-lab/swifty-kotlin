@@ -993,91 +993,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(kk_bits_to_double(emptyResult), 0.0, accuracy: 0.0001)
     }
 
-    func testWindowedTransformReturnsExpectedWindows() {
-        let source = makeList([1, 2, 3, 4, 5])
-
-        let defaultStep = kk_list_windowed_transform(
-            source,
-            3,
-            1,
-            0,
-            unsafeBitCast(windowSum, to: Int.self),
-            0,
-            nil as UnsafeMutablePointer<Int>?
-        )
-        XCTAssertEqual(listElements(defaultStep), [6, 9, 12])
-
-        let explicitStep = kk_list_windowed_transform(
-            source,
-            3,
-            2,
-            0,
-            unsafeBitCast(windowSum, to: Int.self),
-            0,
-            nil as UnsafeMutablePointer<Int>?
-        )
-        XCTAssertEqual(listElements(explicitStep), [6, 12])
-
-        let partialWindows = kk_list_windowed_transform(
-            source,
-            3,
-            2,
-            1,
-            unsafeBitCast(windowSum, to: Int.self),
-            0,
-            nil as UnsafeMutablePointer<Int>?
-        )
-        XCTAssertEqual(listElements(partialWindows), [6, 12, 5])
-
-        let arraySource = makeArray([1, 2, 3, 4, 5])
-        let arrayWindows = kk_list_windowed_transform(
-            arraySource,
-            3,
-            1,
-            0,
-            unsafeBitCast(windowSum, to: Int.self),
-            0,
-            nil as UnsafeMutablePointer<Int>?
-        )
-        XCTAssertEqual(listElements(arrayWindows), [6, 9, 12])
-
-    }
-
-    func testWindowedTransformPropagatesThrowingLambda() {
-        let source = makeList([1, 2, 3, 4, 5])
-        var thrown = 0
-
-        let result = kk_list_windowed_transform(
-            source,
-            3,
-            2,
-            1,
-            unsafeBitCast(throwingHOFLambda, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
-        XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testWindowedNonTransformOverloadsReturnListWindows() {
-        let source = makeList([1, 2, 3, 4, 5])
-
-        let defaultStep = kk_list_windowed_default(source, 3)
-        XCTAssertEqual(listElements(defaultStep).map(listElements), [[1, 2, 3], [2, 3, 4], [3, 4, 5]])
-
-        let explicitStep = kk_list_windowed(source, 3, 2)
-        XCTAssertEqual(listElements(explicitStep).map(listElements), [[1, 2, 3], [3, 4, 5]])
-
-        let partialWindows = kk_list_windowed_partial(source, 3, 2, 1)
-        XCTAssertEqual(listElements(partialWindows).map(listElements), [[1, 2, 3], [3, 4, 5], [5]])
-
-        let setSource = registerRuntimeObject(RuntimeSetBox(elements: [4, 5, 6, 7]))
-        let setWindows = kk_list_windowed_partial(setSource, 3, 2, 1)
-        XCTAssertEqual(listElements(setWindows).map(listElements), [[4, 5, 6], [6, 7]])
-    }
-
     func testCollectionMapNotNullPassesSentinelInputsToTransform() {
         let source = makeList([1, runtimeNullSentinelInt, 3])
 
@@ -1769,34 +1684,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
 
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
         XCTAssertEqual(listElements(kk_collection_toList(setSource)), [3, 1, 2])
-    }
-
-    func testListZipWithNextReturnsAdjacentPairsAndTransformResults() {
-        let values = makeList([1, 3, 6, 10])
-
-        let pairs = listElements(kk_list_zipWithNext(values))
-        XCTAssertEqual(pairs.map { kk_pair_first($0) }, [1, 3, 6])
-        XCTAssertEqual(pairs.map { kk_pair_second($0) }, [3, 6, 10])
-
-        let transformed = kk_list_zipWithNextTransform(
-            values,
-            unsafeBitCast(adjacentDifference, to: Int.self),
-            0,
-            nil
-        )
-        XCTAssertEqual(listElements(transformed), [2, 3, 4])
-        XCTAssertEqual(listElements(kk_list_zipWithNext(makeList([1]))), [])
-    }
-
-    func testListZipPairsElementsAndStopsAtShorterList() {
-        let left = makeList([1, 2, 3])
-        let right = makeList([10, 20])
-
-        let zipped = kk_list_zip(left, right)
-        let pairs = listElements(zipped)
-
-        XCTAssertEqual(pairs.map { kk_pair_first($0) }, [1, 2])
-        XCTAssertEqual(pairs.map { kk_pair_second($0) }, [10, 20])
     }
 
     func testMapKeysToMutatesDestinationAndReturnsIt() {

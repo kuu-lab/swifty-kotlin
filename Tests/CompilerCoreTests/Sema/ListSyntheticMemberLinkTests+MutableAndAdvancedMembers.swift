@@ -1999,7 +1999,9 @@ extension ListSyntheticMemberLinkTests {
             })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_zip")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            let fileID = try #require(sema.symbols.sourceFileID(for: chosenCallee))
+            #expect(ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/collections/ListWindowChunk.kt")
 
             let callType = try #require(sema.bindings.exprType(for: callExpr))
             guard case let .classType(listType) = sema.types.kind(of: callType) else {

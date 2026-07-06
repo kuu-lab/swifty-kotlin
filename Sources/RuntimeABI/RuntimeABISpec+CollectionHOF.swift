@@ -282,36 +282,104 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        let zipSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_zip",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let zipWithNextSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_zipWithNext",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let zipWithNextTransformSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_zipWithNextTransform",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
+        let listWindowChunkReceiverSizeParams = [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "size", type: .intptr),
+        ]
+        let listWindowChunkReceiverSizeLambdaParams = [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "size", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ]
+        let listWindowedParams = [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "size", type: .intptr),
+            RuntimeABIParameter(name: "step", type: .intptr),
+            RuntimeABIParameter(name: "partialWindows", type: .intptr),
+        ]
+        let listWindowedTransformParams = [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "size", type: .intptr),
+            RuntimeABIParameter(name: "step", type: .intptr),
+            RuntimeABIParameter(name: "partialWindows", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ]
+        let listZipParams = [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "otherRaw", type: .intptr),
+        ]
+        let listZipTransformParams = [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "otherRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ]
+        let listWindowChunkBridgeSpecs = [
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_chunked",
+                parameters: listWindowChunkReceiverSizeParams,
+                returnType: .intptr,
+                section: "Collection",
+                isThrowing: false
+            ),
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_chunked_transform",
+                parameters: listWindowChunkReceiverSizeLambdaParams,
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_windowed",
+                parameters: listWindowedParams,
+                returnType: .intptr,
+                section: "Collection",
+                isThrowing: false
+            ),
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_windowed_transform",
+                parameters: listWindowedTransformParams,
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_zip",
+                parameters: listZipParams,
+                returnType: .intptr,
+                section: "Collection",
+                isThrowing: false
+            ),
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_zip_transform",
+                parameters: listZipTransformParams,
+                returnType: .intptr,
+                section: "Collection"
+            ),
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_zipWithNext",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                ],
+                returnType: .intptr,
+                section: "Collection",
+                isThrowing: false
+            ),
+            RuntimeABIFunctionSpec(
+                name: "__kk_list_zipWithNextTransform",
+                parameters: [
+                    RuntimeABIParameter(name: "listRaw", type: .intptr),
+                    RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                    RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                    RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+                ],
+                returnType: .intptr,
+                section: "Collection"
+            ),
+        ]
         let unzipSpec = RuntimeABIFunctionSpec(
             name: "kk_list_unzip",
             parameters: [
@@ -639,7 +707,10 @@ public extension RuntimeABISpec {
                     returnType: .intptr,
                     section: "Collection"
                 ),
-                zipSpec, zipWithNextSpec, zipWithNextTransformSpec, unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
+            ]
+            + listWindowChunkBridgeSpecs
+            + [
+                unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,
@@ -739,75 +810,6 @@ public extension RuntimeABISpec {
                     returnType: .intptr,
                     section: "Collection",
             isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_chunked",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "size", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_chunked_transform",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "size", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_windowed_default",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "size", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_windowed",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "size", type: .intptr),
-                        RuntimeABIParameter(name: "step", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_windowed_partial",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "size", type: .intptr),
-                        RuntimeABIParameter(name: "step", type: .intptr),
-                        RuntimeABIParameter(name: "partialWindows", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_windowed_transform",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "size", type: .intptr),
-                        RuntimeABIParameter(name: "step", type: .intptr),
-                        RuntimeABIParameter(name: "partialWindows", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
                 ),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_sortedDescending",

@@ -494,36 +494,6 @@ extension CallLowerer {
                 arguments: &finalArguments
             )
         }
-        if loweredCallee == interner.intern("kk_list_windowed_transform") {
-            let originalArgumentCount = finalArguments.count
-            if originalArgumentCount >= 3 {
-                let lambdaArgIndex = originalArgumentCount - 1
-                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                    finalArguments[lambdaArgIndex],
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
-                )
-                finalArguments[lambdaArgIndex] = fnPtrExpr
-                finalArguments.append(envPtrExpr)
-            }
-            if originalArgumentCount == 3 {
-                // `windowed(size, transform)` expands to `windowed(size, 1, false, transform)`.
-                let oneExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
-                instructions.append(.constValue(result: oneExpr, value: .intLiteral(1)))
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(oneExpr, at: 2)
-                finalArguments.insert(zeroExpr, at: 3)
-            } else if originalArgumentCount == 4 {
-                // `windowed(size, step, transform)` expands to
-                // `windowed(size, step, false, transform)`.
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArguments.insert(zeroExpr, at: 3)
-            }
-        }
         if loweredCallee == interner.intern("kk_sequence_windowed_transform")
             || (loweredCallee == interner.intern("kk_sequence_windowed") && hasHOFLambdaArg)
         {
@@ -1302,7 +1272,6 @@ extension CallLowerer {
             interner.intern("kk_string_chunked_sequence_transform"),
             interner.intern("kk_string_windowedSequence_transform"),
             interner.intern("kk_sequence_to_list"),
-            interner.intern("kk_list_windowed_transform"),
             interner.intern("kk_sequence_chunked_transform"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),

@@ -170,6 +170,7 @@ extension CollectionLiteralLoweringPass {
                         thrownResult: thrownResult,
                         function: function,
                         module: module,
+                        ctx: ctx,
                         lookup: lookup,
                         state: &state,
                         loweredBody: &loweredBody

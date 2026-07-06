@@ -9,10 +9,21 @@ extension CollectionLiteralLoweringPass {
         thrownResult: KIRExprID?,
         function: KIRFunction,
         module: KIRModule,
+        ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+        if let receiverCandidate = arguments.first {
+            classifyTrackedExprByStaticType(
+                receiverCandidate,
+                module: module,
+                sema: ctx.sema,
+                interner: ctx.interner,
+                state: &state
+            )
+        }
+
         if rewriteCoreHigherOrderCollectionCall(
             callee: callee,
             arguments: arguments,
@@ -34,6 +45,7 @@ extension CollectionLiteralLoweringPass {
             canThrow: canThrow,
             thrownResult: thrownResult,
             module: module,
+            ctx: ctx,
             lookup: lookup,
             state: &state,
             loweredBody: &loweredBody

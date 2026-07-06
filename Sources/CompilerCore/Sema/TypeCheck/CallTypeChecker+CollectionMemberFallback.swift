@@ -661,9 +661,7 @@ extension CallTypeChecker {
             return lambdaMatch
         }
         // Prefer the overload whose parameter count matches the call-site
-        // argument count so that e.g. windowed(3, 2, true) resolves to the
-        // 3-param overload (kk_list_windowed_partial) instead of the 2-param
-        // one (kk_list_windowed).
+        // argument count for defaulted overload families such as windowed.
         if let exactMatch = allCandidates.first(where: { candidate in
             guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
             return sig.parameterTypes.count == argCount
