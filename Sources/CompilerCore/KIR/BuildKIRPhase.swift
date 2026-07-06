@@ -9,9 +9,14 @@ final class BuildKIRPhase: CompilerPhase {
             throw CompilerPipelineError.invalidInput("Sema phase did not run.")
         }
 
-        let loweringCtx = KIRLoweringContext()
-        let driver = KIRLoweringDriver(ctx: loweringCtx)
-        let module = driver.lowerModule(ast: ast, sema: sema, compilationCtx: ctx)
+        // Lowering recurses with large frames; run it on a big-stack thread so
+        // it cannot overflow the 512 KiB cooperative-pool stacks under
+        // `swift test --parallel` (flaky SIGBUS / signal 10).
+        let module = try LargeStackExecutor.run {
+            let loweringCtx = KIRLoweringContext()
+            let driver = KIRLoweringDriver(ctx: loweringCtx)
+            return driver.lowerModule(ast: ast, sema: sema, compilationCtx: ctx)
+        }
 
         if module.functionCount == 0, !ctx.diagnostics.hasError {
             ctx.diagnostics.warning(
