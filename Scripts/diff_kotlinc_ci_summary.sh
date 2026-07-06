@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+
 usage() {
   cat <<'USAGE'
-Usage: diff_kotlinc_ci_summary.sh --report <path> [--summary <path>] [--format <tsv|json>] [--artifact-root <path>] [--diff-lines <n>]
+Usage: diff_kotlinc_ci_summary.sh --report <path> [--summary <path>] [--artifact-root <path>] [--diff-lines <n>]
+
+Renders the TSV report from Scripts/diff_kotlinc.sh as markdown (GitHub Step
+Summary compatible).
 
 Options:
   --report <path>        TSV report emitted by Scripts/diff_kotlinc.sh
   --summary <path>       Optional markdown output path
-  --format <tsv|json>    Output format: tsv (default) or json
   --artifact-root <path> Root directory for failure artifacts (used for detailed diffs)
   --diff-lines <n>       Max diff lines to embed per case (default: 30, 0 = unlimited)
   -h, --help             Show this help
@@ -17,7 +23,6 @@ USAGE
 
 REPORT_PATH=""
 SUMMARY_PATH="${GITHUB_STEP_SUMMARY:-}"
-OUTPUT_FORMAT="tsv"
 ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-}"
 DIFF_MAX_LINES=30
 
@@ -30,10 +35,6 @@ while [[ $# -gt 0 ]]; do
     --summary)
       shift
       SUMMARY_PATH="${1:-}"
-      ;;
-    --format)
-      shift
-      OUTPUT_FORMAT="${1:-tsv}"
       ;;
     --artifact-root)
       shift
@@ -67,12 +68,6 @@ if [[ ! -f "$REPORT_PATH" ]]; then
   exit 1
 fi
 
-if [[ "$OUTPUT_FORMAT" != "tsv" && "$OUTPUT_FORMAT" != "json" ]]; then
-  echo "Invalid format: $OUTPUT_FORMAT (must be tsv or json)" >&2
-  usage
-  exit 1
-fi
-
 # ---------------------------------------------------------------------------
 # Helper: read a file and optionally truncate to DIFF_MAX_LINES lines
 # ---------------------------------------------------------------------------
@@ -96,36 +91,6 @@ read_limited() {
 }
 
 # ---------------------------------------------------------------------------
-# Helper: escape a string for JSON
-# ---------------------------------------------------------------------------
-json_escape() {
-  local s="$1"
-  # Escape backslash, double-quote, newline, carriage-return, tab
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\n'/\\n}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\t'/\\t}"
-  printf '%s' "$s"
-}
-
-# ---------------------------------------------------------------------------
-# Helper: detect golden test update candidates for an artifact dir
-# ---------------------------------------------------------------------------
-detect_golden_candidates() {
-  local artifact_dir="$1"
-  local candidates=""
-
-  if [[ -f "$artifact_dir/stdout.diff" && -s "$artifact_dir/stdout.diff" ]]; then
-    candidates="${candidates:+$candidates,}stdout"
-  fi
-  if [[ -f "$artifact_dir/compile_stderr.diff" && -s "$artifact_dir/compile_stderr.diff" ]]; then
-    candidates="${candidates:+$candidates,}compile_stderr"
-  fi
-  printf '%s' "$candidates"
-}
-
-# ---------------------------------------------------------------------------
 # Helper: resolve artifact directory for a failed case
 # Accepts the artifact_dir from the TSV, falling back to ARTIFACT_ROOT lookup.
 # ---------------------------------------------------------------------------
@@ -139,10 +104,7 @@ resolve_artifact_dir() {
   fi
 
   if [[ -n "$ARTIFACT_ROOT" ]]; then
-    local sanitized="${test_case##*/}"
-    sanitized="${sanitized%.kt}"
-    sanitized="${sanitized//[^A-Za-z0-9._-]/_}"
-    local candidate="$ARTIFACT_ROOT/$sanitized"
+    local candidate="$ARTIFACT_ROOT/$(sanitize_case_name "$test_case")"
     if [[ -d "$candidate" ]]; then
       printf '%s' "$candidate"
       return
@@ -195,63 +157,6 @@ while IFS=$'\t' read -r test_case status artifact_dir; do
 done < "$REPORT_PATH"
 
 # ---------------------------------------------------------------------------
-# Emit JSON output
-# ---------------------------------------------------------------------------
-emit_json() {
-  local i
-  local first_case=1
-  local case_count="${#failed_cases[@]}"
-
-  printf '{\n'
-  printf '  "summary": {\n'
-  printf '    "total": %d,\n' "$total"
-  printf '    "passed": %d,\n' "$passed"
-  printf '    "failed": %d,\n' "$failed"
-  printf '    "skipped": %d\n' "$skipped"
-  printf '  },\n'
-  printf '  "failed_cases": [\n'
-
-  for (( i = 0; i < case_count; i++ )); do
-    local test_case="${failed_cases[$i]}"
-    local adir="${failed_adirs[$i]}"
-
-    if [[ "$first_case" -eq 0 ]]; then
-      printf ',\n'
-    fi
-    first_case=0
-
-    local stdout_diff=""
-    local compile_diff=""
-    local summary_info=""
-    local golden_candidates=""
-
-    if [[ -n "$adir" && -d "$adir" ]]; then
-      stdout_diff="$(read_limited "$adir/stdout.diff")"
-      compile_diff="$(read_limited "$adir/compile_stderr.diff")"
-      if [[ -f "$adir/summary.txt" ]]; then
-        summary_info="$(cat "$adir/summary.txt")"
-      fi
-      golden_candidates="$(detect_golden_candidates "$adir")"
-    fi
-
-    printf '    {\n'
-    printf '      "case": "%s",\n' "$(json_escape "$test_case")"
-    printf '      "artifact_dir": "%s",\n' "$(json_escape "$adir")"
-    printf '      "golden_update_candidates": "%s",\n' "$(json_escape "$golden_candidates")"
-    printf '      "summary": "%s",\n' "$(json_escape "$summary_info")"
-    printf '      "stdout_diff": "%s",\n' "$(json_escape "$stdout_diff")"
-    printf '      "compile_stderr_diff": "%s"\n' "$(json_escape "$compile_diff")"
-    printf '    }'
-  done
-
-  if [[ "$case_count" -gt 0 ]]; then
-    printf '\n'
-  fi
-  printf '  ]\n'
-  printf '}\n'
-}
-
-# ---------------------------------------------------------------------------
 # Emit Markdown (for GitHub Step Summary / console)
 # ---------------------------------------------------------------------------
 emit_markdown() {
@@ -293,7 +198,7 @@ emit_markdown() {
         printf '%s\n' '</details>'
         printf '\n'
         printf '%s\n' '> **Golden update candidate**: stdout mismatch detected.'
-        printf '%s\n' '> To regenerate: `UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden`'
+        printf '> To regenerate: `%s`\n' "$GOLDEN_UPDATE_CMD"
       fi
 
       # Embed compile stderr diff if available
@@ -326,15 +231,10 @@ emit_markdown() {
 }
 
 # ---------------------------------------------------------------------------
-# Main output dispatch
+# Main output
 # ---------------------------------------------------------------------------
-if [[ "$OUTPUT_FORMAT" == "json" ]]; then
-  emit_json
+if [[ -n "$SUMMARY_PATH" ]]; then
+  emit_markdown | tee -a "$SUMMARY_PATH"
 else
-  # TSV/default mode: emit markdown (backward-compatible)
-  if [[ -n "$SUMMARY_PATH" ]]; then
-    emit_markdown | tee -a "$SUMMARY_PATH"
-  else
-    emit_markdown
-  fi
+  emit_markdown
 fi

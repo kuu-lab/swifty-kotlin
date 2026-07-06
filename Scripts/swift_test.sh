@@ -8,7 +8,6 @@ source "$SCRIPT_DIR/lib/common.sh"
 parallel_mode="${SWIFT_TEST_PARALLEL:-}"
 workers_override="${SWIFT_TEST_WORKERS:-}"
 build_jobs_override="${SWIFT_TEST_BUILD_JOBS:-}"
-junit_xml_path="${SWIFT_TEST_JUNIT_XML:-}"
 
 has_parallel_flag=false
 has_workers_flag=false
@@ -185,7 +184,7 @@ emit_failure_summary() {
     for t in "${unique_failures[@]}"; do
         if [[ "$t" == *Golden* || "$t" == *golden* || "$t" == *matchesGolden* ]]; then
             printf >&2 "\n${YELLOW}Hint: golden mismatch detected — regenerate with:${RESET}\n"
-            printf >&2 "  UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden\n"
+            printf >&2 "  %s\n" "$GOLDEN_UPDATE_CMD"
             break
         fi
     done
@@ -205,33 +204,6 @@ emit_failure_summary() {
     fi
 }
 
-# ---------------------------------------------------------------------------
-# Optionally emit JUnit XML (set SWIFT_TEST_JUNIT_XML=/path/report.xml)
-# ---------------------------------------------------------------------------
-emit_junit_xml() {
-    [[ -z "$junit_xml_path" ]] && return
-    local count="${#unique_failures[@]}"
-    local timestamp
-    timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")"
-
-    {
-        printf '<?xml version="1.0" encoding="UTF-8"?>\n'
-        printf '<testsuites failures="%d" timestamp="%s">\n' "$count" "$timestamp"
-        printf '  <testsuite name="SwiftTests" failures="%d" tests="%d">\n' "$count" "$count"
-        for t in "${unique_failures[@]}"; do
-            local classname="${t%%[./]*}"
-            local testname="${t}"
-            printf '    <testcase classname="%s" name="%s">\n' "$classname" "$testname"
-            printf '      <failure message="Test failed">%s</failure>\n' "$testname"
-            printf '    </testcase>\n'
-        done
-        printf '  </testsuite>\n'
-        printf '</testsuites>\n'
-    } > "$junit_xml_path"
-    printf >&2 "JUnit XML written to: %s\n" "$junit_xml_path"
-}
-
 emit_failure_summary
-emit_junit_xml
 
 exit "$test_exit"

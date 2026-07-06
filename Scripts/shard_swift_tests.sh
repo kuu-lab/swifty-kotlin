@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
 usage() {
     cat <<'USAGE'
@@ -159,12 +161,9 @@ if [[ "$mode" == "dynamic" ]]; then
         exit 0
     fi
 
-    declare -a shard_tests=()
-    for (( i = 0; i < total; i++ )); do
-        if (( i % shard_count == shard_index )); then
-            shard_tests+=("${all_tests[$i]}")
-        fi
-    done
+    mapfile -t shard_tests < <(
+        printf '%s\n' "${all_tests[@]}" | shard_interleave "$shard_index" "$shard_count"
+    )
 
     echo "shard_swift_tests.sh: shard $shard_index/$shard_count selects ${#shard_tests[@]} of $total tests." >&2
 
@@ -186,25 +185,11 @@ if [[ "$mode" == "dynamic" ]]; then
     # alternation across multiple invocations instead of one huge argument.
     chunk_size=100
     declare -a filter_args=()
-    chunk_regex=""
-    chunk_len=0
-    for t in "${shard_tests[@]}"; do
-        esc="$(printf '%s' "$t" | sed -e 's/\./\\./g')"
-        if (( chunk_len == 0 )); then
-            chunk_regex="$esc"
-        else
-            chunk_regex+="|$esc"
-        fi
-        chunk_len=$(( chunk_len + 1 ))
-        if (( chunk_len >= chunk_size )); then
-            filter_args+=(--filter "^(${chunk_regex})\$")
-            chunk_regex=""
-            chunk_len=0
-        fi
-    done
-    if (( chunk_len > 0 )); then
-        filter_args+=(--filter "^(${chunk_regex})\$")
-    fi
+    while IFS= read -r chunk; do
+        filter_args+=(--filter "^(${chunk})\$")
+    done < <(
+        printf '%s\n' "${shard_tests[@]}" | sed -e 's/\./\\./g' | chunk_alternations "$chunk_size"
+    )
 
     echo "shard_swift_tests.sh: split into $(( ${#filter_args[@]} / 2 )) --filter chunks of up to $chunk_size tests each." >&2
 
@@ -264,11 +249,11 @@ total="${#all_types[@]}"
 echo "shard_swift_tests.sh: found $total candidate suite/class names." >&2
 
 declare -a own_types=()
-for (( i = 0; i < total; i++ )); do
-    if (( i % shard_count == shard_index )); then
-        own_types+=("${all_types[$i]}")
-    fi
-done
+if (( total > 0 )); then
+    mapfile -t own_types < <(
+        printf '%s\n' "${all_types[@]}" | shard_interleave "$shard_index" "$shard_count"
+    )
+fi
 
 echo "shard_swift_tests.sh: shard $shard_index/$shard_count owns ${#own_types[@]} of $total suite/class names." >&2
 
@@ -288,24 +273,11 @@ fi
 declare -a filter_args=()
 if (( ${#own_types[@]} > 0 )); then
     chunk_size=50
-    chunk_regex=""
-    chunk_len=0
-    for t in "${own_types[@]}"; do
-        if (( chunk_len == 0 )); then
-            chunk_regex="$t"
-        else
-            chunk_regex+="|$t"
-        fi
-        chunk_len=$(( chunk_len + 1 ))
-        if (( chunk_len >= chunk_size )); then
-            filter_args+=(--filter "^${target_prefix}\\.(${chunk_regex})(/|\$)")
-            chunk_regex=""
-            chunk_len=0
-        fi
-    done
-    if (( chunk_len > 0 )); then
-        filter_args+=(--filter "^${target_prefix}\\.(${chunk_regex})(/|\$)")
-    fi
+    while IFS= read -r chunk; do
+        filter_args+=(--filter "^${target_prefix}\\.(${chunk})(/|\$)")
+    done < <(
+        printf '%s\n' "${own_types[@]}" | chunk_alternations "$chunk_size"
+    )
 
     echo "shard_swift_tests.sh: split suite/class filter into $(( ${#filter_args[@]} / 2 )) chunks of up to $chunk_size names each." >&2
 fi
