@@ -12,6 +12,10 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.reduceOrNullName
             || callee == lookup.scanName
             || callee == lookup.runningFoldName
+            || callee == lookup.filterName
+            || callee == lookup.filterNotName
+            || callee == lookup.filterNotNullName
+            || callee == lookup.filterIndexedName
             || callee == lookup.associateName
             || callee == lookup.associateByName
             || callee == lookup.groupByName
@@ -116,6 +120,16 @@ extension CollectionLiteralLoweringPass {
                         continue
                     }
 
+                    if shouldPreserveSourceBackedAggregateCall(
+                        symbol: symbol,
+                        callee: callee,
+                        lookup: lookup,
+                        ctx: ctx
+                    ) {
+                        loweredBody.append(instruction)
+                        continue
+                    }
+
                     if rewriteCollectionMemberCall(
                         callee: callee,
                         arguments: arguments,
@@ -128,16 +142,6 @@ extension CollectionLiteralLoweringPass {
                         state: &state,
                         loweredBody: &loweredBody
                     ) {
-                        continue
-                    }
-
-                    if shouldPreserveSourceBackedAggregateCall(
-                        symbol: symbol,
-                        callee: callee,
-                        lookup: lookup,
-                        ctx: ctx
-                    ) {
-                        loweredBody.append(instruction)
                         continue
                     }
 

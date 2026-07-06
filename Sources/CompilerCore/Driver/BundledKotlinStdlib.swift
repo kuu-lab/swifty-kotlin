@@ -6,8 +6,9 @@
 enum BundledKotlinStdlib {
     // count / any / all / none / sumOf / maxByOrNull / minByOrNull are not yet
     // in standalone .kt files. The remaining collection HOFs (search, aggregate,
-    // sorting, set) have been migrated to ListSearchHOF.kt, ListAggregateHOF.kt,
-    // ListSortingHOF.kt, and SetHOF.kt respectively.
+    // filter, sorting, set) have been migrated to ListSearchHOF.kt,
+    // ListAggregateHOF.kt, ListFilterHOF.kt, ListSortingHOF.kt, and SetHOF.kt
+    // respectively.
     static let kotlinCollectionsSource = """
 package kotlin.collections
 

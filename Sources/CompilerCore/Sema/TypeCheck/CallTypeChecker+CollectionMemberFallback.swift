@@ -225,7 +225,47 @@ extension CallTypeChecker {
             sema.bindings.markCollectionExpr(id)
         }
 
-        if let fallbackCallee = resolveCollectionFallbackCallee(
+        let didBindListFilterNotNullSource: Bool = {
+            guard memberName == "filterNotNull",
+                  args.isEmpty,
+                  isListReceiver
+            else {
+                return false
+            }
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.declSite != nil,
+                      (sema.symbols.externalLinkName(for: candidate) ?? "").isEmpty,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.isEmpty,
+                      let signatureReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner)
+            }) else {
+                return false
+            }
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosenCallee,
+                    substitutedTypeArguments: [sema.types.makeNonNullable(receiverElementType)],
+                    parameterMapping: [:]
+                )
+            )
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+            return true
+        }()
+
+        if !didBindListFilterNotNullSource,
+           let fallbackCallee = resolveCollectionFallbackCallee(
             memberName: calleeName,
             receiverID: receiverID,
             argExprs: args.map(\.expr),
