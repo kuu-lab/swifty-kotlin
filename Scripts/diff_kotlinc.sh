@@ -10,6 +10,7 @@ KOTLINC="${KOTLINC:-kotlinc}"
 KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
 JAVA_BIN="${JAVA_BIN:-java}"
 KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_VERSION:-1.10.2}}"
+KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
 KEEP_TEMP=0
@@ -224,6 +225,16 @@ requires_kotlinx_coroutines() {
   return 1
 }
 
+# Known checksums per kotlinx-coroutines version. For other versions, set
+# KOTLINC_COROUTINES_SHA256 explicitly — otherwise the download is refused
+# rather than silently skipping verification.
+known_coroutines_sha256() {
+  case "$1" in
+    1.10.2) printf '5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd' ;;
+    *) printf '' ;;
+  esac
+}
+
 ensure_kotlinc_classpath() {
   if [[ -n "$KOTLINC_CLASSPATH" ]]; then
     return 0
@@ -240,12 +251,21 @@ ensure_kotlinc_classpath() {
 
   mkdir -p "$KOTLINC_DEP_DIR"
   if [[ ! -s "$KOTLINC_COROUTINES_JAR" ]]; then
+    local expected_sha256="$KOTLINC_COROUTINES_SHA256"
+    if [[ -z "$expected_sha256" ]]; then
+      expected_sha256="$(known_coroutines_sha256 "$KOTLINC_COROUTINES_VERSION")"
+    fi
+    if [[ -z "$expected_sha256" ]]; then
+      echo "No known checksum for kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}." >&2
+      echo "Set KOTLINC_COROUTINES_SHA256 to the expected SHA-256 of the jar." >&2
+      return 1
+    fi
+
     local download_url
     download_url="https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar"
     echo "Downloading kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}..."
     curl -fSL -o "$KOTLINC_COROUTINES_JAR" "$download_url"
-    
-    local expected_sha256="5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd"
+
     local actual_sha256
     if command -v shasum >/dev/null 2>&1; then
       actual_sha256="$(shasum -a 256 "$KOTLINC_COROUTINES_JAR" | awk '{print $1}')"
@@ -338,6 +358,11 @@ if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
+  echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
+  exit 1
+fi
+
 warm_kotlinc() {
   local warm_timeout
   warm_timeout=$(( COMPILE_TIMEOUT > 10 ? COMPILE_TIMEOUT : 10 ))
@@ -375,6 +400,15 @@ if [[ "$WORKER_COUNT" -lt 1 ]]; then
   WORKER_COUNT=1
 fi
 
+# The parallel scheduler below relies on `wait -n` (bash >= 4.3). macOS's
+# stock bash 3.2 would fail mid-run, so fall back to serial execution there.
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3) )); then
+  if [[ "$DIFF_PARALLEL" -ne 0 && "$WORKER_COUNT" -gt 1 ]]; then
+    echo "bash $BASH_VERSION lacks 'wait -n'; running serially (install bash >= 4.3 for parallel mode)." >&2
+  fi
+  WORKER_COUNT=1
+fi
+
 echo "=== diff_kotlinc Configuration ==="
 echo "Workers: $WORKER_COUNT"
 if (( DIFF_SHARD_COUNT > 1 )); then
@@ -391,30 +425,19 @@ echo "=================================="
 # not the first kotlinc startup cost.
 warm_kotlinc
 
+# Emits this shard's cases (interleaved sharding via lib/common.sh;
+# DIFF_SHARD_COUNT == 1 emits everything).
 collect_cases() {
   local path="$1"
-  local -a all=()
   if [[ -f "$path" ]]; then
-    all=("$path")
+    printf '%s\n' "$path" | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
   elif [[ -d "$path" ]]; then
-    while IFS= read -r found; do
-      [[ -z "$found" ]] && continue
-      all+=("$found")
-    done < <(find "$path" -type f -name '*.kt' | sort)
+    find "$path" -type f -name '*.kt' | sort \
+      | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
   else
     echo "Target does not exist: $path" >&2
     exit 1
   fi
-
-  # Interleaved sharding: case i is emitted only when i % count == index.
-  # No sharding when DIFF_SHARD_COUNT == 1 (every case passes the test).
-  local i=0
-  for found in "${all[@]+"${all[@]}"}"; do
-    if (( i % DIFF_SHARD_COUNT == DIFF_SHARD_INDEX )); then
-      printf '%s\n' "$found"
-    fi
-    i=$((i + 1))
-  done
 }
 
 # Number of cases in the target *before* sharding, so an empty shard can be
@@ -445,14 +468,6 @@ handle_empty_cases() {
 
 normalize_text() {
   tr -d '\r'
-}
-
-sanitize_case_name() {
-  local input="$1"
-  input="${input##*/}"
-  input="${input%.kt}"
-  input="${input//[^A-Za-z0-9._-]/_}"
-  printf '%s' "$input"
 }
 
 safe_diff_to_file() {
@@ -573,20 +588,19 @@ get_kotlinc_extra_flags() {
   grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
-# Normalize stdout: replace lines matching pattern with placeholder for diff
+# Normalize stdout: replace lines matching pattern with placeholder for diff.
+# The pattern is passed through the environment (not awk -v) so backslashes in
+# the regex are not mangled by awk's escape-sequence processing.
 normalize_stdout_for_diff() {
   local file="$1"
   local pattern="$2"
   if [[ -z "$pattern" ]]; then
     cat "$file"
   else
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      if echo "$line" | grep -qE "$pattern"; then
-        echo "__DIFF_PATTERN_MATCH__"
-      else
-        echo "$line"
-      fi
-    done < "$file"
+    DIFF_LINE_PATTERN_RE="$pattern" awk '
+      $0 ~ ENVIRON["DIFF_LINE_PATTERN_RE"] { print "__DIFF_PATTERN_MATCH__"; next }
+      { print }
+    ' "$file"
   fi
 }
 

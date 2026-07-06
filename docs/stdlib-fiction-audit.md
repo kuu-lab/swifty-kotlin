@@ -15,19 +15,49 @@ KSwiftK の合成 stdlib サーフェスを **Kotlin 2.3.10 公式 stdlib 公開
      既知の実在組み込み型は除外リストで補正した。
 
 2. **登録サーフェスの抽出**
-   - 一時テスト `FictionAuditDumpTests`（`DUMP_SURFACE=1`）で、合成スタブ登録後の
-     `SymbolTable` 全シンボル（FQName / 種別）をダンプ。総数 **6888**。
+   - 監査用テスト `FictionAuditDumpTests`（`DUMP_SURFACE=1`）で、合成スタブ登録後の
+     `SymbolTable` シンボル（FQName / 種別）をダンプ。初回監査時点の追跡 baseline は **6888**。
 
 3. **差分と分類**
    - 登録サーフェス ∖ 公式 API を計算し、`kotlin.native/js/wasm/cinterop` など
      JVM ダンプが網羅しないパッケージを除外したうえで残差を人手検証。
 
-## サーフェスの内訳（合成シンボル数・パッケージルート別）
+## サーフェスの内訳（初回 baseline: 合成シンボル数・パッケージルート別）
 
 - `kotlin.*`: 5354
 - `java.*`: 526（`java.io` 124 / `java.net` 102 / `java.util` 86 / `java.security` 75 / `java.nio` 71 / `java.math` 25 / `java.text` 22 / `java.lang` 22 / `java.time` 3）
 - `kotlinx.*`: 405（`kotlinx.cinterop` 213 / `kotlinx.coroutines` 139 / `kotlinx.serialization` 52）
 - `javax.*`: 38
+
+## 2026-07-06 再監査 (RF-STUB-007)
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
+```
+
+結果:
+
+| 時点 | 追跡対象 | 合計 | baseline 差分 |
+|---|---|---:|---:|
+| 2026-07-02 初回監査 | 登録サーフェス baseline | 6888 | - |
+| 2026-07-06 RF-STUB-007 | `.synthetic` フラグ付き残留サーフェス | 5951 | -937 (-13.6%) |
+
+現行 `.synthetic` フラグ付き root 内訳:
+
+- `kotlin.*`: 5142
+- `kotlinx.*`: 461
+- `java.*`: 347
+- `CancellationException`: 1
+
+参考値として、同じ `DUMP_SURFACE=1` 実行時の `SymbolTable.allSymbols()` 総数は **7371**。
+これは bundled Kotlin source 由来のローカル/for 生成シンボル（`__local_*`, `__for_*`）や
+ユーザー入力側の `noop` なども含むため、以後の削減推移メトリクスには使わない。
+
+RF-STUB-004〜006 は登録構造の整理であり、API 除去そのものではない。以後は phase 完了ごとに
+上表の `.synthetic` フラグ付き残留サーフェス値を更新し、実削減がある場合は該当 bucket と削除根拠を
+このファイルへ追記する。
 
 ## 重要な判断: `java.*` / `kotlinx.*` は「架空」ではない
 

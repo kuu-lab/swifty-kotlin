@@ -1,7 +1,8 @@
 /// Synthetic `AbstractIterator` and primitive iterator stubs
 /// (STDLIB-COL-TYPE-002).
 ///
-/// Split out from `HeaderHelpers+SyntheticIterableStubs.swift`.
+/// Kept separate from `HeaderHelpers+SyntheticIterableRegistry.swift` because
+/// iterator shells remain residual compiler surface.
 extension DataFlowSemaPhase {
     /// Register `kotlin.collections.AbstractIterator<T>` surface (STDLIB-COL-TYPE-002).
     func registerSyntheticAbstractIteratorStub(
@@ -85,92 +86,64 @@ extension DataFlowSemaPhase {
             )
         }
 
-        func registerAbstractIteratorFunction(
-            name: String,
-            visibility: Visibility,
-            flags: SymbolFlags,
-            parameterTypes: [TypeID],
-            returnType: TypeID,
-            valueParameterNames: [String] = []
-        ) {
-            let memberName = interner.intern(name)
-            let memberFQName = abstractIteratorFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: visibility,
-                flags: flags
-            )
-            symbols.setParentSymbol(abstractIteratorSymbol, for: memberSymbol)
-
-            var valueParameterSymbols: [SymbolID] = []
-            for parameterName in valueParameterNames {
-                let interned = interner.intern(parameterName)
-                let parameterSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: interned,
-                    fqName: memberFQName + [interned],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-                valueParameterSymbols.append(parameterSymbol)
-            }
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: abstractIteratorType,
-                    parameterTypes: parameterTypes,
-                    returnType: returnType,
-                    valueParameterSymbols: valueParameterSymbols,
-                    valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                    valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
-                    typeParameterSymbols: [typeParamSymbol],
+        let abstractIteratorContext = SyntheticStubRegistrationContext(
+            ownerFQName: abstractIteratorFQName,
+            parentSymbol: abstractIteratorSymbol,
+            typeParameterSymbolsByName: ["T": typeParamSymbol]
+        )
+        registerSyntheticFunctionStubs(
+            [
+                SyntheticFunctionStubSpec(
+                    name: "computeNext",
+                    receiverType: .typeID(abstractIteratorType),
+                    returnType: .unit,
+                    visibility: .protected,
+                    flags: [.synthetic, .abstractType],
+                    typeParameterNames: ["T"],
                     classTypeParameterCount: 1
                 ),
-                for: memberSymbol
-            )
-        }
-
-        registerAbstractIteratorFunction(
-            name: "computeNext",
-            visibility: .protected,
-            flags: [.synthetic, .abstractType],
-            parameterTypes: [],
-            returnType: types.unitType
-        )
-        registerAbstractIteratorFunction(
-            name: "done",
-            visibility: .protected,
-            flags: [.synthetic],
-            parameterTypes: [],
-            returnType: types.unitType
-        )
-        registerAbstractIteratorFunction(
-            name: "setNext",
-            visibility: .protected,
-            flags: [.synthetic],
-            parameterTypes: [typeParamType],
-            returnType: types.unitType,
-            valueParameterNames: ["value"]
-        )
-        registerAbstractIteratorFunction(
-            name: "hasNext",
-            visibility: .public,
-            flags: [.synthetic, .openType, .overrideMember, .operatorFunction],
-            parameterTypes: [],
-            returnType: types.booleanType
-        )
-        registerAbstractIteratorFunction(
-            name: "next",
-            visibility: .public,
-            flags: [.synthetic, .openType, .overrideMember, .operatorFunction],
-            parameterTypes: [],
-            returnType: typeParamType
+                SyntheticFunctionStubSpec(
+                    name: "done",
+                    receiverType: .typeID(abstractIteratorType),
+                    returnType: .unit,
+                    visibility: .protected,
+                    flags: [.synthetic],
+                    typeParameterNames: ["T"],
+                    classTypeParameterCount: 1
+                ),
+                SyntheticFunctionStubSpec(
+                    name: "setNext",
+                    receiverType: .typeID(abstractIteratorType),
+                    parameters: [
+                        SyntheticStubParameterSpec(name: "value", type: .typeID(typeParamType)),
+                    ],
+                    returnType: .unit,
+                    visibility: .protected,
+                    flags: [.synthetic],
+                    typeParameterNames: ["T"],
+                    classTypeParameterCount: 1
+                ),
+                SyntheticFunctionStubSpec(
+                    name: "hasNext",
+                    receiverType: .typeID(abstractIteratorType),
+                    returnType: .boolean,
+                    flags: [.synthetic, .openType, .overrideMember, .operatorFunction],
+                    typeParameterNames: ["T"],
+                    classTypeParameterCount: 1
+                ),
+                SyntheticFunctionStubSpec(
+                    name: "next",
+                    receiverType: .typeID(abstractIteratorType),
+                    returnType: .typeID(typeParamType),
+                    flags: [.synthetic, .openType, .overrideMember, .operatorFunction],
+                    typeParameterNames: ["T"],
+                    classTypeParameterCount: 1
+                ),
+            ],
+            context: abstractIteratorContext,
+            symbols: symbols,
+            types: types,
+            interner: interner
         )
     }
 
@@ -270,40 +243,29 @@ extension DataFlowSemaPhase {
             )
         }
 
-        func registerFunction(name: String, flags: SymbolFlags, returnType: TypeID) {
-            let memberName = interner.intern(name)
-            let memberFQName = classFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: flags
-            )
-            symbols.setParentSymbol(classSymbol, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: classType,
-                    parameterTypes: [],
-                    returnType: returnType,
-                    typeParameterSymbols: [],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
-        }
-
-        registerFunction(
-            name: nextMemberName,
-            flags: [.synthetic, .abstractType],
-            returnType: elementType
+        let primitiveIteratorContext = SyntheticStubRegistrationContext(
+            ownerFQName: classFQName,
+            parentSymbol: classSymbol
         )
-        registerFunction(
-            name: "next",
-            flags: [.synthetic, .openType, .overrideMember, .operatorFunction],
-            returnType: elementType
+        registerSyntheticFunctionStubs(
+            [
+                SyntheticFunctionStubSpec(
+                    name: nextMemberName,
+                    receiverType: .typeID(classType),
+                    returnType: .typeID(elementType),
+                    flags: [.synthetic, .abstractType]
+                ),
+                SyntheticFunctionStubSpec(
+                    name: "next",
+                    receiverType: .typeID(classType),
+                    returnType: .typeID(elementType),
+                    flags: [.synthetic, .openType, .overrideMember, .operatorFunction]
+                ),
+            ],
+            context: primitiveIteratorContext,
+            symbols: symbols,
+            types: types,
+            interner: interner
         )
     }
 

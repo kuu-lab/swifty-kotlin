@@ -155,6 +155,7 @@ public func kk_future_new() -> Int {
 }
 
 /// Resolve the Future with `valueRaw`.  Must be called exactly once.
+@discardableResult
 @_cdecl("kk_future_complete")
 public func kk_future_complete(_ futureHandle: Int, _ valueRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
@@ -211,6 +212,7 @@ public func kk_future_consume(_ futureHandle: Int) -> Int {
 /// UNSAFE mode: passes the handle through without modification.
 ///
 /// - Returns: the original `objectRaw` handle, or 0 for a null handle.
+@discardableResult
 @_cdecl("kk_transfer_object")
 public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
     guard objectRaw != 0 else {
@@ -357,6 +359,7 @@ public func kk_freezable_atomic_ref_is_frozen(_ refHandle: Int) -> Int {
 /// observe immutable data.
 ///
 /// - Returns: the same `objectRaw` handle (pass-through).
+@discardableResult
 @_cdecl("kk_shared_immutable_init")
 public func kk_shared_immutable_init(_ objectRaw: Int) -> Int {
     guard objectRaw != 0 else {

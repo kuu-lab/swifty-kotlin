@@ -4,10 +4,10 @@ import Testing
 
 /// STDLIB-COL-FN-074: Validates that `firstOrNull` resolves through Sema for the
 /// collection receivers wired through the standard aggregate / HOF infrastructure
-/// — `List<T>` / `Set<T>` (no-arg), `List<T>` (predicate HOF), and `Range`
-/// (no-arg and predicate overloads).
-/// Runtime link names involved: `kk_list_firstOrNull`, `kk_list_firstOrNull_predicate`,
-/// `kk_set_firstOrNull`, `kk_range_firstOrNull`, `kk_range_firstOrNull_predicate`.
+/// — `List<T>` / `Set<T>` (no-arg), source-backed `List<T>` (predicate HOF),
+/// and `Range` (no-arg and predicate overloads).
+/// Runtime link names involved: `kk_list_firstOrNull`, `kk_list_find`, `kk_set_firstOrNull`,
+/// `kk_range_firstOrNull`, `kk_range_firstOrNull_predicate`.
 @Suite
 struct CollectionsFirstOrNullFunctionTests {
     @Test func testFirstOrNullFunctionResolvesInSource() throws {
