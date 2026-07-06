@@ -3,8 +3,7 @@ import Foundation
 import XCTest
 
 /// Verifies CharSequence?.isNullOrEmpty() (STDLIB-TEXT-FN-031) resolves cleanly
-/// in Sema and lowers through the nullable-receiver fallback to the runtime
-/// helper `kk_string_isNullOrEmpty`.
+/// in Sema through bundled Kotlin source.
 final class StringIsNullOrEmptyFunctionTests: XCTestCase {
     private func allMemberCallExprIDs(
         named member: String,
@@ -77,9 +76,9 @@ final class StringIsNullOrEmptyFunctionTests: XCTestCase {
         }
     }
 
-    /// The compiler should lower nullable-receiver isNullOrEmpty() to the runtime helper
-    /// `kk_string_isNullOrEmpty`, classified as non-throwing.
-    func testIsNullOrEmptyLowersToRuntimeHelperNonThrowing() throws {
+    /// The compiler should not lower nullable-receiver isNullOrEmpty() to the legacy
+    /// String runtime helper after migration to bundled Kotlin source.
+    func testIsNullOrEmptyDoesNotLowerToLegacyRuntimeHelper() throws {
         let source = """
         fun main() {
             val maybe: String? = null
@@ -96,12 +95,9 @@ final class StringIsNullOrEmptyFunctionTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let isNullOrEmptyFlags = try XCTUnwrap(
-                throwFlags["kk_string_isNullOrEmpty"],
-                "Expected kk_string_isNullOrEmpty calls to appear in main()"
-            )
-            XCTAssertEqual(isNullOrEmptyFlags.count, 2)
-            XCTAssertTrue(isNullOrEmptyFlags.allSatisfy { $0 == false })
+            XCTAssertNil(throwFlags["kk_string_isNullOrEmpty"])
+            XCTAssertNil(throwFlags["kk_string_isNullOrEmpty_flat"])
+            XCTAssertNil(throwFlags["__string_isNullOrEmpty_flat"])
         }
     }
 }
