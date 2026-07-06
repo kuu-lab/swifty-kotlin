@@ -532,10 +532,13 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatTrimPredicateRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendEmitsKotlinTrimCallsWithoutRuntimeTrimABI() throws {
         let source = """
         fun main() {
             val value = "xxbodyxx"
+            println(value.trim())
+            println(value.trimStart())
+            println(value.trimEnd())
             println(value.trim { it == 'x' })
             println(value.trimStart { it == 'x' })
             println(value.trimEnd { it == 'x' })
@@ -556,13 +559,26 @@ extension CodegenBackendIntegrationTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             let rawNames = [
+                "kk_string_trim",
+                "kk_string_trimStart",
+                "kk_string_trimEnd",
                 "kk_string_trim_predicate",
                 "kk_string_trimStart_predicate",
                 "kk_string_trimEnd_predicate",
             ]
             for rawName in rawNames {
-                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim predicate call: \(rawName)")
-                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String trim predicate call: \(rawName)_flat")
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim call: \(rawName)")
+            }
+            let flatNames = [
+                "kk_string_trim_flat",
+                "kk_string_trimStart_flat",
+                "kk_string_trimEnd_flat",
+                "kk_string_trim_predicate_flat",
+                "kk_string_trimStart_predicate_flat",
+                "kk_string_trimEnd_predicate_flat",
+            ]
+            for flatName in flatNames {
+                XCTAssertFalse(ir.contains("@\(flatName)"), "Unexpected flat String trim call: \(flatName)")
             }
         }
     }

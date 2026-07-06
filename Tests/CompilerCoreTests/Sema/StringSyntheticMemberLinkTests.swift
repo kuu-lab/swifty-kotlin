@@ -67,7 +67,6 @@ struct StringSyntheticMemberLinkTests {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "trim": "kk_string_trim_flat",
             "replace": "kk_string_replace_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
@@ -582,30 +581,27 @@ struct StringSyntheticMemberLinkTests {
         }
     }
 
-    @Test func testTrimPredicateStubsHaveCorrectExternalLinks() throws {
+    @Test func testTrimMembersAreBundledKotlinFunctionsWithoutExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        let expected: [String: Set<String>] = [
-            "trim": ["kk_string_trim_flat", "kk_string_trim_predicate_flat"],
-            "trimStart": ["kk_string_trimStart_flat", "kk_string_trimStart_predicate_flat"],
-            "trimEnd": ["kk_string_trimEnd_flat", "kk_string_trimEnd_predicate_flat"],
-        ]
-
-        for (member, expectedLinks) in expected {
+        for member in ["trim", "trimStart", "trimEnd"] {
             #expect(
-                externalLinks(for: member, sema: sema, interner: interner).isSuperset(of: expectedLinks),
-                "String.\(member) should expose no-arg and predicate overload ABI links"
+                externalLinks(for: member, sema: sema, interner: interner).isEmpty,
+                "String.\(member) should be a bundled Kotlin function with no C external link"
             )
         }
     }
 
-    @Test func testTrimPredicateMembersResolveInCallExpressions() throws {
+    @Test func testTrimMembersResolveInCallExpressionsWithoutExternalLinks() throws {
         let source = """
         fun trimEdges(s: String): String {
-            val a = s.trim { it == 'x' }
-            val b = s.trimStart { it == 'x' }
-            val c = s.trimEnd { it == 'x' }
-            return a + b + c
+            val a = s.trim()
+            val b = s.trimStart()
+            val c = s.trimEnd()
+            val d = s.trim { it == 'x' }
+            val e = s.trimStart { it == 'x' }
+            val f = s.trimEnd { it == 'x' }
+            return a + b + c + d + e + f
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -615,25 +611,22 @@ struct StringSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            let expectedLinks: [String: String] = [
-                "trim": "kk_string_trim_predicate_flat",
-                "trimStart": "kk_string_trimStart_predicate_flat",
-                "trimEnd": "kk_string_trimEnd_predicate_flat",
-            ]
-
-            for (memberName, externalLinkName) in expectedLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            for memberName in ["trim", "trimStart", "trimEnd"] {
+                let callExprs = allExprIDs(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(memberName)"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
-                    "Expected \(memberName) predicate overload to resolve to \(externalLinkName)"
-                )
+                }
+                #expect(!callExprs.isEmpty, "Expected member call to \(memberName) in AST")
+                for callExpr in callExprs {
+                    let chosenCallee = try #require(
+                        sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                        "Expected call binding for \(memberName)"
+                    )
+                    #expect(
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected \(memberName) overload to resolve to bundled Kotlin source"
+                    )
+                }
             }
         }
     }

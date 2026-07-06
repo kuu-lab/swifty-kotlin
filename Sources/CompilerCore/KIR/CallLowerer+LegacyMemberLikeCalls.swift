@@ -1690,39 +1690,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "trim" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trim_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimStart" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimStart_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "trimEnd" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trimEnd_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
             }
         }
 
@@ -2009,12 +1976,6 @@ extension CallLowerer {
                         instructions.append(.constValue(result: pipeExpr, value: .stringLiteral(pipeString)))
                         return ("kk_string_replaceIndentByMargin_flat", [loweredReceiverID, loweredArgIDs[0], pipeExpr])
                     }()
-                case "trim":
-                    ("kk_string_trim_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimStart":
-                    ("kk_string_trimStart_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
-                case "trimEnd":
-                    ("kk_string_trimEnd_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "take":
                     ("kk_string_take_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "drop":
@@ -2035,9 +1996,6 @@ extension CallLowerer {
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
-                        || calleeStr == "trim"
-                        || calleeStr == "trimStart"
-                        || calleeStr == "trimEnd"
                         || calleeStr == "take"
                         || calleeStr == "drop"
                         || calleeStr == "takeLast"
