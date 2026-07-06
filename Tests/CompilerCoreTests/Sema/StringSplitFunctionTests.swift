@@ -4,11 +4,8 @@ import Testing
 /// STDLIB-TEXT-FN-069: Validates that `CharSequence.split(delimiter, ignoreCase, limit)`
 /// resolves through Sema for `String` receivers across all registered overloads.
 ///
-/// Overload links (see `HeaderHelpers+SyntheticStringStubs.swift`):
-/// - `split(delimiters: String)` → `kk_string_split_flat`
-/// - `split(delimiters: String, limit: Int)` → `kk_string_split_limit_flat`
-/// - `split(delimiters: String, ignoreCase: Bool)` → `kk_string_split_limit_flat`
-/// - `split(delimiters: String, ignoreCase: Bool, limit: Int)` → `kk_string_split_limit_flat`
+/// The public overloads are loaded from `Stdlib/kotlin/text/StringSplitJoin.kt`;
+/// that source delegates to private `__kk_string_split*` bridge stubs.
 @Suite
 struct StringSplitFunctionTests {
     @Test func testSplitWithDelimiterResolvesInSource() throws {

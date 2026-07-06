@@ -578,7 +578,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
                 ([primary] + aliases).compactMap { throwFlags[$0] }.first
             }
             XCTAssertEqual(throwFlags["kk_string_trim_flat"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_split_flat"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(flags("__kk_string_split", "split")?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
             XCTAssertNil(throwFlags["kk_string_subSequence"])
             XCTAssertEqual(flags("kk_string_isNullOrEmpty", "kk_string_isNullOrEmpty_flat", "__string_isNullOrEmpty_flat")?.allSatisfy { $0 == false }, true)

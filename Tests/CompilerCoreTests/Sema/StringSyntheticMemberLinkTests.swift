@@ -68,7 +68,6 @@ struct StringSyntheticMemberLinkTests {
 
         let expected: [String: String] = [
             "trim": "kk_string_trim_flat",
-            "split": "kk_string_split_flat",
             "replace": "kk_string_replace_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",

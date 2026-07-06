@@ -952,8 +952,6 @@ struct CollectionLiteralLoweringTests {
         let arena = KIRArena()
         let sourceExpr = arena.appendExpr(.temporary(0))
         let delimitersExpr = arena.appendExpr(.temporary(1))
-        let ignoreCaseExpr = arena.appendExpr(.temporary(2))
-        let limitExpr = arena.appendExpr(.temporary(3))
         let splitResult = arena.appendExpr(.temporary(4))
         let printlnResult = arena.appendExpr(.temporary(5))
         let fn = KIRFunction(
@@ -964,8 +962,8 @@ struct CollectionLiteralLoweringTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_split_flat"),
-                    arguments: [sourceExpr, delimitersExpr, ignoreCaseExpr, limitExpr],
+                    callee: interner.intern("__kk_string_split"),
+                    arguments: [sourceExpr, delimitersExpr],
                     result: splitResult,
                     canThrow: false,
                     thrownResult: nil
@@ -990,7 +988,7 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_string_split_flat"))
+        #expect(callees.contains("__kk_string_split"))
         #expect(callees.contains("kk_list_to_string"),
                       "split result should be recognized as list and routed through kk_list_to_string")
     }
