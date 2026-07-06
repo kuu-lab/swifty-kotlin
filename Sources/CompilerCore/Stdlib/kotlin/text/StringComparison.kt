@@ -13,9 +13,14 @@ package kotlin.text
 public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): String {
     val shortestLength = minOf(this.length, other.length)
     var i = 0
-    while (i < shortestLength && charsEqual(this[i], other[i], ignoreCase)) {
+    while (i < shortestLength) {
+        if (!charsEqual(this[i], other[i], ignoreCase)) {
+            if (i == 0) return ""
+            return this.substring(0, i)
+        }
         i++
     }
+    if (i == 0) return ""
     return this.substring(0, i)
 }
 
@@ -29,9 +34,14 @@ public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): 
 public fun String.commonSuffixWith(other: String, ignoreCase: Boolean = false): String {
     val shortestLength = minOf(this.length, other.length)
     var i = 0
-    while (i < shortestLength && charsEqual(this[this.length - 1 - i], other[other.length - 1 - i], ignoreCase)) {
+    while (i < shortestLength) {
+        if (!charsEqual(this[this.length - 1 - i], other[other.length - 1 - i], ignoreCase)) {
+            if (i == 0) return ""
+            return this.substring(this.length - i)
+        }
         i++
     }
+    if (i == 0) return ""
     return this.substring(this.length - i)
 }
 

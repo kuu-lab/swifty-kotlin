@@ -394,7 +394,7 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testLLVMBackendEmitsFlatCommonPrefixSuffixRuntimeCallsForStringOverloads() throws {
+    func testLLVMBackendUsesKotlinSourceForCommonPrefixSuffixStringOverloads() throws {
         let source = """
         fun main() {
             println("alphabet".commonPrefixWith("alpine"))
@@ -427,16 +427,16 @@ extension CodegenBackendIntegrationTests {
                 ir.contains("@kk_string_commonSuffixWith_ignoreCase("),
                 "Unexpected raw commonSuffixWith(ignoreCase) call"
             )
-            XCTAssertTrue(ir.contains("@kk_string_commonPrefixWith_flat"), "Missing flat commonPrefixWith call")
-            XCTAssertTrue(ir.contains("@kk_string_commonSuffixWith_flat"), "Missing flat commonSuffixWith call")
-            XCTAssertTrue(
+            XCTAssertFalse(
                 ir.contains("@kk_string_commonPrefixWith_ignoreCase_flat"),
-                "Missing flat commonPrefixWith(ignoreCase) call"
+                "Unexpected flat commonPrefixWith(ignoreCase) call"
             )
-            XCTAssertTrue(
+            XCTAssertFalse(
                 ir.contains("@kk_string_commonSuffixWith_ignoreCase_flat"),
-                "Missing flat commonSuffixWith(ignoreCase) call"
+                "Unexpected flat commonSuffixWith(ignoreCase) call"
             )
+            XCTAssertFalse(ir.contains("@kk_string_commonPrefixWith_flat"), "Unexpected flat commonPrefixWith call")
+            XCTAssertFalse(ir.contains("@kk_string_commonSuffixWith_flat"), "Unexpected flat commonSuffixWith call")
         }
     }
 
