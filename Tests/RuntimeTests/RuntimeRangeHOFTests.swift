@@ -219,19 +219,19 @@ final class RuntimeRangeHOFTests: XCTestCase {
 
     func testRangeAverageReturnsDoubleAsBitPattern() {
         let range = kk_op_rangeTo(1, 4)
-        let avg = unsafeBitCast(kk_range_average(range), to: Double.self)
+        let avg = Double(bitPattern: UInt64(bitPattern: Int64(kk_range_average(range))))
         XCTAssertEqual(avg, 2.5)
     }
 
     func testRangeAverageOnSingleElement() {
         let range = kk_op_rangeTo(7, 7)
-        let avg = unsafeBitCast(kk_range_average(range), to: Double.self)
+        let avg = Double(bitPattern: UInt64(bitPattern: Int64(kk_range_average(range))))
         XCTAssertEqual(avg, 7.0)
     }
 
     func testRangeAverageOnEmptyRangeProducesNaN() {
         let emptyRange = kk_op_rangeTo(5, 1)
-        let avg = unsafeBitCast(kk_range_average(emptyRange), to: Double.self)
+        let avg = Double(bitPattern: UInt64(bitPattern: Int64(kk_range_average(emptyRange))))
         XCTAssertTrue(avg.isNaN)
     }
 
@@ -354,7 +354,7 @@ final class RuntimeRangeHOFTests: XCTestCase {
 
     func testLongRangeAverageReturnsDoubleAsBitPattern() {
         let range = kk_long_rangeTo(1, 4)
-        let avg = unsafeBitCast(kk_long_range_average(range), to: Double.self)
+        let avg = Double(bitPattern: UInt64(bitPattern: Int64(kk_long_range_average(range))))
         XCTAssertEqual(avg, 2.5)
     }
 
@@ -381,7 +381,7 @@ final class RuntimeRangeHOFTests: XCTestCase {
 
     func testLongRangeAverageOnEmptyRangeProducesNaN() {
         let emptyRange = kk_long_rangeTo(5, 1)
-        let avg = unsafeBitCast(kk_long_range_average(emptyRange), to: Double.self)
+        let avg = Double(bitPattern: UInt64(bitPattern: Int64(kk_long_range_average(emptyRange))))
         XCTAssertTrue(avg.isNaN)
     }
 
