@@ -11,16 +11,25 @@ on:
 permissions:
   contents: read
 
+# Successive pushes to the same PR cancel the in-flight run so its ~25 jobs
+# stop hogging runner slots (queued shards were starting 4-6 minutes late).
+# Non-PR events (master push, merge_group) get a unique group per run and are
+# never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   jscpd-check:
     name: Duplicate Code Detection
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '18'
+          node-version: '22'
       - name: Install jscpd
         run: |
           for attempt in 1 2 3; do
@@ -77,6 +86,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Free disk space
@@ -102,38 +112,8 @@ jobs:
         run: swift --version
       - name: Build compiler and tests
         run: swift build --build-tests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-
-  smoke-tests:
-    name: Smoke Tests
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          df -h
-      - name: Setup Swift and LLVM
-        uses: ./.github/actions/setup-swift-llvm
-        with:
-          swift-version: "6.2"
-      - name: Cache SPM build artifacts
-        id: spm-cache
-        uses: actions/cache@v5
-        with:
-          path: .build
-          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
-          restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
-      - name: Show toolchain versions
-        run: swift --version
-      - name: Build (on cache miss)
-        if: steps.spm-cache.outputs.cache-hit != 'true'
-        run: swift build --build-tests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      # Smoke tests take ~10s once the build exists, so they run here instead
+      # of a dedicated job whose checkout/toolchain/cache setup cost ~2 minutes.
       - name: Run smoke tests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "4"
@@ -218,6 +198,7 @@ jobs:
     name: Full Swift Tests (CompilerCoreTests)
     runs-on: ubuntu-latest
     needs: full-swift-tests-core
+    timeout-minutes: 10
     if: always()
     steps:
       - name: Verify all CompilerCoreTests shards passed
@@ -295,6 +276,7 @@ jobs:
     name: Full Swift Tests (CompilerBackendTests)
     runs-on: ubuntu-latest
     needs: full-swift-tests-backend
+    timeout-minutes: 10
     if: always()
     steps:
       - name: Verify all CompilerBackendTests shards passed
@@ -502,6 +484,7 @@ jobs:
     name: kotlinc Diff Regression
     runs-on: ubuntu-latest
     needs: diff-regression-shards
+    timeout-minutes: 10
     if: always()
     steps:
       - name: Verify all shards passed
