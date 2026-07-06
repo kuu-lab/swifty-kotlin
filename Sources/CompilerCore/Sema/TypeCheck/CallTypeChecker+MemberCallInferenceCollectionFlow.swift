@@ -208,7 +208,24 @@ extension CallTypeChecker {
                     : KnownCompilerNames(interner: interner).kotlinCollectionsListFQName
                 if !didBindSource,
                    let chosenCallee = sema.symbols.lookupAll(fqName: ownerFQName + [calleeName]).first(where: { symbolID in
-                       sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == args.count
+                       guard let signature = sema.symbols.functionSignature(for: symbolID),
+                             signature.parameterTypes.count == args.count
+                       else {
+                           return false
+                       }
+                       // Bundled Kotlin-source declarations (e.g. List<T>.filter) share
+                       // this fqName with Map/Set/Iterable fallback candidates once their
+                       // synthetic stub is suppressed. Skip a receiver-specific bundled
+                       // declaration when the concrete receiver kind doesn't match it, so
+                       // non-List collection fallbacks (Map.filter, etc.) aren't
+                       // incorrectly bound to the List-only bundled function.
+                       if let signatureReceiver = signature.receiverType,
+                          (sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty,
+                          isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner),
+                          !isConcreteListLikeType(receiverType, sema: sema, interner: interner) {
+                           return false
+                       }
+                       return true
                    }) {
                     sema.bindings.bindCall(id, binding: CallBinding(
                         chosenCallee: chosenCallee,
@@ -1005,6 +1022,9 @@ extension CallTypeChecker {
                                 interner: interner,
                                 elementType: collectionElementType
                             )
+                        } else if isMapReceiver {
+                            // Map.filter/filterNot return Map<K, V>, not List<Map.Entry<K, V>>.
+                            resultType = receiverType
                         } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                             resultType = sema.types.make(.classType(ClassType(
                                 classSymbol: listSymbol,

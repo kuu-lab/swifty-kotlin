@@ -1280,6 +1280,19 @@ extension CallTypeChecker {
                 )))
             }
         }
+        // filterNotNull() on a List<T?> is bound directly to the bundled
+        // Kotlin-source declaration (see didBindListFilterNotNullSource
+        // above), so it has no stdlibSurfaceSpecForCollectionFallback entry.
+        // Compute its List<T> result type explicitly instead of falling
+        // through to the generic `Any` default below.
+        if memberName == interner.intern("filterNotNull"), isListReceiver, args.isEmpty {
+            return makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: sema.types.makeNonNullable(receiverElementType)
+            )
+        }
         if let surfaceSpec = stdlibSurfaceSpecForCollectionFallback(
             memberName: memberName,
             argCount: args.count,
