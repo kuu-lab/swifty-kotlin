@@ -4,8 +4,17 @@ extension KIRLoweringDriver {
     func lowerTopLevelFunDecl(
         _ function: FunDecl,
         symbol: SymbolID,
-        shared: KIRLoweringSharedContext
+        shared: KIRLoweringSharedContext,
+        compilationCtx: CompilationContext
     ) -> [KIRDeclID] {
+        if isRuntimeBackedBundledStdlibSourceFunction(
+            symbol: symbol,
+            sema: shared.sema,
+            interner: shared.interner,
+            sourceManager: compilationCtx.sourceManager
+        ) {
+            return []
+        }
         if function.modifiers.contains(.external), function.body == .unit {
             return []
         }
@@ -192,5 +201,84 @@ extension KIRLoweringDriver {
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             ctx.setLocalValue(paramExpr, for: param.symbol)
         }
+    }
+
+    private func isRuntimeBackedBundledStdlibSourceFunction(
+        symbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner,
+        sourceManager: SourceManager
+    ) -> Bool {
+        guard let symbolInfo = sema.symbols.symbol(symbol) else {
+            return false
+        }
+        let fileID = sema.symbols.sourceFileID(for: symbol) ?? symbolInfo.declSite?.start.file
+        guard let fileID,
+              sourceManager.path(of: fileID).hasPrefix("__bundled_")
+        else {
+            return false
+        }
+        guard symbolInfo.fqName.count >= 3 else {
+            return false
+        }
+
+        let packageFQName = Array(symbolInfo.fqName.dropLast())
+        let kotlinComparisonsPackage = [
+            interner.intern("kotlin"),
+            interner.intern("comparisons"),
+        ]
+        let name = interner.resolve(symbolInfo.name)
+        if packageFQName == kotlinComparisonsPackage {
+            // Calls to these source-backed declarations are lowered by
+            // CallLowerer+StdlibComparisons rather than by emitting the
+            // declaration bodies into every consumer module.
+            return name == "maxOf" || name == "minOf"
+        }
+
+        let kotlinCollectionsPackage = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        if packageFQName == kotlinCollectionsPackage {
+            // ListSortingHOF.kt is a migration target; current List call sites
+            // still dispatch through the synthetic kk_list_* runtime ABI.
+            switch name {
+            case "reversed", "sorted", "sortedBy", "sortedByDescending", "sortedWith", "shuffled":
+                return true
+            default:
+                return false
+            }
+        }
+
+        let kotlinTextPackage = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+        ]
+        if packageFQName == kotlinTextPackage {
+            // These string APIs are source-backed for Sema, while call sites
+            // are still lowered by the String stdlib member call lowerers.
+            switch name {
+            case "commonPrefixWith", "commonSuffixWith",
+                 "trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin",
+                 "indent", "kk_drop", "hasPrefix", "splitIntoLines", "leadingWhitespaceCount",
+                 "isBlankLine", "trimBlankEdges":
+                return true
+            default:
+                return false
+            }
+        }
+
+        let kotlinTimePackage = [
+            interner.intern("kotlin"),
+            interner.intern("time"),
+        ]
+        if packageFQName == kotlinTimePackage {
+            // Duration formatting/component APIs still dispatch through the
+            // synthetic Duration ABI while their source declarations keep Sema
+            // overload resolution aligned with Kotlin.
+            return name == "toIsoString" || name == "toComponents"
+        }
+
+        return false
     }
 }

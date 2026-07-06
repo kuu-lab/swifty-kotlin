@@ -134,7 +134,10 @@ extension KIRLoweringDriver {
 
             case let .funDecl(function):
                 declIDs.append(contentsOf: lowerTopLevelFunDecl(
-                    function, symbol: symbol, shared: shared
+                    function,
+                    symbol: symbol,
+                    shared: shared,
+                    compilationCtx: compilationCtx
                 ))
 
             case let .propertyDecl(propertyDecl):
