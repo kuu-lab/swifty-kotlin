@@ -2844,6 +2844,19 @@ extension CallTypeChecker {
             let didBindListFilterSource = sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
                 ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
                 : false
+            if didBindListFilterSource {
+                // The lambda argument was speculatively marked (above) as a
+                // native collection HOF lambda expecting the (closureObj, it)
+                // two-argument ABI. It is actually being passed to a bundled
+                // Kotlin-source declaration as an ordinary boxed callable
+                // value, so undo that so LambdaLowerer materializes it via
+                // kk_function_create_N instead. Otherwise multi-capture
+                // lambdas crash: the callee never packs captures into a
+                // closure object (appendClosureArgumentsIfNeeded only runs
+                // for calls with an externalLinkName), so the lambda's own
+                // (closureObj, it) parameters read out-of-bounds.
+                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+            }
 
             if !didBindListFilterSource, calleeStr == "filterIndexed", isCollectionReceiver {
                 let knownNames = KnownCompilerNames(interner: interner)

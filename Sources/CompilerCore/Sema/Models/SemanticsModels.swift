@@ -1444,6 +1444,15 @@ public final class BindingTable {
         collectionHOFLambdaExprIDs.insert(expr)
     }
 
+    /// Undo a prior `markCollectionHOFLambdaExpr`. Used when a call originally
+    /// speculatively marked as a native collection HOF later turns out to bind
+    /// to a bundled Kotlin-source declaration instead, which expects an
+    /// ordinary boxed callable value rather than the native (closureObj, it)
+    /// two-argument ABI.
+    public func unmarkCollectionHOFLambdaExpr(_ expr: ExprID) {
+        collectionHOFLambdaExprIDs.remove(expr)
+    }
+
     /// Whether the lambda literal requires collection HOF closure ABI lowering.
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
