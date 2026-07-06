@@ -1225,7 +1225,7 @@ extension DataFlowSemaPhase {
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
         registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
+        registerSyntheticBucketedExtendedStdlibStubs(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.
