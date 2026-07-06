@@ -52,7 +52,7 @@ final class RuntimeAssertionsTests: XCTestCase {
     }
 
     func testAssertionErrorBoxIsRuntimeThrowableBox() {
-        let box = RuntimeAssertionErrorBox(message: "test")
+        let box: Any = RuntimeAssertionErrorBox(message: "test")
         XCTAssertTrue(box is RuntimeThrowableBox)
     }
 
@@ -98,7 +98,7 @@ final class RuntimeAssertionsTests: XCTestCase {
     }
 
     func testIllegalStateExceptionBoxIsRuntimeThrowableBox() {
-        let box = RuntimeIllegalStateExceptionBox(message: "test")
+        let box: Any = RuntimeIllegalStateExceptionBox(message: "test")
         XCTAssertTrue(box is RuntimeThrowableBox)
     }
 
@@ -144,7 +144,7 @@ final class RuntimeAssertionsTests: XCTestCase {
     }
 
     func testIllegalArgumentExceptionBoxIsRuntimeThrowableBox() {
-        let box = RuntimeIllegalArgumentExceptionBox(message: "test")
+        let box: Any = RuntimeIllegalArgumentExceptionBox(message: "test")
         XCTAssertTrue(box is RuntimeThrowableBox)
     }
 
@@ -281,32 +281,32 @@ final class RuntimeAssertionsTests: XCTestCase {
     // MARK: - Type Discrimination
 
     func testAssertionErrorBoxIsDistinctFromIllegalStateBox() {
-        let assertionBox = RuntimeAssertionErrorBox(message: "test")
+        let assertionBox: Any = RuntimeAssertionErrorBox(message: "test")
         XCTAssertFalse(assertionBox is RuntimeIllegalStateExceptionBox)
     }
 
     func testAssertionErrorBoxIsDistinctFromIllegalArgumentBox() {
-        let assertionBox = RuntimeAssertionErrorBox(message: "test")
+        let assertionBox: Any = RuntimeAssertionErrorBox(message: "test")
         XCTAssertFalse(assertionBox is RuntimeIllegalArgumentExceptionBox)
     }
 
     func testIllegalStateBoxIsDistinctFromIllegalArgumentBox() {
-        let stateBox = RuntimeIllegalStateExceptionBox(message: "test")
+        let stateBox: Any = RuntimeIllegalStateExceptionBox(message: "test")
         XCTAssertFalse(stateBox is RuntimeIllegalArgumentExceptionBox)
     }
 
     func testNoWhenBranchMatchedBoxIsDistinctFromIllegalStateBox() {
-        let noWhenBox = RuntimeNoWhenBranchMatchedExceptionBox(message: "test")
+        let noWhenBox: Any = RuntimeNoWhenBranchMatchedExceptionBox(message: "test")
         XCTAssertFalse(noWhenBox is RuntimeIllegalStateExceptionBox)
     }
 
     func testConcurrentModificationBoxIsDistinctFromNoWhenBox() {
-        let concurrentModificationBox = RuntimeConcurrentModificationExceptionBox(message: "test")
+        let concurrentModificationBox: Any = RuntimeConcurrentModificationExceptionBox(message: "test")
         XCTAssertFalse(concurrentModificationBox is RuntimeNoWhenBranchMatchedExceptionBox)
     }
 
     func testArrayIndexOutOfBoundsBoxIsDistinctFromConcurrentModificationBox() {
-        let arrayIndexBox = RuntimeArrayIndexOutOfBoundsExceptionBox(message: "test")
+        let arrayIndexBox: Any = RuntimeArrayIndexOutOfBoundsExceptionBox(message: "test")
         XCTAssertFalse(arrayIndexBox is RuntimeConcurrentModificationExceptionBox)
     }
 
