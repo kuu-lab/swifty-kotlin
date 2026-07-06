@@ -326,9 +326,11 @@
   - 完了: `*To` 変種も Kotlin source 側へ追加し、synthetic List member / lowering direct runtime rewrite / `RuntimeABISpec` / `StdlibSurfaceSpec` / `RuntimeCollectionHOF.swift` の public legacy List filter 経路を削除。`ListFilterHOFSourceMigrationTests` で source bind と旧 member link 不在を確認。
   - 削除: `kk_list_filter`, `kk_list_filterNot`, `kk_list_filterNotNull`, `kk_list_filterIndexed`, `kk_list_filterIsInstance` + `*To` 変種（`RuntimeCollectionHOF.swift`）/ `HeaderHelpers+SyntheticListTransformMembers.swift` の同登録 / `CallLowerer+CollectionHOFMemberCalls.swift` の同 case
   - 手順: T
-- [ ] KSP-307: ListWindowChunk を配線する（`chunked`, `windowed`, `zip`, `zipWithNext`, `withIndex`）
+- [x] KSP-307: ListWindowChunk を配線する（`chunked`, `windowed`, `zip`, `zipWithNext`, `withIndex`）
   - 削除: `kk_list_chunked`, `kk_list_chunked_transform`, `kk_list_windowed`, `kk_list_windowed_default`, `kk_list_windowed_partial`, `kk_list_windowed_transform`, `kk_list_zip`, `kk_list_zipWithNext`, `kk_list_zipWithNextTransform` / 対応スタブ（`HeaderHelpers+SyntheticListTransformMembers.swift`, `+SyntheticListAggregateMembers.swift`）
   - 手順: T
+  - 完了(2026-07-07): `ListWindowChunk.kt` を bundled source として有効化し、public `kk_list_*` synthetic/member/runtime ABI を削除。実行経路は private `__kk_list_*` bridge に降格し、`withIndex` は既存 residual `kk_list_withIndex` を維持
+  - 検証: `ListWindowChunkSourceMigrationTests`, `CollectionHOFManifestDecodeErrorTests`, `ABIMismatchTests`, KIR regression, diff `list_chunked_windowed.kt` / `chunked_transform.kt` / `windowed_step_partial.kt` / `list_windowed_transform.kt` / `list_zip.kt` / `list_zipwithnext_orempty.kt` / `list_indexed_helpers.kt`
 - [ ] KSP-308: SequenceWindowChunk を配線する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
   - 前提: KSP-441（Sequence 遅延パイプラインの Kotlin 表現）。それまで着手不可
   - 削除: `kk_sequence_take`, `kk_sequence_takeWhile`, `kk_sequence_drop`, `kk_sequence_dropWhile`, `kk_sequence_chunked`, `kk_sequence_chunked_transform`, `kk_sequence_windowed`, `kk_sequence_windowed_transform`, `kk_sequence_zip`, `kk_sequence_zipWithNext`, `kk_sequence_zipWithNextTransform`, `kk_sequence_distinct`, `kk_sequence_distinctBy`（`RuntimeSequence.swift`）/ `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` の同登録

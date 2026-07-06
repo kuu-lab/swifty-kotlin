@@ -85,9 +85,8 @@ extension CallTypeChecker {
         }
         if !isSequenceReceiver {
             activeCollectionHOFNames.remove("flatMapIndexed")
-            // List.zip already resolves through its registered synthetic member
-            // stub (kk_list_zip) via normal overload resolution, which sets
-            // chosenCallee. Only Sequence needs this generic fast path.
+            // List.zip resolves through bundled Kotlin source. Only Sequence
+            // needs this generic fast path until KSP-308 removes its bridge.
             activeCollectionHOFNames.remove("zip")
         } else {
             activeCollectionHOFNames.remove("mapIndexedNotNull")

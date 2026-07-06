@@ -16,6 +16,10 @@ extension ABIMismatchTests {
     /// Frozen snapshot of the pre-DEBT-KIR-003 handwritten non-throwing set.
     /// Guards against drift while `isThrowing` metadata is migrated into `RuntimeABISpec`.
     private static let legacyNonThrowingCalleeNames: Set<String> = [
+        "__kk_list_chunked",
+        "__kk_list_windowed",
+        "__kk_list_zip",
+        "__kk_list_zipWithNext",
         "__kk_random_seed_entropy",
         "kk_abort_unreachable",
         "kk_any_equals",
