@@ -91,6 +91,35 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
+    func testCoroutineLoweringKeepsRangeLoopSequenceBuildersOnLegacyRuntimeABI() throws {
+        let source = """
+        fun main() {
+            val seq = sequence {
+                for (i in 1..5) {
+                    yield(i * i)
+                }
+            }
+            println(seq)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceBuilderRangeLoopLegacy", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let functions = findAllKIRFunctions(in: module)
+            let allCallees = functions.flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
+
+            #expect(allCallees.contains("kk_sequence_builder_build"), "Callees: \(allCallees)")
+            #expect(!allCallees.contains("kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+        }
+    }
+
+    @Test
     func testCoroutineLoweringSpillsAndReloadsLiveValuesAcrossSuspension() throws {
         let interner = StringInterner()
         let arena = KIRArena()

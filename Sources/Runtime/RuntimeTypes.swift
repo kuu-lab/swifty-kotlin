@@ -1321,8 +1321,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
 
         if usesCPSProducer {
             let continuation = kk_coroutine_continuation_new(functionID)
-            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(closureRaw))
-            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(builderHandle))
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(builderHandle))
+            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(closureRaw))
             stateLock.lock()
             producerContinuationRaw = continuation
             stateLock.unlock()

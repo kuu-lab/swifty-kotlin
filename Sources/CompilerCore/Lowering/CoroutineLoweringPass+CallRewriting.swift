@@ -659,6 +659,32 @@ extension CoroutineLoweringPass {
         {
             return nil
         }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsAnyCallee(
+               symbol: loweredTarget.symbol,
+               callees: [
+                   rewrite.ctx.interner.intern("kk_coroutine_continuation_new"),
+                   rewrite.ctx.interner.intern("kk_range_iterator"),
+                   rewrite.ctx.interner.intern("kk_range_hasNext"),
+                   rewrite.ctx.interner.intern("kk_range_next"),
+               ],
+               module: rewrite.module
+           )
+        {
+            return nil
+        }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCalleeNamedLike(
+               symbol: loweredTarget.symbol,
+               module: rewrite.module,
+               interner: rewrite.ctx.interner,
+               isMatch: { name in
+                   name.hasPrefix("kk_lambda_") || name.hasPrefix("kk_suspend_kk_lambda_")
+               }
+           )
+        {
+            return nil
+        }
 
         let entryPointSymbol = entryPointSymbol(
             for: referencedSymbol,
@@ -700,6 +726,14 @@ extension CoroutineLoweringPass {
         callee: InternedString,
         module: KIRModule
     ) -> Bool {
+        loweredFunctionContainsAnyCallee(symbol: symbol, callees: [callee], module: module)
+    }
+
+    private func loweredFunctionContainsAnyCallee(
+        symbol: SymbolID,
+        callees: Set<InternedString>,
+        module: KIRModule
+    ) -> Bool {
         for decl in module.arena.declarations {
             guard case let .function(function) = decl,
                   function.symbol == symbol
@@ -708,10 +742,35 @@ extension CoroutineLoweringPass {
             }
             return function.body.contains { instruction in
                 if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
-                    return instructionCallee == callee
+                    return callees.contains(instructionCallee)
                 }
                 if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
-                    return instructionCallee == callee
+                    return callees.contains(instructionCallee)
+                }
+                return false
+            }
+        }
+        return false
+    }
+
+    private func loweredFunctionContainsCalleeNamedLike(
+        symbol: SymbolID,
+        module: KIRModule,
+        interner: StringInterner,
+        isMatch: (String) -> Bool
+    ) -> Bool {
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  function.symbol == symbol
+            else {
+                continue
+            }
+            return function.body.contains { instruction in
+                if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                    return isMatch(interner.resolve(instructionCallee))
+                }
+                if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                    return isMatch(interner.resolve(instructionCallee))
                 }
                 return false
             }
