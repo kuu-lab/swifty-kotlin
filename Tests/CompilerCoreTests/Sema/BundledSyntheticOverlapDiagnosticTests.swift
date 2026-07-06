@@ -101,6 +101,10 @@ struct BundledSyntheticOverlapDiagnosticTests {
         )
 
         assertHasDiagnostic("KSWIFTK-SEMA-0102", in: makeContext(diagnostics: diagnostics))
+        let warning = diagnostics.diagnostics.first { $0.code == "KSWIFTK-SEMA-0102" }
+        #expect(warning?.severity == .warning)
+        #expect(warning?.message.contains("Synthetic stub 'count'") == true)
+        #expect(warning?.message.contains("'kotlin.collections.List' (arity 1)") == true)
     }
 
     @Test

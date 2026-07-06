@@ -533,7 +533,7 @@ final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
     }
 
     func write(_ data: Data) throws {
-        var buf = pending + Array(data)
+        let buf = pending + Array(data)
         // Encode full 3-byte groups
         var idx = 0
         var encoded: [UInt8] = []

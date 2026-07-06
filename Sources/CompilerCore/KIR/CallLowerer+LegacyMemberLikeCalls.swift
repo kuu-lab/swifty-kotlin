@@ -1973,18 +1973,6 @@ extension CallLowerer {
                         // toByteArray(startIndex, endIndex) shares the ByteArray-returning range function with encodeToByteArray.
                         ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     }
-                case "commonPrefixWith":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_commonPrefixWith_ignoreCase_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_commonPrefixWith_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    }
-                case "commonSuffixWith":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_commonSuffixWith_ignoreCase_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_commonSuffixWith_flat", [loweredReceiverID, loweredArgIDs[0]])
-                    }
                 case "removePrefix":
                     ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":
@@ -2333,23 +2321,6 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_replaceIndentByMargin_flat"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            // STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "commonPrefixWith" || calleeStr == "commonSuffixWith"
-            {
-                let runtimeName = calleeStr == "commonPrefixWith"
-                    ? "kk_string_commonPrefixWith_ignoreCase_flat"
-                    : "kk_string_commonSuffixWith_ignoreCase_flat"
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(runtimeName),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,

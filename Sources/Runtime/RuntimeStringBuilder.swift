@@ -30,11 +30,11 @@ private func runtimeThrowStringIndexOutOfBounds(
     message: String
 ) {
     guard let outThrown else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: StringIndexOutOfBoundsException: \(message)")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: StringBuilder bounds exception escaped without outThrown: \(message)")
     }
     runtimeSetThrown(
         outThrown,
-        runtimeAllocateThrowable(message: "StringIndexOutOfBoundsException: \(message)")
+        runtimeAllocateStringIndexOutOfBoundsException(message: message)
     )
 }
 
@@ -210,6 +210,7 @@ public func kk_string_builder_insert_obj_flat(
 }
 
 private func runtimeStringBuilderInsert(_ sbRaw: Int, index: Int, value str: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     _ = sbInsert(sb, at: index, string: str, outThrown: outThrown)
     return sbRaw
@@ -456,6 +457,7 @@ private func runtimeStringBuilderInsertRange(
     endIndex: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index <= utf8Count else {
@@ -513,6 +515,7 @@ private func runtimeStringBuilderSetRange(
     value: String,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let len = sb.value.utf8.count
     guard startIndex >= 0, startIndex <= len, endIndex >= startIndex, endIndex <= len else {
