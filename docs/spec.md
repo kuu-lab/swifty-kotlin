@@ -128,6 +128,10 @@ public final class CompilationContext: @unchecked Sendable {
 }
 ```
 
+上記 `CompilationContext` はコアフィールドの抜粋。incremental compilation 系
+（`incrementalCache` / `incrementalRecompileSet` / `incrementalFrontendState` 等）や `phaseTimer` を含む
+全フィールドは `Sources/CompilerCore/Driver/CompilationContext.swift` を正とする。
+
 ## J1.4 Phase 実行プロトコル
 
 ```swift

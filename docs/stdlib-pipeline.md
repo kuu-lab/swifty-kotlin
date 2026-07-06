@@ -11,7 +11,8 @@ Kotlin ソースで stdlib を実装するための設計メモ。TODO.md の Ph
 **ゴール**: stdlib の純ロジック（イテレーション・変換・比較・整形等）を Kotlin ソースとして実装し、
 コンパイラ（Swift）側は「言語コア + ランタイムブリッジ」だけを持つ状態にする。
 
-- `HeaderHelpers+Synthetic*`（約130ファイル / 約8.3万行）を、(a) 削除・(b) Kotlin 移行・(c) 真の組込残留の
+- `HeaderHelpers+Synthetic*`（規模は `Scripts/loc_report.sh` の `header_helpers_synthetic_total_lines` が正。
+  2026-07-06 時点で 121 ファイル / 約8.2万行）を、(a) 削除・(b) Kotlin 移行・(c) 真の組込残留の
   3分類（§9）に沿って縮減する
 - 挙動の正は **kotlinc 2.3.10**。`Scripts/diff_kotlinc.sh` を回帰 oracle とする
 - ランタイム ABI 表面を「ユーザーコードから直接呼ばれる `kk_*`」から
@@ -28,16 +29,17 @@ stdlib 実装は 3 系統に分散している。
 
 | 系統 | 場所 | 規模 | 状態 |
 |---|---|---|---|
-| 合成スタブ (Swift) | `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift` | ~130 ファイル / ~8.3万行 | 主力。Sema 時に宣言登録し `kk_*` へ直結 |
-| バンドル Kotlin ソース | `Sources/CompilerCore/Stdlib/kotlin/**/*.kt` | ~20 ファイル / ~2,300 行 | `LoadSourcesPhase` が `__bundled_*.kt` として注入（RF-STDLIB-002 済） |
+| 合成スタブ (Swift) | `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift` | 121 ファイル / ~8.2万行 (2026-07-06) | 主力。Sema 時に宣言登録し `kk_*` へ直結 |
+| バンドル Kotlin ソース | `Sources/CompilerCore/Stdlib/kotlin/**/*.kt` | 25 ファイル / ~2,500 行 (2026-07-06) | `LoadSourcesPhase` が `__bundled_*.kt` として注入（RF-STDLIB-002 済） |
 | インライン Kotlin 文字列 | `Sources/CompilerCore/Driver/BundledKotlinStdlib.swift` | ~550 行 | residual。§6 で廃止対象 |
 
 補足:
 
-- `LoadSourcesPhase.excludedBundledStdlibFiles`（18 エントリ）が「.kt は存在するが未配線」のファイルを
+- `LoadSourcesPhase.excludedBundledStdlibFiles` が「.kt は存在するが未配線」のファイルを
   除外している。除外リストは**移行の暫定措置**であり、最終状態では空にする
+  （エントリ数は移行の進捗で単調減少する。現在値は `Driver/FrontendPhases.swift` の定義を参照）
 - ルート `Stdlib/kotlin/` に死蔵 .kt が残っている（RF-HYG-003/004 参照）。§6 の単一ツリーへ統合する
-- ランタイムは `@_cdecl` 関数 ~1,800 個、署名は `RuntimeABISpec`（specVersion 管理）で宣言
+- ランタイムは `@_cdecl` 関数 ~2,900 個（2026-07-06 実測。`grep -rhoE '@_cdecl\("kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include='*.swift' | sort -u | wc -l`）、署名は `RuntimeABISpec`（specVersion 管理）で宣言
 
 ## 3. あるべき姿 (to-be): 3層モデル
 
