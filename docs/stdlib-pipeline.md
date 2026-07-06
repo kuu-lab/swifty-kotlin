@@ -169,6 +169,18 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 - `diff_kotlinc.sh`: 移行した各 API に対応する diff ケースを `Scripts/diff_cases/` に**必ず追加**する。
   kotlinc と意図的に挙動を変えない限り `// SKIP-DIFF` は使わない
 
+実装ステータス（2026-07-06）:
+
+- `LoadSourcesPhase` は bundled / residual stdlib sources を `__bundled_*` path の辞書順に登録し、
+  `Tests/CompilerCoreTests/Driver/BundledStdlibOrderingTests.swift` が「bundled がユーザー入力より先」
+  と「bundled 同士が辞書順」を固定している
+- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` で bundled declSite symbols を
+  除外し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が 0 件になる状態を維持する
+- Diagnostics golden / CLI diagnostics は `DiagnosticEngine.render` / `renderJSON` が source location、
+  severity、code、message で render 時ソートする
+- `Scripts/diff_kotlinc.sh` は `find | sort` の case discovery、interleaved sharding、parallel worker logs の
+  input-order replay で report / console output の順序を安定化している
+
 ## 9. 合成スタブ 3 分類棚卸し (RF-STUB-001)
 
 分類基準:
