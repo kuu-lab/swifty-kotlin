@@ -1878,14 +1878,14 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_toDouble_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toDouble_flat",
+                "__kk_string_toDouble_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toDouble_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toDoubleOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toDoubleOrNull_flat",
+                "__kk_string_toDoubleOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toDoubleOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
@@ -1900,14 +1900,14 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toFloat_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toFloat_flat",
+                "__kk_string_toFloat_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toFloat_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toFloatOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toFloatOrNull_flat",
+                "__kk_string_toFloatOrNull_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toFloatOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
@@ -1939,14 +1939,14 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toBigDecimal_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBigDecimal_flat",
+                "__kk_string_toBigDecimal_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBigDecimal_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toBigInteger_flat",
+                "__kk_string_toBigInteger_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_toBigInteger_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true

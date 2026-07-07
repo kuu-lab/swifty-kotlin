@@ -46,7 +46,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toBigDecimal",
+            name: "__kk_string_toBigDecimal",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -55,7 +55,7 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toBigDecimalOrNull",
+            name: "__kk_string_toBigDecimalOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],

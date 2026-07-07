@@ -56,8 +56,12 @@ struct StringToDoubleFunctionTests {
                 resolvedReturnType == sema.types.doubleType,
                 "String.toDouble() should return Double"
             )
+            #expect(resolvedLink == nil || resolvedLink?.isEmpty == true)
+            let privateFq = ["kotlin", "text", "__kk_string_toDouble"].map { ctx.interner.intern($0) }
+            let privateSymbol = sema.symbols.lookup(fqName: privateFq)
+            #expect(privateSymbol != nil)
+            #expect(sema.symbols.externalLinkName(for: privateSymbol!) == "__kk_string_toDouble")
         }
-        #expect(resolvedLink == "kk_string_toDouble")
     }
 
     @Test func testStringToDoubleCallBindsToRuntimeBridge() throws {
@@ -85,8 +89,8 @@ struct StringToDoubleFunctionTests {
                 "Expected call binding for toDouble"
             )
             #expect(
-                sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_toDouble",
-                "String.toDouble() should resolve to kk_string_toDouble"
+                sema.symbols.externalLinkName(for: chosenCallee) == nil || sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty == true,
+                "String.toDouble() should resolve to standard library function (no direct external link)"
             )
         }
     }

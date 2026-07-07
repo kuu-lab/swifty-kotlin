@@ -892,25 +892,25 @@ public func kk_string_toByteOrNull_flat(
     kk_string_toByteOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
-@_cdecl("kk_string_toFloat_flat")
-public func kk_string_toFloat_flat(
+@_cdecl("__kk_string_toFloat_flat")
+public func __kk_string_toFloat_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_toFloat(kk_string_from_flat(data, length, byteCount, hash), outThrown)
+    __kk_string_toFloat(kk_string_from_flat(data, length, byteCount, hash), outThrown)
 }
 
-@_cdecl("kk_string_toFloatOrNull_flat")
-public func kk_string_toFloatOrNull_flat(
+@_cdecl("__kk_string_toFloatOrNull_flat")
+public func __kk_string_toFloatOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    kk_string_toFloatOrNull(kk_string_from_flat(data, length, byteCount, hash))
+    __kk_string_toFloatOrNull(kk_string_from_flat(data, length, byteCount, hash))
 }
 
 @_cdecl("kk_string_toSortedSet_flat")

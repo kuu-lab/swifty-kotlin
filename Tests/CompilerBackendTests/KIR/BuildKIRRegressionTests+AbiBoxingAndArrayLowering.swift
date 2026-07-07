@@ -590,7 +590,7 @@ final class BuildKIRCodegenRegressionTests: XCTestCase {
             XCTAssertNil(throwFlags["kk_string_repeat_flat"])
             XCTAssertNil(throwFlags["kk_string_repeat"])
             XCTAssertEqual(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true }, true)
-            XCTAssertEqual(throwFlags["kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
         }
     }
 
