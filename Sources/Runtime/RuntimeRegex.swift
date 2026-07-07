@@ -529,6 +529,17 @@ public func kk_string_split_regex_flat(
     )
 }
 
+@_cdecl("__kk_string_split_regex_flat")
+public func __kk_string_split_regex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ regexRaw: Int
+) -> Int {
+    kk_string_split_regex_flat(data, length, byteCount, hash, regexRaw)
+}
+
 private func runtimeStringSplitRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringListRaw([rawStr]) }
     let str = regexBox.normalizeIfNeeded(rawStr)

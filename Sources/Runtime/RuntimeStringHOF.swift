@@ -1380,6 +1380,11 @@ public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
+@_cdecl("__kk_string_splitToSequence")
+public func __kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
+    kk_string_splitToSequence(strRaw, delimRaw)
+}
+
 @_cdecl("kk_string_splitToSequence_flat")
 public func kk_string_splitToSequence_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1419,6 +1424,13 @@ public func kk_string_joinToString(
     }
     let result = prefix + strings.joined(separator: separator) + postfix
     return runtimeMakeStringRaw(result)
+}
+
+@_cdecl("__kk_string_joinToString")
+public func __kk_string_joinToString(
+    _ strListRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int
+) -> Int {
+    kk_string_joinToString(strListRaw, separatorRaw, prefixRaw, postfixRaw)
 }
 
 @_cdecl("kk_string_find")

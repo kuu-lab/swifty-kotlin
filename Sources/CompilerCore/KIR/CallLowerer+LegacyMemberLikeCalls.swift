@@ -1885,7 +1885,7 @@ extension CallLowerer {
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
-                        ("kk_string_split_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
+                        ("__kk_string_split_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
                         nil
                     }
