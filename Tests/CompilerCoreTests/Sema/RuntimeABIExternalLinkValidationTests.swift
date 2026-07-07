@@ -57,6 +57,8 @@ struct RuntimeABIExternalLinkValidationTests {
             "__kk_string_encodeToByteArray_flat": 4,
             "__kk_string_encodeToByteArray_range_flat": 6,
             "__kk_string_encodeToByteArray_charset_flat": 5,
+            "__kk_bytearray_decodeToString": 1,
+            "__kk_bytearray_decodeToString_charset": 2,
             "__kk_bytearray_decodeToString_range": 4,
             "__kk_bytearray_decodeToString_range_throw": 5,
             "__kk_byteArray_toKString": 5,
