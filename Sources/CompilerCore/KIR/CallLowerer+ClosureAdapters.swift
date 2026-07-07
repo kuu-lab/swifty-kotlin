@@ -314,6 +314,12 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        // Suspend callables are lowered through coroutine launcher/invoke paths,
+        // not the ordinary kk_function_create_N function-value ABI.
+        guard !functionType.isSuspend else {
+            return loweredArgID
+        }
+
         var loweredCallableID = loweredArgID
         var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if callableInfo == nil,
