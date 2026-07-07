@@ -28,10 +28,7 @@ private external fun <T> __kk_set_of(array: Any?, count: Int): MutableSet<T>
 private external fun <K, V> __kk_emptyMap(): Map<K, V>
 
 @KsSymbolName("kk_map_of")
-private external fun <K, V> __kk_map_of_readonly(keys: Any?, values: Any?, count: Int): Map<K, V>
-
-@KsSymbolName("kk_map_of")
-private external fun <K, V> __kk_map_of_mutable(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
+private external fun <K, V> __kk_map_of(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
 
 // --- emptyList / emptySet / emptyMap -----------------------------------------
 
@@ -45,7 +42,15 @@ public fun <K, V> emptyMap(): Map<K, V> = __kk_emptyMap()
 
 public fun <T> listOf(): List<T> = emptyList()
 
-public fun <T> listOf(vararg elements: T): List<T> = elements
+@Suppress("UNCHECKED_CAST")
+public fun <T> listOf(vararg elements: T): List<T> {
+    if (elements.size == 0) return emptyList<T>()
+    val result: MutableList<T> = __kk_list_of(null, 0)
+    for (element in elements) {
+        result.add(element)
+    }
+    return result as List<T>
+}
 
 public fun <T> mutableListOf(): MutableList<T> = __kk_list_of(null, 0)
 
@@ -84,24 +89,20 @@ public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
 
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
 
+@Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     if (pairs.size == 0) return emptyMap<K, V>()
-    val count = pairs.size
-    val keys = arrayOfNulls<Any?>(count)
-    val values = arrayOfNulls<Any?>(count)
-    var index = 0
+    val result: MutableMap<K, V> = __kk_map_of(null, null, 0)
     for (pair in pairs) {
-        keys[index] = pair.first
-        values[index] = pair.second
-        index += 1
+        result[pair.first] = pair.second
     }
-    return __kk_map_of_readonly(keys, values, count)
+    return result as Map<K, V>
 }
 
-public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_map_of_mutable(null, null, 0)
+public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_map_of(null, null, 0)
 
 public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
-    val result: MutableMap<K, V> = __kk_map_of_mutable(null, null, 0)
+    val result: MutableMap<K, V> = __kk_map_of(null, null, 0)
     for (pair in pairs) {
         result[pair.first] = pair.second
     }

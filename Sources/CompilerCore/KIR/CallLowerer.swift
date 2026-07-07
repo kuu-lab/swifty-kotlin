@@ -803,6 +803,19 @@ final class CallLowerer {
         ) {
             return loweredToList
         }
+        if let loweredCollectionFactory = tryLowerCollectionFactoryCall(
+            sourceCalleeName: sourceCalleeName,
+            args: args,
+            loweredArgIDs: loweredArgIDs,
+            chosenCallee: chosen,
+            boundType: boundType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return loweredCollectionFactory
+        }
         if args.count == 1,
            let loweredNumericConversion = lowerTopLevelNumericConversionCall(
                sourceCalleeName: sourceCalleeName,
