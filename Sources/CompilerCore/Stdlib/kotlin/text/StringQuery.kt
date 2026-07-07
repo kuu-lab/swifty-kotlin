@@ -4,10 +4,7 @@ package kotlin.text
 // String query helpers migrated from Swift runtime entry points.
 
 public fun String.first(): Char {
-    if (length == 0) {
-        throw NoSuchElementException("Char sequence is empty.")
-    }
-    return this[0]
+    return this.__kk_string_first()
 }
 
 public fun String.first(predicate: (Char) -> Boolean): Char {
@@ -25,10 +22,7 @@ public fun String.first(predicate: (Char) -> Boolean): Char {
 }
 
 public fun String.firstOrNull(): Char? {
-    if (length == 0) {
-        return null
-    }
-    return this[0]
+    return this.__kk_string_firstOrNull()
 }
 
 public fun String.firstOrNull(predicate: (Char) -> Boolean): Char? {
@@ -46,11 +40,7 @@ public fun String.firstOrNull(predicate: (Char) -> Boolean): Char? {
 }
 
 public fun String.last(): Char {
-    val sz = length
-    if (sz == 0) {
-        throw NoSuchElementException("Char sequence is empty.")
-    }
-    return this[sz - 1]
+    return this.__kk_string_last()
 }
 
 public fun String.last(predicate: (Char) -> Boolean): Char {
@@ -67,9 +57,7 @@ public fun String.last(predicate: (Char) -> Boolean): Char {
 }
 
 public fun String.lastOrNull(): Char? {
-    val sz = length
-    if (sz == 0) return null
-    return this[sz - 1]
+    return this.__kk_string_lastOrNull()
 }
 
 public fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
@@ -86,10 +74,7 @@ public fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
 }
 
 public fun String.single(): Char {
-    val sz = length
-    if (sz == 1) return this[0]
-    if (sz == 0) throw NoSuchElementException("Char sequence is empty.")
-    throw IllegalArgumentException("Char sequence has more than one element.")
+    return this.__kk_string_single()
 }
 
 public fun String.single(predicate: (Char) -> Boolean): Char {
@@ -115,8 +100,7 @@ public fun String.single(predicate: (Char) -> Boolean): Char {
 }
 
 public fun String.singleOrNull(): Char? {
-    if (length == 1) return this[0]
-    return null
+    return this.__kk_string_singleOrNull()
 }
 
 public fun String.singleOrNull(predicate: (Char) -> Boolean): Char? {
@@ -139,6 +123,5 @@ public fun String.singleOrNull(predicate: (Char) -> Boolean): Char? {
 }
 
 public fun String.getOrNull(index: Int): Char? {
-    if (index < 0 || index >= length) return null
-    return this[index]
+    return this.__kk_string_getOrNull(index)
 }

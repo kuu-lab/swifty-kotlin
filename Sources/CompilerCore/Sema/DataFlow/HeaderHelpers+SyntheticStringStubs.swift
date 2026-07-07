@@ -2139,6 +2139,81 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // KSP-402: Public String query APIs are bundled Kotlin wrappers. These
+        // private bridges keep UTF-16 string indexing semantics in the runtime.
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_first",
+            externalLinkName: "kk_string_first_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_last",
+            externalLinkName: "kk_string_last_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_single",
+            externalLinkName: "kk_string_single_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_firstOrNull",
+            externalLinkName: "kk_string_firstOrNull_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_lastOrNull",
+            externalLinkName: "kk_string_lastOrNull_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_singleOrNull",
+            externalLinkName: "kk_string_singleOrNull_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_getOrNull",
+            externalLinkName: "kk_string_getOrNull_flat",
+            receiverType: stringType,
+            parameters: [
+                ("index", intType, false, false),
+            ],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "filter",
             externalLinkName: "kk_string_filter",

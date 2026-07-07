@@ -182,6 +182,7 @@ extension CodegenBackendIntegrationTests {
             println("abc".getOrNull(1))
             println("abc".getOrNull(-1))
             println("abc".getOrNull(3))
+            println("hello🌟".lastOrNull())
         }
         """
         try assertKotlinOutput(
@@ -206,6 +207,7 @@ extension CodegenBackendIntegrationTests {
                 b
                 null
                 null
+                ?
                 """
                 + "\n"
         )
