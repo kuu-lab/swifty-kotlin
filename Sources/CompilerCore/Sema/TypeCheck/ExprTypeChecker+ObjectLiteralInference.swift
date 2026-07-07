@@ -344,6 +344,38 @@ extension ExprTypeChecker {
             sema.symbols.setSourceFileID(ctx.currentFileID, for: memberSymbol)
             objectScope.insert(memberSymbol)
 
+            var parameterTypes: [TypeID] = []
+            var parameterSymbols: [SymbolID] = []
+            for param in functionDecl.valueParams {
+                let paramType: TypeID = if let typeRefID = param.type {
+                    driver.helpers.resolveTypeRef(
+                        typeRefID,
+                        ast: ast,
+                        sema: sema,
+                        interner: interner,
+                        scope: objectScope,
+                        diagnostics: ctx.semaCtx.diagnostics,
+                        inferenceContext: ctx,
+                        usageRange: functionDecl.range
+                    )
+                } else {
+                    sema.types.anyType
+                }
+                parameterTypes.append(paramType)
+
+                let paramSymbol = sema.symbols.define(
+                    kind: .valueParameter,
+                    name: param.name,
+                    fqName: [objectDecl.name, functionDecl.name, param.name],
+                    declSite: functionDecl.range,
+                    visibility: .private,
+                    flags: []
+                )
+                sema.symbols.setParentSymbol(memberSymbol, for: paramSymbol)
+                sema.symbols.setPropertyType(paramType, for: paramSymbol)
+                parameterSymbols.append(paramSymbol)
+            }
+
             let returnType: TypeID
             if let returnTypeRef = functionDecl.returnType {
                 returnType = driver.helpers.resolveTypeRef(
@@ -367,9 +399,12 @@ extension ExprTypeChecker {
             sema.symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: objectType,
-                    parameterTypes: [],
+                    parameterTypes: parameterTypes,
                     returnType: returnType,
-                    isSuspend: functionDecl.isSuspend
+                    isSuspend: functionDecl.isSuspend,
+                    valueParameterSymbols: parameterSymbols,
+                    valueParameterHasDefaultValues: functionDecl.valueParams.map(\.hasDefaultValue),
+                    valueParameterIsVararg: functionDecl.valueParams.map(\.isVararg)
                 ),
                 for: memberSymbol
             )
