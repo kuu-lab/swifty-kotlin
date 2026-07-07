@@ -994,6 +994,38 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
+    func testSourceBackedStringSplitResultIsTreatedAsListForPrintlnRewrite() throws {
+        let source = """
+        fun main() {
+            val parts = "1,2,3".split(",")
+            println(parts)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try #require(ctx.kir)
+            let kirCtx = KIRContext(
+                diagnostics: ctx.diagnostics,
+                options: ctx.options,
+                interner: ctx.interner,
+                sema: ctx.sema
+            )
+
+            try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
+
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+            #expect(callees.contains("split"), "Expected public split to stay source-backed, got: \(callees)")
+            #expect(
+                callees.contains("kk_list_to_string"),
+                "source-backed split result should still be recognized as list for println rewrite"
+            )
+        }
+    }
+
+    @Test
     func testListMinusCollectionResultIsTreatedAsListForPrintlnRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
