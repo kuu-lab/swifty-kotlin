@@ -952,65 +952,6 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
     }
 }
 
-/// Applies a map transformation to elements using the given function pointer.
-/// Lambda signature: (closureRaw, elem, outThrown) -> Int (same as list HOFs).
-func applyMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
-    var mapped: [Int] = []
-    mapped.reserveCapacity(elements.count)
-    for elem in elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
-            return []
-        }
-        mapped.append(maybeUnbox(result))
-    }
-    return mapped
-}
-
-/// Applies a filter transformation to elements using the given function pointer.
-/// Lambda signature: (closureRaw, elem, outThrown) -> Int (same as list HOFs).
-func applyFilterStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
-    var filtered: [Int] = []
-    for elem in elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
-            return []
-        }
-        if runtimeCollectionBool(result) {
-            filtered.append(elem)
-        }
-    }
-    return filtered
-}
-
-/// Applies a filterNot transformation: keeps elements where predicate returns false.
-/// Lambda signature: (closureRaw, elem, outThrown) -> Int (same as list HOFs).
-func applyFilterNotStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
-    var filtered: [Int] = []
-    for elem in elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
-            return []
-        }
-        if !runtimeCollectionBool(result) {
-            filtered.append(elem)
-        }
-    }
-    return filtered
-}
-
 /// Applies a takeWhile transformation: takes elements while predicate returns true.
 private func applyTakeWhileStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     let predicate = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
@@ -1058,35 +999,6 @@ private func applyDropWhileStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, 
     return result
 }
 
-/// Applies a mapNotNull transformation: maps elements and filters out null values.
-func applyMapNotNullStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
-    var mapped: [Int] = []
-    mapped.reserveCapacity(elements.count)
-    for elem in elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
-            return []
-        }
-        if let normalized = runtimeMapNotNullResultValue(result) {
-            mapped.append(normalized)
-        }
-    }
-    return mapped
-}
-
-/// Applies a filterNotNull transformation: filters out null values.
-private func applyFilterNotNullStep(_ elements: [Int]) -> [Int] {
-    return elements.filter { runtimeNormalizeNullableCollectionValue($0) != nil }
-}
-
-private func applyFilterIsInstanceStep(_ elements: [Int], typeToken: Int) -> [Int] {
-    return elements.filter { kk_op_is($0, typeToken) != 0 }
-}
-
 /// Applies a requireNoNulls transformation: fails on the first null element.
 private func applyRequireNoNullsStep(_ elements: [Int], outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
     for elem in elements where runtimeNormalizeNullableCollectionValue(elem) == nil {
@@ -1099,64 +1011,6 @@ private func applyRequireNoNullsStep(_ elements: [Int], outThrown: UnsafeMutable
         return []
     }
     return elements
-}
-
-/// Applies a mapIndexed transformation: maps elements with their index.
-private func applyMapIndexedStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
-    var mapped: [Int] = []
-    mapped.reserveCapacity(elements.count)
-    for (idx, elem) in elements.enumerated() {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: idx, rhs: elem, outThrown: &thrown)
-        if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
-            return []
-        }
-        mapped.append(maybeUnbox(result))
-    }
-    return mapped
-}
-
-/// Applies a mapIndexedNotNull transformation: maps elements with their index and filters out null values.
-private func applyMapIndexedNotNullStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
-    var mapped: [Int] = []
-    mapped.reserveCapacity(elements.count)
-    for (idx, elem) in elements.enumerated() {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: idx, rhs: elem, outThrown: &thrown)
-        if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
-            return []
-        }
-        if let normalized = runtimeMapNotNullResultValue(result) {
-            mapped.append(normalized)
-        }
-    }
-    return mapped
-}
-
-/// Applies an onEachIndexed transformation: runs a side effect with index and value.
-private func applyFilterIndexedStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
-    var filtered: [Int] = []
-    filtered.reserveCapacity(elements.count)
-    for (idx, elem) in elements.enumerated() {
-        var thrown = 0
-        let keep = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: idx, rhs: elem, outThrown: &thrown) != 0
-        if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
-            return []
-        }
-        if keep {
-            filtered.append(elem)
-        }
-    }
-    return filtered
 }
 
 private func applyOnEachIndexedStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
@@ -3218,28 +3072,19 @@ public func kk_sequence_fold(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var acc = initial
     if let seq = runtimeSequenceBox(from: seqRaw) {
         runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let nextAcc = lambda(closureRaw, acc, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            acc = maybeUnbox(nextAcc)
+            let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+            if step.thrown != 0 { return false }
+            acc = step.accumulator
             return true
         }
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let nextAcc = lambda(closureRaw, acc, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return initial
-            }
-            acc = maybeUnbox(nextAcc)
+            let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+            if step.thrown != 0 { return initial }
+            acc = step.accumulator
         }
     }
     if let outThrown, outThrown.pointee != 0 { return initial }
@@ -3253,7 +3098,6 @@ public func kk_sequence_reduce(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var hasAccumulator = false
     var acc = 0
     let visit: (Int) -> Bool = { elem in
@@ -3262,13 +3106,9 @@ public func kk_sequence_reduce(
             acc = elem
             return true
         }
-        var thrown = 0
-        let nextAcc = lambda(closureRaw, acc, elem, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         return true
     }
 
@@ -3304,19 +3144,9 @@ public func kk_sequence_reduceOrNull(
             acc = maybeUnbox(elem)
             return true
         }
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda2(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            lhs: acc,
-            rhs: elem,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return false
-        }
-        acc = maybeUnbox(nextAcc)
+        let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+        if step.thrown != 0 { return false }
+        acc = step.accumulator
         return true
     }
 
@@ -3346,29 +3176,15 @@ public func kk_sequence_reduceRight(
         outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
         return 0
     }
-    guard let last = elements.last else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceCannotReduce)
-        return 0
-    }
-    var acc = maybeUnbox(last)
-    guard elements.count > 1 else { return acc }
-
-    for index in stride(from: elements.count - 2, through: 0, by: -1) {
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda2(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            lhs: elements[index],
-            rhs: acc,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        acc = maybeUnbox(nextAcc)
-    }
-    return acc
+    return runtimeReduceRightElements(
+        elements,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        emptyResult: 0,
+        throwResult: 0,
+        emptyMessage: kEmptySequenceCannotReduce,
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_sequence_reduceRightIndexedOrNull")
@@ -3388,27 +3204,15 @@ public func kk_sequence_reduceRightIndexedOrNull(
         outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
         return 0
     }
-    guard let last = elements.last else { return runtimeNullSentinelInt }
-    var acc = maybeUnbox(last)
-    guard elements.count > 1 else { return acc }
-
-    for index in stride(from: elements.count - 2, through: 0, by: -1) {
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda3(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            arg1: index,
-            arg2: elements[index],
-            arg3: acc,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        acc = maybeUnbox(nextAcc)
-    }
-    return acc
+    return runtimeReduceRightIndexedElements(
+        elements,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        emptyResult: runtimeNullSentinelInt,
+        throwResult: 0,
+        emptyMessage: nil,
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_sequence_reduceRightOrNull")
@@ -3428,26 +3232,15 @@ public func kk_sequence_reduceRightOrNull(
         outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
         return 0
     }
-    guard let last = elements.last else { return runtimeNullSentinelInt }
-    var acc = maybeUnbox(last)
-    guard elements.count > 1 else { return acc }
-
-    for index in stride(from: elements.count - 2, through: 0, by: -1) {
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda2(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            lhs: elements[index],
-            rhs: acc,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        acc = maybeUnbox(nextAcc)
-    }
-    return acc
+    return runtimeReduceRightElements(
+        elements,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        emptyResult: runtimeNullSentinelInt,
+        throwResult: 0,
+        emptyMessage: nil,
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_sequence_reduceRightIndexed")
@@ -3467,30 +3260,15 @@ public func kk_sequence_reduceRightIndexed(
         outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
         return 0
     }
-    guard let last = elements.last else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceCannotReduce)
-        return 0
-    }
-    var acc = maybeUnbox(last)
-    guard elements.count > 1 else { return acc }
-
-    for index in stride(from: elements.count - 2, through: 0, by: -1) {
-        var thrown = 0
-        let nextAcc = runtimeInvokeCollectionLambda3(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            arg1: index,
-            arg2: elements[index],
-            arg3: acc,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        acc = maybeUnbox(nextAcc)
-    }
-    return acc
+    return runtimeReduceRightIndexedElements(
+        elements,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        emptyResult: 0,
+        throwResult: 0,
+        emptyMessage: kEmptySequenceCannotReduce,
+        outThrown: outThrown
+    )
 }
 
 // MARK: - Sequence Operations: chunked/windowed/onEach (STDLIB-276)
