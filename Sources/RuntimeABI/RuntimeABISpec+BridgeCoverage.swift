@@ -380,8 +380,6 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_instant_from_epoch_millis", section: "System", params: ["millis"],
             isThrowing: false),
-            bridgeSpec("kk_instant_elapsed", section: "System", params: ["instantRaw"],
-            isThrowing: false),
             bridgeSpec("kk_instant_is_distant_future", section: "System", params: ["instantRaw"],
             isThrowing: false),
             bridgeSpec("kk_instant_is_distant_past", section: "System", params: ["instantRaw"],
