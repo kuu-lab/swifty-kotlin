@@ -1245,6 +1245,22 @@ extension CallLowerer {
             return result
         }
 
+        if let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            loweredReceiverID: loweredReceiverID,
+            loweredArgIDs: loweredArgIDs,
+            normalizedArgIDs: normalizedArgIDs,
+            result: result,
+            instructions: &instructions
+        ) {
+            return tableDrivenStringMember
+        }
+
         // String stdlib: nullable-receiver 0-arg methods (NULL-002)
         // isNullOrEmpty/isNullOrBlank pass the raw (potentially null) receiver pointer to C runtime.
         if args.isEmpty {
