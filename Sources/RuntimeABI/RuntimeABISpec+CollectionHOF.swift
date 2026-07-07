@@ -640,23 +640,26 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
-        return before.map { hofSpec($0) }
-            + [filterNotNullSpec, requireNoNullsSpec, foldSpec]
-            + [
+        var functions: [RuntimeABIFunctionSpec] = []
+        functions.append(contentsOf: before.map { hofSpec($0) })
+        functions.append(contentsOf: [filterNotNullSpec, requireNoNullsSpec, foldSpec])
+        functions.append(contentsOf: [
                 filterIsInstanceToSpec,
                 filterToSpec, filterNotToSpec, mapToSpec, flatMapToSpec,
                 mapNotNullToSpec, filterNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
                 iterableAllSpec, iterableAnySpec, iterableLastSpec, mapIndexedToSpec, mapIndexedNotNullToSpec, flatMapIndexedToSpec,
                 filterIndexedToSpec,
-            ]
-            + genericAfter.flatMap { name in
+            ])
+        functions.append(
+            contentsOf: genericAfter.flatMap { name in
                 if name == "kk_list_sortedBy" {
                     return [hofSpec(name), sortedByPrimitiveSpec]
                 }
                 return [hofSpec(name)]
             }
-            + [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec]
-            + [
+        )
+        functions.append(contentsOf: [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec])
+        functions.append(contentsOf: [
                 associateBySpec, associateByTransformSpec, associateWithSpec, associateSpec, associateToSpec,
                 RuntimeABIFunctionSpec(
                     name: "kk_list_associateByTo",
@@ -1385,6 +1388,7 @@ public extension RuntimeABISpec {
                     section: "Collection",
             isThrowing: false
                 ),
-            ]
+            ])
+        return functions
     }()
 }
