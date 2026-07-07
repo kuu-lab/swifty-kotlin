@@ -115,7 +115,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/comparisons/Comparators",
         "kotlin/ranges/RangeIterators",
         "kotlin/ranges/RangeMembership",
-        "kotlin/text/StringBuilder",
         "kotlin/text/StringIndentFormat",
     ]
 

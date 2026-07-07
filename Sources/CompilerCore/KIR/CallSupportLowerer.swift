@@ -370,6 +370,8 @@ final class CallSupportLowerer {
                         argIndices: argIndices,
                         providedArguments: providedArguments,
                         spreadFlags: spreadFlags,
+                        varargElementType: signature.parameterTypes[paramIndex],
+                        sema: sema,
                         listifyResult: !preserveArrayVarargs,
                         arena: arena,
                         interner: interner,
@@ -447,6 +449,8 @@ final class CallSupportLowerer {
         argIndices: [Int],
         providedArguments: [KIRExprID],
         spreadFlags: [Bool],
+        varargElementType: TypeID? = nil,
+        sema: SemaModule? = nil,
         listifyResult: Bool = true,
         arena: KIRArena,
         interner: StringInterner,
@@ -503,10 +507,20 @@ final class CallSupportLowerer {
                 ))
                 let valueIdxExpr = arena.appendExpr(.intLiteral(Int64(pairIdx * 2 + 1)), type: intType)
                 instructions.append(.constValue(result: valueIdxExpr, value: .intLiteral(Int64(pairIdx * 2 + 1))))
+                let valueArgument = boxedVarargArgumentIfNeeded(
+                    providedArguments[idx],
+                    isSpread: isSpread,
+                    varargElementType: varargElementType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    fallbackAnyType: anyType,
+                    instructions: &instructions
+                )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [pairsArray, valueIdxExpr, providedArguments[idx]],
+                    arguments: [pairsArray, valueIdxExpr, valueArgument],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil
@@ -549,10 +563,20 @@ final class CallSupportLowerer {
         for (slotIndex, argIndex) in argIndices.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(slotIndex)), type: intType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(slotIndex))))
+            let valueArgument = boxedVarargArgumentIfNeeded(
+                providedArguments[argIndex],
+                isSpread: false,
+                varargElementType: varargElementType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                fallbackAnyType: anyType,
+                instructions: &instructions
+            )
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),
-                arguments: [arrayID, indexExpr, providedArguments[argIndex]],
+                arguments: [arrayID, indexExpr, valueArgument],
                 result: nil,
                 canThrow: false,
                 thrownResult: nil
@@ -570,6 +594,41 @@ final class CallSupportLowerer {
             )
         }
         return arrayID
+    }
+
+    private func boxedVarargArgumentIfNeeded(
+        _ argument: KIRExprID,
+        isSpread: Bool,
+        varargElementType: TypeID?,
+        sema: SemaModule?,
+        arena: KIRArena,
+        interner: StringInterner,
+        fallbackAnyType: TypeID,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard !isSpread,
+              let sema,
+              let varargElementType,
+              sema.types.makeNonNullable(varargElementType) == sema.types.anyType,
+              let argumentType = arena.exprType(argument),
+              let boxCallee = BoxingCalleeTable(interner: interner).boxCallee(
+                  for: sema.types.kind(of: argumentType),
+                  requireNonNull: true
+              )
+        else {
+            return argument
+        }
+
+        let boxedArgument = arena.appendTemporary(type: sema.types.makeNullable(fallbackAnyType))
+        instructions.append(.call(
+            symbol: nil,
+            callee: boxCallee,
+            arguments: [argument],
+            result: boxedArgument,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return boxedArgument
     }
 
     private func emitArrayToList(
