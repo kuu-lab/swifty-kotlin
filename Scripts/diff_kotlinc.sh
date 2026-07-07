@@ -42,9 +42,10 @@ Options:
   --kotlinc-classpath <path>
                      Additional classpath for kotlinc and java (default: \$KOTLINC_CLASSPATH)
   --java <path>      Path to java command (default: java)
-  --parallel [n]    Enable parallel execution with n workers (default: 1, 0 = disabled)
-  --no-parallel      Disable parallel execution
-  --jobs <n>         Number of parallel workers (default: env DIFF_WORKERS, default: 4, clipped by CPU)
+  --parallel         Enable parallel execution (default)
+  --no-parallel      Disable parallel execution (run cases serially)
+  --jobs <n>         Number of parallel workers (0 = serial;
+                     default: env DIFF_WORKERS, else CPU count)
   --shard-index <n>  0-based shard index for distributed runs (default: \$DIFF_SHARD_INDEX or 0)
   --shard-count <n>  Total number of shards; case i runs when i % count == index
                      (default: \$DIFF_SHARD_COUNT or 1 = no sharding)
@@ -64,6 +65,9 @@ Options:
   -h, --help         Show this help
 
 Environment:
+  DIFF_PARALLEL      1 = parallel (default), 0 = serial. Values > 1 are
+                     deprecated and treated as DIFF_WORKERS
+  DIFF_WORKERS       Number of parallel workers (0 = serial); same as --jobs
   DIFF_LOG_PASS      If 0 or false, omit PASS lines (FAIL/SKIP/CASE unchanged; default: 1)
   DIFF_SHARD_INDEX / DIFF_SHARD_COUNT
                      Run only every Nth case (interleaved) so N runners can split
@@ -108,12 +112,7 @@ while [[ $# -gt 0 ]]; do
       JAVA_BIN="$1"
       ;;
     --parallel)
-      if [[ $# -gt 1 && "$2" =~ ^[0-9]+$ ]]; then
-        DIFF_PARALLEL="$2"
-        shift
-      else
-        DIFF_PARALLEL=1
-      fi
+      DIFF_PARALLEL=1
       ;;
     --no-parallel)
       DIFF_PARALLEL=0
@@ -297,16 +296,31 @@ fi
 
 ensure_kotlinc_classpath
 
-# DIFF_PARALLEL can be any integer value (0, 1, 2, 3, 4, etc.)
-# 0 = disabled, 1+ = enabled with that many parallel workers
+# DIFF_PARALLEL is a boolean toggle: 0 = serial, 1 = parallel (default).
+# Worker count comes from DIFF_WORKERS / --jobs. Values >= 2 are deprecated
+# and treated as a DIFF_WORKERS fallback for backward compatibility.
 if ! [[ "$DIFF_PARALLEL" =~ ^[0-9]+$ ]]; then
-  echo "DIFF_PARALLEL must be a non-negative integer: $DIFF_PARALLEL" >&2
+  echo "DIFF_PARALLEL must be 0 or 1: $DIFF_PARALLEL" >&2
   exit 1
 fi
 
-if [[ -n "$DIFF_WORKERS" ]] && ! [[ "$DIFF_WORKERS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "DIFF_WORKERS must be a positive integer: $DIFF_WORKERS" >&2
+if (( DIFF_PARALLEL > 1 )); then
+  echo "warning: DIFF_PARALLEL=$DIFF_PARALLEL (values > 1) is deprecated; use DIFF_WORKERS=$DIFF_PARALLEL or --jobs $DIFF_PARALLEL instead" >&2
+  if [[ -z "$DIFF_WORKERS" ]]; then
+    DIFF_WORKERS="$DIFF_PARALLEL"
+  fi
+  DIFF_PARALLEL=1
+fi
+
+if [[ -n "$DIFF_WORKERS" ]] && ! [[ "$DIFF_WORKERS" =~ ^(0|[1-9][0-9]*)$ ]]; then
+  echo "DIFF_WORKERS must be a non-negative integer (0 = serial): $DIFF_WORKERS" >&2
   exit 1
+fi
+
+# --jobs 0 / DIFF_WORKERS=0 means serial execution.
+if [[ "$DIFF_WORKERS" == "0" ]]; then
+  DIFF_PARALLEL=0
+  DIFF_WORKERS=""
 fi
 
 if ! [[ "$DIFF_SHARD_COUNT" =~ ^[1-9][0-9]*$ ]]; then
@@ -376,24 +390,15 @@ jar_main_class() {
     | awk -F': ' '/^Main-Class:/ { print $2; exit }'
 }
 
-WORKER_COUNT="${DIFF_WORKERS:-}"
-if [[ -z "$WORKER_COUNT" ]]; then
-  WORKER_COUNT="$(detect_workers)"
-  [[ -z "$WORKER_COUNT" ]] && WORKER_COUNT=4
-fi
-
-# Handle DIFF_PARALLEL: 0 = disabled, 1+ = enabled with specified workers
+# Worker count: serial when disabled, else explicit DIFF_WORKERS / --jobs,
+# else auto-detected CPU count (fallback 4).
 if [[ "$DIFF_PARALLEL" -eq 0 ]]; then
   WORKER_COUNT=1
-elif [[ "$DIFF_PARALLEL" -gt 1 ]]; then
-  # Use DIFF_PARALLEL as the worker count if it's greater than 1
-  WORKER_COUNT="$DIFF_PARALLEL"
+elif [[ -n "$DIFF_WORKERS" ]]; then
+  WORKER_COUNT="$DIFF_WORKERS"
 else
-  # DIFF_PARALLEL = 1, use auto-detection with CPU limit
-  CPU_LIMIT="$(detect_workers)"
-  if [[ -n "$CPU_LIMIT" && "$WORKER_COUNT" -gt "$CPU_LIMIT" ]]; then
-    WORKER_COUNT="$CPU_LIMIT"
-  fi
+  WORKER_COUNT="$(detect_workers)"
+  [[ -z "$WORKER_COUNT" ]] && WORKER_COUNT=4
 fi
 
 if [[ "$WORKER_COUNT" -lt 1 ]]; then

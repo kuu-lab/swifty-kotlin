@@ -482,7 +482,9 @@ extension DataFlowSemaPhase {
     func registerLateListIndexedMembers(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
         let listFQName = kotlinCollectionsPkg + [interner.intern("List")]
@@ -503,7 +505,9 @@ extension DataFlowSemaPhase {
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
+            listTypeParamType: listTypeParamType,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
         registerListComponentNMembers(
             symbols: symbols, types: types, interner: interner,

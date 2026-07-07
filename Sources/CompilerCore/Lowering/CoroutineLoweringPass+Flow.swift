@@ -138,25 +138,59 @@ extension CoroutineLoweringPass {
             }
 
             var symbolByExprRaw: [Int32: SymbolID] = [:]
+            var ambiguousSymbolExprRaws: Set<Int32> = []
+
+            func markAmbiguousSymbolExpr(_ raw: Int32) -> Bool {
+                var changed = false
+                if symbolByExprRaw.removeValue(forKey: raw) != nil {
+                    changed = true
+                }
+                if ambiguousSymbolExprRaws.insert(raw).inserted {
+                    changed = true
+                }
+                return changed
+            }
+
+            for instruction in function.body {
+                guard case let .constValue(result, .symbolRef(symbol)) = instruction else {
+                    continue
+                }
+                let raw = result.rawValue
+                if let existing = symbolByExprRaw[raw], existing != symbol {
+                    _ = markAmbiguousSymbolExpr(raw)
+                } else if !ambiguousSymbolExprRaws.contains(raw) {
+                    symbolByExprRaw[raw] = symbol
+                }
+            }
+
             var propagatedSymbols = true
             while propagatedSymbols {
                 propagatedSymbols = false
                 for instruction in function.body {
-                    switch instruction {
-                    case let .constValue(result, .symbolRef(symbol)):
-                        if symbolByExprRaw[result.rawValue] != symbol {
-                            symbolByExprRaw[result.rawValue] = symbol
-                            propagatedSymbols = true
-                        }
-                    case let .copy(from, to):
-                        if let symbol = symbolByExprRaw[from.rawValue],
-                           symbolByExprRaw[to.rawValue] != symbol
-                        {
-                            symbolByExprRaw[to.rawValue] = symbol
-                            propagatedSymbols = true
-                        }
-                    default:
+                    guard case let .copy(from, to) = instruction else {
                         continue
+                    }
+
+                    let fromRaw = from.rawValue
+                    let toRaw = to.rawValue
+                    if ambiguousSymbolExprRaws.contains(fromRaw) {
+                        if markAmbiguousSymbolExpr(toRaw) {
+                            propagatedSymbols = true
+                        }
+                        continue
+                    }
+                    guard let symbol = symbolByExprRaw[fromRaw],
+                          !ambiguousSymbolExprRaws.contains(toRaw)
+                    else {
+                        continue
+                    }
+                    if let existing = symbolByExprRaw[toRaw] {
+                        if existing != symbol, markAmbiguousSymbolExpr(toRaw) {
+                            propagatedSymbols = true
+                        }
+                    } else {
+                        symbolByExprRaw[toRaw] = symbol
+                        propagatedSymbols = true
                     }
                 }
             }

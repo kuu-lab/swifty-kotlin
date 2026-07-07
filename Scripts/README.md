@@ -132,23 +132,27 @@ Omit `PASS` lines in logs (CI uses `DIFF_LOG_PASS=0`):
 DIFF_LOG_PASS=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-You can control parallel execution:
+You can control parallel execution. The worker count is set by `--jobs <n>`
+(or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
+script runs in parallel with one worker per CPU:
 
 ```bash
-# Enable/disable with environment variable
-DIFF_PARALLEL=1 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
-DIFF_PARALLEL=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
-
-# Override workers explicitly
+# Set the worker count explicitly (0 = serial)
+bash Scripts/diff_kotlinc.sh --jobs 4 Scripts/diff_cases
 DIFF_WORKERS=4 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
-# Or via command line options
-bash Scripts/diff_kotlinc.sh --parallel --jobs 4 Scripts/diff_cases
+# Disable parallel execution
 bash Scripts/diff_kotlinc.sh --no-parallel Scripts/diff_cases
+DIFF_PARALLEL=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-`DIFF_PARALLEL`/`DIFF_WORKERS` parallelize within one machine. To split the case
-set across several machines (CI shards the regression over 4 runners this way),
+`DIFF_PARALLEL` is a boolean toggle (`0` = serial, `1` = parallel, the
+default). Setting it to a number greater than 1 is deprecated — it prints a
+warning and is treated as `DIFF_WORKERS`.
+
+`DIFF_WORKERS` parallelizes within one machine. To split the case
+set across several machines (CI shards the regression this way; the current
+shard count is the diff-regression matrix in `.github/workflows/ci.yml`),
 use interleaved sharding — case `i` runs only when `i % count == index`:
 
 ```bash

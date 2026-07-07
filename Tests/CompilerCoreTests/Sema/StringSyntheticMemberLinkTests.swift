@@ -68,7 +68,6 @@ struct StringSyntheticMemberLinkTests {
 
         let expected: [String: String] = [
             "trim": "kk_string_trim_flat",
-            "split": "kk_string_split_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt",
@@ -88,6 +87,26 @@ struct StringSyntheticMemberLinkTests {
                 "String.\(member) should link to \(expectedLink), got \(links.sorted())"
             )
         }
+        #expect(
+            !externalLinks(for: "split", sema: sema, interner: interner)
+                .contains("kk_string_split_flat"),
+            "String.split(String) should be source-backed after RF-STDLIB-005"
+        )
+        #expect(
+            externalLinks(for: "__kk_string_split", sema: sema, interner: interner)
+                .contains("kk_string_split_flat"),
+            "String.__kk_string_split should bridge to kk_string_split_flat"
+        )
+        #expect(
+            externalLinks(for: "__kk_string_split_limit", sema: sema, interner: interner)
+                .contains("kk_string_split_limit_flat"),
+            "String.__kk_string_split_limit should bridge to kk_string_split_limit_flat"
+        )
+        #expect(
+            externalLinks(for: "__kk_string_splitToSequence", sema: sema, interner: interner)
+                .contains("kk_string_splitToSequence_flat"),
+            "String.__kk_string_splitToSequence should bridge to kk_string_splitToSequence_flat"
+        )
         #expect(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
                 .contains("kk_string_indexOfAny_chars"),
