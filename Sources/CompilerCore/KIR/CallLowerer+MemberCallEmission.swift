@@ -969,7 +969,9 @@ extension CallLowerer {
             finalArguments.append(continuationExpr)
         }
         if (loweredCallee == interner.intern("kk_comparator_nulls_first")
-            || loweredCallee == interner.intern("kk_comparator_nulls_last")),
+            || loweredCallee == interner.intern("kk_comparator_nulls_last")
+            || loweredCallee == interner.intern("kk_comparator_nulls_first_of")
+            || loweredCallee == interner.intern("kk_comparator_nulls_last_of")),
            finalArguments.count == 1
         {
             let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)

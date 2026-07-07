@@ -506,6 +506,15 @@ extension CallLowerer {
             return loweredArguments
         }
 
+        if (externalLinkName == "kk_comparator_nulls_first_of"
+            || externalLinkName == "kk_comparator_nulls_last_of"),
+           loweredArguments.count == 1
+        {
+            let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
+            return [loweredArguments[0], zeroClosureExpr]
+        }
+
         // Worker.execute has an explicit receiver followed by:
         // (mode, producer, job). The runtime ABI expects both lambdas as
         // (fnPtr, closureRaw) pairs.

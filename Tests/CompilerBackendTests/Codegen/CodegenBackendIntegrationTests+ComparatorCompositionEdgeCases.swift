@@ -222,6 +222,27 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testCodegenCompilesTopLevelNullsFirstAndLastComparatorWrappers() throws {
+        let source = """
+        fun main() {
+            val values = listOf(14, null, 3, null, 25, 17, 4)
+            println(values.sortedWith(nullsFirst(compareBy<Int> { it })))
+            println(values.sortedWith(nullsLast(compareBy<Int> { it })))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TopLevelNullsFirstLastComparatorWrappers",
+            expected:
+                """
+                [null, null, 3, 4, 14, 17, 25]
+                [3, 4, 14, 17, 25, null, null]
+                """
+                + "\n"
+        )
+    }
+
     func testCodegenCompilesComparatorCompositionEdgeCases() throws {
         let source = """
         data class Entry(val group: Int, val score: Int)
