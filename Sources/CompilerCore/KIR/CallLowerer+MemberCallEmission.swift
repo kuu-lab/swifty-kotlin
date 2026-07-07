@@ -1059,6 +1059,25 @@ extension CallLowerer {
             || loweredCallee == interner.intern("kk_clock_system_now") {
             callArguments = []
         }
+        if let bridgeCall = listWindowChunkMemberSourceBridgeCall(
+            calleeName: loweredCallee,
+            receiverExpr: receiver.expr,
+            argumentCount: callArguments.count,
+            sema: sema,
+            interner: interner
+        ) {
+            instructions.append(.call(
+                symbol: nil,
+                callee: bridgeCall.callee,
+                arguments: callArguments,
+                result: result,
+                canThrow: bridgeCall.canThrow,
+                thrownResult: bridgeCall.canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil,
+                isSuperCall: isSuperCall,
+                qualifiedSuperType: qualifiedSuperType
+            ))
+            return
+        }
         let resultHOFCallees = resultSingleLambdaRuntimeCallees.union([
             interner.intern("kk_result_fold"),
         ])
@@ -1289,6 +1308,55 @@ extension CallLowerer {
             interner.intern("kk_result_getOrThrow"),
             interner.intern("kk_reentrant_read_write_lock_read"),
         ])
+    }
+
+    private func listWindowChunkMemberSourceBridgeCall(
+        calleeName: InternedString,
+        receiverExpr: ExprID,
+        argumentCount: Int,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (callee: InternedString, canThrow: Bool)? {
+        let receiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType)
+        let isListWindowChunkReceiver = isConcreteListLikeType(receiverType, sema: sema, interner: interner)
+            || isSetLikeType(receiverType, sema: sema, interner: interner)
+            || isIterableOrCollectionInterfaceType(receiverType, sema: sema, interner: interner)
+            || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
+        guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        let callee: String
+        let canThrow: Bool
+        switch (interner.resolve(calleeName), argumentCount) {
+        case ("chunked", 2):
+            callee = "__kk_list_chunked"
+            canThrow = false
+        case ("chunked", 4):
+            callee = "__kk_list_chunked_transform"
+            canThrow = true
+        case ("windowed", 4):
+            callee = "__kk_list_windowed"
+            canThrow = false
+        case ("windowed", 6):
+            callee = "__kk_list_windowed_transform"
+            canThrow = true
+        case ("zip", 2):
+            callee = "__kk_list_zip"
+            canThrow = false
+        case ("zip", 4):
+            callee = "__kk_list_zip_transform"
+            canThrow = true
+        case ("zipWithNext", 1):
+            callee = "__kk_list_zipWithNext"
+            canThrow = false
+        case ("zipWithNext", 3):
+            callee = "__kk_list_zipWithNextTransform"
+            canThrow = true
+        default:
+            return nil
+        }
+        return (interner.intern(callee), canThrow)
     }
 
     func splitCallableLambdaArgument(
