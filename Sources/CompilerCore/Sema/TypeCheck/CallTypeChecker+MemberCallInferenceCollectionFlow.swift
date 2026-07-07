@@ -66,23 +66,19 @@ extension CallTypeChecker {
             sema.types.anyType
         }
         let isFlowHOF = isFlowReceiver && flowHOFNames.contains(interner.resolve(calleeName))
-        let isCollectionReceiver = sema.bindings.isCollectionExpr(receiverID)
-            || isCollectionLikeType(receiverType, sema: sema, interner: interner)
-        let isArrayReceiver = isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isMapReceiver = isMapLikeCollectionType(receiverType, sema: sema, interner: interner)
-        let isMutableListReceiver = isMutableListType(receiverType, sema: sema, interner: interner)
-        let isListFactoryReceiver = isListCollectionFactoryReceiver(
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let receiverClassification = receiverClassifier.classify(
             receiverID: receiverID,
-            ast: ast,
-            sema: sema,
-            interner: interner
+            receiverType: receiverType,
+            ast: ast
         )
-        let isSyntheticSequenceReceiver = sema.bindings.isCollectionExpr(receiverID)
-            && !isCollectionLikeType(receiverType, sema: sema, interner: interner)
-            && !isMapReceiver
-            && !isListFactoryReceiver
-        let isSequenceReceiver = isSequenceLikeType(receiverType, sema: sema, interner: interner)
-            || isSyntheticSequenceReceiver
+        let isCollectionReceiver = receiverClassification.isCollectionReceiver
+        let isArrayReceiver = receiverClassification.isArrayReceiver
+        let isMapReceiver = receiverClassification.isMapReceiver
+        let isMutableListReceiver = receiverClassification.isMutableListReceiver
+        let isListFactoryReceiver = receiverClassification.isListFactoryReceiver
+        let isSyntheticSequenceReceiver = receiverClassification.isSyntheticSequenceReceiver
+        let isSequenceReceiver = receiverClassification.isSequenceReceiver
         var activeCollectionHOFNames = collectionHOFNames
         if !isMutableListReceiver {
             activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
@@ -103,12 +99,12 @@ extension CallTypeChecker {
         let isCollectionHOF = activeCollectionHOFNames.contains(interner.resolve(calleeName))
             && (isCollectionReceiver || isSequenceReceiver)
             && !(interner.resolve(calleeName) == "binarySearch"
-                && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner))
+                && isArrayReceiver)
 
         @discardableResult
         func bindBundledListSourceFunction(typeArguments: [TypeID]) -> Bool {
             guard (!isSequenceReceiver || isListFactoryReceiver),
-                  isConcreteListLikeType(receiverType, sema: sema, interner: interner) || isListFactoryReceiver
+                  receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver
             else {
                 return false
             }
@@ -128,7 +124,7 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner)
+                return receiverClassifier.isConcreteListLikeType(signatureReceiver)
             }) else {
                 return false
             }
@@ -221,8 +217,8 @@ extension CallTypeChecker {
                        // incorrectly bound to the List-only bundled function.
                        if let signatureReceiver = signature.receiverType,
                           (sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty,
-                          isConcreteListLikeType(signatureReceiver, sema: sema, interner: interner),
-                          !isConcreteListLikeType(receiverType, sema: sema, interner: interner) {
+                          receiverClassifier.isConcreteListLikeType(signatureReceiver),
+                          !receiverClassifier.isConcreteListLikeType(receiverType) {
                            return false
                        }
                        return true
@@ -312,7 +308,7 @@ extension CallTypeChecker {
         }
 
         if interner.resolve(calleeName) == "binarySearch",
-           isConcreteListLikeType(receiverType, sema: sema, interner: interner),
+           receiverClassifier.isConcreteListLikeType(receiverType),
            args.count == 1,
            let lambdaExpr = ast.arena.expr(args[0].expr),
            lambdaExpr.isLambdaOrCallableRef
@@ -339,7 +335,7 @@ extension CallTypeChecker {
         }
 
         if interner.resolve(calleeName) == "binarySearch",
-           isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+           isArrayReceiver
         {
             let knownNames = KnownCompilerNames(interner: interner)
             let receiverClassName: InternedString? = {
@@ -703,7 +699,7 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
-                    return isSequenceLikeType(signatureReceiver, sema: sema, interner: interner)
+                    return receiverClassifier.isSequenceLikeType(signatureReceiver)
                 }) else {
                     return
                 }
@@ -2242,7 +2238,7 @@ extension CallTypeChecker {
                    let firstTypeArgID = receiverTypeArgs.first
                 {
                     let explicitElemType = driver.helpers.resolveTypeRef(firstTypeArgID, ast: ast, sema: sema, interner: interner)
-                    if !isCollectionLikeType(explicitElemType, sema: sema, interner: interner) {
+                    if !receiverClassifier.isCollectionLikeType(explicitElemType) {
                         ctx.semaCtx.diagnostics.error(
                             "KSWIFTK-SEMA-0024",
                             "Unresolved member function 'flatten'.",
@@ -2256,7 +2252,7 @@ extension CallTypeChecker {
                 // Reject when the element type is a KNOWN non-collection (e.g. Int).
                 if !isSequenceReceiver && extractedInner == sema.types.anyType
                     && collectionElementType != sema.types.anyType
-                    && !isCollectionLikeType(collectionElementType, sema: sema, interner: interner) {
+                    && !receiverClassifier.isCollectionLikeType(collectionElementType) {
                     ctx.semaCtx.diagnostics.error(
                         "KSWIFTK-SEMA-0024",
                         "Unresolved member function 'flatten'.",
