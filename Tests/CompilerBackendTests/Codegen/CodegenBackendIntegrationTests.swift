@@ -321,7 +321,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
     }
 
     func testCodegenListOfIndexingUsesListRuntimeGet() throws {
-        throw XCTSkip("List indexing test temporarily disabled on Linux")
+        try XCTSkipIf(true, "List indexing test temporarily disabled on Linux")
         let source = """
         fun main() {
             val list = listOf(1, 2, 3)
@@ -1189,4 +1189,3 @@ final class CodegenBackendIntegrationTests: XCTestCase {
 
     // MARK: - Private Helpers
 }
-

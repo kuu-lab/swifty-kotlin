@@ -104,14 +104,14 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
         run: swift --version
       - name: Build compiler and tests
-        run: swift build --build-tests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/build_swift_tests.sh -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       # Smoke tests take ~10s once the build exists, so they run here instead
       # of a dedicated job whose checkout/toolchain/cache setup cost ~2 minutes.
       - name: Run smoke tests with strict concurrency warnings
@@ -160,8 +160,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
@@ -170,7 +170,7 @@ jobs:
         if: steps.spm-cache.outputs.cache-hit != 'true'
         env:
           SWIFT_TEST_BUILD_JOBS: "8"
-        run: swift build --build-tests -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run CompilerCoreTests shard ${{ matrix.shard }} with strict concurrency warnings
         env:
           SWIFT_TEST_WORKERS: "8"
@@ -241,8 +241,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
@@ -251,7 +251,7 @@ jobs:
         if: steps.spm-cache.outputs.cache-hit != 'true'
         env:
           SWIFT_TEST_BUILD_JOBS: "4"
-        run: swift build --build-tests -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run CompilerBackendTests shard ${{ matrix.shard }} with strict concurrency warnings
         env:
           SWIFT_TEST_WORKERS: "4"
@@ -341,8 +341,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Show toolchain versions
@@ -351,7 +351,7 @@ jobs:
         if: steps.spm-cache.outputs.cache-hit != 'true'
         env:
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        run: swift build --build-tests -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
         env:
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
@@ -427,8 +427,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          # Hash only SwiftPM build inputs so fixture/script-only changes can reuse the compiled .build cache.
-          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift') }}
+          # Hash SwiftPM inputs plus CI/test wrappers because wrapper flags decide how generated test runners are built.
+          key: spm-${{ runner.os }}-swift-6.2-swiftylab-v1-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**/*.swift', '.github/workflows/ci.yml', 'Scripts/**/*.sh', 'Scripts/lib/**') }}
           restore-keys: |
             spm-${{ runner.os }}-swift-6.2-swiftylab-v1-
       - name: Build kswiftc (on cache miss)

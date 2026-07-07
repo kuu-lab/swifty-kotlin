@@ -559,7 +559,8 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if loweredCallee == interner.intern("kk_sequence_zip_transform"),
+        if (loweredCallee == interner.intern("kk_sequence_zip_transform")
+            || loweredCallee == interner.intern("kk_list_zip_transform")),
            finalArguments.count == 3
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(

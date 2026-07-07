@@ -169,7 +169,7 @@ extension DataFlowSemaPhase {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if let equals = trimmed.firstIndex(of: "=") {
             let name = trimmed[..<equals].trimmingCharacters(in: .whitespacesAndNewlines)
-            if name == "value" {
+            if name == "name" || name == "value" {
                 trimmed = String(trimmed[trimmed.index(after: equals)...])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }

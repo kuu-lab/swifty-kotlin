@@ -5,7 +5,7 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesCoroutineBaseEdgeCases() throws {
-        throw XCTSkip("user-defined suspend delay/exception paths not yet correct (STDLIB-CORO-001, DEBT-CORO-004)")
+        try XCTSkipIf(true, "user-defined suspend delay/exception paths not yet correct (STDLIB-CORO-001, DEBT-CORO-004)")
         let source = """
         import kotlinx.coroutines.*
 
@@ -48,4 +48,3 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-

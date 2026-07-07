@@ -10,7 +10,7 @@ struct KsSymbolNameSemaTests {
 
         import kotlin.internal.KsSymbolName
 
-        @KsSymbolName("kk_bridge_identity")
+        @KsSymbolName(name = "kk_bridge_identity")
         external fun bridgeIdentity(value: Int): Int
         """
         let userSource = """
@@ -56,6 +56,34 @@ struct KsSymbolNameSemaTests {
         }
     }
 
+    @Test func bundledExternalFunctionWithoutBodyDoesNotRequireBody() throws {
+        let bundledSource = """
+        package bridge
+
+        external fun bridgeNoBody(value: Int): Int
+        """
+        let userSource = """
+        fun main(): Int = 1
+        """
+
+        try withTemporaryFile(contents: userSource) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            _ = ctx.sourceManager.addFile(
+                path: "__bundled_bridge_no_body.kt",
+                contents: Data(bundledSource.utf8)
+            )
+
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let bridgeFQName = ["bridge", "bridgeNoBody"].map { ctx.interner.intern($0) }
+            let bridgeSymbol = try #require(sema.symbols.lookup(fqName: bridgeFQName))
+            #expect(sema.symbols.functionSignature(for: bridgeSymbol) != nil)
+            assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
+        }
+    }
+
     @Test func userExternalFunctionIsRejectedWithoutBodylessDiagnostic() throws {
         let source = """
         external fun userBridge(value: Int): Int
@@ -63,6 +91,22 @@ struct KsSymbolNameSemaTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
+        }
+    }
+
+    @Test func userKsSymbolNameExternalFunctionReportsReservedDiagnostics() throws {
+        let source = """
+        import kotlin.internal.KsSymbolName
+
+        @KsSymbolName(name = "kk_user_bridge")
+        external fun userBridge(value: Int): Int
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0007", in: ctx)
             assertHasDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0009", in: ctx)
         }

@@ -1,3 +1,3 @@
 package kotlin.internal
 
-annotation class KsSymbolName(val value: String)
+internal annotation class KsSymbolName(val name: String)
