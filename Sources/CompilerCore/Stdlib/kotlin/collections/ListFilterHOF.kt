@@ -5,19 +5,51 @@ package kotlin.collections
 // Replaces the previous runtime-backed List filter helpers.
 
 public fun <T> List<T>.filter(predicate: (T) -> Boolean): List<T> {
-    return filterTo(mutableListOf<T>(), predicate)
+    val result = mutableListOf<T>()
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        val element = this[i]
+        if (predicate(element)) result.add(element)
+        i++
+    }
+    return result
 }
 
 public fun <T> List<T>.filterNot(predicate: (T) -> Boolean): List<T> {
-    return filterNotTo(mutableListOf<T>(), predicate)
+    val result = mutableListOf<T>()
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        val element = this[i]
+        if (!predicate(element)) result.add(element)
+        i++
+    }
+    return result
 }
 
 public fun <T : Any> List<T?>.filterNotNull(): List<T> {
-    return filterNotNullTo(mutableListOf<T>())
+    val result = mutableListOf<T>()
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        val element = this[i]
+        if (element != null) result.add(element)
+        i++
+    }
+    return result
 }
 
 public fun <T> List<T>.filterIndexed(predicate: (Int, T) -> Boolean): List<T> {
-    return filterIndexedTo(mutableListOf<T>(), predicate)
+    val result = mutableListOf<T>()
+    var i = 0
+    val sz = size
+    while (i < sz) {
+        val element = this[i]
+        if (predicate(i, element)) result.add(element)
+        i++
+    }
+    return result
 }
 
 public inline fun <reified R : Any> List<*>.filterIsInstance(): List<R> {
