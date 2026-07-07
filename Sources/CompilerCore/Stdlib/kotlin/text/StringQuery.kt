@@ -4,10 +4,11 @@ package kotlin.text
 // String query helpers migrated from Swift runtime entry points.
 
 public fun String.first(): Char {
-    if (isEmpty()) {
+    val chars = toCharArray()
+    if (chars.size == 0) {
         throw NoSuchElementException("Char sequence is empty.")
     }
-    return toCharArray()[0]
+    return chars[0]
 }
 
 public fun String.first(predicate: (Char) -> Boolean): Char {
@@ -27,7 +28,7 @@ public fun String.first(predicate: (Char) -> Boolean): Char {
 
 public fun String.firstOrNull(): Char? {
     val chars = toCharArray()
-    if (chars.isEmpty()) {
+    if (chars.size == 0) {
         return null
     }
     return chars[0]
@@ -50,16 +51,16 @@ public fun String.firstOrNull(predicate: (Char) -> Boolean): Char? {
 
 public fun String.last(): Char {
     val chars = toCharArray()
-    if (chars.isEmpty()) {
+    if (chars.size == 0) {
         throw NoSuchElementException("Char sequence is empty.")
     }
-    return chars[chars.lastIndex]
+    return chars[chars.size - 1]
 }
 
 public fun String.last(predicate: (Char) -> Boolean): Char {
     val chars = toCharArray()
     var foundIndex = -1
-    var i = chars.lastIndex
+    var i = chars.size - 1
     while (i >= 0 && foundIndex < 0) {
         if (predicate(chars[i])) {
             foundIndex = i
@@ -72,14 +73,14 @@ public fun String.last(predicate: (Char) -> Boolean): Char {
 
 public fun String.lastOrNull(): Char? {
     val chars = toCharArray()
-    if (chars.isEmpty()) return null
-    return chars[chars.lastIndex]
+    if (chars.size == 0) return null
+    return chars[chars.size - 1]
 }
 
 public fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
     val chars = toCharArray()
     var foundIndex = -1
-    var i = chars.lastIndex
+    var i = chars.size - 1
     while (i >= 0 && foundIndex < 0) {
         if (predicate(chars[i])) {
             foundIndex = i
