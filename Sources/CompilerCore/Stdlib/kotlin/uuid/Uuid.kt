@@ -1,5 +1,7 @@
 package kotlin.uuid
 
+@file:OptIn(ExperimentalUuidApi::class)
+
 import kotlin.internal.KsSymbolName
 
 private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
