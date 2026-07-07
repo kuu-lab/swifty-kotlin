@@ -263,23 +263,6 @@ extension KIRLoweringDriver {
             }
         }
 
-        let kotlinTextPackage = [
-            interner.intern("kotlin"),
-            interner.intern("text"),
-        ]
-        if packageFQName == kotlinTextPackage {
-            // These string APIs are source-backed for Sema, while call sites
-            // are still lowered by the String stdlib member call lowerers.
-            switch name {
-            case "trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin",
-                 "indent", "kk_drop", "hasPrefix", "splitIntoLines", "leadingWhitespaceCount",
-                 "isBlankLine", "trimBlankEdges":
-                return true
-            default:
-                return false
-            }
-        }
-
         let kotlinTimePackage = [
             interner.intern("kotlin"),
             interner.intern("time"),
