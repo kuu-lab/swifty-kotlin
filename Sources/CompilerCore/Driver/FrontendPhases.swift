@@ -121,7 +121,6 @@ final class LoadSourcesPhase: CompilerPhase {
         "kotlin/text/StringBasics",
         "kotlin/text/StringEncoding",
         "kotlin/text/StringIndentFormat",
-        "kotlin/text/StringSplitJoin",
     ]
 
     private func injectBundledStdlib(into sourceManager: SourceManager) {

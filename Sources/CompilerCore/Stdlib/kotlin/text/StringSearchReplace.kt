@@ -122,30 +122,6 @@ public fun String.replaceFirst(regex: Regex, replacement: String): String =
     this.__kk_replaceFirst_regex(regex, replacement)
 
 /**
- * Splits this string around matches of [delimiters].
- */
-public fun String.split(delimiters: String): List<String> =
-    this.__kk_split_string(delimiters)
-
-/**
- * Splits this string around matches of [delimiters], limiting the result size.
- */
-public fun String.split(delimiters: String, limit: Int): List<String> =
-    this.__kk_split_string_limit(delimiters, false, limit)
-
-/**
- * Splits this string around matches of [delimiters], optionally ignoring case.
- */
-public fun String.split(delimiters: String, ignoreCase: Boolean): List<String> =
-    this.__kk_split_string_limit(delimiters, ignoreCase, 0)
-
-/**
- * Splits this string around matches of [delimiters], optionally ignoring case and limiting the result size.
- */
-public fun String.split(delimiters: String, ignoreCase: Boolean, limit: Int): List<String> =
-    this.__kk_split_string_limit(delimiters, ignoreCase, limit)
-
-/**
  * Splits this string around matches of [regex].
  */
 public fun String.split(regex: Regex): List<String> =
@@ -156,12 +132,6 @@ private external fun String.__kk_replace_regex(regex: Regex, replacement: String
 
 @KsSymbolName("kk_string_replaceFirst_regex")
 private external fun String.__kk_replaceFirst_regex(regex: Regex, replacement: String): String
-
-@KsSymbolName("kk_string_split_flat")
-private external fun String.__kk_split_string(delimiters: String): List<String>
-
-@KsSymbolName("kk_string_split_limit_flat")
-private external fun String.__kk_split_string_limit(delimiters: String, ignoreCase: Boolean, limit: Int): List<String>
 
 @KsSymbolName("kk_string_split_regex_flat")
 private external fun String.__kk_split_regex(regex: Regex): List<String>

@@ -131,7 +131,7 @@ expr e@3:25 string(  hi  ) type=String
 expr e@3:25#1 memberCall recv=e@3:25 callee=trim args=[] type=String call=kotlin.text.trim#0
 expr e@5:32 string(1,2,3) type=String
 expr e@5:46 string(,) type=String
-expr e@5:32#1 memberCall recv=e@5:32 callee=split args=[_:e@5:46] type=kotlin.collections.List<String> call=kotlin.text.split#1
+expr e@5:32#1 memberCall recv=e@5:32 callee=split args=[_:e@5:46] type=kotlin.collections.List<String> call=kotlin.text.split#0
 expr e@7:28 string(abc) type=String
 expr e@7:42 string(a) type=String
 expr e@7:47 string(z) type=String
