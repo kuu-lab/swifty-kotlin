@@ -642,5 +642,22 @@ struct ComparatorOverloadResolutionTests {
             #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for nullsFirst/nullsLast usage, got: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    @Test func testNullableCompareBySelectorCanFeedNullsFirstAndLast() throws {
+        let source = """
+        fun sample(values: List<Int?>) {
+            val a = compareBy<Int?> { it }.nullsFirst()
+            val b = compareBy<Int?> { it }.nullsLast()
+            values.sortedWith(a)
+            values.sortedWith(b)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected nullable compareBy selectors to resolve, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif
