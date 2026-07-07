@@ -4005,7 +4005,7 @@ final class CallTypeChecker {
                         args: resolvedArgs,
                         explicitTypeArgs: explicitTypeArgs
                     ),
-                    expectedType: expectedType,
+                    expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                     implicitReceiverType: receiverType,
                     ctx: ctx.semaCtx
                 )
@@ -4014,7 +4014,8 @@ final class CallTypeChecker {
                     sema.bindings.markImplicitReceiverMember(id, name: calleeName)
                     sema.bindings.bindExprType(id, type: resultType)
                     return resultType
-                } else if let bestCandidate = memberCandidates.first,
+                } else if memberCandidates.count == 1,
+                          let bestCandidate = memberCandidates.first,
                           let sig = sema.symbols.functionSignature(for: bestCandidate)
                 {
                     // Fallback: bind directly if resolver could not pick (single candidate).

@@ -188,11 +188,13 @@ extension CallTypeChecker {
             return ambiguousCallResult(range: range)
         }
 
+        let contextualExpectedType = overloadResolutionExpectedType(from: expectedType, sema: ctx.sema)
+
         guard !inputOnlyLambdaIndices.isEmpty else {
             return ctx.resolver.resolveCall(
                 candidates: candidates,
                 call: call,
-                expectedType: expectedType,
+                expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 ctx: ctx.semaCtx
             )
@@ -253,7 +255,7 @@ extension CallTypeChecker {
             return ctx.resolver.resolveCall(
                 candidates: viableSymbols,
                 call: call,
-                expectedType: expectedType,
+                expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
                 ctx: ctx.semaCtx
             )
@@ -289,6 +291,15 @@ extension CallTypeChecker {
             )
         }
         return ambiguousCallResult(range: range)
+    }
+
+    func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
+        // Unit contexts accept and discard any expression result, so Unit must
+        // not act as a return-type constraint while choosing an overload.
+        guard expectedType != sema.types.unitType else {
+            return nil
+        }
+        return expectedType
     }
 
     private func narrowedCallCandidates(
