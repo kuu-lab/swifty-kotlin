@@ -19,7 +19,11 @@ extension BuildKIRRegressionTests {
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
-            #expect(callees.contains("kk_string_split_flat"), "Expected direct kk_string_split_flat call, got: \(callees)")
+            #expect(!callees.contains("kk_string_split_flat"), "String.split should no longer lower directly to kk_string_split_flat: \(callees)")
+            #expect(
+                callees.contains("split") || callees.contains("__kk_string_split"),
+                "Expected source-backed String.split path, got: \(callees)"
+            )
             #expect(callees.contains("kk_string_startsWith_flat"), "Expected direct kk_string_startsWith_flat call, got: \(callees)")
             #expect(!(callees.contains { $0.contains("split$default") || $0.contains("startsWith$default") }),
                            "External string stubs must not route through $default: \(callees)")

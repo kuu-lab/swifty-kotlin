@@ -2,6 +2,20 @@
 @testable import CompilerCore
 import Testing
 
+private struct TestRequirementFailure: Error, CustomStringConvertible {
+    let description: String
+}
+
+func requireTestValue<T>(
+    _ value: T?,
+    _ message: @autoclosure () -> String
+) throws -> T {
+    guard let value else {
+        throw TestRequirementFailure(description: message())
+    }
+    return value
+}
+
 func assertHasDiagnostic(
     _ code: String,
     in ctx: CompilationContext,

@@ -290,10 +290,21 @@ final class MemberLowerer {
               case let .funDecl(function) = decl,
               let symbol = sema.bindings.declSymbols[declID]
         else { return }
+        // Functions with an external link name are bridged to a runtime
+        // function; call sites are redirected via the external link name
+        // (see CallLowerer), so the source body is never executed. Do NOT
+        // emit a KIRFunction declaration for them at all: NativeEmitter
+        // unconditionally registers every emitted KIRFunction in
+        // `internalFunctions[symbol]`, and call-site codegen prefers that
+        // internal definition over the redirected external callee name.
+        // Emitting even a stub body here would shadow the real runtime
+        // function and cause calls to silently invoke the stub instead.
+        if let externalLink = sema.symbols.externalLinkName(for: symbol), !externalLink.isEmpty {
+            return
+        }
         if function.modifiers.contains(.external), function.body == .unit {
             return
         }
-
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
         driver.ctx.setCurrentFunctionSymbol(symbol)

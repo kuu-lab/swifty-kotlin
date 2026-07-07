@@ -329,7 +329,7 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
             XCTFail("Expected a throwable allocated for mismatched roots"); return
         }
         XCTAssertTrue(
-            box is RuntimeIllegalArgumentExceptionBox,
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
             "Mismatched roots must surface IllegalArgumentException, got \(box.exceptionFQName)"
         )
     }

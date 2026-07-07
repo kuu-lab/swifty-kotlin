@@ -11,7 +11,9 @@ extension DataFlowSemaPhase {
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
         listTypeParamType: TypeID,
-        collectionInterfaceSymbol: SymbolID
+        collectionInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let receiverType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
@@ -45,6 +47,19 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = listFQName + [memberName]
+            if let types = BundledSyntheticStubRegistration.types,
+               BundledSyntheticStubRegistration.shouldSkipRegistration(
+                   declaredOwnerFQName: listFQName,
+                   receiverType: receiverType,
+                   name: memberName,
+                   arity: parameterTypes.count,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner
+               )
+            {
+                return
+            }
             let alreadySameSignature = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
                 guard let sig = symbols.functionSignature(for: symbolID) else { return false }
                 return sig.parameterTypes == parameterTypes
@@ -75,11 +90,44 @@ extension DataFlowSemaPhase {
             reifiedTypeParameterIndices: Set<Int> = [],
             canThrow: Bool = false
         ) {
+            if let types = BundledSyntheticStubRegistration.types,
+               BundledSyntheticStubRegistration.shouldSkipRegistration(
+                   declaredOwnerFQName: listFQName,
+                   receiverType: receiverType,
+                   name: memberName,
+                   arity: parameterTypes.count,
+                   symbols: symbols,
+                   types: types,
+                   interner: interner
+               )
+            {
+                return
+            }
             let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
                 guard let sig = symbols.functionSignature(for: symbolID) else { return false }
                 return sig.parameterTypes == parameterTypes
             }
             guard !alreadyRegistered else { return }
+            let sourceBackedFilterNames: Set<InternedString> = [
+                interner.intern("filterNot"),
+                interner.intern("filterIsInstance"),
+            ]
+            if sourceBackedFilterNames.contains(memberName),
+               shouldSkipSyntheticStub(
+                   bundledIndex: bundledIndex,
+                   ownerFQName: listFQName,
+                   name: memberName,
+                   arity: parameterTypes.count
+               )
+            {
+                skipStats?.recordSkip(
+                    ownerFQName: listFQName,
+                    name: memberName,
+                    arity: parameterTypes.count,
+                    interner: interner
+                )
+                return
+            }
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: memberName,

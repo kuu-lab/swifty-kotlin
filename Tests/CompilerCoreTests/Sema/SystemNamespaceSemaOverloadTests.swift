@@ -76,6 +76,10 @@ struct SystemNamespaceSemaOverloadTests {
             systemPkgStdlibSpecialCallKind(for: "measureTimeMicros", sema: sema, interner: interner) ==
             .measureTimeMicros
         )
+        #expect(
+            systemPkgStdlibSpecialCallKind(for: "measureNanoTime", sema: sema, interner: interner) ==
+            .measureNanoTime
+        )
 
         let systemFQ = ["kotlin", "system", "System"].map { interner.intern($0) }
         let systemSymbol = try #require(

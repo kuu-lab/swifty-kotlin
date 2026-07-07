@@ -29,6 +29,17 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = listFQName + [memberName]
+            if BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: memberName,
+                arity: 0,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                return
+            }
             guard symbols.lookup(fqName: memberFQName) == nil else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
@@ -79,6 +90,17 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = listFQName + [memberName]
+            if BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: memberName,
+                arity: 0,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                return
+            }
             guard symbols.lookup(fqName: memberFQName) == nil else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
@@ -125,12 +147,26 @@ extension DataFlowSemaPhase {
             ) {
                 let memberName = interner.intern(name)
                 let memberFQName = listFQName + [memberName]
-                if shouldSkipSyntheticStub(
-                    bundledIndex: bundledIndex,
-                    ownerFQName: listFQName,
-                    name: memberName,
-                    arity: 1
-                ) {
+                let shouldSkipMember: Bool
+                if let contextTypes = BundledSyntheticStubRegistration.types {
+                    shouldSkipMember = BundledSyntheticStubRegistration.shouldSkipRegistration(
+                        declaredOwnerFQName: listFQName,
+                        receiverType: receiverType,
+                        name: memberName,
+                        arity: 1,
+                        symbols: symbols,
+                        types: contextTypes,
+                        interner: interner
+                    )
+                } else {
+                    shouldSkipMember = shouldSkipSyntheticStub(
+                        bundledIndex: bundledIndex,
+                        ownerFQName: listFQName,
+                        name: memberName,
+                        arity: 1
+                    )
+                }
+                if shouldSkipMember {
                     skipStats?.recordSkip(
                         ownerFQName: listFQName,
                         name: memberName,
@@ -527,7 +563,18 @@ extension DataFlowSemaPhase {
         // indexOf / lastIndexOf (non-HOF, element argument)
         let indexOfName = interner.intern("indexOf")
         let indexOfFQName = listFQName + [indexOfName]
-        if symbols.lookup(fqName: indexOfFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: indexOfName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: indexOfFQName) == nil
+        {
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: indexOfName,
@@ -827,7 +874,18 @@ extension DataFlowSemaPhase {
 
         let indexOfFirstName = interner.intern("indexOfFirst")
         let indexOfFirstFQName = listFQName + [indexOfFirstName]
-        if symbols.lookup(fqName: indexOfFirstFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: indexOfFirstName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: indexOfFirstFQName) == nil
+        {
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: indexOfFirstName,
@@ -852,7 +910,18 @@ extension DataFlowSemaPhase {
 
         let indexOfLastName = interner.intern("indexOfLast")
         let indexOfLastFQName = listFQName + [indexOfLastName]
-        if symbols.lookup(fqName: indexOfLastFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: indexOfLastName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: indexOfLastFQName) == nil
+        {
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: indexOfLastName,
@@ -911,12 +980,26 @@ extension DataFlowSemaPhase {
 
         let sumOfName = interner.intern("sumOf")
         let sumOfFQName = listFQName + [sumOfName]
-        if shouldSkipSyntheticStub(
-            bundledIndex: bundledIndex,
-            ownerFQName: listFQName,
-            name: sumOfName,
-            arity: 1
-        ) {
+        let shouldSkipSumOf: Bool
+        if let contextTypes = BundledSyntheticStubRegistration.types {
+            shouldSkipSumOf = BundledSyntheticStubRegistration.shouldSkipRegistration(
+                declaredOwnerFQName: listFQName,
+                receiverType: receiverType,
+                name: sumOfName,
+                arity: 1,
+                symbols: symbols,
+                types: contextTypes,
+                interner: interner
+            )
+        } else {
+            shouldSkipSumOf = shouldSkipSyntheticStub(
+                bundledIndex: bundledIndex,
+                ownerFQName: listFQName,
+                name: sumOfName,
+                arity: 1
+            )
+        }
+        if shouldSkipSumOf {
             skipStats?.recordSkip(
                 ownerFQName: listFQName,
                 name: sumOfName,
@@ -957,7 +1040,18 @@ extension DataFlowSemaPhase {
         // sortedByDescending (HOF, selector lambda with R: Comparable<R>)
         let sortedByDescendingName = interner.intern("sortedByDescending")
         let sortedByDescendingFQName = listFQName + [sortedByDescendingName]
-        if symbols.lookup(fqName: sortedByDescendingFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: sortedByDescendingName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: sortedByDescendingFQName) == nil
+        {
             let selectorReturnType: TypeID
             let extraTypeParamSymbols: [SymbolID]
             let extraUpperBoundsList: [[TypeID]]
@@ -1005,7 +1099,18 @@ extension DataFlowSemaPhase {
         // sortedWith (HOF, comparator lambda with 2 args)
         let sortedWithName = interner.intern("sortedWith")
         let sortedWithFQName = listFQName + [sortedWithName]
-        if symbols.lookup(fqName: sortedWithFQName) == nil {
+        if let types = BundledSyntheticStubRegistration.types,
+           !BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: listFQName,
+               receiverType: receiverType,
+               name: sortedWithName,
+               arity: 1,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           ),
+           symbols.lookup(fqName: sortedWithFQName) == nil
+        {
             let comparatorType = types.make(.functionType(FunctionType(
                 params: [listTypeParamType, listTypeParamType],
                 returnType: types.intType,
@@ -1137,6 +1242,72 @@ extension DataFlowSemaPhase {
                     classTypeParameterCount: 1
                 ),
                 for: memberSymbol
+            )
+        }
+
+        // zip(other: Iterable<R>, transform: (E, R) -> V): List<V>
+        let existingZipOverloads = symbols.lookupAll(fqName: zipFQName)
+        let hasTwoParamZip = existingZipOverloads.contains { symID in
+            guard let sig = symbols.functionSignature(for: symID) else { return false }
+            return sig.parameterTypes.count == 2
+        }
+        if !hasTwoParamZip {
+            let zipTransformScope = zipFQName + [interner.intern("transform")]
+            let otherRName = interner.intern("R")
+            let otherRSymbol = symbols.define(
+                kind: .typeParameter,
+                name: otherRName,
+                fqName: zipTransformScope + [otherRName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let otherRType = types.make(.typeParam(TypeParamType(symbol: otherRSymbol, nullability: .nonNull)))
+            let otherListTypeForTransform = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(otherRType)],
+                nullability: .nonNull
+            )))
+            let vName = interner.intern("V")
+            let vSymbol = symbols.define(
+                kind: .typeParameter,
+                name: vName,
+                fqName: zipTransformScope + [vName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let vType = types.make(.typeParam(TypeParamType(symbol: vSymbol, nullability: .nonNull)))
+            let transformFnType = types.make(.functionType(FunctionType(
+                params: [listTypeParamType, otherRType],
+                returnType: vType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let transformResultListType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(vType)],
+                nullability: .nonNull
+            )))
+            let transformMemberSymbol = symbols.define(
+                kind: .function,
+                name: zipName,
+                fqName: zipFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: transformMemberSymbol)
+            symbols.setExternalLinkName("kk_list_zip_transform", for: transformMemberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [otherListTypeForTransform, transformFnType],
+                    returnType: transformResultListType,
+                    typeParameterSymbols: [listTypeParamSymbol, otherRSymbol, vSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: transformMemberSymbol
             )
         }
 

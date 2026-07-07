@@ -83,7 +83,7 @@ import Testing
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (ctx.sema!, ctx.interner)
+            result = (ctx.sema!, ctx.interner)
         }
 
         let (sema, interner) = try #require(result)

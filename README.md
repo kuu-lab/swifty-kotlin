@@ -4,7 +4,7 @@
 
 | 属性 | 値 |
 |---|---|
-| 実装言語 | Swift 5.9 / macOS 12+ |
+| 実装言語 | Swift 6.2 (Swift language mode 6) / macOS 12+ |
 | ビルドシステム | SwiftPM |
 | 出力バイナリ | `kswiftc` |
 | ターゲット | Kotlin 2.3.10 stable, macOS arm64/x86_64 |

@@ -133,11 +133,33 @@ public extension RuntimeABISpec {
             section: "Sequence",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_builder_build_coro",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Sequence",
+            isThrowing: false
+        ),
         // Iterator builder (STDLIB-331/564)
         RuntimeABIFunctionSpec(
             name: "kk_iterator_builder_build",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Sequence",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_iterator_builder_build_coro",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Sequence",

@@ -27,7 +27,7 @@ struct AnyTypeFallbackTests {
             let ast = try #require(ctx.ast)
 
             // Find the object decl's property symbol and verify its type is Int, not Any.
-            guard let declID = firstObjectDeclID(in: ast),
+            guard let declID = firstUserObjectLiteralDeclID(in: ast, sourceManager: ctx.sourceManager),
                   let decl = ast.arena.decl(declID),
                   case let .objectDecl(objectDecl) = decl,
                   let propertyDeclID = objectDecl.memberProperties.first,
@@ -61,7 +61,7 @@ struct AnyTypeFallbackTests {
             let sema = try #require(ctx.sema)
             let ast = try #require(ctx.ast)
 
-            guard let declID = firstObjectDeclID(in: ast),
+            guard let declID = firstUserObjectLiteralDeclID(in: ast, sourceManager: ctx.sourceManager),
                   let decl = ast.arena.decl(declID),
                   case let .objectDecl(objectDecl) = decl,
                   let propertyDeclID = objectDecl.memberProperties.first,
@@ -125,10 +125,24 @@ struct AnyTypeFallbackTests {
 
     // MARK: - Helpers
 
-    private func firstObjectDeclID(in ast: ASTModule) -> DeclID? {
-        for (index, decl) in ast.arena.declarations().enumerated() {
-            guard case .objectDecl = decl else { continue }
-            return DeclID(rawValue: Int32(index))
+    private func firstUserObjectLiteralDeclID(
+        in ast: ASTModule,
+        sourceManager: SourceManager
+    ) -> DeclID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .objectLiteral(_, declID, _) = expr,
+                  let declID
+            else {
+                continue
+            }
+            guard let range = ast.arena.exprRange(exprID),
+                  !sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            else {
+                continue
+            }
+            return declID
         }
         return nil
     }

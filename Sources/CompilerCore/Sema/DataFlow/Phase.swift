@@ -42,6 +42,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
+        bundledIndex.warnSyntheticOverlaps(
+            symbols: symbols,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
         assignCompilationModuleFQNames(
             symbols: symbols,
             moduleName: ctx.options.moduleName,
@@ -79,35 +85,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         return importedInlineFunctions
     }
 
-    func diagnoseSyntheticBundledDeclarationOverlaps(
-        bundledIndex: BundledDeclarationIndex,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        diagnostics: DiagnosticEngine,
-        interner: StringInterner
-    ) {
-        var seen: Set<SyntheticBundledDeclarationKey> = []
-        var overlaps: [SyntheticBundledDeclarationKey] = []
-        for symbol in symbols.allSymbols() {
-            guard symbol.flags.contains(.synthetic),
-                  let key = syntheticBundledDeclarationKey(for: symbol, symbols: symbols, types: types),
-                  bundledIndex.contains(ownerFQName: key.ownerFQName, name: key.name, arity: key.arity),
-                  seen.insert(key).inserted
-            else {
-                continue
-            }
-            overlaps.append(key)
-        }
-
-        for key in overlaps.sorted(by: { formatKey($0, interner: interner) < formatKey($1, interner: interner) }) {
-            diagnostics.warning(
-                "KSWIFTK-SEMA-0006",
-                "Synthetic stdlib stub overlaps bundled Kotlin declaration: \(formatKey(key, interner: interner)).",
-                range: nil
-            )
-        }
-    }
-
     func collectAllHeaders(
         ast: ASTModule, fileScopes: [Int32: FileScope],
         symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
@@ -126,97 +103,11 @@ final class DataFlowSemaPhase: CompilerPhase {
                     declID: declID, file: file, ast: ast,
                     symbols: symbols, types: types, bindings: bindings,
                     scope: fileScope, sourceManager: ctx.sourceManager,
-                    diagnostics: ctx.diagnostics, interner: ctx.interner
+                    diagnostics: ctx.diagnostics, interner: ctx.interner,
+                    ctx: ctx
                 )
             }
         }
-    }
-
-    private func syntheticBundledDeclarationKey(
-        for symbol: SemanticSymbol,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) -> SyntheticBundledDeclarationKey? {
-        switch symbol.kind {
-        case .function:
-            guard let signature = symbols.functionSignature(for: symbol.id) else {
-                return nil
-            }
-            let ownerFQName = declarationOwnerFQName(
-                receiverType: signature.receiverType,
-                symbolID: symbol.id,
-                symbols: symbols,
-                types: types
-            )
-            guard let ownerFQName else {
-                return nil
-            }
-            return SyntheticBundledDeclarationKey(
-                ownerFQName: ownerFQName,
-                name: symbol.name,
-                arity: signature.parameterTypes.count
-            )
-
-        case .property:
-            let ownerFQName = declarationOwnerFQName(
-                receiverType: symbols.extensionPropertyReceiverType(for: symbol.id),
-                symbolID: symbol.id,
-                symbols: symbols,
-                types: types
-            )
-            guard let ownerFQName else {
-                return nil
-            }
-            return SyntheticBundledDeclarationKey(ownerFQName: ownerFQName, name: symbol.name, arity: 0)
-
-        default:
-            return nil
-        }
-    }
-
-    private func declarationOwnerFQName(
-        receiverType: TypeID?,
-        symbolID: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) -> [InternedString]? {
-        if let receiverType,
-           let receiverOwner = nominalOwnerFQName(for: receiverType, symbols: symbols, types: types)
-        {
-            return receiverOwner
-        }
-        guard let parentID = symbols.parentSymbol(for: symbolID),
-              let parentSymbol = symbols.symbol(parentID)
-        else {
-            return nil
-        }
-        return parentSymbol.fqName
-    }
-
-    private func nominalOwnerFQName(
-        for typeID: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) -> [InternedString]? {
-        switch types.kind(of: types.makeNonNullable(typeID)) {
-        case let .classType(nominalType):
-            guard let symbol = symbols.symbol(nominalType.classSymbol) else {
-                return nil
-            }
-            switch symbol.kind {
-            case .class, .interface, .object, .enumClass, .annotationClass:
-                return symbol.fqName
-            default:
-                return nil
-            }
-        default:
-            return nil
-        }
-    }
-
-    private func formatKey(_ key: SyntheticBundledDeclarationKey, interner: StringInterner) -> String {
-        let owner = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
-        return "\(owner).\(interner.resolve(key.name))(arity=\(key.arity))"
     }
 
     private func runValidationPasses(
@@ -308,10 +199,4 @@ final class DataFlowSemaPhase: CompilerPhase {
             }
         }
     }
-}
-
-private struct SyntheticBundledDeclarationKey: Hashable {
-    let ownerFQName: [InternedString]
-    let name: InternedString
-    let arity: Int
 }

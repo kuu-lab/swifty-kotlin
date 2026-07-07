@@ -100,10 +100,14 @@ final class RuntimeAssertionEdgeCaseTests: XCTestCase {
         }
         XCTAssertEqual(box.exceptionFQName, "kotlin.AssertionError",
                        "assert(false) must throw AssertionError")
-        XCTAssertFalse(box is RuntimeIllegalStateExceptionBox,
-                       "assert must NOT throw IllegalStateException")
-        XCTAssertFalse(box is RuntimeIllegalArgumentExceptionBox,
-                       "assert must NOT throw IllegalArgumentException")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
+            "assert must NOT throw IllegalStateException"
+        )
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+            "assert must NOT throw IllegalArgumentException"
+        )
     }
 
     // require(false) must throw IllegalArgumentException, NOT AssertionError
@@ -116,10 +120,14 @@ final class RuntimeAssertionEdgeCaseTests: XCTestCase {
         }
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException",
                        "require(false) must throw IllegalArgumentException")
-        XCTAssertFalse(box is RuntimeAssertionErrorBox,
-                       "require must NOT throw AssertionError")
-        XCTAssertFalse(box is RuntimeIllegalStateExceptionBox,
-                       "require must NOT throw IllegalStateException")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
+            "require must NOT throw AssertionError"
+        )
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalStateExceptionBox.self),
+            "require must NOT throw IllegalStateException"
+        )
     }
 
     // check(false) must throw IllegalStateException, NOT AssertionError
@@ -132,10 +140,14 @@ final class RuntimeAssertionEdgeCaseTests: XCTestCase {
         }
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException",
                        "check(false) must throw IllegalStateException")
-        XCTAssertFalse(box is RuntimeAssertionErrorBox,
-                       "check must NOT throw AssertionError")
-        XCTAssertFalse(box is RuntimeIllegalArgumentExceptionBox,
-                       "check must NOT throw IllegalArgumentException")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
+            "check must NOT throw AssertionError"
+        )
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+            "check must NOT throw IllegalArgumentException"
+        )
     }
 
     // error() must throw IllegalStateException, NOT AssertionError or IllegalArgumentException
@@ -149,10 +161,14 @@ final class RuntimeAssertionEdgeCaseTests: XCTestCase {
         }
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException",
                        "error() must always throw IllegalStateException")
-        XCTAssertFalse(box is RuntimeAssertionErrorBox,
-                       "error() must NOT throw AssertionError")
-        XCTAssertFalse(box is RuntimeIllegalArgumentExceptionBox,
-                       "error() must NOT throw IllegalArgumentException")
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeAssertionErrorBox.self),
+            "error() must NOT throw AssertionError"
+        )
+        XCTAssertFalse(
+            runtimeThrowableBoxHasExactType(box, RuntimeIllegalArgumentExceptionBox.self),
+            "error() must NOT throw IllegalArgumentException"
+        )
     }
 
     // MARK: - error() message propagation

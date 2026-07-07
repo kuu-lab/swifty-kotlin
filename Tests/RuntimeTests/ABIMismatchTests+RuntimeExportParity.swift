@@ -99,7 +99,6 @@ extension ABIMismatchTests {
             "kk_annotation_simple_class_name",
             "kk_any_javaClass",
             "kk_array_isArrayOf",
-            "kk_boolean_toJsBoolean",
             "kk_callable_ref_call_0",
             "kk_callable_ref_call_1",
             "kk_callable_ref_call_2",
@@ -125,15 +124,11 @@ extension ABIMismatchTests {
             "kk_mem_scope_exit",
             "kk_native_alloc_bytes",
             "kk_char_sequence_length",
-            "kk_instant_to_js_date",
-            "kk_double_toJsNumber",
             "kk_dynamic_iterator",
             "kk_future_getState",
-            "kk_int_toJsNumber",
             "kk_int_to_int",
             "kk_js_number_toDouble",
             "kk_js_number_toInt",
-            "kk_jsclass_kotlin",
             "kk_kclass_has_annotation",
             "kk_kclass_js",
             "kk_kclass_register_annotation",
@@ -357,20 +352,14 @@ extension ABIMismatchTests {
             RuntimeABICType.nullableConstRawPointer.rawValue
         case "UnsafePointer<KTypeInfo>":
             RuntimeABICType.constTypeInfoPointer.rawValue
-        case "UnsafePointer<CChar>":
-            RuntimeABICType.constCCharPointer.rawValue
         case "UnsafePointer<UInt8>":
             RuntimeABICType.constUInt8Pointer.rawValue
         case "UnsafePointer<UInt8>?":
             RuntimeABICType.nullableConstUInt8Pointer.rawValue
-        case "UnsafeMutablePointer<UInt8>":
-            RuntimeABICType.uint8Pointer.rawValue
         case "UnsafeMutablePointer<UInt8>?":
             RuntimeABICType.nullableUInt8Pointer.rawValue
         case "UnsafeMutablePointer<Int>?":
             RuntimeABICType.nullableIntptrPointer.rawValue
-        case "UnsafeMutablePointer<UnsafeMutableRawPointer?>":
-            RuntimeABICType.fieldAddrPointer.rawValue
         case "UnsafeMutablePointer<UnsafeMutableRawPointer?>?":
             RuntimeABICType.nullableRawPointerPointer.rawValue
         default:

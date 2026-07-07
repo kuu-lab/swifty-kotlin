@@ -1354,19 +1354,6 @@ public func kk_list_find(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outT
     return runtimeNullSentinelInt
 }
 
-// (a) RF-DEAD-002: 配線予定 → List.firstOrNull { predicate } lowering
-@_cdecl("kk_list_firstOrNull_predicate")
-public func kk_list_firstOrNull_predicate(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { return elem }
-    }
-    return runtimeNullSentinelInt
-}
-
 @_cdecl("kk_list_findLast")
 public func kk_list_findLast(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
@@ -1603,6 +1590,24 @@ public func kk_list_zip(_ listRaw: Int, _ otherRaw: Int) -> Int {
         pairs.append(kk_pair_new(lhs[index], rhs[index]))
     }
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
+}
+
+@_cdecl("kk_list_zip_transform")
+public func kk_list_zip_transform(_ listRaw: Int, _ otherRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let lhsBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    guard let rhsBox = runtimeListBox(from: otherRaw) else { invalidContainerPanic(#function, "list") }
+    let lhs = lhsBox.elements
+    let rhs = rhsBox.elements
+    let count = min(lhs.count, rhs.count)
+    var result: [Int] = []
+    result.reserveCapacity(count)
+    for index in 0 ..< count {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: lhs[index], rhs: rhs[index], outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        result.append(maybeUnbox(transformed))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
 @_cdecl("kk_list_unzip")

@@ -1,27 +1,37 @@
 import Foundation
 
-/// Index of member declarations originating from bundled stdlib virtual sources (`__bundled_*.kt`).
-struct BundledDeclarationIndex {
-    static let empty = BundledDeclarationIndex(keys: [])
+/// Key for a bundled stdlib member declaration. The same shape is used by
+/// KSP-002 skip guards and KSP-003 duplicate-definition warnings.
+struct BundledMemberKey: Hashable, Sendable {
+    let ownerFQName: [InternedString]
+    let name: InternedString
+    let arity: Int
+}
 
-    private struct BundledMemberKey: Hashable {
-        let ownerFQName: [InternedString]
-        let name: InternedString
-        let arity: Int
-    }
+/// Index of member declarations originating from bundled stdlib virtual sources (`__bundled_*.kt`).
+struct BundledDeclarationIndex: Sendable {
+    static let empty = BundledDeclarationIndex(keys: [])
 
     private let keys: Set<BundledMemberKey>
 
-    private init(keys: Set<BundledMemberKey>) {
+    init(keys: Set<BundledMemberKey> = []) {
         self.keys = keys
     }
 
+    func contains(_ key: BundledMemberKey) -> Bool {
+        keys.contains(key)
+    }
+
     func contains(owner: [InternedString], name: InternedString, arity: Int) -> Bool {
-        keys.contains(BundledMemberKey(ownerFQName: owner, name: name, arity: arity))
+        contains(BundledMemberKey(ownerFQName: owner, name: name, arity: arity))
     }
 
     func contains(ownerFQName: [InternedString], name: InternedString, arity: Int) -> Bool {
         contains(owner: ownerFQName, name: name, arity: arity)
+    }
+
+    mutating func insert(_ key: BundledMemberKey) {
+        self = BundledDeclarationIndex(keys: keys.union([key]))
     }
 
     /// Build from AST bundled sources before SymbolTable header collection.
@@ -41,6 +51,205 @@ struct BundledDeclarationIndex {
         var keys = buildKeys(ast: ast, sourceManager: sourceManager)
         addListIterableAliases(to: &keys, interner: interner)
         return BundledDeclarationIndex(keys: keys)
+    }
+
+    /// Build from SymbolTable symbols whose `declSite` is in bundled virtual files.
+    static func build(sourceManager: SourceManager, symbols: SymbolTable, types: TypeSystem) -> BundledDeclarationIndex {
+        buildFromSymbols(
+            symbols: symbols,
+            types: types,
+            sourceManager: sourceManager,
+            interner: nil
+        )
+    }
+
+    /// Build from bundled SymbolTable declarations after bundled header collection.
+    static func build(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> BundledDeclarationIndex {
+        buildFromSymbols(
+            symbols: symbols,
+            types: types,
+            sourceManager: sourceManager,
+            interner: interner
+        )
+    }
+
+    static func memberKey(
+        for symbol: SemanticSymbol,
+        symbolID: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> BundledMemberKey? {
+        makeMemberKey(
+            for: symbol,
+            symbolID: symbolID,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    static func ownerFQName(
+        declaredOwnerFQName: [InternedString],
+        receiverType: TypeID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> [InternedString] {
+        ownerFQName(
+            declaredOwnerFQName: declaredOwnerFQName,
+            receiverType: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: Optional(interner)
+        ) ?? declaredOwnerFQName
+    }
+
+    func warnSyntheticOverlaps(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        var reported: Set<BundledMemberKey> = []
+        for symbol in symbols.allSymbols() {
+            guard symbol.flags.contains(.synthetic) else { continue }
+            guard symbol.kind == .function || symbol.kind == .property else { continue }
+            guard let key = Self.memberKey(
+                for: symbol,
+                symbolID: symbol.id,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            else { continue }
+            guard !Self.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) else {
+                continue
+            }
+            guard contains(key), reported.insert(key).inserted else { continue }
+
+            let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
+            let memberDisplay = interner.resolve(key.name)
+            diagnostics.warning(
+                "KSWIFTK-SEMA-0102",
+                "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
+                range: nil
+            )
+        }
+    }
+
+    static func isRuntimeBackedSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        let ownerFQName = key.ownerFQName.map { interner.resolve($0) }
+        if ownerFQName == ["kotlin", "collections", "List"] {
+            return isRuntimeBackedListSyntheticRetainedOverlap(key, interner: interner)
+        }
+        if ownerFQName == ["kotlin", "sequences", "Sequence"] {
+            return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
+        }
+        if isRuntimeBackedAtomicSyntheticRetainedOverlap(key, ownerFQName: ownerFQName, interner: interner) {
+            return true
+        }
+        return false
+    }
+
+    private static func isRuntimeBackedAtomicSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        ownerFQName: [String],
+        interner: StringInterner
+    ) -> Bool {
+        // AtomicMigration.kt carries compatibility aliases as bundled Kotlin
+        // extension functions in kotlin.concurrent, but current member-call
+        // resolution still needs the receiver-owned synthetic bridge when users
+        // import kotlin.concurrent.atomics.AtomicInt/AtomicLong/AtomicReference
+        // directly. Retain these runtime-backed aliases until the bundled source
+        // path is visible to ordinary member-call lookup.
+        switch ownerFQName {
+        case ["kotlin", "concurrent", "atomics", "AtomicInt"],
+             ["kotlin", "concurrent", "AtomicInt"],
+             ["kotlin", "concurrent", "atomics", "AtomicLong"],
+             ["kotlin", "concurrent", "AtomicLong"]:
+            switch interner.resolve(key.name) {
+            case "get", "incrementAndGet", "decrementAndGet":
+                return key.arity == 0
+            case "set", "getAndSet", "addAndGet":
+                return key.arity == 1
+            default:
+                return false
+            }
+        case ["kotlin", "concurrent", "atomics", "AtomicReference"],
+             ["kotlin", "concurrent", "AtomicReference"]:
+            switch interner.resolve(key.name) {
+            case "get":
+                return key.arity == 0
+            case "set", "getAndSet":
+                return key.arity == 1
+            default:
+                return false
+            }
+        default:
+            return false
+        }
+    }
+
+    private static func isRuntimeBackedListSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // These List HOF/search/sort sources are bundled as migration targets, but
+        // call sites still route through kk_list_* ABI stubs until RF-STDLIB wiring
+        // removes the compatibility bridge.
+        switch interner.resolve(key.name) {
+        case "map", "mapIndexed", "mapNotNull", "flatMap":
+            return key.arity == 1
+        case "flatten":
+            return key.arity == 0
+        case "first", "firstOrNull", "last", "lastOrNull", "single", "singleOrNull":
+            return key.arity == 0 || key.arity == 1
+        case "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast":
+            return key.arity == 1
+        case "reversed", "sorted":
+            return key.arity == 0
+        case "shuffled":
+            return key.arity == 0 || key.arity == 1
+        case "sortedBy", "sortedByDescending", "sortedWith":
+            return key.arity == 1
+        default:
+            return false
+        }
+    }
+
+    private static func isRuntimeBackedSequenceSyntheticRetainedOverlap(
+        _ key: BundledMemberKey,
+        interner: StringInterner
+    ) -> Bool {
+        // Sequence aggregate HOFs are bundled as migration targets, but call sites
+        // still route through kk_sequence_* ABI stubs until RF-STDLIB wiring
+        // removes the compatibility bridge.
+        switch interner.resolve(key.name) {
+        case "fold", "scan":
+            return key.arity == 2
+        case "reduce", "sumOf", "maxByOrNull", "minByOrNull":
+            return key.arity == 1
+        case "toList", "toSet", "toMutableList":
+            // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
+            // Kotlin source, but CollectionLiteralLoweringPass call-rewrite still
+            // dispatches Sequence.toList/toSet/toMutableList to the kk_sequence_*
+            // ABI stubs (see CollectionLiteralLoweringPass+CallRewriteSequenceTerminals
+            // and CallLowerer+ReceiverTypePredicates.toMutableListRuntimeCalleeFor...).
+            // Retain the synthetic stub's externalLinkName so Sema-level symbol
+            // lookups stay consistent with that lowering path.
+            return key.arity == 0
+        default:
+            return false
+        }
     }
 
     private static func buildKeys(ast: ASTModule, sourceManager: SourceManager) -> Set<BundledMemberKey> {
@@ -72,8 +281,12 @@ struct BundledDeclarationIndex {
         return keys
     }
 
-    /// Build from SymbolTable symbols whose source file is a bundled virtual file.
-    static func build(sourceManager: SourceManager, symbols: SymbolTable, types: TypeSystem) -> BundledDeclarationIndex {
+    private static func buildFromSymbols(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        sourceManager: SourceManager,
+        interner: StringInterner?
+    ) -> BundledDeclarationIndex {
         let bundledFileIDs = bundledFileIDs(in: sourceManager)
         guard !bundledFileIDs.isEmpty else {
             return .empty
@@ -81,66 +294,140 @@ struct BundledDeclarationIndex {
 
         var keys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() {
+            guard !symbol.flags.contains(.synthetic) else { continue }
             let fileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file
             guard let fileID,
                   bundledFileIDs.contains(fileID)
             else {
                 continue
             }
-
-            switch symbol.kind {
-            case .function, .property:
-                break
-            default:
-                continue
-            }
-
-            let ownerFQName: [InternedString]?
-            let arity: Int
-            switch symbol.kind {
-            case .function:
-                guard let signature = symbols.functionSignature(for: symbol.id) else {
-                    continue
-                }
-                if let receiverType = signature.receiverType {
-                    ownerFQName = nominalOwnerFQName(for: receiverType, symbols: symbols, types: types)
-                } else if let parentID = symbols.parentSymbol(for: symbol.id),
-                          let parentSymbol = symbols.symbol(parentID)
-                {
-                    ownerFQName = parentSymbol.fqName
-                } else {
-                    ownerFQName = nil
-                }
-                arity = signature.parameterTypes.count
-            case .property:
-                if let receiverType = symbols.extensionPropertyReceiverType(for: symbol.id) {
-                    ownerFQName = nominalOwnerFQName(for: receiverType, symbols: symbols, types: types)
-                } else if let parentID = symbols.parentSymbol(for: symbol.id),
-                          let parentSymbol = symbols.symbol(parentID)
-                {
-                    ownerFQName = parentSymbol.fqName
-                } else {
-                    ownerFQName = nil
-                }
-                arity = 0
-            default:
-                continue
-            }
-
-            guard let ownerFQName else {
-                continue
-            }
-
-            keys.insert(
-                BundledMemberKey(
-                    ownerFQName: ownerFQName,
-                    name: symbol.name,
-                    arity: arity
-                )
+            guard let key = makeMemberKey(
+                for: symbol,
+                symbolID: symbol.id,
+                symbols: symbols,
+                types: types,
+                interner: interner
             )
+            else {
+                continue
+            }
+            keys.insert(key)
         }
 
         return BundledDeclarationIndex(keys: keys)
+    }
+
+    private static func makeMemberKey(
+        for symbol: SemanticSymbol,
+        symbolID: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner?
+    ) -> BundledMemberKey? {
+        let arity: Int
+        let receiverType: TypeID?
+        switch symbol.kind {
+        case .function:
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return nil
+            }
+            arity = signature.parameterTypes.count
+            receiverType = signature.receiverType
+        case .property, .field:
+            arity = 0
+            receiverType = symbols.extensionPropertyReceiverType(for: symbolID)
+        default:
+            return nil
+        }
+
+        let declaredOwnerFQName = ownerFQName(for: symbol, symbolID: symbolID, symbols: symbols)
+        let owner = ownerFQName(
+            declaredOwnerFQName: declaredOwnerFQName,
+            receiverType: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        ) ?? declaredOwnerFQName
+        return BundledMemberKey(ownerFQName: owner, name: symbol.name, arity: arity)
+    }
+
+    private static func ownerFQName(
+        declaredOwnerFQName: [InternedString],
+        receiverType: TypeID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner?
+    ) -> [InternedString]? {
+        if let receiverType,
+           let receiverOwner = receiverOwnerFQName(
+               for: receiverType,
+               symbols: symbols,
+               types: types,
+               interner: interner
+           )
+        {
+            return receiverOwner
+        }
+        return declaredOwnerFQName
+    }
+
+    static func receiverOwnerFQName(
+        for receiverType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> [InternedString]? {
+        receiverOwnerFQName(
+            for: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: Optional(interner)
+        )
+    }
+
+    private static func receiverOwnerFQName(
+        for receiverType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner?
+    ) -> [InternedString]? {
+        let nonNullType = types.makeNonNullable(receiverType)
+        switch types.kind(of: nonNullType) {
+        case let .classType(classType):
+            return symbols.symbol(classType.classSymbol)?.fqName
+        case let .primitive(primitive, _):
+            guard let interner else {
+                return nil
+            }
+            return [interner.intern("kotlin"), interner.intern(primitive.kotlinName)]
+        case let .intersection(parts):
+            for part in parts {
+                if let owner = receiverOwnerFQName(
+                    for: part,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                ) {
+                    return owner
+                }
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private static func ownerFQName(
+        for symbol: SemanticSymbol,
+        symbolID: SymbolID,
+        symbols: SymbolTable
+    ) -> [InternedString] {
+        if let parent = symbols.parentSymbol(for: symbolID),
+           let parentSymbol = symbols.symbol(parent)
+        {
+            return parentSymbol.fqName
+        }
+        return Array(symbol.fqName.dropLast())
     }
 
     private static func bundledFileIDs(in sourceManager: SourceManager) -> Set<FileID> {
@@ -402,27 +689,6 @@ struct BundledDeclarationIndex {
         }
     }
 
-    private static func nominalOwnerFQName(
-        for typeID: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) -> [InternedString]? {
-        switch types.kind(of: types.makeNonNullable(typeID)) {
-        case let .classType(nominalType):
-            guard let symbol = symbols.symbol(nominalType.classSymbol) else {
-                return nil
-            }
-            switch symbol.kind {
-            case .class, .interface, .object, .enumClass, .annotationClass:
-                return symbol.fqName
-            default:
-                return nil
-            }
-        default:
-            return nil
-        }
-    }
-
     private static func collectTopLevelNominalNamesByPackage(
         files: [ASTFile],
         ast: ASTModule
@@ -462,6 +728,95 @@ struct BundledDeclarationIndex {
         for (index, element) in prefix.enumerated() where path[index] != element {
             return false
         }
+        return true
+    }
+}
+
+/// Active bundled-index context while `registerSyntheticDelegateStubs` runs.
+enum BundledSyntheticStubRegistration {
+    private static let bundledIndexKey = "KSwiftK.BundledSyntheticStubRegistration.bundledIndex"
+    private static let typesKey = "KSwiftK.BundledSyntheticStubRegistration.types"
+    private static let skippedCountKey = "KSwiftK.BundledSyntheticStubRegistration.skippedCount"
+    private static let preBundledPassKey = "KSwiftK.BundledSyntheticStubRegistration.preBundledPass"
+    private static let postBundledPassKey = "KSwiftK.BundledSyntheticStubRegistration.postBundledPass"
+
+    private static var storage: NSMutableDictionary {
+        Thread.current.threadDictionary
+    }
+
+    static var bundledIndex: BundledDeclarationIndex {
+        get { storage[bundledIndexKey] as? BundledDeclarationIndex ?? .empty }
+        set { storage[bundledIndexKey] = newValue }
+    }
+
+    static var types: TypeSystem? {
+        get { storage[typesKey] as? TypeSystem }
+        set {
+            if let newValue {
+                storage[typesKey] = newValue
+            } else {
+                storage.removeObject(forKey: typesKey)
+            }
+        }
+    }
+
+    static var skippedCount: Int {
+        get { storage[skippedCountKey] as? Int ?? 0 }
+        set { storage[skippedCountKey] = newValue }
+    }
+
+    /// When true, extension-member stub registration is deferred to the post-bundled pass.
+    static var preBundledPass: Bool {
+        get { storage[preBundledPassKey] as? Bool ?? false }
+        set { storage[preBundledPassKey] = newValue }
+    }
+
+    /// When true, only extension-member stubs are registered (post-bundled pass).
+    static var postBundledPass: Bool {
+        get { storage[postBundledPassKey] as? Bool ?? false }
+        set { storage[postBundledPassKey] = newValue }
+    }
+
+    static func clear() {
+        storage.removeObject(forKey: bundledIndexKey)
+        storage.removeObject(forKey: typesKey)
+        storage.removeObject(forKey: skippedCountKey)
+        storage.removeObject(forKey: preBundledPassKey)
+        storage.removeObject(forKey: postBundledPassKey)
+    }
+
+    static func shouldSkipRegistration(
+        declaredOwnerFQName: [InternedString],
+        receiverType: TypeID?,
+        name: InternedString,
+        arity: Int,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        if postBundledPass, receiverType == nil {
+            skippedCount += 1
+            return true
+        }
+        if preBundledPass, receiverType != nil {
+            skippedCount += 1
+            return true
+        }
+        let ownerFQName = BundledDeclarationIndex.ownerFQName(
+            declaredOwnerFQName: declaredOwnerFQName,
+            receiverType: receiverType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let key = BundledMemberKey(ownerFQName: ownerFQName, name: name, arity: arity)
+        if BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) {
+            return false
+        }
+        guard bundledIndex.contains(key) else {
+            return false
+        }
+        skippedCount += 1
         return true
     }
 }

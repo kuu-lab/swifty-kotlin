@@ -3,10 +3,9 @@ package kotlin.uuid
 // MIGRATION-UUID-001: Uuid class API migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeUuid.swift
 //
-// At runtime every method body is bypassed: sema stubs
-// (HeaderHelpers+SyntheticUuidStubs.swift) set external link
-// names on each symbol so all call sites dispatch directly to the
-// corresponding kk_uuid_* runtime function.
+// The sema migration bridge maps the public source declarations below to
+// their kk_uuid_* runtime ABI entries. APIs that are not declared here still
+// come from HeaderHelpers+SyntheticUuidStubs.swift.
 
 /**
  * Represents a Universally Unique Identifier (UUID) as defined by RFC 9562.
@@ -17,7 +16,7 @@ package kotlin.uuid
 @ExperimentalUuidApi
 public class Uuid {
 
-    // ── Companion factory methods ─────────────────────────────────────────────
+    // Companion factory methods
 
     public companion object {
 
@@ -36,7 +35,7 @@ public class Uuid {
         public fun parse(uuidString: String): Uuid = Uuid()  // kk_uuid_parse
     }
 
-    // ── Instance methods ──────────────────────────────────────────────────────
+    // Instance methods
 
     /**
      * Returns the standard hyphenated UUID string representation.

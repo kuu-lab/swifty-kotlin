@@ -426,70 +426,6 @@ public func kk_string_windowedSequence_transform(
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: results)]))
 }
 
-// MARK: - STDLIB-318: String.commonPrefixWith / commonSuffixWith
-
-@_cdecl("kk_string_commonPrefixWith")
-public func kk_string_commonPrefixWith(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
-    var prefix = ""
-    for (a, b) in zip(s, other) {
-        if a == b { prefix.append(a) } else { break }
-    }
-    return runtimeMakeStringRaw(prefix)
-}
-
-@_cdecl("kk_string_commonSuffixWith")
-public func kk_string_commonSuffixWith(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
-    var suffix = ""
-    for (a, b) in zip(s.reversed(), other.reversed()) {
-        if a == b { suffix.insert(a, at: suffix.startIndex) } else { break }
-    }
-    return runtimeMakeStringRaw(suffix)
-}
-
-// MARK: - STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
-
-@_cdecl("kk_string_commonPrefixWith_ignoreCase")
-public func kk_string_commonPrefixWith_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
-    let ignoreCase = ignoreCaseRaw != 0
-    var prefix = ""
-    for (a, b) in zip(s, other) {
-        if ignoreCase
-            ? String(a).caseInsensitiveCompare(String(b)) == .orderedSame
-            : a == b
-        {
-            prefix.append(a)
-        } else {
-            break
-        }
-    }
-    return runtimeMakeStringRaw(prefix)
-}
-
-@_cdecl("kk_string_commonSuffixWith_ignoreCase")
-public func kk_string_commonSuffixWith_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
-    let ignoreCase = ignoreCaseRaw != 0
-    var reversed: [Character] = []
-    for (a, b) in zip(s.reversed(), other.reversed()) {
-        if ignoreCase
-            ? String(a).caseInsensitiveCompare(String(b)) == .orderedSame
-            : a == b
-        {
-            reversed.append(a)
-        } else {
-            break
-        }
-    }
-    return runtimeMakeStringRaw(String(reversed.reversed()))
-}
-
 // MARK: - STDLIB-316: String.zipWithNext()
 
 @_cdecl("kk_string_zipWithNext")
@@ -1444,6 +1380,11 @@ public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
+@_cdecl("__kk_string_splitToSequence")
+public func __kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
+    kk_string_splitToSequence(strRaw, delimRaw)
+}
+
 @_cdecl("kk_string_splitToSequence_flat")
 public func kk_string_splitToSequence_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1483,6 +1424,13 @@ public func kk_string_joinToString(
     }
     let result = prefix + strings.joined(separator: separator) + postfix
     return runtimeMakeStringRaw(result)
+}
+
+@_cdecl("__kk_string_joinToString")
+public func __kk_string_joinToString(
+    _ strListRaw: Int, _ separatorRaw: Int, _ prefixRaw: Int, _ postfixRaw: Int
+) -> Int {
+    kk_string_joinToString(strListRaw, separatorRaw, prefixRaw, postfixRaw)
 }
 
 @_cdecl("kk_string_find")

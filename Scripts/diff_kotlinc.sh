@@ -10,6 +10,7 @@ KOTLINC="${KOTLINC:-kotlinc}"
 KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
 JAVA_BIN="${JAVA_BIN:-java}"
 KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_VERSION:-1.10.2}}"
+KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
 KEEP_TEMP=0
@@ -41,9 +42,10 @@ Options:
   --kotlinc-classpath <path>
                      Additional classpath for kotlinc and java (default: \$KOTLINC_CLASSPATH)
   --java <path>      Path to java command (default: java)
-  --parallel [n]    Enable parallel execution with n workers (default: 1, 0 = disabled)
-  --no-parallel      Disable parallel execution
-  --jobs <n>         Number of parallel workers (default: env DIFF_WORKERS, default: 4, clipped by CPU)
+  --parallel         Enable parallel execution (default)
+  --no-parallel      Disable parallel execution (run cases serially)
+  --jobs <n>         Number of parallel workers (0 = serial;
+                     default: env DIFF_WORKERS, else CPU count)
   --shard-index <n>  0-based shard index for distributed runs (default: \$DIFF_SHARD_INDEX or 0)
   --shard-count <n>  Total number of shards; case i runs when i % count == index
                      (default: \$DIFF_SHARD_COUNT or 1 = no sharding)
@@ -63,6 +65,9 @@ Options:
   -h, --help         Show this help
 
 Environment:
+  DIFF_PARALLEL      1 = parallel (default), 0 = serial. Values > 1 are
+                     deprecated and treated as DIFF_WORKERS
+  DIFF_WORKERS       Number of parallel workers (0 = serial); same as --jobs
   DIFF_LOG_PASS      If 0 or false, omit PASS lines (FAIL/SKIP/CASE unchanged; default: 1)
   DIFF_SHARD_INDEX / DIFF_SHARD_COUNT
                      Run only every Nth case (interleaved) so N runners can split
@@ -107,12 +112,7 @@ while [[ $# -gt 0 ]]; do
       JAVA_BIN="$1"
       ;;
     --parallel)
-      if [[ $# -gt 1 && "$2" =~ ^[0-9]+$ ]]; then
-        DIFF_PARALLEL="$2"
-        shift
-      else
-        DIFF_PARALLEL=1
-      fi
+      DIFF_PARALLEL=1
       ;;
     --no-parallel)
       DIFF_PARALLEL=0
@@ -224,6 +224,16 @@ requires_kotlinx_coroutines() {
   return 1
 }
 
+# Known checksums per kotlinx-coroutines version. For other versions, set
+# KOTLINC_COROUTINES_SHA256 explicitly — otherwise the download is refused
+# rather than silently skipping verification.
+known_coroutines_sha256() {
+  case "$1" in
+    1.10.2) printf '5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd' ;;
+    *) printf '' ;;
+  esac
+}
+
 ensure_kotlinc_classpath() {
   if [[ -n "$KOTLINC_CLASSPATH" ]]; then
     return 0
@@ -240,12 +250,21 @@ ensure_kotlinc_classpath() {
 
   mkdir -p "$KOTLINC_DEP_DIR"
   if [[ ! -s "$KOTLINC_COROUTINES_JAR" ]]; then
+    local expected_sha256="$KOTLINC_COROUTINES_SHA256"
+    if [[ -z "$expected_sha256" ]]; then
+      expected_sha256="$(known_coroutines_sha256 "$KOTLINC_COROUTINES_VERSION")"
+    fi
+    if [[ -z "$expected_sha256" ]]; then
+      echo "No known checksum for kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}." >&2
+      echo "Set KOTLINC_COROUTINES_SHA256 to the expected SHA-256 of the jar." >&2
+      return 1
+    fi
+
     local download_url
     download_url="https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar"
     echo "Downloading kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}..."
     curl -fSL -o "$KOTLINC_COROUTINES_JAR" "$download_url"
-    
-    local expected_sha256="5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd"
+
     local actual_sha256
     if command -v shasum >/dev/null 2>&1; then
       actual_sha256="$(shasum -a 256 "$KOTLINC_COROUTINES_JAR" | awk '{print $1}')"
@@ -277,16 +296,31 @@ fi
 
 ensure_kotlinc_classpath
 
-# DIFF_PARALLEL can be any integer value (0, 1, 2, 3, 4, etc.)
-# 0 = disabled, 1+ = enabled with that many parallel workers
+# DIFF_PARALLEL is a boolean toggle: 0 = serial, 1 = parallel (default).
+# Worker count comes from DIFF_WORKERS / --jobs. Values >= 2 are deprecated
+# and treated as a DIFF_WORKERS fallback for backward compatibility.
 if ! [[ "$DIFF_PARALLEL" =~ ^[0-9]+$ ]]; then
-  echo "DIFF_PARALLEL must be a non-negative integer: $DIFF_PARALLEL" >&2
+  echo "DIFF_PARALLEL must be 0 or 1: $DIFF_PARALLEL" >&2
   exit 1
 fi
 
-if [[ -n "$DIFF_WORKERS" ]] && ! [[ "$DIFF_WORKERS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "DIFF_WORKERS must be a positive integer: $DIFF_WORKERS" >&2
+if (( DIFF_PARALLEL > 1 )); then
+  echo "warning: DIFF_PARALLEL=$DIFF_PARALLEL (values > 1) is deprecated; use DIFF_WORKERS=$DIFF_PARALLEL or --jobs $DIFF_PARALLEL instead" >&2
+  if [[ -z "$DIFF_WORKERS" ]]; then
+    DIFF_WORKERS="$DIFF_PARALLEL"
+  fi
+  DIFF_PARALLEL=1
+fi
+
+if [[ -n "$DIFF_WORKERS" ]] && ! [[ "$DIFF_WORKERS" =~ ^(0|[1-9][0-9]*)$ ]]; then
+  echo "DIFF_WORKERS must be a non-negative integer (0 = serial): $DIFF_WORKERS" >&2
   exit 1
+fi
+
+# --jobs 0 / DIFF_WORKERS=0 means serial execution.
+if [[ "$DIFF_WORKERS" == "0" ]]; then
+  DIFF_PARALLEL=0
+  DIFF_WORKERS=""
 fi
 
 if ! [[ "$DIFF_SHARD_COUNT" =~ ^[1-9][0-9]*$ ]]; then
@@ -338,6 +372,11 @@ if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
+  echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
+  exit 1
+fi
+
 warm_kotlinc() {
   local warm_timeout
   warm_timeout=$(( COMPILE_TIMEOUT > 10 ? COMPILE_TIMEOUT : 10 ))
@@ -351,27 +390,27 @@ jar_main_class() {
     | awk -F': ' '/^Main-Class:/ { print $2; exit }'
 }
 
-WORKER_COUNT="${DIFF_WORKERS:-}"
-if [[ -z "$WORKER_COUNT" ]]; then
+# Worker count: serial when disabled, else explicit DIFF_WORKERS / --jobs,
+# else auto-detected CPU count (fallback 4).
+if [[ "$DIFF_PARALLEL" -eq 0 ]]; then
+  WORKER_COUNT=1
+elif [[ -n "$DIFF_WORKERS" ]]; then
+  WORKER_COUNT="$DIFF_WORKERS"
+else
   WORKER_COUNT="$(detect_workers)"
   [[ -z "$WORKER_COUNT" ]] && WORKER_COUNT=4
 fi
 
-# Handle DIFF_PARALLEL: 0 = disabled, 1+ = enabled with specified workers
-if [[ "$DIFF_PARALLEL" -eq 0 ]]; then
+if [[ "$WORKER_COUNT" -lt 1 ]]; then
   WORKER_COUNT=1
-elif [[ "$DIFF_PARALLEL" -gt 1 ]]; then
-  # Use DIFF_PARALLEL as the worker count if it's greater than 1
-  WORKER_COUNT="$DIFF_PARALLEL"
-else
-  # DIFF_PARALLEL = 1, use auto-detection with CPU limit
-  CPU_LIMIT="$(detect_workers)"
-  if [[ -n "$CPU_LIMIT" && "$WORKER_COUNT" -gt "$CPU_LIMIT" ]]; then
-    WORKER_COUNT="$CPU_LIMIT"
-  fi
 fi
 
-if [[ "$WORKER_COUNT" -lt 1 ]]; then
+# The parallel scheduler below relies on `wait -n` (bash >= 4.3). macOS's
+# stock bash 3.2 would fail mid-run, so fall back to serial execution there.
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3) )); then
+  if [[ "$DIFF_PARALLEL" -ne 0 && "$WORKER_COUNT" -gt 1 ]]; then
+    echo "bash $BASH_VERSION lacks 'wait -n'; running serially (install bash >= 4.3 for parallel mode)." >&2
+  fi
   WORKER_COUNT=1
 fi
 
@@ -391,30 +430,19 @@ echo "=================================="
 # not the first kotlinc startup cost.
 warm_kotlinc
 
+# Emits this shard's cases (interleaved sharding via lib/common.sh;
+# DIFF_SHARD_COUNT == 1 emits everything).
 collect_cases() {
   local path="$1"
-  local -a all=()
   if [[ -f "$path" ]]; then
-    all=("$path")
+    printf '%s\n' "$path" | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
   elif [[ -d "$path" ]]; then
-    while IFS= read -r found; do
-      [[ -z "$found" ]] && continue
-      all+=("$found")
-    done < <(find "$path" -type f -name '*.kt' | sort)
+    find "$path" -type f -name '*.kt' | sort \
+      | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
   else
     echo "Target does not exist: $path" >&2
     exit 1
   fi
-
-  # Interleaved sharding: case i is emitted only when i % count == index.
-  # No sharding when DIFF_SHARD_COUNT == 1 (every case passes the test).
-  local i=0
-  for found in "${all[@]+"${all[@]}"}"; do
-    if (( i % DIFF_SHARD_COUNT == DIFF_SHARD_INDEX )); then
-      printf '%s\n' "$found"
-    fi
-    i=$((i + 1))
-  done
 }
 
 # Number of cases in the target *before* sharding, so an empty shard can be
@@ -445,14 +473,6 @@ handle_empty_cases() {
 
 normalize_text() {
   tr -d '\r'
-}
-
-sanitize_case_name() {
-  local input="$1"
-  input="${input##*/}"
-  input="${input%.kt}"
-  input="${input//[^A-Za-z0-9._-]/_}"
-  printf '%s' "$input"
 }
 
 safe_diff_to_file() {
@@ -573,20 +593,19 @@ get_kotlinc_extra_flags() {
   grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
-# Normalize stdout: replace lines matching pattern with placeholder for diff
+# Normalize stdout: replace lines matching pattern with placeholder for diff.
+# The pattern is passed through the environment (not awk -v) so backslashes in
+# the regex are not mangled by awk's escape-sequence processing.
 normalize_stdout_for_diff() {
   local file="$1"
   local pattern="$2"
   if [[ -z "$pattern" ]]; then
     cat "$file"
   else
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      if echo "$line" | grep -qE "$pattern"; then
-        echo "__DIFF_PATTERN_MATCH__"
-      else
-        echo "$line"
-      fi
-    done < "$file"
+    DIFF_LINE_PATTERN_RE="$pattern" awk '
+      $0 ~ ENVIRON["DIFF_LINE_PATTERN_RE"] { print "__DIFF_PATTERN_MATCH__"; next }
+      { print }
+    ' "$file"
   fi
 }
 

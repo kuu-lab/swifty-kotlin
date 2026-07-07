@@ -13,7 +13,7 @@ struct ReflectKClassSafeCastSyntheticTests {
                 !(ctx.diagnostics.hasError),
                 Comment(rawValue: "Expected KClass.safeCast source to type-check, got: \(ctx.diagnostics.diagnostics)")
             )
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
         return try #require(result)
     }

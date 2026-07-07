@@ -15,7 +15,7 @@ struct NativeCInteropCVariableSurfaceTests {
         let interner = ctx.interner
         func cinteropSymbol(_ path: [String]) throws -> SymbolID {
                 let found = sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) })
-            return try #require(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
+            return try requireTestValue(found, "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered")
         }
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)

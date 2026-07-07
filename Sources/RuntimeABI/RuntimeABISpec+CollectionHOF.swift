@@ -76,7 +76,6 @@ public extension RuntimeABISpec {
         let genericAfter = [
             "kk_list_reduce", "kk_list_groupBy", "kk_list_sortedBy",
             "kk_list_count", "kk_list_first", "kk_list_last", "kk_list_find", "kk_list_findLast",
-            "kk_list_firstOrNull_predicate",
         ]
         let destinationLambdaParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -292,6 +291,18 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
+        )
+        let zipTransformSpec = RuntimeABIFunctionSpec(
+            name: "kk_list_zip_transform",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "otherRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
         )
         let zipWithNextSpec = RuntimeABIFunctionSpec(
             name: "kk_list_zipWithNext",
@@ -640,7 +651,7 @@ public extension RuntimeABISpec {
                     returnType: .intptr,
                     section: "Collection"
                 ),
-                zipSpec, zipWithNextSpec, zipWithNextTransformSpec, unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
+                zipSpec, zipTransformSpec, zipWithNextSpec, zipWithNextTransformSpec, unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
                 sumOfSpec, sumBySpec, sumByDoubleSpec, maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 takeSpec, dropSpec, takeLastSpec, sumSpec, averageSpec, reversedSpec, asReversedSpec, sortedSpec, distinctSpec,

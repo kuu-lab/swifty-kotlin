@@ -1143,32 +1143,6 @@ extension NativeEmitter {
                     stringArgumentPositions: [0, 2, 3],
                     canThrow: false
                 ),
-                "kk_string_commonPrefixWith_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_commonPrefixWith_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_commonSuffixWith_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_commonSuffixWith_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_commonPrefixWith_ignoreCase_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_commonPrefixWith_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 1],
-                    canThrow: false
-                ),
-                "kk_string_commonSuffixWith_ignoreCase_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_commonSuffixWith_ignoreCase_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0, 1],
-                    canThrow: false
-                ),
                 "kk_string_format_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_format_flat",
                     stringArgumentCount: 1,
@@ -1365,6 +1339,11 @@ extension NativeEmitter {
                 ),
                 "kk_string_split_regex_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_split_regex_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "__kk_string_split_regex_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_string_split_regex_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),

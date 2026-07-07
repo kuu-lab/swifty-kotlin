@@ -2,7 +2,7 @@
 
 > **ステータス**: Section A（完全到達不能 102 個）と Section C（参照ゼロ Swift 関数 6 個）は **削除済み**。
 > 参照元ファイル（`RuntimeLogging.swift`, `RuntimeFlowErrorHandling.swift` 等）も既に存在しない。
-> Section B（テストのみ参照 127 個）はトリアージ完了（2026-06-23 実施）。RF-DEAD-002 結果参照。
+> Section B（テストのみ参照 120 個）はトリアージ完了（2026-06-23 実施）。RF-DEAD-002 結果参照。
 > Section D（テストのみ参照 Swift シンボル）はトリアージ完了（2026-07-02 実施）。DEADCODE-013 結果参照。
 > 本ドキュメントは監査の履歴記録として保持する。
 
@@ -131,7 +131,7 @@ kk_mem_scope_enter
 kk_native_alloc_bytes kk_native_heap_free
 ```
 
-## B. テストのみが参照する `kk_*` 関数（127 個）→ RF-DEAD-002
+## B. テストのみが参照する `kk_*` 関数（120 個）→ RF-DEAD-002
 
 CompilerCore が emit できないため Kotlin プログラムからは到達不能だが、`Tests/RuntimeTests` が Swift から直接呼んで延命している。「(a) 配線予定 / (b) テスト支援 API / (c) 削除」のトリアージが必要。
 
@@ -183,12 +183,9 @@ kk_int_max_value kk_int_min_value
 kk_kclass_get_arity
 kk_kproperty_stub_create_full kk_kproperty_stub_is_const
 kk_kproperty_stub_is_lateinit kk_kproperty_stub_visibility
-kk_list_firstOrNull_predicate
 kk_long_max_value kk_long_min_value
 kk_output_stream_bufferedWriter_default
 kk_panic
-kk_parallel_pool_new kk_parallel_stream_forEach kk_parallel_stream_from_collection
-kk_parallel_stream_map kk_parallel_stream_reduce kk_parallel_stream_to_list
 kk_pinned_get
 kk_platform_isDebugBinary
 kk_register_global_root kk_unregister_global_root
@@ -209,7 +206,7 @@ kk_write_barrier
 - `kk_write_barrier` / `kk_register_global_root` / `kk_unregister_global_root` / `kk_panic` は GC・ランタイム基盤の名前だが現行 codegen は emit していない（global root は `kk_global_root_slot_*` 動的名で処理）。設計上の予約か取り残しかの判断が必要
 - `kk_set_*` HOF 群は TEST-COL-012（TODO.md テスト改善タスク）が Codegen 統合テスト追加を予定している領域と重なる。削除ではなく配線が正解の可能性あり
 
-> **注**: `kk_hexformat_prefix` / `kk_hexformat_suffix` / `kk_panic` / `kk_write_barrier` は監査時点でソースに存在せず（既削除またはリスト誤記）。実際に存在するのは 123 個。
+> **注**: `kk_hexformat_prefix` / `kk_hexformat_suffix` / `kk_panic` / `kk_write_barrier` は監査時点でソースに存在せず（既削除またはリスト誤記）。実際に存在するのは 116 個。
 
 ### RF-DEAD-002 トリアージ結果（2026-06-23 実施）
 
@@ -223,24 +220,24 @@ kk_write_barrier
 | `kk_runtime_force_reset` | `RuntimeGC.swift` | テスト間ランタイム全状態リセット |
 | `kk_runtime_heap_object_count` | `RuntimeGC.swift` | テスト間ヒープオブジェクト数検査 |
 
-#### (c) 削除 — 3 個（HTTP クライアント。ターゲット外）
+#### (c) 削除 — 9 個
 
 | 関数 | 削除済みファイル |
 |---|---|
 | `kk_http_client_new` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
 | `kk_http_client_get` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
 | `kk_http_client_post_async` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
+| `kk_parallel_pool_new` / `kk_parallel_stream_{from_collection,to_list,map,forEach,reduce}` | `RuntimeParallel.swift` + `RuntimeABISpec+Parallel.swift` |
 
-テスト: `Tests/RuntimeTests/RuntimeHTTPClientTests.swift` 全削除。
+テスト: `Tests/RuntimeTests/RuntimeHTTPClientTests.swift` / `Tests/RuntimeTests/RuntimeParallelTests.swift` 全削除。
 
-#### (a) 配線予定 — 115 個
+#### (a) 配線予定 — 108 個
 
 | タスク / 領域 | 関数群 | ファイル |
 |---|---|---|
 | **MIGRATION-ATOMIC-001** (AtomicIntArray) | `kk_atomic_int_array_create/size/loadAt/storeAt/exchangeAt/compareAndSetAt/compareAndExchangeAt/fetchAndUpdateAt/fetchAndAddAt/addAndFetchAt/fetchAndIncrementAt/incrementAndFetchAt/fetchAndDecrementAt/decrementAndFetchAt` | `RuntimeAtomic.swift` |
 | **MIGRATION-ATOMIC-001** (AtomicLongArray) | 同上 `long` 版 | `RuntimeAtomic.swift` |
 | **MIGRATION-ATOMIC-001** (getAndUpdate/updateAndGet) | `kk_atomic_{int,long,bool,ref}_{getAndUpdate,updateAndGet}` | `RuntimeAtomic.swift` |
-| **STDLIB-PERF-155** | `kk_parallel_pool_new` / `kk_parallel_stream_{from_collection,to_list,map,forEach,reduce}` | `RuntimeParallel.swift` |
 | **TEST-COL-012** (Set HOF) | `kk_set_{map,forEach,filterNot,mapNotNull,flatMap,count_predicate}` | `RuntimeCollectionHOF.swift` |
 | **Flow API 完全実装** | `kk_flow_{count,fold,reduce,emit_with_timestamp}` | `RuntimeCoroutineFlow.swift` |
 | **STDLIB-CINTEROP-FN-009/042** | `kk_pinned_get` / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
@@ -257,7 +254,6 @@ kk_write_barrier
 | **数値コンパニオン定数** | `kk_double_{max,min}_value` / `kk_double_{nan,negative_infinity,positive_infinity}` / `kk_float_*` 同様 / `kk_int_{max,min}_value` / `kk_long_{max,min}_value` | `RuntimeMath.swift` |
 | **FreezableAtomicRef** | `kk_freezable_atomic_ref_{is_frozen,store}` | `RuntimeNativeConcurrentABI.swift` |
 | **STDLIB-REFLECT-067** | `kk_kclass_get_arity` | `RuntimeReflection.swift` |
-| **List HOF** | `kk_list_firstOrNull_predicate` | `RuntimeCollectionHOF.swift` |
 | **Array HOF** | `kk_array_mapNotNull` | `RuntimeCollectionHOFArray.swift` |
 | **IO** | `kk_output_stream_bufferedWriter_default` | `RuntimeFileIO.swift` |
 | **Platform** | `kk_platform_isDebugBinary` | `RuntimePlatform.swift` |

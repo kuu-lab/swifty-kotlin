@@ -6,7 +6,7 @@ import XCTest
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesRangeEdgeCases() throws {
         #if os(Linux)
-        throw XCTSkip("Range edge cases test temporarily disabled on Linux")
+        try XCTSkipIf(true, "Range edge cases test temporarily disabled on Linux")
         #endif
         let source = """
         fun main() {
@@ -42,7 +42,7 @@ extension CodegenBackendIntegrationTests {
 
     func testCodegenCompilesRangeRandomOrNullEdgeCases() throws {
         #if os(Linux)
-        throw XCTSkip("Range randomOrNull edge cases test temporarily disabled on Linux")
+        try XCTSkipIf(true, "Range randomOrNull edge cases test temporarily disabled on Linux")
         #endif
         let source = """
         import kotlin.random.Random
@@ -135,7 +135,7 @@ extension CodegenBackendIntegrationTests {
 
     func testCodegenCompilesByteAndShortCoercionCases() throws {
         #if os(Linux)
-        throw XCTSkip("Byte/Short coercion test temporarily disabled on Linux")
+        try XCTSkipIf(true, "Byte/Short coercion test temporarily disabled on Linux")
         #endif
         // Byte and Short are normalized to Int in the compiler, so these calls
         // exercise the same runtime helpers as Int while proving the source
@@ -169,7 +169,7 @@ extension CodegenBackendIntegrationTests {
 
     func testCodegenCompilesUnsignedCoercionCases() throws {
         #if os(Linux)
-        throw XCTSkip("Unsigned coercion test temporarily disabled on Linux")
+        try XCTSkipIf(true, "Unsigned coercion test temporarily disabled on Linux")
         #endif
         let source = """
         import kotlin.ranges.UIntRange
@@ -258,4 +258,3 @@ extension CodegenBackendIntegrationTests {
         }
     }
 }
-

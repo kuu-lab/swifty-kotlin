@@ -27,6 +27,11 @@ extension CoroutineLoweringPass {
         let runtimeRunBlockingWithContCallee: InternedString
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString]
         let kxMiniLauncherWithContCallees: [InternedString: InternedString]
+        let sequenceBuilderBuildCallee: InternedString
+        let sequenceBuilderBuildCoroCallee: InternedString
+        let sequenceBuilderYieldAllCallee: InternedString
+        let iteratorBuilderBuildCallee: InternedString
+        let iteratorBuilderBuildCoroCallee: InternedString
         let loweredBySymbol: [SymbolID: LoweredSuspendFunction]
         let continuationTypeByLoweredSymbol: [SymbolID: TypeID]
         let suspendFunctionArityBySymbol: [SymbolID: Int]
@@ -226,6 +231,15 @@ extension CoroutineLoweringPass {
                 continue
             }
 
+            if let builderInstruction = rewriteCoroutineBuilderBuildCall(
+                call: call,
+                symbolByExprRaw: symbolByExprRaw,
+                using: rewrite
+            ) {
+                loweredBody.append(builderInstruction)
+                continue
+            }
+
             if let createCoroutineInstructions = rewriteCreateCoroutineUninterceptedCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
@@ -271,35 +285,72 @@ extension CoroutineLoweringPass {
         callableRefTagFunctionCallee: InternedString
     ) -> [Int32: SymbolID] {
         var symbolByExprRaw: [Int32: SymbolID] = [:]
+        var ambiguousSymbolExprRaws: Set<Int32> = []
+
+        func markAmbiguousSymbolExpr(_ raw: Int32) -> Bool {
+            var changed = false
+            if symbolByExprRaw.removeValue(forKey: raw) != nil {
+                changed = true
+            }
+            if ambiguousSymbolExprRaws.insert(raw).inserted {
+                changed = true
+            }
+            return changed
+        }
+
+        for instruction in function.body {
+            guard case let .constValue(result, .symbolRef(symbol)) = instruction else {
+                continue
+            }
+            let raw = result.rawValue
+            if let existing = symbolByExprRaw[raw], existing != symbol {
+                _ = markAmbiguousSymbolExpr(raw)
+            } else if !ambiguousSymbolExprRaws.contains(raw) {
+                symbolByExprRaw[raw] = symbol
+            }
+        }
+
+        func propagateSymbol(from source: KIRExprID, to destination: KIRExprID) -> Bool {
+            let sourceRaw = source.rawValue
+            let destinationRaw = destination.rawValue
+            if ambiguousSymbolExprRaws.contains(sourceRaw) {
+                return markAmbiguousSymbolExpr(destinationRaw)
+            }
+            guard let symbol = symbolByExprRaw[sourceRaw],
+                  !ambiguousSymbolExprRaws.contains(destinationRaw)
+            else {
+                return false
+            }
+            if let existing = symbolByExprRaw[destinationRaw] {
+                if existing != symbol {
+                    return markAmbiguousSymbolExpr(destinationRaw)
+                }
+                return false
+            }
+            symbolByExprRaw[destinationRaw] = symbol
+            return true
+        }
+
         var propagated = true
 
         while propagated {
             propagated = false
             for instruction in function.body {
                 switch instruction {
-                case let .constValue(result, .symbolRef(symbol)):
-                    if symbolByExprRaw[result.rawValue] != symbol {
-                        symbolByExprRaw[result.rawValue] = symbol
-                        propagated = true
-                    }
                 case let .copy(from, to):
-                    if let symbol = symbolByExprRaw[from.rawValue],
-                       symbolByExprRaw[to.rawValue] != symbol
-                    {
-                        symbolByExprRaw[to.rawValue] = symbol
+                    if propagateSymbol(from: from, to: to) {
                         propagated = true
                     }
                 case let .call(_, callee, arguments, result, _, _, _, _):
                     guard callee == callableRefTagFunctionCallee,
                           let result,
-                          let callableExpr = arguments.first,
-                          let symbol = symbolByExprRaw[callableExpr.rawValue],
-                          symbolByExprRaw[result.rawValue] != symbol
+                          let callableExpr = arguments.first
                     else {
                         continue
                     }
-                    symbolByExprRaw[result.rawValue] = symbol
-                    propagated = true
+                    if propagateSymbol(from: callableExpr, to: result) {
+                        propagated = true
+                    }
                 default:
                     continue
                 }
@@ -609,6 +660,159 @@ extension CoroutineLoweringPass {
             canThrow: false,
             thrownResult: nil
         )
+    }
+
+    func rewriteCoroutineBuilderBuildCall(
+        call: CallRewriteInput,
+        symbolByExprRaw: [Int32: SymbolID],
+        using rewrite: SuspendRewriteContext
+    ) -> KIRInstruction? {
+        let replacementCallee: InternedString
+        if call.callee == rewrite.sequenceBuilderBuildCallee {
+            replacementCallee = rewrite.sequenceBuilderBuildCoroCallee
+        } else if call.callee == rewrite.iteratorBuilderBuildCallee {
+            replacementCallee = rewrite.iteratorBuilderBuildCoroCallee
+        } else {
+            return nil
+        }
+
+        guard let callableExpr = call.arguments.first,
+              let referencedSymbol = symbolReference(
+                  for: callableExpr,
+                  module: rewrite.module,
+                  propagatedSymbols: symbolByExprRaw
+              ),
+              let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
+        else {
+            return nil
+        }
+
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCallee(
+               symbol: loweredTarget.symbol,
+               callee: rewrite.sequenceBuilderYieldAllCallee,
+               module: rewrite.module
+           )
+        {
+            return nil
+        }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsAnyCallee(
+               symbol: loweredTarget.symbol,
+               callees: [
+                   rewrite.ctx.interner.intern("kk_coroutine_continuation_new"),
+                   rewrite.ctx.interner.intern("kk_range_iterator"),
+                   rewrite.ctx.interner.intern("kk_range_hasNext"),
+                   rewrite.ctx.interner.intern("kk_range_next"),
+               ],
+               module: rewrite.module
+           )
+        {
+            return nil
+        }
+        if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee,
+           loweredFunctionContainsCalleeNamedLike(
+               symbol: loweredTarget.symbol,
+               module: rewrite.module,
+               interner: rewrite.ctx.interner,
+               isMatch: { name in
+                   name.hasPrefix("kk_lambda_") || name.hasPrefix("kk_suspend_kk_lambda_")
+               }
+           )
+        {
+            return nil
+        }
+
+        let entryPointSymbol = entryPointSymbol(
+            for: referencedSymbol,
+            loweredTarget: loweredTarget,
+            hasLauncherArg: true,
+            using: rewrite
+        )
+        let entryPointExpr = rewrite.module.arena.appendExpr(
+            .symbolRef(entryPointSymbol),
+            type: rewrite.intType
+        )
+        let functionIDExpr = rewrite.module.arena.appendExpr(
+            .intLiteral(Int64(loweredTarget.symbol.rawValue)),
+            type: rewrite.intType
+        )
+        let closureRawExpr: KIRExprID
+        if call.arguments.count >= 2 {
+            closureRawExpr = call.arguments[1]
+        } else {
+            closureRawExpr = rewrite.module.arena.appendExpr(
+                .intLiteral(0),
+                type: rewrite.intType
+            )
+        }
+
+        return .call(
+            symbol: nil,
+            callee: replacementCallee,
+            arguments: [entryPointExpr, functionIDExpr, closureRawExpr],
+            result: call.result,
+            canThrow: call.canThrow,
+            thrownResult: call.thrownResult,
+            isSuperCall: call.isSuperCall
+        )
+    }
+
+    private func loweredFunctionContainsCallee(
+        symbol: SymbolID,
+        callee: InternedString,
+        module: KIRModule
+    ) -> Bool {
+        loweredFunctionContainsAnyCallee(symbol: symbol, callees: [callee], module: module)
+    }
+
+    private func loweredFunctionContainsAnyCallee(
+        symbol: SymbolID,
+        callees: Set<InternedString>,
+        module: KIRModule
+    ) -> Bool {
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  function.symbol == symbol
+            else {
+                continue
+            }
+            return function.body.contains { instruction in
+                if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                    return callees.contains(instructionCallee)
+                }
+                if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                    return callees.contains(instructionCallee)
+                }
+                return false
+            }
+        }
+        return false
+    }
+
+    private func loweredFunctionContainsCalleeNamedLike(
+        symbol: SymbolID,
+        module: KIRModule,
+        interner: StringInterner,
+        isMatch: (String) -> Bool
+    ) -> Bool {
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  function.symbol == symbol
+            else {
+                continue
+            }
+            return function.body.contains { instruction in
+                if case let .call(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                    return isMatch(interner.resolve(instructionCallee))
+                }
+                if case let .virtualCall(_, instructionCallee, _, _, _, _, _, _) = instruction {
+                    return isMatch(interner.resolve(instructionCallee))
+                }
+                return false
+            }
+        }
+        return false
     }
 
     func rewriteCreateCoroutineUninterceptedCall(

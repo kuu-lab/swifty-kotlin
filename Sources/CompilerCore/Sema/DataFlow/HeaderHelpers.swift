@@ -169,7 +169,7 @@ extension DataFlowSemaPhase {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if let equals = trimmed.firstIndex(of: "=") {
             let name = trimmed[..<equals].trimmingCharacters(in: .whitespacesAndNewlines)
-            if name == "value" {
+            if name == "name" || name == "value" {
                 trimmed = String(trimmed[trimmed.index(after: equals)...])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -1113,16 +1113,54 @@ extension DataFlowSemaPhase {
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let skipStats = SyntheticStubSkipStatsCollector()
+        let shouldClearContextOnReturn =
+            !BundledSyntheticStubRegistration.preBundledPass
+            && !BundledSyntheticStubRegistration.postBundledPass
+        defer {
+            if shouldClearContextOnReturn {
+                BundledSyntheticStubRegistration.clear()
+            }
+        }
+        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
+        BundledSyntheticStubRegistration.types = types
+        if BundledSyntheticStubRegistration.postBundledPass {
+            registerSyntheticPostBundledMemberStubs(
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            return
+        }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
-        registerSyntheticPropertyInterfaceStubs(
-            symbols: symbols, types: types, interner: interner,
-            kotlinPkg: kotlinPkg, kotlinPropertiesPkg: kotlinPropertiesPkg
+        let registryContext = SyntheticDelegateStubRegistryContext(
+            kotlinPkg: kotlinPkg,
+            kotlinPropertiesPkg: kotlinPropertiesPkg,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
-        // Random stubs must be registered before collection stubs so that
-        // shuffled(random: Random) can look up the kotlin.random.Random symbol.
+
+        registerSyntheticDelegateRegistryStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            context: registryContext
+        )
+        skipStats.logIfEnabled()
+    }
+
+    /// Replay deferred extension-member stub registration after bundled headers are indexed.
+    func registerSyntheticPostBundledMemberStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        let skipStats = SyntheticStubSkipStatsCollector()
+        defer {
+            skipStats.logIfEnabled()
+        }
+        let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         registerSyntheticRandomStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCollectionStubs(
             symbols: symbols,
@@ -1131,12 +1169,8 @@ extension DataFlowSemaPhase {
             bundledIndex: bundledIndex,
             skipStats: skipStats
         )
-        // STDLIB-REFLECT-063: Now that List is registered, update KFunction.parameters type to
-        // List<Any?> so that `.size` resolves correctly on the parameters property.
         patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
-        // KType.arguments depends on kotlin.collections.List and KTypeProjection.
         patchKTypeArgumentsType(symbols: symbols, types: types, interner: interner)
-        // KTypeParameter.upperBounds depends on kotlin.collections.List.
         patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
         registerSyntheticRangeProgressionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticRangeUntilStubs(symbols: symbols, types: types, interner: interner)
@@ -1178,7 +1212,6 @@ extension DataFlowSemaPhase {
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(symbols: symbols, types: types, interner: interner)
-        // Function interfaces are registered by TODO/IO stubs, so patch KProperty function supertypes here.
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
@@ -1186,19 +1219,13 @@ extension DataFlowSemaPhase {
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        // FileTreeWalk runs after FileIO and FileWalkDirection so File and direction enum are available
         registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
         registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
-        // Extended stdlib batch (Atomic/Networking/Logging/Streams/JS-interop/...).
-        // To add a new stub in this range, edit
-        // HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift instead of this file.
-        // The Phase file preserves the exact original call order.
-        registerSyntheticPhase_ExtendedStdlib(symbols: symbols, types: types, interner: interner)
-        skipStats.logIfEnabled()
+        registerSyntheticBucketedExtendedStdlibStubs(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.

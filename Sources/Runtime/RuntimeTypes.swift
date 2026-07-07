@@ -613,10 +613,9 @@ enum SequenceStepKind {
     /// STDLIB-SEQ-019: Random shuffle of the full upstream result. Each full iteration
     /// of the returned sequence re-shuffles (intermediate, stateful; matches Kotlin).
     case shuffledStep(randomRaw: Int?)
-    /// STDLIB-563: Lazy continuation-based builder.
-    /// The coroutine runs the builder lambda on a background thread;
-    /// each `yield()` suspends the producer until the consumer requests
-    /// the next element.
+    /// STDLIB-563: Lazy continuation-based builder. CPS producers suspend by
+    /// returning COROUTINE_SUSPENDED; legacy callbacks keep the thread-backed
+    /// producer path.
     case lazyBuilder(coroutine: RuntimeSequenceCoroutine)
 }
 
@@ -645,17 +644,24 @@ final class RuntimeSequenceBuilderBox {
 
 // STDLIB-563: Continuation-based lazy sequence coroutine.
 //
-// Runs the builder lambda on a background thread. Each call to `yield(value)`
-// is a producer suspend point: the value is published, the consumer is woken,
-// and the producer waits until the consumer requests the next element.
+// Compiler-generated builders use the CPS producer path: each `yield(value)`
+// publishes a value, returns COROUTINE_SUSPENDED, and is resumed by the next
+// consumer request through the stored continuation. Legacy tests/direct ABI
+// callers keep the thread-backed path below for non-CPS raw callbacks.
 //
 // The coroutine is started lazily on the first call to `materializeAll()`.
 //
-// Thread protocol (DEBT-CORO-002 / CORO-004):
-//   Producer thread (dedicated OS thread, not GCD pool):
-//     1. Waits on producerGate for the first consumer request.
+// Producer protocol (DEBT-CORO-002 / CORO-004):
+//   CPS producer (compiler-generated builders):
+//     1. First consumer request starts runSuspendEntryLoopWithContinuation().
+//     2. On yield(value): queue value, signal consumer, return COROUTINE_SUSPENDED.
+//     3. Next consumer request resumes the stored continuation with Unit.
+//     4. On completion: set finished flag, signal consumer.
+//
+//   Legacy producer (direct ABI tests / pre-CPS callbacks):
+//     1. Waits on producerGate on a dedicated OS thread.
 //     2. Runs builder lambda sequentially.
-//     3. On yield(value): store value, signal consumer, block on producerGate.
+//     3. On yield(value): queue value, signal consumer, block on producerGate.
 //     4. On completion: set finished flag, signal consumer.
 //
 //   Consumer thread — blocking path (non-coroutine callers):
@@ -669,18 +675,19 @@ final class RuntimeSequenceBuilderBox {
 //     3. When the producer yields, the continuation fires and calls
 //        callerState.resume(with: element) or callerState.resume(with: doneSentinel).
 //
-// DEBT-CORO-002 status: producer runs on a dedicated Thread (not a GCD pool
-// thread) so yield() no longer occupies a shared GCD thread while blocked.
-// Consumer-side suspension infrastructure added (CORO-004 Phase 2); activation
-// requires runtimeTraverseSequenceWithState to become suspension-aware.
+// DEBT-CORO-002 status: compiler-generated producers use CPS and no longer
+// allocate a dedicated producer thread. The thread-backed path remains for
+// legacy non-CPS callbacks.
 //
-// CORO-004 Phase 3 (remaining): CPS-transform sequence builder lambdas so
-// yield() returns COROUTINE_SUSPENDED. invokeBuilderLambda() becomes the
-// per-element re-entry point and the dedicated thread is eliminated.
+// CORO-004 Phase 3: CPS-transformed sequence builder lambdas call yield() as a
+// real suspend point, so compiler-generated producers no longer need a
+// dedicated thread. The legacy thread path remains only for pre-CPS callbacks.
 final class RuntimeSequenceCoroutine: @unchecked Sendable {
-    /// The builder lambda function pointer: (closureRaw, builderRaw, outThrown) -> Int.
+    /// Legacy builder function pointer or CPS suspend entry point.
     let fnPtr: Int
     let closureRaw: Int
+    private let functionID: Int
+    private let usesCPSProducer: Bool
 
     /// Producer suspend gate — signalled by the consumer when it wants the next element.
     private let producerGate = RuntimeCoroutineSyncGate()
@@ -691,14 +698,20 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// Guard for mutable state access.
     private let stateLock = NSLock()
 
-    /// The most recently yielded value (producer -> consumer).
-    private var yieldedValue: Int = 0
+    /// Values published by the producer but not consumed yet.
+    private var pendingYieldedValues: [Int] = []
 
     /// Whether the producer has finished (either completed or threw).
     private var finished = false
 
-    /// Whether the coroutine background thread has been started.
+    /// Whether the coroutine producer has been initialized.
     private var started = false
+
+    /// Whether the CPS suspend-entry loop has been kicked off.
+    private var cpsLoopStarted = false
+
+    /// Continuation handle used to resume the CPS builder after yield().
+    private var producerContinuationRaw: Int = 0
 
     /// All elements materialized so far (cache for re-iteration).
     private var materializedElements: [Int] = []
@@ -710,19 +723,25 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// CPS re-invocations can call invokeBuilderLambda() without recreating it.
     private var builderHandle: Int = 0
 
-    init(fnPtr: Int, closureRaw: Int) {
+    init(fnPtr: Int, closureRaw: Int, functionID: Int = 0, usesCPSProducer: Bool = false) {
         self.fnPtr = fnPtr
         self.closureRaw = closureRaw
+        self.functionID = functionID
+        self.usesCPSProducer = usesCPSProducer
     }
 
-    /// Called by the producer (background thread) to yield a value.
-    func yieldValue(_ value: Int) {
+    /// Called by the producer to yield a value.
+    func yieldValue(_ value: Int) -> Int {
         stateLock.lock()
-        yieldedValue = value
+        pendingYieldedValues.append(value)
         stateLock.unlock()
 
         consumerGate.signal()
+        if usesCPSProducer {
+            return Int(bitPattern: kk_coroutine_suspended())
+        }
         producerGate.wait()
+        return 0
     }
 
     /// Called by the producer when it finishes (normally or via exception).
@@ -733,9 +752,16 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         consumerGate.signal()
     }
 
+    private func consumePendingValueLocked() -> Int? {
+        guard !pendingYieldedValues.isEmpty else {
+            return nil
+        }
+        return pendingYieldedValues.removeFirst()
+    }
+
     /// Consumer side: advance the producer one step and block until it yields or finishes.
     private func awaitProducerYield() {
-        producerGate.signal()
+        requestProducerStep()
         consumerGate.wait()
     }
 
@@ -749,11 +775,16 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// propagate COROUTINE_SUSPENDED; `false` when the result was already
     /// available and the blocking path has completed.
     private func awaitProducerYieldAsync(callerState: RuntimeContinuationState) -> Bool {
-        producerGate.signal()
+        requestProducerStep()
         let coroutine = self
         let didSuspend = consumerGate.wait(resumeContinuation: {
             coroutine.stateLock.lock()
-            if coroutine.finished {
+            if let value = coroutine.consumePendingValueLocked() {
+                coroutine.materializedElements.append(value)
+                coroutine.consumptionIndex += 1
+                coroutine.stateLock.unlock()
+                callerState.resume(with: value)
+            } else if coroutine.finished {
                 coroutine.fullyMaterialized = true
                 coroutine.stateLock.unlock()
                 let doneSentinel = Int(bitPattern:
@@ -763,23 +794,14 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
                 )
                 callerState.resume(with: doneSentinel)
             } else {
-                let value = coroutine.yieldedValue
-                coroutine.materializedElements.append(value)
-                coroutine.consumptionIndex += 1
                 coroutine.stateLock.unlock()
-                callerState.resume(with: value)
+                callerState.resume(with: 0)
             }
         })
         return didSuspend
     }
 
-    /// Re-invokes the builder lambda from where it last suspended.
-    ///
-    /// Called once per requested element on the producer thread. Currently the
-    /// lambda is a sequential (non-CPS) function, so this method is only used
-    /// via the initial `ensureStarted` path. Once the compiler emits
-    /// COROUTINE_SUSPENDED from yield(), this will become the per-element
-    /// re-entry point and the long-lived producer thread will be eliminated.
+    /// Invokes the legacy non-CPS builder lambda on its producer thread.
     private func invokeBuilderLambda() {
         var thrown = 0
         let fn = unsafeBitCast(
@@ -819,27 +841,39 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
             stateLock.unlock()
             return .value(elem)
         }
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
         if fullyMaterialized {
             stateLock.unlock()
             return .done
         }
-        stateLock.unlock()
-
-        ensureStarted()
-
-        awaitProducerYield()
-
-        stateLock.lock()
         if finished {
             fullyMaterialized = true
             stateLock.unlock()
             return .done
         }
-        let value = yieldedValue
-        materializedElements.append(value)
-        consumptionIndex += 1
         stateLock.unlock()
-        return .value(value)
+
+        awaitProducerYield()
+
+        stateLock.lock()
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
+        if finished {
+            fullyMaterialized = true
+            stateLock.unlock()
+            return .done
+        }
+        stateLock.unlock()
+        return .done
     }
 
     /// Suspension-aware element request for coroutine callers (CORO-004 Phase 2).
@@ -861,13 +895,22 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
             stateLock.unlock()
             return .value(elem)
         }
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
         if fullyMaterialized {
             stateLock.unlock()
             return .done
         }
+        if finished {
+            fullyMaterialized = true
+            stateLock.unlock()
+            return .done
+        }
         stateLock.unlock()
-
-        ensureStarted()
 
         let didSuspend = awaitProducerYieldAsync(callerState: callerState)
         if didSuspend {
@@ -876,16 +919,19 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         // Signal arrived before the continuation could be installed — fall
         // through to read the result synchronously (same as nextElement()).
         stateLock.lock()
+        if let value = consumePendingValueLocked() {
+            materializedElements.append(value)
+            consumptionIndex += 1
+            stateLock.unlock()
+            return .value(value)
+        }
         if finished {
             fullyMaterialized = true
             stateLock.unlock()
             return .done
         }
-        let value = yieldedValue
-        materializedElements.append(value)
-        consumptionIndex += 1
         stateLock.unlock()
-        return .value(value)
+        return .done
     }
 
     /// Reset the consumption index so re-iteration over the same coroutine
@@ -907,29 +953,82 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         }
         stateLock.unlock()
 
-        ensureStarted()
-
         while true {
-            awaitProducerYield()
-
             stateLock.lock()
+            if let value = consumePendingValueLocked() {
+                materializedElements.append(value)
+                stateLock.unlock()
+                continue
+            }
             if finished {
                 fullyMaterialized = true
                 let elems = materializedElements
                 stateLock.unlock()
                 return elems
             }
-            materializedElements.append(yieldedValue)
+            stateLock.unlock()
+
+            awaitProducerYield()
+
+            stateLock.lock()
+            if let value = consumePendingValueLocked() {
+                materializedElements.append(value)
+                stateLock.unlock()
+                continue
+            }
+            if finished {
+                fullyMaterialized = true
+                let elems = materializedElements
+                stateLock.unlock()
+                return elems
+            }
             stateLock.unlock()
         }
     }
 
-    /// Start the producer on a dedicated OS thread.
-    ///
-    /// A dedicated Thread (not a GCD pool thread) is used so that blocking
-    /// inside yieldValue() does not occupy a shared GCD work item slot.
-    /// This is the DEBT-CORO-002 improvement: the producer now holds only a
-    /// dedicated OS thread, leaving the GCD pool free for async coroutines.
+    private func requestProducerStep() {
+        ensureStarted()
+        if !usesCPSProducer {
+            producerGate.signal()
+            return
+        }
+
+        stateLock.lock()
+        if finished {
+            stateLock.unlock()
+            return
+        }
+        let isFirstStep = !cpsLoopStarted
+        cpsLoopStarted = true
+        let continuation = producerContinuationRaw
+        stateLock.unlock()
+
+        if isFirstStep {
+            let coroutine = self
+            _ = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: fnPtr,
+                continuation: continuation,
+                onCompletion: { _, thrown in
+                    if thrown != 0 {
+                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
+                    }
+                    coroutine.markFinished()
+                }
+            )
+            return
+        }
+
+        guard let state = runtimeContinuationState(from: continuation) else {
+            markFinished()
+            return
+        }
+        if let doubleResume = state.resume(with: 0) {
+            state.deliverDoubleResumeException(doubleResume)
+        }
+    }
+
+    /// Initialize the producer. Compiler-generated CPS builders do not start a
+    /// thread; legacy non-CPS callbacks keep the old dedicated-thread fallback.
     private func ensureStarted() {
         stateLock.lock()
         guard !started else {
@@ -946,6 +1045,16 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
             RuntimeSequenceCoroutineBuilderProxy(coroutine: coroutine)
         )
 
+        if usesCPSProducer {
+            let continuation = kk_coroutine_continuation_new(functionID)
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(closureRaw))
+            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(coroutine.builderHandle))
+            stateLock.lock()
+            producerContinuationRaw = continuation
+            stateLock.unlock()
+            return
+        }
+
         Thread.detachNewThread {
             // Wait for the first consumer request before running the lambda.
             coroutine.producerGate.wait()
@@ -955,8 +1064,9 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 }
 
 /// Proxy object passed to the builder lambda as the "builder" handle.
-/// When `kk_sequence_builder_yield` receives this handle, it delegates
-/// to the coroutine's `yieldValue()` which suspends the producer thread.
+/// When `kk_sequence_builder_yield` receives this handle, it delegates to the
+/// coroutine's `yieldValue()`, returning COROUTINE_SUSPENDED for CPS producers
+/// or blocking only for legacy non-CPS producers.
 final class RuntimeSequenceCoroutineBuilderProxy {
     let coroutine: RuntimeSequenceCoroutine
 
@@ -968,19 +1078,21 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 // Runtime box for the `iterator { yield(x) }` builder (STDLIB-331/564).
 //
 // Implements lazy iteration using a cooperative producer-consumer pattern.
-// The builder lambda runs on a dedicated OS thread (not a GCD pool thread)
-// and blocks on each yield() call until the consumer calls next().
+// Compiler-generated builders use the CPS producer path, where yield() returns
+// COROUTINE_SUSPENDED and the consumer resumes the stored continuation. Legacy
+// direct ABI callers keep the thread-backed path for non-CPS callbacks.
 //
 // Protocol:
-//   1. `kk_iterator_builder_build(fnPtr)` creates the box.
-//   2. First `hasNext` / `next` call: starts the producer thread and waits.
-//   3. Producer runs lambda; on yield(value): signals consumer, blocks on
-//      producerGate. On completion: transitions to .done, signals consumer.
-//   4. Consumer wakes, reads state / value, and signals producer on the next
-//      `hasNext` call (or skips when .done).
+//   1. `kk_iterator_builder_build_coro(entryPointRaw, functionID, closureRaw)`
+//      creates the CPS box for compiler-generated builders.
+//   2. First `hasNext` / `next` call starts the suspend-entry loop.
+//   3. Producer yield(value) transitions to .hasValue, signals consumer, and
+//      returns COROUTINE_SUSPENDED. The next consumer request resumes it.
+//   4. On completion: transitions to .done, signals consumer.
 //
-// DEBT-CORO-002: Producer runs on a dedicated Thread so yield() does not
-// occupy a GCD pool thread. Only the consumer blocks one GCD thread per step.
+// DEBT-CORO-002: compiler-generated producers no longer occupy a dedicated
+// thread. Legacy `kk_iterator_builder_build(fnPtr)` callbacks keep the old
+// dedicated-thread fallback.
 //
 // CORO-004 Phase 2 (consumer suspension, IN PROGRESS):
 //   probeHasNextAsync(callerState:) wires consumerGate to a resume continuation
@@ -989,11 +1101,14 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 //   this for future coroutine-aware compiler output.  Existing entry points
 //   (kk_iterator_builder_hasNext / _next) remain unchanged.
 //
-// CORO-004 Phase 3 (remaining): CPS-transform iterator builder lambdas so
-// yield() returns COROUTINE_SUSPENDED. invokeBuilderLambda() then becomes the
-// per-element re-entry point and the dedicated thread is eliminated.
+// CORO-004 Phase 3: CPS-transformed iterator builder lambdas call yield() as a
+// real suspend point, so compiler-generated producers no longer need a
+// dedicated thread. The legacy thread path remains only for pre-CPS callbacks.
 final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private let fnPtr: Int
+    private let closureRaw: Int
+    private let functionID: Int
+    private let usesCPSProducer: Bool
     private var builderHandle: Int = 0
 
     /// Producer suspend gate — signalled by the consumer (`hasNext` / `next`).
@@ -1002,6 +1117,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private let consumerGate = RuntimeCoroutineSyncGate()
     private let stateLock = NSLock()
     private var started = false
+    private var cpsLoopStarted = false
+    private var producerContinuationRaw: Int = 0
 
     /// The most recently yielded value, valid when `state == .hasValue`.
     private(set) var yieldedValue: Int = 0
@@ -1017,22 +1134,29 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case done
     }
 
-    init(fnPtr: Int) {
+    init(fnPtr: Int, closureRaw: Int = 0, functionID: Int = 0, usesCPSProducer: Bool = false) {
         self.fnPtr = fnPtr
+        self.closureRaw = closureRaw
+        self.functionID = functionID
+        self.usesCPSProducer = usesCPSProducer
     }
 
     func bindRegisteredHandle(_ handle: Int) {
         builderHandle = handle
     }
 
-    func yieldValue(_ value: Int) {
+    func yieldValue(_ value: Int) -> Int {
         stateLock.lock()
         yieldedValue = value
         state = .hasValue
         stateLock.unlock()
 
         consumerGate.signal()
+        if usesCPSProducer {
+            return Int(bitPattern: kk_coroutine_suspended())
+        }
         producerGate.wait()
+        return 0
     }
 
     func probeHasNext() -> Bool {
@@ -1046,7 +1170,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case .done:
             return false
         case .initial:
-            ensureStarted()
             awaitProducerYield()
             stateLock.lock()
             defer { stateLock.unlock() }
@@ -1060,7 +1183,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         stateLock.unlock()
 
         if current == .initial {
-            ensureStarted()
             awaitProducerYield()
         }
 
@@ -1076,7 +1198,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     }
 
     private func awaitProducerYield() {
-        producerGate.signal()
+        requestProducerStep()
         consumerGate.wait()
     }
 
@@ -1102,9 +1224,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case .done:
             return 0
         case .initial:
-            ensureStarted()
             let box = self
-            producerGate.signal()
+            requestProducerStep()
             let didSuspend = consumerGate.wait(resumeContinuation: {
                 box.stateLock.lock()
                 let hasValue = box.state == .hasValue
@@ -1122,12 +1243,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         }
     }
 
-    /// Invokes the builder lambda from its current position.
-    ///
-    /// Currently the lambda is a sequential (non-CPS) function that calls
-    /// yield() which blocks synchronously. Once the compiler emits
-    /// COROUTINE_SUSPENDED from yield(), this becomes the per-element re-entry
-    /// point and the long-lived producer thread can be eliminated.
+    /// Invokes the legacy non-CPS builder lambda on its producer thread.
     private func invokeBuilderLambda() {
         var thrown = 0
         _ = runtimeInvokeClosureThunk(
@@ -1145,11 +1261,55 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         consumerGate.signal()
     }
 
-    /// Starts the producer on a dedicated OS thread on first consumer request.
-    ///
-    /// Using Thread.detachNewThread instead of DispatchQueue.global() ensures
-    /// that blocking inside yieldValue() does not occupy a shared GCD work item
-    /// slot (DEBT-CORO-002).
+    private func requestProducerStep() {
+        ensureStarted()
+        if !usesCPSProducer {
+            producerGate.signal()
+            return
+        }
+
+        stateLock.lock()
+        if state == .done {
+            stateLock.unlock()
+            return
+        }
+        let isFirstStep = !cpsLoopStarted
+        cpsLoopStarted = true
+        let continuation = producerContinuationRaw
+        stateLock.unlock()
+
+        if isFirstStep {
+            let box = self
+            _ = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: fnPtr,
+                continuation: continuation,
+                onCompletion: { _, thrown in
+                    if thrown != 0 {
+                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
+                    }
+                    box.stateLock.lock()
+                    box.state = .done
+                    box.stateLock.unlock()
+                    box.consumerGate.signal()
+                }
+            )
+            return
+        }
+
+        guard let state = runtimeContinuationState(from: continuation) else {
+            stateLock.lock()
+            self.state = .done
+            stateLock.unlock()
+            consumerGate.signal()
+            return
+        }
+        if let doubleResume = state.resume(with: 0) {
+            state.deliverDoubleResumeException(doubleResume)
+        }
+    }
+
+    /// Initialize the producer. Compiler-generated CPS builders do not start a
+    /// thread; legacy non-CPS callbacks keep the old dedicated-thread fallback.
     private func ensureStarted() {
         stateLock.lock()
         guard !started else {
@@ -1158,6 +1318,16 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         }
         started = true
         stateLock.unlock()
+
+        if usesCPSProducer {
+            let continuation = kk_coroutine_continuation_new(functionID)
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(builderHandle))
+            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(closureRaw))
+            stateLock.lock()
+            producerContinuationRaw = continuation
+            stateLock.unlock()
+            return
+        }
 
         let box = self
         Thread.detachNewThread {

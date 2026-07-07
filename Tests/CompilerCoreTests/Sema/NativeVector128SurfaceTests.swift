@@ -11,7 +11,7 @@ struct NativeVector128SurfaceTests {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
-            result = try (try #require(ctx.sema), ctx.interner)
+            result = (try #require(ctx.sema), ctx.interner)
         }
         return try #require(result)
     }
@@ -32,7 +32,7 @@ struct NativeVector128SurfaceTests {
         interner: StringInterner
     ) throws -> SymbolID {
             let found = sema.symbols.lookup(fqName: fqPath.map { interner.intern($0) })
-        return try #require(found, "\(fqPath.joined(separator: ".")) must be registered")
+        return try requireTestValue(found, "\(fqPath.joined(separator: ".")) must be registered")
     }
 
     private func classType(

@@ -53,7 +53,8 @@ extension DataFlowSemaPhase {
         scope: Scope,
         sourceManager: SourceManager,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        ctx: CompilationContext
     ) {
         guard let decl = ast.arena.decl(declID) else { return }
         let package = file.packageFQName
@@ -179,6 +180,7 @@ extension DataFlowSemaPhase {
             kind: declaration.kind,
             fqName: fqName,
             file: file,
+            sourceManager: sourceManager,
             symbols: symbols,
             interner: interner
         )
@@ -228,6 +230,14 @@ extension DataFlowSemaPhase {
             sourceManager: sourceManager,
             symbols: symbols,
             diagnostics: diagnostics
+        )
+        attachUuidSourceMigrationClassAnnotationIfNeeded(
+            to: symbol,
+            fqName: fqName,
+            sourceFileID: file.fileID,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
         )
 
         switch decl {
@@ -457,7 +467,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: classType),
                 sourceFileID: file.fileID,
-                sourceManager: sourceManager,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -492,7 +502,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ownerType: classType,
                     sourceFileID: file.fileID,
-                    sourceManager: sourceManager,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -580,7 +590,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: interfaceType),
                 sourceFileID: file.fileID,
-                sourceManager: sourceManager,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -599,7 +609,7 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ownerType: interfaceType,
                     sourceFileID: file.fileID,
-                    sourceManager: sourceManager,
+                    ctx: ctx,
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -637,7 +647,7 @@ extension DataFlowSemaPhase {
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: objectType),
                 sourceFileID: file.fileID,
-                sourceManager: sourceManager,
+                ctx: ctx,
                 ast: ast,
                 symbols: symbols,
                 types: types,
@@ -918,15 +928,32 @@ extension DataFlowSemaPhase {
         kind: SymbolKind,
         fqName: [InternedString],
         file: ASTFile,
+        sourceManager: SourceManager,
         symbols: SymbolTable,
         interner: StringInterner
     ) -> SymbolID? {
         guard kind == .class else { return nil }
-        guard file.packageFQName.map(interner.resolve) == ["kotlin"] else { return nil }
-        guard fqName.map(interner.resolve) == ["kotlin", "Result"] else { return nil }
+        guard reusableSyntheticSourceDeclarationKey(for: file, sourceManager: sourceManager, interner: interner) == fqName else {
+            return nil
+        }
         return symbols.lookupAll(fqName: fqName).first { symbolID in
             guard let symbol = symbols.symbol(symbolID) else { return false }
             return symbol.kind == kind && symbol.flags.contains(.synthetic)
+        }
+    }
+
+    private func reusableSyntheticSourceDeclarationKey(
+        for file: ASTFile,
+        sourceManager: SourceManager,
+        interner: StringInterner
+    ) -> [InternedString]? {
+        switch sourceManager.path(of: file.fileID) {
+        case "__bundled_kotlin/Result.kt":
+            return ["kotlin", "Result"].map { interner.intern($0) }
+        case "__bundled_kotlin/uuid/Uuid.kt":
+            return ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        default:
+            return nil
         }
     }
 

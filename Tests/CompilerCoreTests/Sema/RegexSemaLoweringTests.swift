@@ -481,7 +481,7 @@ struct RegexSemaLoweringTests {
 
     // MARK: - 9. KIR lowering: String.split(Regex) and String.contains(Regex)
 
-    @Test func testStringSplitWithRegexLowersToKkStringSplitRegex() throws {
+    @Test func testStringSplitWithRegexLowersToInternalStringSplitRegexBridge() throws {
         let source = """
         fun test() {
             val r = Regex("\\\\s+")
@@ -494,7 +494,7 @@ struct RegexSemaLoweringTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            #expect(callees.contains("kk_string_split_regex_flat"), Comment(rawValue: "KIR must contain kk_string_split_regex; found: \(callees)"))
+            #expect(callees.contains("__kk_string_split_regex_flat"), Comment(rawValue: "KIR must contain __kk_string_split_regex_flat; found: \(callees)"))
         }
     }
 
