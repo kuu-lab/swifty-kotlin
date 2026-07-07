@@ -319,6 +319,12 @@ public extension RuntimeABISpec {
             RuntimeABIParameter(name: "closureRaw", type: .intptr),
             RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
         ]
+        let legacyListZipTransformSpec = RuntimeABIFunctionSpec(
+            name: "kk_list_zip_transform",
+            parameters: listZipTransformParams,
+            returnType: .intptr,
+            section: "Collection"
+        )
         let listWindowChunkBridgeSpecs = [
             RuntimeABIFunctionSpec(
                 name: "__kk_list_chunked",
@@ -711,6 +717,7 @@ public extension RuntimeABISpec {
                     section: "Collection"
                 ),
             ]
+            + [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
                 unzipSpec, withIndexSpec, forEachIndexedSpec, mapIndexedSpec, mapIndexedNotNullSpec,
