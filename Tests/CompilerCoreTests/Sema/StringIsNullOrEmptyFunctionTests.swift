@@ -76,6 +76,28 @@ final class StringIsNullOrEmptyFunctionTests: XCTestCase {
         }
     }
 
+    /// A bare null receiver should stay ambiguous because Kotlin stdlib also
+    /// exposes Array/Collection/Map nullable-receiver isNullOrEmpty overloads.
+    func testNullLiteralIsNullOrEmptyIsAmbiguous() throws {
+        let source = """
+        fun classify(): Boolean {
+            return null.isNullOrEmpty()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertTrue(ctx.diagnostics.hasError)
+            XCTAssertTrue(
+                ctx.diagnostics.diagnostics.contains { diagnostic in
+                    diagnostic.code == "KSWIFTK-SEMA-0003"
+                },
+                "Expected null.isNullOrEmpty() to match kotlinc ambiguity diagnostics"
+            )
+        }
+    }
+
     /// The compiler should not lower nullable-receiver isNullOrEmpty() to the legacy
     /// String runtime helper after migration to bundled Kotlin source.
     func testIsNullOrEmptyDoesNotLowerToLegacyRuntimeHelper() throws {

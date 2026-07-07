@@ -43,12 +43,16 @@ public fun CharSequence.ifBlank(defaultValue: () -> String): String {
     return ksp401StringFromCharSequence(this)
 }
 
-public fun String?.isNullOrEmpty(): Boolean {
-    return (this ?: "").isEmpty()
+public fun CharSequence?.isNullOrEmpty(): Boolean {
+    val value = this
+    if (value == null) return true
+    return value!!.isEmpty()
 }
 
-public fun String?.isNullOrBlank(): Boolean {
-    return (this ?: "").isBlank()
+public fun CharSequence?.isNullOrBlank(): Boolean {
+    val value = this
+    if (value == null) return true
+    return value!!.isBlank()
 }
 
 public fun String?.orEmpty(): String {
