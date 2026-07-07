@@ -9,6 +9,7 @@ extension ABIMismatchTests {
     /// the cross-section export/spec parity checks here.
     private func isFlatOnlyExcludedABIName(_ name: String) -> Bool {
         name.hasPrefix("kk_string_")
+            || name.hasPrefix("__kk_string_")
             || name.hasPrefix("__string_")
             || name.hasPrefix("kk_regex_")
             || name.hasPrefix("kk_locale_")

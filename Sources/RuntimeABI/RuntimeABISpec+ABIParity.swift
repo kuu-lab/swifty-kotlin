@@ -844,13 +844,13 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
         ]),
-        abiParitySpec("kk_normalization_form_nfc",
+        abiParitySpec("__kk_normalization_form_nfc",
             isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfd",
+        abiParitySpec("__kk_normalization_form_nfd",
             isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfkc",
+        abiParitySpec("__kk_normalization_form_nfkc",
             isThrowing: false),
-        abiParitySpec("kk_normalization_form_nfkd",
+        abiParitySpec("__kk_normalization_form_nfkd",
             isThrowing: false),
         abiParitySpec("kk_pin_object", parameters: [
             p("objectRaw", .intptr),
@@ -966,14 +966,14 @@ public extension RuntimeABISpec {
             p("otherHash", .intptr),
             p("ignoreCaseRaw", .intptr),
         ]),
-        abiParitySpec("kk_string_isNormalized_flat", parameters: [
+        abiParitySpec("__kk_string_isNormalized_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
             p("receiverByteCount", .intptr),
             p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
         ]),
-        abiParitySpec("kk_string_normalize_flat", parameters: [
+        abiParitySpec("__kk_string_normalize_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
             p("receiverByteCount", .intptr),
