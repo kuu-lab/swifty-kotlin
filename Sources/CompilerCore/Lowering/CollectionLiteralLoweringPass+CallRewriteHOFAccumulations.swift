@@ -1,5 +1,5 @@
 /// Predicate and accumulation higher-order collection rewrites.
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
     func rewriteAccumulationHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],

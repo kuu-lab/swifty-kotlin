@@ -1146,6 +1146,17 @@ struct CollectionLiteralLoweringTests {
         #expect(shouldRun)
     }
 
+    @Test
+    func testRegistryExposesSplitCollectionLoweringComponents() {
+        let registry = CollectionLiteralLoweringRegistry(interner: StringInterner())
+
+        #expect(registry.componentNames == [
+            "CollectionLiteralLookupTables",
+            "CollectionLiteralConstructionLowering",
+            "CollectionVirtualCallRewrite",
+        ])
+    }
+
     // MARK: - LOWERING-001: Static type based collection classification
 
     /// Helper to create a KIRContext with SemaModule that has collection type symbols.

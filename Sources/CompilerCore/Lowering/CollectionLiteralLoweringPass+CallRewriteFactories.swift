@@ -1,5 +1,5 @@
 
-extension CollectionLiteralLoweringPass {
+extension CollectionLiteralConstructionLoweringPass {
 
     /// Rewrites collection factories, builder DSL calls, and tuple constructor shims.
     func rewriteFactoryAndBuilderCall(
