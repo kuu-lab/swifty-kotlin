@@ -39,8 +39,10 @@ private fun trimBlankEdges(lines: List<String>): List<String> {
     while (end > start && lines[end - 1].isBlank()) end--
     if (start >= end) return mutableListOf()
     val result = mutableListOf<String>()
-    for (i in start until end) {
+    var i = start
+    while (i < end) {
         result.add(lines[i])
+        i++
     }
     return result
 }
@@ -196,4 +198,3 @@ public fun String.indent(n: Int): String {
     }
     return sb.toString()
 }
-
