@@ -234,13 +234,16 @@ struct BundledDeclarationIndex: Sendable {
         // still route through kk_sequence_* ABI stubs until RF-STDLIB wiring
         // removes the compatibility bridge.
         switch interner.resolve(key.name) {
+        case "map", "mapIndexed", "mapNotNull", "mapIndexedNotNull",
+             "filter", "filterNot", "filterIndexed",
+             "flatMap", "flatMapIndexed",
+             "onEach", "onEachIndexed":
+            return key.arity == 1
         case "fold", "scan":
             return key.arity == 2
-        case "flatMap", "flatMapIndexed":
-            return key.arity == 1
         case "reduce", "sumOf", "maxByOrNull", "minByOrNull":
             return key.arity == 1
-        case "requireNoNulls":
+        case "filterNotNull", "filterIsInstance", "requireNoNulls", "withIndex":
             return key.arity == 0
         case "toList", "toSet", "toMutableList":
             // MIGRATION-SEQ-003 bundled these collection-conversion terminals in
