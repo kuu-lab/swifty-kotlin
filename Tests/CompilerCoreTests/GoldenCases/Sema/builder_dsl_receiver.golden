@@ -4,9 +4,6 @@ symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[kotlin.collections.MutableList.E] ret=Boolean
-symbol fq=kotlin.text.StringBuilder kind=class vis=public flags=synthetic
-symbol fq=kotlin.text.StringBuilder.append#8 kind=function vis=public flags=synthetic sig=recv=kotlin.text.StringBuilder params=[String?] ret=kotlin.text.StringBuilder
-symbol fq=kotlin.text.StringBuilder.append.value kind=valueParameter vis=private flags=synthetic
 file f0 package=golden.sema
   decl golden.sema.useBuildStringReceiverThis fun useBuildStringReceiverThis sym=golden.sema.useBuildStringReceiverThis
   decl golden.sema.useBuildListReceiverThis fun useBuildListReceiverThis sym=golden.sema.useBuildListReceiverThis

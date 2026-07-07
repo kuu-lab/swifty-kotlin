@@ -2028,6 +2028,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_builder_append_line",
+            parameters: [
+                RuntimeABIParameter(name: "valueRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_builder_append_line_noarg",
             parameters: [],
             returnType: .intptr,
