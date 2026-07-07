@@ -21,17 +21,7 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.groupByName
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.filterNotNullName
-            || callee == lookup.filterIndexedName
-            || callee == lookup.filterIsInstanceName
-            || callee == lookup.filterToName
-            || callee == lookup.filterNotToName
-            || callee == lookup.filterNotNullToName
-            || callee == lookup.filterIndexedToName
-            || callee == lookup.filterIsInstanceToName,
+            || callee == lookup.minByOrNullName,
             let symbol,
             let sema = ctx.sema,
             let semanticSymbol = sema.symbols.symbol(symbol),
@@ -40,6 +30,20 @@ extension CollectionLiteralLoweringPass {
             return false
         }
         return (sema.symbols.externalLinkName(for: symbol) ?? "").isEmpty
+    }
+
+    private func shouldPreserveSourceBackedAggregateCall(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        shouldPreserveSourceBackedCollectionHOFCall(
+            symbol: symbol,
+            callee: callee,
+            lookup: lookup,
+            ctx: ctx
+        )
     }
 
     func rewriteCalls(module: KIRModule, ctx: KIRContext) throws {
@@ -152,16 +156,6 @@ extension CollectionLiteralLoweringPass {
                         state: &state,
                         loweredBody: &loweredBody
                     ) {
-                        continue
-                    }
-
-                    if shouldPreserveSourceBackedCollectionHOFCall(
-                        symbol: symbol,
-                        callee: callee,
-                        lookup: lookup,
-                        ctx: ctx
-                    ) {
-                        loweredBody.append(instruction)
                         continue
                     }
 
