@@ -6,7 +6,7 @@ import XCTest
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesRegexOptionEdgeCases() throws {
         #if os(Linux)
-        throw XCTSkip("Regex option edge cases test temporarily disabled on Linux")
+        try XCTSkipIf(true, "Regex option edge cases test temporarily disabled on Linux")
         #endif
         let source = """
         fun main() {
@@ -42,4 +42,3 @@ extension CodegenBackendIntegrationTests {
         )
     }
 }
-

@@ -63,7 +63,7 @@ final class RuntimeStreamTests: IsolatedRuntimeXCTestCase {
             try? FileManager.default.removeItem(at: destURL)
         }
         // Create the destination file so outputStream can open it.
-        FileManager.default.createFile(atPath: destURL.path, contents: nil)
+        XCTAssertTrue(FileManager.default.createFile(atPath: destURL.path, contents: nil))
 
         let srcFileRaw = runtimeTestFileHandle(sourceURL.path)
         let dstFileRaw = runtimeTestFileHandle(destURL.path)
@@ -92,7 +92,7 @@ final class RuntimeStreamTests: IsolatedRuntimeXCTestCase {
             try? FileManager.default.removeItem(at: sourceURL)
             try? FileManager.default.removeItem(at: destURL)
         }
-        FileManager.default.createFile(atPath: destURL.path, contents: nil)
+        XCTAssertTrue(FileManager.default.createFile(atPath: destURL.path, contents: nil))
 
         let srcFileRaw = runtimeTestFileHandle(sourceURL.path)
         let dstFileRaw = runtimeTestFileHandle(destURL.path)

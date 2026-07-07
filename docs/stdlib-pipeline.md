@@ -73,7 +73,7 @@ stdlib 実装は 3 系統に分散している。
    `Bundle.module/Stdlib/**/*.kt` を列挙し、**相対パスの辞書順**で `sourceManager` に登録する
 2. 登録パスは `__bundled_{modulePath}.kt` 形式。ユーザー入力と診断上区別でき、
    fileID 順序が決定的になる（golden 安定性の前提。§8）
-3. `--no-stdlib` で `CompilerOptions.includeStdlib` を false にし、注入全体を opt-out できる（コンパイラ自身のデバッグ用）
+3. `Sources/KSwiftKCLI/CLIParser.swift` の `--no-stdlib` で `CompilerOptions.includeStdlib` を false にし、注入全体を opt-out できる（コンパイラ自身のデバッグ用）
 4. `excludedBundledStdlibFiles` は縦切り移行（§10）の完了ごとにエントリを削除し、最終的に撤廃する
 
 **不変条件**: bundled ソースはユーザーソースより先に fileID を確保する。
