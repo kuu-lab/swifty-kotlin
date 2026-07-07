@@ -42,9 +42,12 @@ public class Uuid private constructor(
         public fun parseHexOrNull(hexString: String): Uuid? =
             parseHexBodyOrNull(hexString)
 
-        public fun parseHexDash(hexDashString: String): Uuid =
-            parseHexDashOrNull(hexDashString)
+        public fun parseHexDash(hexDashString: String): Uuid {
+            val hex = hexFromHexDashString(hexDashString)
                 ?: throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
+            return parseHexBodyOrNull(hex)
+                ?: throw IllegalArgumentException("Invalid UUID hex-and-dash string: $hexDashString")
+        }
 
         public fun parseHexDashOrNull(hexDashString: String): Uuid? {
             val hex = hexFromHexDashString(hexDashString) ?: return null
