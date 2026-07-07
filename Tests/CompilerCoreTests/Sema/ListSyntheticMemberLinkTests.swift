@@ -1508,6 +1508,11 @@ struct ListSyntheticMemberLinkTests {
                 #expect(signature.parameterTypes.count == expected.parameterCount)
             }
 
+            let addSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("add")]))
+            #expect(sema.symbols.externalLinkName(for: addSymbol) == "kk_mutable_collection_add")
+            let addAllSymbol = try #require(sema.symbols.lookup(fqName: mutableCollectionFQName + [ctx.interner.intern("addAll")]))
+            #expect(sema.symbols.externalLinkName(for: addAllSymbol) == "kk_mutable_collection_addAll")
+
             let abstractMutableCollectionFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")]
             let abstractMutableCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableCollectionFQName))
             let abstractMutableCollectionInfo = try #require(sema.symbols.symbol(abstractMutableCollectionSymbol))

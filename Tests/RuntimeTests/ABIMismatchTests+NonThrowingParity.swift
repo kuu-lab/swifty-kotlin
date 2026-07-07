@@ -679,6 +679,7 @@ extension ABIMismatchTests {
         "kk_math_withSign_int",
         "kk_min_double",
         "kk_min_float",
+        "kk_mutable_collection_add",
         "kk_mutable_collection_addAll_sequence",
         "kk_mutable_list_add",
         "kk_mutable_list_addAll",

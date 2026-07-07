@@ -1861,6 +1861,19 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(setElements(target), [1, 2, 3, 4])
     }
 
+    func testMutableCollectionAddHandlesListAndSetTargets() {
+        let listTarget = makeList([1, 2])
+
+        XCTAssertEqual(kk_unbox_bool(kk_mutable_collection_add(listTarget, 3)), 1)
+        XCTAssertEqual(listElements(listTarget), [1, 2, 3])
+
+        let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2]))
+
+        XCTAssertEqual(kk_unbox_bool(kk_mutable_collection_add(setTarget, 2)), 0)
+        XCTAssertEqual(kk_unbox_bool(kk_mutable_collection_add(setTarget, 3)), 1)
+        XCTAssertEqual(setElements(setTarget), [1, 2, 3])
+    }
+
     func testCollectionAndIterableToMutableListCopyElements() {
         let listSource = makeList([1, 2, 3])
         let collectionCopy = kk_collection_toMutableList(listSource)
