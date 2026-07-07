@@ -24,6 +24,7 @@ extension CallTypeChecker {
                  "kk_list_maxOfWith", "kk_list_maxOfWithOrNull",
                  "kk_list_minOfWith", "kk_list_minOfWithOrNull",
                  "kk_list_chunked_transform",
+                 "kk_list_zip_transform",
                  "kk_list_minus_element",
                  "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
                  "kk_sequence_contains", "kk_sequence_indexOf",
