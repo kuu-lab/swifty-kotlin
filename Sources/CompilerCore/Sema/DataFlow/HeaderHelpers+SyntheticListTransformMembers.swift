@@ -109,7 +109,10 @@ extension DataFlowSemaPhase {
             }
             guard !alreadyRegistered else { return }
             let sourceBackedFilterNames: Set<InternedString> = [
+                interner.intern("filter"),
                 interner.intern("filterNot"),
+                interner.intern("filterNotNull"),
+                interner.intern("filterIndexed"),
                 interner.intern("filterIsInstance"),
             ]
             if sourceBackedFilterNames.contains(memberName),
