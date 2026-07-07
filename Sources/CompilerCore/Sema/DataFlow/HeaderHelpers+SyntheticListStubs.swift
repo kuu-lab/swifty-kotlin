@@ -927,12 +927,9 @@ extension DataFlowSemaPhase {
             args: [.out(listTypeParamType)],
             nullability: .nonNull
         )))
-        let componentNames = ["component1", "component2", "component3", "component4", "component5"]
-        let externalLinkNames = [
-            "kk_list_component1", "kk_list_component2", "kk_list_component3",
-            "kk_list_component4", "kk_list_component5",
-        ]
-        for (componentName, externalLinkName) in zip(componentNames, externalLinkNames) {
+        for index in 1...5 {
+            let componentName = "component\(index)"
+            let externalLinkName = "kk_list_component\(index)"
             let name = interner.intern(componentName)
             let fqName = listFQName + [name]
             guard symbols.lookupAll(fqName: fqName).first(where: { symbolID in

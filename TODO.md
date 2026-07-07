@@ -64,7 +64,7 @@
 
 ### Phase RF6: Runtime 縮小・ABI 整合（M タスク進行と連動）
 - [ ] RF-RT-001: Range HOF 3 ファイル（Int / Long / UInt-ULong、~1.5k 行）の型別重複を Swift generics で統合する
-- [ ] RF-RT-002: `kk_list_component1..5` 等の薄ラッパ族を統合・生成化する
+- [x] RF-RT-002: `kk_list_component1..5` 等の薄ラッパ族を統合・生成化する（2026-07-07: ABI spec / Sema 登録を range 生成へ寄せ、runtime export は共通 component helper へ集約）
 - [x] RF-RT-003: `RuntimeStringStdlib.swift`（4,542 行・211 @_cdecl）を M1 の進行に合わせ「migrated 関数の削除 or `__` ブリッジ降格」で縮小する
 - [ ] RF-RT-004: `RuntimeCollectionHOF`（3,183 行）と `RuntimeSequence`（3,867 行）の fold/reduce/filter/map 系共通化可能箇所を調査し統合する
 - [x] RF-RT-005: Runtime の全 `@_cdecl` が `RuntimeABISpec` に宣言されていることの CI 検証を網羅化する（`validate_runtime_abi_links.sh` 拡張、compiler emit 側の enforcing check と対）
