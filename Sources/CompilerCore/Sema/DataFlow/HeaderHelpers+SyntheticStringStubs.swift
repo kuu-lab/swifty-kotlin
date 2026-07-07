@@ -2543,6 +2543,47 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // STDLIB-TEXT-FN-067: singleOrNull(predicate) overload
+        registerSyntheticStringExtensionFunction(
+            named: "singleOrNull",
+            externalLinkName: "kk_string_singleOrNull_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_lines",
+            externalLinkName: "kk_string_lines_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_lineSequence",
+            externalLinkName: "kk_string_lineSequence_flat",
+            receiverType: stringType,
+            parameters: [],
+            returnType: sequenceStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_string_splitToSequence",
+            externalLinkName: "kk_string_splitToSequence_flat",
+            receiverType: stringType,
+            parameters: [("delimiter", stringType, false, false)],
+            returnType: sequenceStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
         // --- String.indexOfFirst / indexOfLast ---
         registerSyntheticStringExtensionFunction(
             named: "indexOfFirst",

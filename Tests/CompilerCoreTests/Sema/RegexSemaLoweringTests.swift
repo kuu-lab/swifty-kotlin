@@ -190,15 +190,14 @@ struct RegexSemaLoweringTests {
 
             let callExpr = try #require(
                 firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
-                    guard ctx.interner.resolve(callee) == "replace" else { return false }
-                    // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
-                    // String.replace(String, String) internally, and bundled
-                    // stdlib is scanned before user source; exclude it so this
-                    // finds the user's Regex.replace(...) call.
-                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                    guard case let .memberCall(receiverID, callee, _, _, _) = expr,
+                          ctx.interner.resolve(callee) == "replace",
+                          let receiverExpr = ast.arena.expr(receiverID),
+                          case let .nameRef(receiverName, _) = receiverExpr
+                    else { return false }
+                    return ctx.interner.resolve(receiverName) == "r"
                 },
-                "Expected .replace(...) member call"
+                "Expected r.replace(...) member call"
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(
