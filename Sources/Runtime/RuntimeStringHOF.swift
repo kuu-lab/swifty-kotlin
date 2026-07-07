@@ -1531,36 +1531,6 @@ public func kk_string_findLast(
     return runtimeNullSentinelInt
 }
 
-// MARK: - STDLIB-TEXT-FN-067: String.singleOrNull(predicate)
-
-@_cdecl("kk_string_singleOrNull_predicate")
-public func kk_string_singleOrNull_predicate(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return runtimeNullSentinelInt }
-    var foundScalar: UnicodeScalar?
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
-        if result != 0 {
-            if foundScalar != nil { return runtimeNullSentinelInt }
-            foundScalar = scalar
-        }
-    }
-    if let char = foundScalar {
-        return kk_box_char(Int(char.value))
-    }
-    return runtimeNullSentinelInt
-}
-
 // MARK: - STDLIB-partition: String.partition(predicate)
 
 @_cdecl("kk_string_partition")

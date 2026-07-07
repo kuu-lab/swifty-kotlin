@@ -1877,74 +1877,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-190: first / last / single / firstOrNull / lastOrNull ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "first",
-            externalLinkName: "kk_string_first_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "last",
-            externalLinkName: "kk_string_last_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "single",
-            externalLinkName: "kk_string_single_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "firstOrNull",
-            externalLinkName: "kk_string_firstOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "lastOrNull",
-            externalLinkName: "kk_string_lastOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "singleOrNull",
-            externalLinkName: "kk_string_singleOrNull_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- STDLIB-TEXT-FN-044: String.random() / String.random(Random) ---
 
         registerSyntheticStringExtensionFunction(
@@ -1974,21 +1906,6 @@ extension DataFlowSemaPhase {
                 ("random", randomType, false, false),
             ],
             returnType: charType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-140: String.getOrNull(Int): Char? ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "getOrNull",
-            externalLinkName: "kk_string_getOrNull_flat",
-            receiverType: stringType,
-            parameters: [
-                ("index", intType, false, false),
-            ],
-            returnType: nullableCharType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2739,17 +2656,6 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "findLast",
             externalLinkName: "kk_string_findLast",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-TEXT-FN-067: singleOrNull(predicate) overload
-        registerSyntheticStringExtensionFunction(
-            named: "singleOrNull",
-            externalLinkName: "kk_string_singleOrNull_predicate",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
